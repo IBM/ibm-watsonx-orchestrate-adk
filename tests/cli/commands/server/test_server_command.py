@@ -129,9 +129,7 @@ def test_cli_start_success(mock_env_files, mock_compose_file):
     default_env, user_env = mock_env_files
     with patch("subprocess.run") as mock_run, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
-         patch("webbrowser.open") as mock_webbrowser:
-        
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose:
         mock_default.return_value = default_env
         mock_compose.return_value = mock_compose_file
         mock_run.return_value.returncode = 0
@@ -149,7 +147,6 @@ def test_cli_start_success(mock_env_files, mock_compose_file):
         assert result.exit_code == 0
         assert "Successfully logged in" in result.output
         assert "Services started" in result.output
-        mock_webbrowser.assert_called_once_with("http://localhost:3000/chat-lite")
 
 def test_cli_start_missing_credentials():
     result = runner.invoke(
