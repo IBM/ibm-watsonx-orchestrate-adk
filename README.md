@@ -337,3 +337,6 @@ You should be able to run `hatch run orchestrate` which should perform identical
 Additionally, you can run `hatch run test` to run the tests for both the CLI and SDK and `hatch run cov` to see the test coverage
 
 ------------------------------------------
+
+## Starting the orchestrate service on your machine
+- See [Server Start](docs/ServerStart.md) command

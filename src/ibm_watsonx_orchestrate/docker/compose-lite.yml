@@ -1,0 +1,292 @@
+services:
+  wxo-server-redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    volumes:
+      - wxo-server-redis-data:/data
+    command: redis-server --loglevel warning
+  wxo-server-db:
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: pg_isready -U ${POSTGRES_USER:-postgres} -d postgres
+      interval: 5s
+      timeout: 60s
+      retries: 20
+    volumes:
+      - wxo-server-db:/var/lib/postgresql/data
+    command: -c shared_preload_libraries=pgsodium
+  ui:
+    image: us.icr.io/watson-orchestrate/wxo-chat:20250124074201-wxo-build-standalone
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VERDI_SSL_ENABLE_VALIDATION: false
+      VERDI_CERT_IS_SELF_SIGNED: false
+      IBM_WXO_WEB_CHAT_ENVIRONMENT: local
+      REACT_APP_WEB_CHAT_ENVIRONMENT: local
+      WEBAPP_TABS_CHAT_ENABLED: "true"
+      VCAP_APP_PORT: 4002
+      REACT_EDITOR: code
+      REACT_APP_ENVIRONMENT: local
+      DEPLOYMENT_ENVIRONMENT: local
+      REACT_APP_SERVER_TOKEN_JWT: ${REACT_APP_SERVER_TOKEN_JWT}
+      UI_APP_CONTEXT_ROOT: /mfe_home
+      DE_CLIENT_HEAP_SIZE: 1024
+      SERVER_REPLICA_COUNT: 1
+      CHATOPS_TIMEOUT: 120000
+      CHATOPS_URL: https://digital-employee-server-service:23450/orchestrator/chatops
+      CHATOPS_PORT: 23450
+      VERDI_API_URL: https://digital-employee-server-service:23450
+      WEBAPP_AUTH_REGISTRATION_ENABLED: "false"
+      WEBAPP_TABS_EXPLORER_ENABLED: "true"
+      WEBAPP_AUTH_SSO_W3_ENABLED: "false"
+      MESSAGING_MODE: rabbitmq
+      AGENT_MENTIONS_ENABLED: "false"
+      NODE_LOG_LEVEL: debug
+      SHOW_WORKERS_ONLY: "true"
+      ASSISTANT_MODE_ENABLED: "false"
+      WEBAPP_TABS_SETTINGS_ENABLED: "false"
+      RABBITMQ_EXCHANGE: verdi_events_affinity
+      TYPEAHEAD_TEXT_ENABLED: "true"
+      WEBAPP_AUTOMATIONS_ENABLED: "false"
+      ERROR_VIEW_ENABLED: "true"
+      WEBAPP_REASONING_ENABLED: "false"
+      SOCKET_PING_TIMEOUT: 20000
+      WEBAPP_AUTH_AUTHZ_ENABLED: "false"
+      ISV_TOKEN_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/token
+      ISV_AUTHORIZATION_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/authorize
+      ISV_DISCOVERY_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/.well-known/openid-configuration
+      ISV_JWKS_URI: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
+      ISV_TOKEN_ISSUER: https://dev-conn.watson-orchestrate.ibm.com
+      UI_APP_SKILLS_CATALOG: /configure/skills/
+      WXO_DOMAIN_URL: http://localhost:4321
+      IS_WXA_WEBCHAT: "true"
+      NODE_OPTIONS: --max-http-header-size 32768
+      REDIS_CONNECTION_STRING: rediss://master.wo-dev-conn-redis.4yuwg7.use1.cache.amazonaws.com:6379
+      PATH: /opt/app-root/src/node_modules/.bin/:/opt/app-root/src/.npm-global/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      TERM: xterm
+      PLATFORM: el8
+      MAX_FILE_UPLOAD_SIZE_BYTES: 20971520
+      MAX_FILE_UPLOAD_SIZE_BYTES_EXCEL: 1048576
+      DIGRESSION_FEATURE_FLAG: "true"
+      DIGRESSION_TIMER: 5000
+      VCAP_APP_HOST: localhost
+      WO_IBM_DEV: "https://wo-ibm-dev.verify.ibm.com"
+      DEPLOYMENT_PLATFORM: saas
+      JWKS_URL: https://account-iam.ibm.us-east.platform.test.saas.ibm.com/api/2.0/jwks
+      DISMISS_NOTIFICATION_TIMEOUT: 10000
+    command: "./StartServer.sh"
+    ports:
+      - "3000:3000"
+      - "4002:4002"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    volumes:
+      - ui-data:/data
+
+  wxo-server-minio:
+    image: minio/minio
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    healthcheck:
+      test: timeout 5s bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1
+      interval: 5s
+      timeout: 20s
+      retries: 10
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server --console-address ":9001" /data
+    volumes:
+      - wxo-server-minio-data:/data
+  wxo-server-minio-setup:
+    image: minio/mc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-server-storage-bucket;
+      exit 0;
+      "
+  socket-handler:
+    container_name: socket-handler
+    profiles:
+      - webhooks
+      - ui
+    build:
+      context: .
+      dockerfile: ./socket_handler/Dockerfile
+      target: socket-handler
+      args:
+        GIT_BRANCH: "main"
+      ssh:
+        - default
+    image: docker.io/library/socket-handler:latest
+    command: "npm start"
+    ports:
+      - 4001:4001
+    environment:
+      - PORT=4001
+      - REDIS_URL=redis://wxo-server-redis:6379/0
+    depends_on:
+      - wxo-server-redis
+
+  wxo-server:
+    image: us.icr.io/watson-orchestrate-private/wxo-server:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - 4321:4321
+    depends_on:
+      - wxo-server-redis
+      - wxo-server-db
+      - wxo-server-worker
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
+      CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
+      FLOWER_URL: http://wxo-server-flower:5555
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  # name of s3 bucket where you want to store objects
+      STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_REGION: us-east-1
+      EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-13b-chat-v2}
+      ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
+      ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_LLM_SPACE_ID : ${ASSISTANT_LLM_SPACE_ID}
+      BAM_API_KEY: ${BAM_API_KEY}
+      WXAI_API_KEY: ${WXAI_API_KEY}
+      ROUTING_LLM_MODEL_ID: ${ROUTING_LLM_MODEL_ID:-watsonx/ibm/granite-8b-unified-api-model-v2}
+      ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
+      ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
+      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr}
+      ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
+      ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_EMBEDDINGS_SPACE_ID: ${ASSISTANT_EMBEDDINGS_SPACE_ID}
+      ASSISTANT_INDEX_CHUNK_SIZE: 400
+      ASSISTANT_INDEX_CHUNK_OVERLAP: 50
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      NLTK_DATA: /tmp/nltk_data
+      DO_NOT_TRACK: true
+      TELEMETRY_ENABLED: false
+      BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
+      ISV_JWKS_URI: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
+      MILVUS_URI: ${MILVUS_URI}
+      CELERY_RESULTS_TTL: "3600"
+      EVENT_BROKER_TTL: "-1"
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      WATSONX_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_URL: ${WATSONX_URL}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      CALLER_ID: 12345
+
+  wxo-server-worker:
+    image: us.icr.io/watson-orchestrate-private/wxo-server-worker:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      - wxo-server-redis
+      - wxo-server-db
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  # name of s3 bucket where you want to store objects
+      STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_REGION: us-east-1
+      EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-13b-chat-v2}
+      ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
+      ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_LLM_SPACE_ID : ${ASSISTANT_LLM_SPACE_ID}
+      ROUTING_LLM_MODEL_ID: ${ROUTING_LLM_MODEL_ID:-watsonx/ibm/granite-8b-unified-api-model-v2}
+      ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
+      ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
+      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr}
+      ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
+      ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_EMBEDDINGS_SPACE_ID: ${ASSISTANT_EMBEDDINGS_SPACE_ID}
+      ASSISTANT_INDEX_CHUNK_SIZE: 400
+      ASSISTANT_INDEX_CHUNK_OVERLAP: 50
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      NLTK_DATA: /tmp/nltk_data
+      DO_NOT_TRACK: true
+      TELEMETRY_ENABLED: false
+      BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
+      SERVER_TYPE: CELERY
+      BAM_API_KEY: ${BAM_API_KEY}
+      WXAI_API_KEY: ${WXAI_API_KEY}
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
+      MILVUS_URI: ${MILVUS_URI}
+      CELERY_RESULTS_TTL: "3600"
+      EVENT_BROKER_TTL: "-1"
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      WATSONX_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_URL: ${WATSONX_URL}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      CALLER_ID: 12345
+
+volumes:
+  wxo-server-redis-data:
+    driver: local
+  wxo-server-db:
+    driver: local
+  wxo-server-minio-data:
+    driver: local
+  ui-data:
+    driver: local
+networks:
+  default:
+    name: wxo-server
+
+configs:
+  proxy_config:
+    content: |
+      default_tenant: "default"
+      tenants:
+        default:
+          store_type: elasticsearch
+          hostname: "http://elasticsearch:9200"
+          username: "elastic"
+          password: "${ES_PASSWORD}"
+          index_prefix: "default"

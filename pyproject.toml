@@ -29,7 +29,8 @@ dependencies = [
     "rich>=13.9.4,<14.0.0",
     "pyjwt>=2.10.1,<3.0.0",
     "typer>=0.15.1,<1.0.0",
-    "jsonref==1.1.0"
+    "jsonref==1.1.0",
+    "python-dotenv>=1.0.0"
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,12 @@ detached = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ibm_watsonx_orchestrate"]
+
+[tool.hatch.build]
+include = [
+    "src/ibm_watsonx_orchestrate/docker/compose-lite.yml",
+    "src/ibm_watsonx_orchestrate/docker/default.env"
+]
 
 [project.scripts]
 orchestrate = "ibm_watsonx_orchestrate.cli.main:app"
