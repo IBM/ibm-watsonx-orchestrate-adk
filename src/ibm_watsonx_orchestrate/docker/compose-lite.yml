@@ -8,8 +8,7 @@ services:
       - wxo-server-redis-data:/data
     command: redis-server --loglevel warning
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:latest
-    platform: linux/amd64
+    image: watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -40,6 +39,7 @@ services:
       REACT_EDITOR: code
       REACT_APP_ENVIRONMENT: local
       DEPLOYMENT_ENVIRONMENT: local
+      REACT_APP_ORCHESTRATOR_AGENT_NAME: ${ORCHESTRATOR_AGENT_NAME}
       REACT_APP_SERVER_TOKEN_JWT: ${REACT_APP_SERVER_TOKEN_JWT}
       UI_APP_CONTEXT_ROOT: /mfe_home
       DE_CLIENT_HEAP_SIZE: 1024
@@ -147,7 +147,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/watson-orchestrate-private/wxo-server:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-server-server:latest
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -208,9 +208,11 @@ services:
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
       CALLER_ID: 12345
+      AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
+      CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
 
   wxo-server-worker:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-worker:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-server-conversation_controller:latest
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
@@ -265,6 +267,8 @@ services:
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
       CALLER_ID: 12345
+      AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
+      CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
 
 volumes:
   wxo-server-redis-data:
