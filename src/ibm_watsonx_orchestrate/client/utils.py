@@ -2,12 +2,11 @@ from ibm_watsonx_orchestrate.cli.config import DEFAULT_CONFIG_FILE_FOLDER, DEFAU
 from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-import os
 import logging
 from typing import TypeVar
+import os
 
 logger = logging.getLogger(__name__)
-
 LOCK = Lock()
 T = TypeVar("T", bound=BaseAPIClient)
 

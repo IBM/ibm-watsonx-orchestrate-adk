@@ -2,6 +2,7 @@ import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .types import OrchestrateAgentSpec
 
+
 class OrchestrateAgent(OrchestrateAgentSpec):
     @staticmethod
     def from_spec(file: str) -> 'OrchestrateAgent':

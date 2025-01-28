@@ -2,6 +2,7 @@ import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .types import ExpertAgentSpec
 
+
 class ExpertAgent(ExpertAgentSpec):
 
     @staticmethod
