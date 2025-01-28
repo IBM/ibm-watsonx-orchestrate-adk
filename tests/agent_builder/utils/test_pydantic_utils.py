@@ -8,7 +8,8 @@ from ibm_watsonx_orchestrate.agent_builder.utils.pydantic_utils import generate_
 
 
 def test_should_use_correct_defaults(snapshot):
-    @tool()
+    description = "test python description"
+    @tool(description=description)
     def my_tool():
         pass
 
@@ -108,7 +109,8 @@ class SampleParamA(BaseModel):
 
 
 def test_should_support_pydantic_typed_args(snapshot):
-    @tool()
+    description = "test python description"
+    @tool(description=description)
     def sample_tool(sampleA: SampleParamA, b: Optional[SampleParamA]) -> SampleParamA:
         pass
 
@@ -125,7 +127,8 @@ def test_should_support_pydantic_typed_args(snapshot):
 
 
 def test_should_work_with_lists(snapshot):
-    @tool()
+    description = "test python description"
+    @tool(description=description)
     def sample_tool(sampleA: List[str], b: Optional[List[str]]) -> List[str]:
         pass
 
@@ -142,7 +145,8 @@ def test_should_work_with_lists(snapshot):
 
 
 def test_should_work_with_dicts(snapshot):
-    @tool()
+    description = "test python description"
+    @tool(description=description)
     def sample_tool(sampleA: Dict[str, str], b: Optional[Dict[str, str]]) -> List[Dict[str, str]]:
         pass
 

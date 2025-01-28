@@ -15,6 +15,7 @@ snapshots['test_all_supported_http_methods[DELETE] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -55,6 +56,7 @@ snapshots['test_all_supported_http_methods[GET] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -95,6 +97,7 @@ snapshots['test_all_supported_http_methods[POST] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -135,6 +138,7 @@ snapshots['test_all_supported_http_methods[PUT] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -175,6 +179,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[cookie] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -215,6 +220,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[header] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -255,6 +261,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[path] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -295,6 +302,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[query] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -335,6 +343,7 @@ snapshots['test_body_parameters 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -385,6 +394,7 @@ snapshots['test_global_authentication[openapi_global_authentication0] 1'] = {
             'security': [
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -423,6 +433,7 @@ snapshots['test_global_authentication[openapi_global_authentication1] 1'] = {
                 }
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -456,12 +467,13 @@ snapshots['test_global_authentication[openapi_global_authentication2] 1'] = {
             'http_path': '/test',
             'security': [
                 {
-                    'in_field': 'header',
+                    'in': 'header',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 }
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -495,12 +507,13 @@ snapshots['test_global_authentication[openapi_global_authentication3] 1'] = {
             'http_path': '/test',
             'security': [
                 {
-                    'in_field': 'query',
+                    'in': 'query',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 }
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -534,12 +547,13 @@ snapshots['test_global_authentication[openapi_global_authentication4] 1'] = {
             'http_path': '/test',
             'security': [
                 {
-                    'in_field': 'cookie',
+                    'in': 'cookie',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 }
             ],
             'servers': [
+                'https://{host}:{port}'
             ]
         }
     },
@@ -581,7 +595,7 @@ snapshots['test_http_get_with_api_key_auth 1'] = {
                     'type': 'http'
                 },
                 {
-                    'in_field': 'header',
+                    'in': 'header',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 },
@@ -629,8 +643,7 @@ snapshots['test_http_get_with_api_key_auth 1'] = {
                 }
             ],
             'servers': [
-                'https://{host}:{port}',
-                'http://{host}:{port}'
+                'https://{host}:{port}'
             ]
         }
     },
@@ -672,7 +685,7 @@ snapshots['test_http_get_with_basic_auth 1'] = {
                     'type': 'http'
                 },
                 {
-                    'in_field': 'header',
+                    'in': 'header',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 },
@@ -720,8 +733,7 @@ snapshots['test_http_get_with_basic_auth 1'] = {
                 }
             ],
             'servers': [
-                'https://{host}:{port}',
-                'http://{host}:{port}'
+                'https://{host}:{port}'
             ]
         }
     },
@@ -763,7 +775,7 @@ snapshots['test_http_post_with_header_query_and_path_params 1'] = {
                     'type': 'http'
                 },
                 {
-                    'in_field': 'header',
+                    'in': 'header',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 },
@@ -811,8 +823,7 @@ snapshots['test_http_post_with_header_query_and_path_params 1'] = {
                 }
             ],
             'servers': [
-                'https://{host}:{port}',
-                'http://{host}:{port}'
+                'https://{host}:{port}'
             ]
         }
     },
@@ -880,7 +891,7 @@ snapshots['test_http_put_with_json_request_body 1'] = {
                     'type': 'http'
                 },
                 {
-                    'in_field': 'header',
+                    'in': 'header',
                     'name': 'X-API-Key',
                     'type': 'apiKey'
                 },
@@ -928,8 +939,7 @@ snapshots['test_http_put_with_json_request_body 1'] = {
                 }
             ],
             'servers': [
-                'https://{host}:{port}',
-                'http://{host}:{port}'
+                'https://{host}:{port}'
             ]
         }
     },

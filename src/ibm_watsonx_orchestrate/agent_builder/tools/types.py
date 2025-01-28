@@ -58,7 +58,7 @@ class ToolResponseBody(BaseModel):
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
     scheme: Optional[Literal['basic', 'bearer', 'oauth']] = None
-    in_field: Optional[Literal['query', 'header', 'cookie']] = None
+    in_field: Optional[Literal['query', 'header', 'cookie']] = Field(None, serialization_alias='in')
     name: str | None = None
     open_id_connect_url: str | None = None
     flows: dict | None = None
@@ -93,6 +93,12 @@ class OpenApiToolBinding(BaseModel):
     security: Optional[List[OpenApiSecurityScheme]] = None
     servers: Optional[List[str]] = None
     app_id: str | None = None
+
+    @model_validator(mode='after')
+    def validate_openapi_tool_binding(self):
+        if len(self.servers) != 1:
+            raise ValueError("OpenAPI definition must include exactly one server")
+        return self
 
 
 class PythonToolBinding(BaseModel):
@@ -146,9 +152,9 @@ class ToolBinding(BaseModel):
 
 
 class ToolSpec(BaseModel):
-    name: str = None
-    description: str = None
-    permission: ToolPermission = None
+    name: str
+    description: str
+    permission: ToolPermission
     input_schema: ToolRequestBody = None
     output_schema: ToolResponseBody = None
     binding: ToolBinding = None

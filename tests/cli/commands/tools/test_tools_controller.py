@@ -5,6 +5,8 @@ from typer import BadParameter
 import json
 from unittest.mock import patch
 import os
+import pytest
+import typer
 
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind
 

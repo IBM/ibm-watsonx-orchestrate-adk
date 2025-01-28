@@ -100,13 +100,6 @@ def create_openapi_json_tool(
     :param app_id: The app id of the connection containing the credentials needed to authenticate against this api
     :return: An OpenAPITool that can be used by an expert agent
     """
-    spec = ToolSpec()
-    spec.input_schema = input_schema or ToolRequestBody(
-        type='object',
-        properties={},
-        required=[]
-    )
-    spec.output_schema = output_schema or ToolResponseBody(properties={}, required=[])
 
     # limitation does not support circular $refs
     openapi_contents = jsonref.replace_refs(openapi_spec, jsonschema=True)
@@ -132,13 +125,30 @@ def create_openapi_json_tool(
             )
         )
     ) if route_spec.get('operationId', None) is not None else None
-    spec.name = name or operation_id
-    spec.permission = permission or _action_to_perm(route_spec.get('operation_action'))
-    if spec.name is None:
+    spec_name = name or operation_id
+    spec_permission = permission or _action_to_perm(route_spec.get('operation_action'))
+    if spec_name is None:
         raise ValueError(
-            f"No name provided for tool. {http_method}: {http_path} did not an operationId, and no name was provided")
+            f"No name provided for tool. {http_method}: {http_path} did not specify an operationId, and no name was provided")
 
-    spec.description = description or route_spec.get('description')
+    spec_description = description or route_spec.get('description')
+    if spec_description is None:
+        raise ValueError(
+            f"No description provided for tool. {http_method}: {http_path} did not specify a description field, and no description was provided")
+
+    spec = ToolSpec(
+        name=spec_name,
+        description=spec_description,
+        permission=spec_permission
+    )
+    
+    spec.input_schema = input_schema or ToolRequestBody(
+        type='object',
+        properties={},
+        required=[]
+    )
+    spec.output_schema = output_schema or ToolResponseBody(properties={}, required=[])
+
     parameters = route_spec.get('parameters') or []
     for parameter in parameters:
         name = f"{parameter['in']}_{parameter['name']}"

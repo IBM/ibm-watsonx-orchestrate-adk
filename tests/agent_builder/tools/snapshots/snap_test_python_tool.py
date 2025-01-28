@@ -33,6 +33,7 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
             'function': 'test_python_tool:sample_tool'
         }
     },
+    'description': 'test python description',
     'input_schema': {
         'properties': {
             'b': {
@@ -317,6 +318,7 @@ snapshots['test_should_use_correct_defaults 1'] = {
             'function': 'test_python_tool:my_tool'
         }
     },
+    'description': 'test python description',
     'input_schema': {
         'properties': {
         },
@@ -336,6 +338,7 @@ snapshots['test_should_work_with_dicts 1'] = {
             'function': 'test_python_tool:sample_tool'
         }
     },
+    'description': 'test python description',
     'input_schema': {
         'properties': {
             'b': {
@@ -377,6 +380,7 @@ snapshots['test_should_work_with_lists 1'] = {
             'function': 'test_python_tool:sample_tool'
         }
     },
+    'description': 'test python description',
     'input_schema': {
         'properties': {
             'b': {

@@ -26,6 +26,22 @@ def openapispec_for_all_http_methods(request):
     return request.param, {
         'openapi': '3.0.3',
         'info': {},
+         "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
         'paths': {
             '/test': {
                 request.param: {
@@ -63,6 +79,22 @@ def openapispec_for_in_parameter_locations(request):
     return request.param, {
         'openapi': '3.0.3',
         'info': {},
+         "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
         'paths': {
             '/test/{param}' if request.param == 'path' else '/test': {
                 'POST': {
@@ -165,6 +197,22 @@ def openapi_global_authentication(request):
     return request.param, {
         'openapi': '3.0.3',
         'info': {},
+        "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
         'paths': {
             '/test': {
                 'POST': {
@@ -202,6 +250,22 @@ def openapi_route_authentication(request):
     return request.param, {
         'openapi': '3.0.3',
         'info': {},
+        "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
         'paths': {
             '/test': {
                 'POST': {
@@ -248,6 +312,22 @@ def openapi_illegal_operationid_characters(request):
     return request.param[0], request.param[1], {
         'openapi': '3.0.3',
         'info': {},
+        "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
         'paths': {
             '/test': {
                 'POST': {
@@ -325,6 +405,22 @@ async def test_body_parameters(mocker, snapshot):
         {
             'openapi': '3.0.3',
             'info': {},
+            "servers": [
+                {
+                "url": "https://{host}:{port}",
+                "description": "Your API server (with https enabled)",
+                "variables": {
+                    "host": {
+                    "default": "",
+                    "description": "Hostname of the API server"
+                    },
+                    "port": {
+                    "default": "443",
+                    "description": "Port of the API server"
+                    }
+                }
+                }
+            ],
             'paths': {
                 '/test': {
                     'POST': {
@@ -441,6 +537,22 @@ async def test_adds_app_id_to_binding(mocker):
         {
             'openapi': '3.0.3',
             'info': {},
+            "servers": [
+                {
+                "url": "https://{host}:{port}",
+                "description": "Your API server (with https enabled)",
+                "variables": {
+                    "host": {
+                    "default": "",
+                    "description": "Hostname of the API server"
+                    },
+                    "port": {
+                    "default": "443",
+                    "description": "Port of the API server"
+                    }
+                }
+                }
+            ],
             'paths': {
                 '/test': {
                     'POST': {

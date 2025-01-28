@@ -20,20 +20,6 @@
           "description": "Port of the API server"
         }
       }
-    },
-    {
-      "url": "http://{host}:{port}",
-      "description": "Your API server",
-      "variables": {
-        "host": {
-          "default": "",
-          "description": "Hostname of the API server"
-        },
-        "port": {
-          "default": "80",
-          "description": "Port of the API server"
-        }
-      }
     }
   ],
   "components": {

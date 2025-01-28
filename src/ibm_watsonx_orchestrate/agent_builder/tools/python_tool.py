@@ -106,10 +106,12 @@ def tool(
     """
     # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
     def _tool_decorator(fn):
-        spec = ToolSpec()
-        spec.name = name or fn.__name__
-        spec.description = description
-        spec.permission = permission
+
+        spec = ToolSpec(
+            name=name or fn.__name__,
+            description=description,
+            permission=permission
+        )
 
         t = PythonTool(fn=fn, spec=spec)
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))

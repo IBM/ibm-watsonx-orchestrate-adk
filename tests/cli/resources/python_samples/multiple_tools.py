@@ -3,7 +3,7 @@ from typing import Optional, List, Dict
 
 
 @tool()
-def my_tool():
+def my_tool(description="test_python_tool"):
     pass
 
 

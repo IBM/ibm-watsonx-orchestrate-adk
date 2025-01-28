@@ -1,8 +1,11 @@
+servers:
+ - url: localhost
 paths:
   /employees/{employeeId}/timeoff:
     get:
       operationId: getEmployeeTimeOff
       summary: Get an employee's time off records
+      description: Get an employee's time off records
       parameters:
         - name: employeeId
           in: path
