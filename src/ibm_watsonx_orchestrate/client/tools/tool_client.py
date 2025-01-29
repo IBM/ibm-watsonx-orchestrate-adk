@@ -17,3 +17,6 @@ class ToolClient(BaseAPIClient):
 
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"/tools/{agent_id}")
+
+    def upload_tools_artifact(self, tool_name: str, file_path: str) -> dict:
+        return self._post(f"/tools/{tool_name}/upload", files={"file": (f"{tool_name}.zip", open(file_path, "rb"), "application/zip", {"Expires": "0"})})

@@ -1,15 +1,14 @@
+import re
 from unittest import mock
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
+from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
+from ibm_watsonx_orchestrate.cli.commands.tools import tools_controller as ToolsControllerClass
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolPermission, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from typer import BadParameter
 import json
-import os
 import pytest
-import typer
-
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind
 
 
 class MockSDKResponse:
@@ -20,9 +19,11 @@ class MockSDKResponse:
         return json.dumps(self.response_obj)
 
 class MockToolClient:
-    def __init__(self, expected, get_reponse=[]):
+    def __init__(self, expected, get_reponse=[], tool_name="", file_path=""):
         self.expected = expected
         self.get_reponse = get_reponse
+        self.tool_name = tool_name
+        self.file_path = file_path
         
     def create(self, spec):
         for key in self.expected:
@@ -35,6 +36,9 @@ class MockToolClient:
             assert spec[key] == self.expected[key]
     def delete(self):
         pass
+    def upload_tools_artifact(self, tool_name: str, file_path: str):
+        assert tool_name == self.tool_name
+        assert file_path == self.file_path
 
 def test_openapi_params_valid(capsys):
     calls = []
@@ -88,13 +92,10 @@ def test_openapi_no_app_id():
 
 
 def test_openapi_no_file():
-    try:
+    with pytest.raises(BadParameter):
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.openapi, file=None)
         list(tools)
-        assert False
-    except BadParameter:
-        assert True
 
 
 def test_publish_openapi():
@@ -151,13 +152,12 @@ def test_update_openapi():
         mock_instantiate_client.assert_called_once_with(ToolClient)
 
 
-
-
 def test_python_params_valid():
-    # TODO: Mock importlib or Mock Tool
     tools_controller = ToolsController()
     tools = tools_controller.import_tool(
-        "python", file=os.path.join(os.path.dirname(__file__), "../../resources/python_samples/tool_w_metadata.py")
+        ToolKind.python, 
+        file = "tests/cli/resources/python_samples/tool_w_metadata.py",
+        requirements_file = "tests/cli/resources/python_samples/requirements.txt"
     )
 
     tools = list(tools)
@@ -169,14 +169,22 @@ def test_python_params_valid():
 
 
 def test_python_no_file():
-    try:
+    with pytest.raises(BadParameter):
         tools_controller = ToolsController()
-        tools = tools_controller.import_tool("python", file=None)
+        tools = tools_controller.import_tool(ToolKind.python, file=None, requirements_file=None)
         list(tools)
-        assert False
-    except BadParameter:
-        assert True
 
+def test_python_file_not_readable():
+    with pytest.raises(BadParameter, match="Failed to load python module from file does_not_exist.py: No module named 'does_not_exist'") as e:
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(ToolKind.python, file="does_not_exist.py", requirements_file="tests/cli/resources/python_samples/requirements.txt")
+        list(tools)
+    
+def test_python_requirements_file_not_readable():
+    with pytest.raises(BadParameter, match=re.escape("Failed to read file does_not_exist.txt [Errno 2] No such file or directory: 'does_not_exist.txt'")):
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(ToolKind.python, file="tests/cli/resources/python_samples/tool_w_metadata.py", requirements_file="does_not_exist.txt")
+        list(tools)
 
 def test_skill_valid():
     tools_controller = ToolsController()
@@ -190,15 +198,12 @@ def test_skill_valid():
 
 
 def test_skill_missing_args():
-    try:
+    with pytest.raises(BadParameter):
         tools_controller = ToolsController()
         tools=tools_controller.import_tool(
             "skill", skillset_id=None, skill_id=None, skill_operation_path=None
         )
         list(tools)
-        assert False
-    except BadParameter:
-        assert True
 
 def test_invalid_kind():
     try:
@@ -218,3 +223,63 @@ def test_validate_params_app_id_for_incorrect_kind():
         list(tools)
 
     assert exc.value.message == '--app_id parameter can only be used with openapi tools'
+
+
+def test_publish_python():
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile:
+        spec = ToolSpec(
+            name="test",
+            description="test",
+            permission=ToolPermission.READ_ONLY,
+            binding={"python": {
+                "function": "test_tool:my_tool",  
+                "requirements": ["some_lib:1.0.0"],
+                }}
+        )
+        tools = [
+            PythonTool(fn="test_tool:my_tool", spec=spec)
+        ]
+
+        mock_instantiate_client.return_value = MockToolClient(
+            expected=spec.model_dump(exclude_none=True, exclude_defaults=True),
+            tool_name="test",
+            file_path="artifacts.zip"
+        )
+
+        tools_controller = ToolsController(ToolKind.python, "test_tool.py", "requirements.py")
+        tools_controller.publish_or_update_tools(tools)
+
+
+        mock_instantiate_client.assert_called_once_with(ToolClient)
+        mock_zipfile.assert_called
+
+def test_update_python():
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile:
+        spec = ToolSpec(
+            name="test",
+            description="test",
+            permission=ToolPermission.READ_ONLY,
+            binding={"python": {
+                "function": "my_tool:myTool",  
+                "requirements": ["some_lib:1.0.0"],
+                }}
+        )
+        tools = [
+            PythonTool(fn="test_tool:my_tool", spec=spec)
+        ]
+
+        mock_instantiate_client.return_value = MockToolClient(
+            expected=spec.model_dump(exclude_none=True, exclude_defaults=True),
+            get_reponse=[{"name": "test", "id": "123"}],
+            tool_name="test",
+            file_path="artifacts.zip"
+        )
+
+        tools_controller = ToolsController()
+        tools_controller.publish_or_update_tools(tools)
+
+
+        mock_instantiate_client.assert_called_once_with(ToolClient)
+        mock_zipfile.assert_called

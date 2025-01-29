@@ -16,7 +16,6 @@ class BaseAPIClient:
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        headers["Content-Type"] = "application/json"
         return headers
 
     def _get(self, path: str, params: dict = None) -> dict:
@@ -26,10 +25,10 @@ class BaseAPIClient:
         self._check_response(response)
         return response.json()
 
-    def _post(self, path: str, data: dict = None) -> dict:
+    def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
 
         url = f"{self.base_url}{path}"
-        response = requests.post(url, headers=self._get_headers(), json=data)
+        response = requests.post(url, headers=self._get_headers(), json=data, files=files)
         self._check_response(response)
         return response.json() if response.text else {}
 

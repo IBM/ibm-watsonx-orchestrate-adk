@@ -31,16 +31,25 @@ def tool_import(
             '--app_id',
             help='The app_id of the connection to associate with this tool. A application connection represents the server authentication credentials needed to connection to this tool (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
-    ] = None
+    ] = None,
+    requirements_file: Annotated[
+        str,
+        typer.Option(
+            "--requirements-file",
+            "-rf",
+            help="Path to Python requirements.txt file. Required for kind python",
+        ),
+    ] = None,
 ):
-    tools_controller = ToolsController()
+    tools_controller = ToolsController(kind, file, requirements_file)
     tools = tools_controller.import_tool(
         kind=kind,
         file=file,
         # skillset_id=skillset_id,
         # skill_id=skill_id,
         # skill_operation_path=skill_operation_path,
-        app_id=app_id
+        app_id=app_id,
+        requirements_file=requirements_file
     )
     
     tools_controller.publish_or_update_tools(tools)

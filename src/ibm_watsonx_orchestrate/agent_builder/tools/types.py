@@ -103,6 +103,7 @@ class OpenApiToolBinding(BaseModel):
 
 class PythonToolBinding(BaseModel):
     function: str
+    requirements: Optional[List[str]] = []
 
 
 class WxFlowsToolBinding(BaseModel):

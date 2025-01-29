@@ -7,24 +7,23 @@ def test_tool_import_call_no_params():
         mock.assert_called_once_with(
             kind=None,
             file=None,
-            # skillset_id=None,
-            # skill_id=None,
-            # skill_operation_path=None,
-            app_id=None
+            app_id=None,
+            requirements_file=None,
         )
 
 
 def test_tool_import_call_python():
-    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
-        tools_command.tool_import(kind="python", file="test_file")
-        mock.assert_called_once_with(
-            kind="python",
-            file="test_file",
-            # skillset_id=None,
-            # skill_id=None,
-            # skill_operation_path=None,
-            app_id=None
-        )
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock, \
+         patch("zipfile.ZipFile") as zipfileMock:
+            tools_command.tool_import(kind="python", file="test_file", requirements_file="requirements.txt")
+            mock.assert_called_once_with(
+                kind="python",
+                file="test_file",
+                app_id=None,
+                requirements_file="requirements.txt"
+            )
+    
+    assert zipfileMock.called
 
 def test_tool_import_call_openapi():
     with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
@@ -32,10 +31,8 @@ def test_tool_import_call_openapi():
         mock.assert_called_once_with(
             kind="openapi",
             file="test_file",
-            # skillset_id=None,
-            # skill_id=None,
-            # skill_operation_path=None,
-            app_id=None
+            app_id=None,
+            requirements_file=None,
         )
 
 

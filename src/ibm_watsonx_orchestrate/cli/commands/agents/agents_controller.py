@@ -63,10 +63,9 @@ def create_agent_from_spec(agent_details: dict) -> ExpertAgent | OrchestrateAgen
 
     return agent
 
-
 def parse_file(file: str) -> list[ExpertAgent | OrchestrateAgent]:
-    with open(file, "r") as f:
-        if file.endswith(".yaml") or file.endswith(".yml"):
+    with open(file, 'r') as f:
+        if file.endswith('.yaml') or file.endswith('.yml'):
             content = yaml.load(f, Loader=yaml.SafeLoader)
             agent = create_agent_from_spec(content)
             return [agent]
@@ -74,7 +73,7 @@ def parse_file(file: str) -> list[ExpertAgent | OrchestrateAgent]:
             content = json.load(f)
             agent = create_agent_from_spec(content)
             return [agent]
-        elif file.endswith(".py"):
+        elif file.endswith('.py'):
             agents = import_python_agent(file)
             return agents
         else:

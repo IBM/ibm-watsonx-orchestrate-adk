@@ -7,7 +7,6 @@ from ibm_watsonx_orchestrate.agent_builder.agents.orchestrate_agent import (
     OrchestrateAgent,
 )
 from ibm_watsonx_orchestrate.agent_builder.agents.expert_agent import ExpertAgent
-import os
 import json
 from typer import BadParameter
 from unittest.mock import patch
@@ -70,8 +69,8 @@ def test_expert_agent_import_json(mock, capsys, expert_agent_content):
         break
 
 
-def test_expert_agent_import_python(capsys):
-    file = os.path.join(os.path.dirname(__file__), "../../resources/python_samples/base_expert_agent.py")
+def test_expert_agent_import_python():
+    file = "tests/cli/resources/python_samples/base_expert_agent.py"
     agents = list(agents_controller.import_agent(file=file))
     assert agents[0].name == "sample_orchestrator_agent"
     assert isinstance(agents[0], OrchestrateAgent)

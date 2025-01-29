@@ -106,23 +106,23 @@ def tool(
     """
     # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
     def _tool_decorator(fn):
-
-        spec = ToolSpec(
-            name=name or fn.__name__,
-            description=description,
-            permission=permission
-        )
-
-        t = PythonTool(fn=fn, spec=spec)
-        spec.binding = ToolBinding(python=PythonToolBinding(function=''))
-
         if fn.__doc__ is not None:
             doc = docstring_parser.parse(fn.__doc__)
         else:
             doc = None
 
-        if spec.description is None and doc is not None:
-            spec.description = doc.description
+        _desc = description
+        if description is None and doc is not None:
+            _desc = doc.description
+        
+        spec = ToolSpec(
+            name=name or fn.__name__,
+            description=_desc,
+            permission=permission
+        )
+
+        t = PythonTool(fn=fn, spec=spec)
+        spec.binding = ToolBinding(python=PythonToolBinding(function=''))
 
         function_binding = (inspect.getsourcefile(fn)
                             .replace(os.getcwd()+'/', '')
