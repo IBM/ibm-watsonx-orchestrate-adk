@@ -1,13 +1,46 @@
 import typer
 import webbrowser
+from pathlib import Path
 
 chat_app = typer.Typer(no_args_is_help=True)
+from ibm_watsonx_orchestrate.cli.commands.server.server_command import run_compose_lite_ui, run_compose_lite_down_ui
 
 @chat_app.command(name="start")
-def chat_start():
-    url = "http://localhost:3000/chat-lite"
-    webbrowser.open(url)
-    print(f"Opening chat interface at {url}")
+def chat_start(
+    agent_name: str = typer.Option(
+        None,
+        "--orchestrator-agent-name",
+        help="Orchestrator agent name to use when starting the chat."
+    ), 
+    user_env_file: str = typer.Option(
+        None,
+        "--env-file",
+        help="Path to a .env file that overrides default.env. Then environment variables override both."
+    )
+):
+    agent_name_str = agent_name if agent_name is not None else None
+    user_env_file_path = Path(user_env_file) if user_env_file else None
+
+    is_ui_service_started = run_compose_lite_ui(user_env_file=user_env_file_path, agent_name=agent_name_str)
+
+    if is_ui_service_started:
+        url = "http://localhost:3000/chat-lite"
+        webbrowser.open(url)
+        print(f"Opening chat interface at {url}")
+    else:
+        print("Unable to start orchestrate UI chat service.  Please check error messages and logs")
+
+@chat_app.command(name="stop")
+def chat_stop(
+    user_env_file: str = typer.Option(
+        None,
+        "--env-file",
+        help="Path to a .env file that overrides default.env. Then environment variables override both."
+    )
+):
+    user_env_file_path = Path(user_env_file) if user_env_file else None
+    run_compose_lite_down_ui(user_env_file=user_env_file_path)
+
 
 if __name__ == "__main__":
     chat_app()

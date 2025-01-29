@@ -17,6 +17,17 @@ compatible with docker such as Rancher, Podman, etc.
 - The `orchestrate server start` command downloads the images and starts all the containers
 - The `orchestrate server stop` and `orchestrate server reset` commands will stop and delete these components
 
+## 5. Accessing Services Locally
+After issuing the `orchestrate server start` command, the following services will be accessible:
+
+- **UI**: [http://localhost:3000/chat-lite](http://localhost:3000/chat-lite) 
+- **OpenAPI Docs**: [http://localhost:4321/docs](http://localhost:4321/docs)
+- **API Base URL**: [http://localhost:4321/api/v1](http://localhost:4321/api/v1)
+- **Flower (Task Management)**: [http://localhost:5555/tasks](http://localhost:5555/tasks)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001)
+- **PostgreSQL DB**: `postgresql://localhost:5432/postgres`
+
+
 ## Requirements
 
 The following environment variables must be set before running the command:
@@ -46,7 +57,8 @@ TAVILY_API_KEY=your tavili api key
 - `orchestrate server stop`: Stops the running server and all ibm-watsonx-orchestrate docker images 
 - `orchestrate server reset`: Stops the server, stops all ibm-watsonx-orchestrate docker images, and resets all data volumes
 - `orchestrate server logs`: Displays the server logs
-- `orchestrate chat start`: Launches the chat web UI in a browser
+- `orchestrate chat start`: Launches the UI service and the chat web UI in a browser
+- `orchestrate chat start --orchestrator-agent-name=my_new_name`: Launches the UI service and the chat web UI in a browser overriding the agent name to my_new_name
 
 ## Configuration
 
@@ -54,6 +66,7 @@ The `docker/default.env` file contains additional configuration variables that c
 One reason to do this is if you wish to use different AI models for different orchestrate tasks.
 Here is a brief description of the configuration variables that can be overridden:
 
+- `ORCHESTRATOR_AGENT_NAME`: The name of your orchestrator agent.  This should match the name field when you register expert agents.  The default name is `my_agent`.
 - `REGISTRY_URL`: The URL of the Docker registry (default: us.icr.io)
 - `JWT_SECRET`: Secret key for JWT token signing. Can be generated with Python secrets module. 
 - `POSTGRES_URL`: URL for Postgres database connection

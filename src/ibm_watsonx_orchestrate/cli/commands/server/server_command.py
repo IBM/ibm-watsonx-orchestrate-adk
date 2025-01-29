@@ -3,6 +3,8 @@ import sys
 import subprocess
 import tempfile
 from pathlib import Path
+import requests
+import time
 
 import typer
 import importlib.resources as resources
@@ -107,6 +109,8 @@ def run_compose_lite(final_env_file: Path) -> None:
         "-f", str(compose_path),
         "--env-file", str(final_env_file),
         "up",
+        "--scale",
+        "ui=0",
         "-d",
         "--remove-orphans"
     ]
@@ -116,6 +120,169 @@ def run_compose_lite(final_env_file: Path) -> None:
 
     if result.returncode == 0:
         print("Services started successfully.")
+        # Remove the temp file if successful
+        if final_env_file.exists():
+            final_env_file.unlink()
+    else:
+        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        print(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
+            f"{error_message}"
+        )
+        sys.exit(1)
+
+def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=45, interval_seconds=2):
+    url = "http://localhost:4321/api/v1/auth/token"
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    data = {
+        'username': health_user,
+        'password': health_pass
+    }
+
+    start_time = time.time()
+    e = None
+    while time.time() - start_time <= timeout_seconds:
+        try:
+            response = requests.get(url)
+            if 200 <= response.status_code < 300:
+                return True
+            else:
+                print(f"Response code from healthcheck {response.status_code}")
+        except requests.RequestException as e:
+            pass
+            #print(f"Request failed: {e}")
+
+        time.sleep(interval_seconds)
+    if e:
+        print(f"Health check request failed: {e}")
+    return False
+
+def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
+    url = "http://localhost:3000/chat-lite"
+    print("Waiting for UI component to be initialized...")
+    start_time = time.time()
+    while time.time() - start_time <= timeout_seconds:
+        try:
+            response = requests.get(url)
+            if 200 <= response.status_code < 300:
+                return True
+            else:
+                pass
+                #print(f"Response code from UI healthcheck {response.status_code}")
+        except requests.RequestException as e:
+            pass
+            #print(f"Request failed for UI: {e}")
+
+        time.sleep(interval_seconds)
+    print("UI component is initialized")
+    return False
+
+def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+    ensure_docker_installed()
+    default_env_path = get_default_env_file()
+    print(f"user env file: {user_env_file}")
+    merged_env_dict = merge_env(
+        default_env_path,
+        user_env_file if user_env_file else None
+    )
+
+    registry_url = merged_env_dict.get("REGISTRY_URL")
+    if not registry_url:
+        print("Error: REGISTRY_URL is required but not set in the environment.")
+        sys.exit(1)
+
+    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
+    if iam_api_key:
+        docker_login(iam_api_key, registry_url)
+
+    #These are to removed warning and not used in UI component
+    if not 'WATSONX_SPACE_ID' in merged_env_dict:
+        merged_env_dict['WATSONX_SPACE_ID']='X'
+    if not 'WATSONX_APIKEY' in merged_env_dict:
+        merged_env_dict['WATSONX_APIKEY']='X'
+    apply_llm_api_key_defaults(merged_env_dict)
+
+    if agent_name:
+        merged_env_dict['ORCHESTRATOR_AGENT_NAME'] = agent_name
+
+    final_env_file = write_merged_env_file(merged_env_dict)
+
+
+
+    print("Waiting for ochestrate server to be fully started and ready...")
+    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'])
+    if not is_successful_server_healthcheck:
+        print("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
+        return False
+
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "up",
+        "ui",
+        "-d",
+        "--remove-orphans"
+    ]
+
+    print(f"Starting docker-compose UI service with orchestrator agent name {merged_env_dict['ORCHESTRATOR_AGENT_NAME']}...")
+    result = subprocess.run(command, capture_output=False)
+
+    if result.returncode == 0:
+        print("Chat UI Service started successfully.")
+        # Remove the temp file if successful
+        if final_env_file.exists():
+            final_env_file.unlink()
+    else:
+        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        print(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
+            f"{error_message}"
+        )
+        return False
+    
+    is_successful_ui_healthcheck = wait_for_wxo_ui_health_check()
+    if not is_successful_ui_healthcheck:
+        print("The Chat UI service did not initialize within the expected time.  Check the logs for any errors.")
+
+    return True
+
+def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> None:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+
+
+    ensure_docker_installed()
+    default_env_path = get_default_env_file()
+    merged_env_dict = merge_env(
+        default_env_path,
+        user_env_file
+    )
+    merged_env_dict['WATSONX_SPACE_ID']='X'
+    merged_env_dict['WATSONX_APIKEY']='X'
+    apply_llm_api_key_defaults(merged_env_dict)
+    final_env_file = write_merged_env_file(merged_env_dict)
+
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "down",
+        "ui"
+    ]
+
+    if is_reset:
+        command.append("--volumes")
+        print("Stopping docker-compose UI service and resetting volumes...")
+    else:
+        print("Stopping docker-compose UI service...")
+
+    result = subprocess.run(command, capture_output=False)
+
+    if result.returncode == 0:
+        print("UI service stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
@@ -222,8 +389,7 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file)
 
-    url = "http://localhost:3000/chat-lite"
-    print(f"You can open the chat interface at {url}")
+    print(f"You can run `orchestrate chat start` to start the UI service and begin chatting.")
 
 @server_app.command(name="stop")
 def server_stop(
