@@ -157,6 +157,26 @@ def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=4
 
     return False
 
+def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
+    url = "http://localhost:3000/chat-lite"
+    print("Waiting for UI component to be initialized...")
+    start_time = time.time()
+    while time.time() - start_time <= timeout_seconds:
+        try:
+            response = requests.get(url)
+            if 200 <= response.status_code < 300:
+                return True
+            else:
+                pass
+                #print(f"Response code from UI healthcheck {response.status_code}")
+        except requests.RequestException as e:
+            pass
+            #print(f"Request failed for UI: {e}")
+
+        time.sleep(interval_seconds)
+    print("UI component is initialized")
+    return False
+
 def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
@@ -222,6 +242,11 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
             f"{error_message}"
         )
         return False
+    
+    is_successful_ui_healthcheck = wait_for_wxo_ui_health_check()
+    if not is_successful_ui_healthcheck:
+        print("The Chat UI service did not initialize within the expected time.  Check the logs for any errors.")
+
     return True
 
 def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> None:
