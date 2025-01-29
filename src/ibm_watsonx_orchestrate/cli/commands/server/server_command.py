@@ -165,17 +165,14 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
         user_env_file if user_env_file else None
     )
 
-    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
-    if not iam_api_key:
-        print("Error: DOCKER_IAM_KEY is required but not set in the environment.")
-        sys.exit(1)
-
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
         print("Error: REGISTRY_URL is required but not set in the environment.")
         sys.exit(1)
 
-    docker_login(iam_api_key, registry_url)
+    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
+    if iam_api_key:
+        docker_login(iam_api_key, registry_url)
 
     apply_llm_api_key_defaults(merged_env_dict)
 
