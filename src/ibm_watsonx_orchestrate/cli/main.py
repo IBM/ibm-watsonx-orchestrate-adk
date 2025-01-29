@@ -1,3 +1,5 @@
+from importlib import resources
+
 import typer
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
@@ -11,14 +13,16 @@ import logging.config
 import yaml
 
 
-def setup_logging(config_file):
 
+
+def _setup_logging():
+    config_file = str(resources.files("ibm_watsonx_orchestrate.cli").joinpath("logging.yaml"))
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
     logging.config.dictConfig(config)
 
 
-setup_logging("logging.yaml")
+_setup_logging()
 
 app = typer.Typer(no_args_is_help=True)
 app.add_typer(login_app)
