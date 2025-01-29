@@ -1,12 +1,12 @@
 import typer
 from typing_extensions import Annotated
-from ibm_watsonx_orchestrate.cli.commands.tools import tools_controller
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 tools_app= typer.Typer(no_args_is_help=True)
 
 @tools_app.command(name="import")
 def tool_import(
     kind: Annotated[
-        tools_controller.ToolKind,
+        ToolKind,
         typer.Option("--kind", "-k", help="Import Source Format"),
     ],
     file: Annotated[
@@ -33,7 +33,8 @@ def tool_import(
         )
     ] = None
 ):
-    tools_controller.import_tool(
+    tools_controller = ToolsController()
+    tools = tools_controller.import_tool(
         kind=kind,
         file=file,
         # skillset_id=skillset_id,
@@ -41,3 +42,5 @@ def tool_import(
         # skill_operation_path=skill_operation_path,
         app_id=app_id
     )
+    
+    tools_controller.publish_or_update_tools(tools)

@@ -31,7 +31,14 @@ class BaseAPIClient:
         url = f"{self.base_url}{path}"
         response = requests.post(url, headers=self._get_headers(), json=data)
         self._check_response(response)
-        return response.json()
+        return response.json() if response.text else {}
+
+    def _put(self, path: str, data: dict = None) -> dict:
+
+        url = f"{self.base_url}{path}"
+        response = requests.put(url, headers=self._get_headers(), json=data)
+        self._check_response(response)
+        return response.json() if response.text else {}
 
     def _patch(self, path: str, data: dict = None) -> dict:
 

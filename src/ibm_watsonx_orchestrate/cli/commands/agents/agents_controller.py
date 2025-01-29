@@ -1,7 +1,5 @@
 import yaml
 import json
-import rich
-import re
 import typer
 import importlib
 import inspect

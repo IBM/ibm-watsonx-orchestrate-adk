@@ -71,7 +71,7 @@ def test_expert_agent_import_json(mock, capsys, expert_agent_content):
 
 
 def test_expert_agent_import_python(capsys):
-    file = "tests/cli/resources/python_samples/base_expert_agent.py"
+    file = os.path.join(os.path.dirname(__file__), "../../resources/python_samples/base_expert_agent.py")
     agents = list(agents_controller.import_agent(file=file))
     assert agents[0].name == "sample_orchestrator_agent"
     assert isinstance(agents[0], OrchestrateAgent)

@@ -2,7 +2,7 @@ from ibm_watsonx_orchestrate.cli.commands.tools import tools_command
 from unittest.mock import patch
 
 def test_tool_import_call_no_params():
-    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.tools_controller.import_tool") as mock:
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
         tools_command.tool_import(kind=None)
         mock.assert_called_once_with(
             kind=None,
@@ -15,7 +15,7 @@ def test_tool_import_call_no_params():
 
 
 def test_tool_import_call_python():
-    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.tools_controller.import_tool") as mock:
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
         tools_command.tool_import(kind="python", file="test_file")
         mock.assert_called_once_with(
             kind="python",
@@ -27,7 +27,7 @@ def test_tool_import_call_python():
         )
 
 def test_tool_import_call_openapi():
-    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.tools_controller.import_tool") as mock:
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
         tools_command.tool_import(kind="openapi", file="test_file")
         mock.assert_called_once_with(
             kind="openapi",
