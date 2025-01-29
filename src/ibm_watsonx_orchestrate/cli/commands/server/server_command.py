@@ -142,6 +142,7 @@ def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=4
     }
 
     start_time = time.time()
+    e = None
     while time.time() - start_time <= timeout_seconds:
         try:
             response = requests.get(url)
@@ -154,7 +155,8 @@ def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=4
             #print(f"Request failed: {e}")
 
         time.sleep(interval_seconds)
-
+    if e:
+        print(f"Health check request failed: {e}")
     return False
 
 def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
@@ -212,7 +214,6 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
 
     print("Waiting for ochestrate server to be fully started and ready...")
-    wxo_user = merged_env_dict['WXO_USER']
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'])
     if not is_successful_server_healthcheck:
         print("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
