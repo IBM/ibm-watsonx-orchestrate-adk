@@ -8,10 +8,9 @@ from pydantic import BaseModel, Field
 
 # TO-DO: resolve path issue
 try:
-    from agent_builder.mocks.mock_httpx import get_mock_async_client, MockResponse
+    from mocks.mock_httpx import get_mock_async_client, MockResponse
 except:
-    from tests.agent_builder.mocks.mock_httpx import get_mock_async_client, MockResponse
-
+    from tests.mocks.mock_httpx import get_mock_async_client, MockResponse
 from ibm_watsonx_orchestrate.agent_builder.tools import create_openapi_json_tool
 
 

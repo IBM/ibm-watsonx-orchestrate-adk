@@ -1,0 +1,176 @@
+import json
+import sys
+from warnings import warn
+
+import requests
+import typer
+
+from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection, BasicAuthCredentials, ConnectionType, \
+    BearerTokenAuthCredentials, CreateBearerTokenAuthConnection, APIKeyAuthCredentials, CreateAPIKeyAuthConnection, \
+    OAuth2AuthCodeCredentials, CreateOAuth2AuthCodeConnection, CreateOAuth2ImplicitConnection, \
+    OAuth2ImplicitCredentials, OAuth2ClientCredentials, CreateOAuth2ClientCredentialsConnection, \
+    CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.cli.commands.connections.application.types import ApplicationConnectionType
+
+
+_outh_connection_types = {
+    ApplicationConnectionType.oauth_auth_code_flow,
+    ApplicationConnectionType.oauth_auth_implicit_flow,
+    ApplicationConnectionType.oauth_auth_password_flow,
+    ApplicationConnectionType.oauth_auth_client_credentials_flow
+}
+
+def _validate_create_params(type: ApplicationConnectionType, **args) -> None:
+    if type in {ApplicationConnectionType.basic, ApplicationConnectionType.oauth_auth_password_flow} and (
+            args.get('username') is None or args.get('password') is None
+    ):
+        raise typer.BadParameter(
+            f"Missing flags --username (-u) and --password (-p) are both required for type {type}"
+        )
+
+    if type == ApplicationConnectionType.bearer and (
+            args.get('token') is None
+    ):
+        raise typer.BadParameter(
+            f"Missing flags --token is required for type {type}"
+        )
+
+    if type == ApplicationConnectionType.api_key and (
+            args.get('api_key') is None
+    ):
+        raise typer.BadParameter(
+            f"Missing flags --api-key is required for type {type}"
+        )
+
+    if type in _outh_connection_types and args.get('client_id') is None:
+        raise typer.BadParameter(
+            f"Missing flags --client-id is required for type {type}"
+        )
+
+    if type in _outh_connection_types and args.get('client_secret') is None:
+        raise typer.BadParameter(
+            f"Missing flags --client-secret is required for type {type}"
+        )
+
+    if type in _outh_connection_types and args.get('well_known_url') is None:
+        raise typer.BadParameter(
+            f"Missing flags --well-known-url is required for type {type}"
+        )
+
+
+def _get_connection(type: ApplicationConnectionType, **args):
+    match type:
+        case ApplicationConnectionType.basic:
+            conn = CreateBasicAuthConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.BASIC_AUTH,
+                credentials=BasicAuthCredentials(
+                    username=args.get('username'),
+                    password=args.get('password')
+                )
+            )
+        case ApplicationConnectionType.bearer:
+            conn = CreateBearerTokenAuthConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.BEARER_TOKEN,
+                credentials=BearerTokenAuthCredentials(
+                    token=args.get('token')
+                )
+            )
+        case ApplicationConnectionType.api_key:
+            conn = CreateAPIKeyAuthConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.API_KEY_AUTH,
+                credentials=APIKeyAuthCredentials(
+                    api_key=args.get('api_key')
+                )
+            )
+        case ApplicationConnectionType.oauth_auth_code_flow:
+            conn = CreateOAuth2AuthCodeConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.OAUTH2_AUTH_CODE,
+                credentials=OAuth2AuthCodeCredentials(
+                    client_id=args.get('client_id'),
+                    client_secret=args.get('client_secret'),
+                    well_known_url=args.get('well_known_url')
+                )
+            )
+        case ApplicationConnectionType.oauth_auth_implicit_flow:
+            conn = CreateOAuth2ImplicitConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.OAUTH2_IMPLICIT,
+                credentials=OAuth2ImplicitCredentials(
+                    client_id=args.get('client_id'),
+                    client_secret=args.get('client_secret'),
+                    well_known_url=args.get('well_known_url')
+                )
+            )
+        case ApplicationConnectionType.oauth_auth_password_flow:
+            conn = CreateOAuth2PasswordConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.OAUTH2_PASSWORD,
+                credentials=OAuth2PasswordCredentials(
+                    client_id=args.get('client_id'),
+                    client_secret=args.get('client_secret'),
+                    username=args.get('username'),
+                    password=args.get('password'),
+                    well_known_url=args.get('well_known_url')
+                )
+            )
+        case ApplicationConnectionType.oauth_auth_client_credentials_flow:
+            conn = CreateOAuth2ClientCredentialsConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.OAUTH2_CLIENT_CREDS,
+                credentials=OAuth2ClientCredentials(
+                    client_id=args.get('client_id'),
+                    client_secret=args.get('client_secret'),
+                    well_known_url=args.get('well_known_url')
+                )
+            )
+        case _:
+            raise ValueError(f"Invalid type {type} selected")
+    return conn
+
+
+def create_application_connection(type: ApplicationConnectionType, **kwargs):
+    _validate_create_params(type, **kwargs)
+    conn = _get_connection(type, **kwargs)
+    client = instantiate_client(ApplicationConnectionsClient)
+
+    try:
+        resp: CreateConnectionResponse = client.create(connection=conn)
+        if resp.status == 'redirect':
+            print(f"Please go to the following url to complete the OAuth2 flow:")
+            print(resp.authorization_url)
+        elif resp.status == 'success':
+            print(f"Successfully created application connection with app_id: {conn.appid}")
+        else:
+            warn(f"Unexpected response status {resp.status}")
+    except requests.HTTPError as e:
+        response = e.response
+        response_text = response.text
+        try:
+            resp = json.loads(response_text)
+            response_text = resp['detail']
+        except:
+            pass
+        print(response_text, file=sys.stderr)
+        exit(1)
+
+
+def delete_application_connection(app_id: str):
+    client = instantiate_client(ApplicationConnectionsClient)
+    try:
+        client.delete(app_id=app_id)
+        print(f"Successfully deleted application connection with app_id: {app_id}")
+    except requests.HTTPError as e:
+        print(e.response.text, file=sys.stderr)
+        exit(1)

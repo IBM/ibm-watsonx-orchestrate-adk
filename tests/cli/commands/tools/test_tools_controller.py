@@ -3,7 +3,6 @@ from unittest import mock
 from ibm_watsonx_orchestrate.cli.commands.tools import tools_controller
 from typer import BadParameter
 import json
-from unittest.mock import patch
 import os
 import pytest
 import typer
