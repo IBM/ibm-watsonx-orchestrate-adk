@@ -131,14 +131,14 @@ def run_compose_lite(final_env_file: Path) -> None:
         )
         sys.exit(1)
 
-def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=30, interval_seconds=2):
+def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=45, interval_seconds=2):
     url = "http://localhost:4321/api/v1/auth/token"
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded'
     }
     data = {
-        'username': 'wxo.archer@xx.com',
-        'password': 'xxxx'
+        'username': health_user,
+        'password': health_pass
     }
 
     start_time = time.time()
@@ -147,8 +147,11 @@ def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=3
             response = requests.get(url)
             if 200 <= response.status_code < 300:
                 return True
+            else:
+                print(f"Response code from healthcheck {response.status_code}")
         except requests.RequestException as e:
-            print(f"Request failed: {e}")
+            pass
+            #print(f"Request failed: {e}")
 
         time.sleep(interval_seconds)
 
@@ -174,6 +177,11 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
     if iam_api_key:
         docker_login(iam_api_key, registry_url)
 
+    #These are to removed warning and not used in UI component
+    if not 'WATSONX_SPACE_ID' in merged_env_dict:
+        merged_env_dict['WATSONX_SPACE_ID']='X'
+    if not 'WATSONX_APIKEY' in merged_env_dict:
+        merged_env_dict['WATSONX_APIKEY']='X'
     apply_llm_api_key_defaults(merged_env_dict)
 
     if agent_name:
@@ -183,7 +191,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
 
 
-    print("Checking if ochestrate server is running and ready...")
+    print("Waiting for ochestrate server to be fully started and ready...")
     wxo_user = merged_env_dict['WXO_USER']
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'])
     if not is_successful_server_healthcheck:
@@ -215,6 +223,50 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
         )
         return False
     return True
+
+def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> None:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+
+
+    ensure_docker_installed()
+    default_env_path = get_default_env_file()
+    merged_env_dict = merge_env(
+        default_env_path,
+        user_env_file
+    )
+    merged_env_dict['WATSONX_SPACE_ID']='X'
+    merged_env_dict['WATSONX_APIKEY']='X'
+    apply_llm_api_key_defaults(merged_env_dict)
+    final_env_file = write_merged_env_file(merged_env_dict)
+
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "down",
+        "ui"
+    ]
+
+    if is_reset:
+        command.append("--volumes")
+        print("Stopping docker-compose UI service and resetting volumes...")
+    else:
+        print("Stopping docker-compose UI service...")
+
+    result = subprocess.run(command, capture_output=False)
+
+    if result.returncode == 0:
+        print("UI service stopped successfully.")
+        # Remove the temp file if successful
+        if final_env_file.exists():
+            final_env_file.unlink()
+    else:
+        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        print(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
+            f"{error_message}"
+        )
+        sys.exit(1)
 
 def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
@@ -311,8 +363,7 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file)
 
-    url = "http://localhost:3000/chat-lite"
-    print(f"You can open the chat interface at {url}")
+    print(f"You can run `orchestrate chat start` to start the UI service and begin chatting.")
 
 @server_app.command(name="stop")
 def server_stop(
