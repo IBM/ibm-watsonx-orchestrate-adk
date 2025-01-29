@@ -25,7 +25,7 @@ services:
       - wxo-server-db:/var/lib/postgresql/data
     command: -c shared_preload_libraries=pgsodium
   ui:
-    image: us.icr.io/watson-orchestrate/wxo-chat:20250124074201-wxo-build-standalone
+    image: us.icr.io/watson-orchestrate-private/wxo-chat:latest
     platform: linux/amd64
     restart: unless-stopped
     environment:
