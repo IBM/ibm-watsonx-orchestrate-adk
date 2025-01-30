@@ -383,7 +383,8 @@ def server_start(
     run_compose_lite(final_env_file=final_env_file)
 
     print("Waiting for ochestrate server to be fully initialized and ready...")
-    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'])
+    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
+    is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:
         print("Orchestrate services initialized successfuly")
     else:
