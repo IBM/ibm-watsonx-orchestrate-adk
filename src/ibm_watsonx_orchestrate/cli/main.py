@@ -24,7 +24,10 @@ def _setup_logging():
 
 _setup_logging()
 
-app = typer.Typer(no_args_is_help=True)
+app = typer.Typer(
+    no_args_is_help=True,
+    pretty_exceptions_enable=False
+)
 app.add_typer(login_app)
 app.add_typer(tools_app, name="tools")
 app.add_typer(agents_app, name="agents")
