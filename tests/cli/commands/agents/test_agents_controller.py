@@ -88,7 +88,7 @@ def test_orchestrate_agent_import_yaml():
     file = "tests/cli/resources/yaml_samples/orchestrator_agent.yaml"
     agents = list(agents_controller.import_agent(file=file))
     assert agents[0].name == "my_agent"
-    assert agents[0].agents == ["research_agent", "sales_agent"]
+    assert agents[0].agents == ["cat_agent"]
 
 
 def test_orchestrate_agent_import_json():
@@ -139,6 +139,7 @@ def test_expert_agent_create(mock1, mock2):
         goal="Test for expert agent goal",
         instructions="Test for expert agent instructions",
         tools="web_search, test_tool_2",
+        llm="test_llm"
     )
     assert isinstance(agent_spec, ExpertAgent)
     agents_controller.publish_or_update_agents([agent_spec])

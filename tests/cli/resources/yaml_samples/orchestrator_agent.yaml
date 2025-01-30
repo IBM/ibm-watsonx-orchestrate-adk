@@ -3,7 +3,6 @@ type: orchestrator
 management_style_config:
   reflection_enabled: true
   reflection_retry_count: 3
-llm: granite
+llm: watsonx/meta-llama/llama-3-1-70b-instruct
 agents:
-  - research_agent
-  - sales_agent
+  - cat_agent

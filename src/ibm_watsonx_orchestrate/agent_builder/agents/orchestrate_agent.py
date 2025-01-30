@@ -8,13 +8,13 @@ class OrchestrateAgent(OrchestrateAgentSpec):
     def from_spec(file: str) -> 'OrchestrateAgent':
         with open(file, 'r') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
-                spec = OrchestrateAgentSpec.model_validate(yaml_safe_load(f))
+                agent = OrchestrateAgent.model_validate(yaml_safe_load(f))
             elif file.endswith('.json'):
-                spec = OrchestrateAgentSpec.model_validate(json.load(f))
+                agent = OrchestrateAgent.model_validate(json.load(f))
             else:
                 raise ValueError('file must end in .json, .yaml, or .yml')
 
-        return OrchestrateAgent(spec=spec)
+        return agent
     
     def __repr__(self):
         return f"OrchestrateAgent(name='{self.name}')"

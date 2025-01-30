@@ -89,6 +89,8 @@ def parse_create_expert_args(name: str, type: AgentTypes, **args) -> dict:
         "role": args.get("role", None),
         "goal": args.get("goal", None),
         "instructions": args.get("instructions", None),
+        "backstory": args.get("backstory", None),
+        "llm": args.get("llm", None)
     }
 
     tools = args.get("tools", "")

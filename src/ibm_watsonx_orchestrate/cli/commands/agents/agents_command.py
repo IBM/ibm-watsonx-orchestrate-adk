@@ -63,6 +63,13 @@ def agent_create(
             help="Instructions for how the Expert agent is to carry out its objective. Required for type=['expert']",
         ),
     ] = None,
+    backstory: Annotated[
+        str,
+        typer.Option(
+            "--backstory",
+            help="The backsotry ot the expert agent for further context. Optional for type=['expert']",
+        ),
+    ] = None,
     tools: Annotated[
         str,
         typer.Option(
@@ -116,6 +123,7 @@ def agent_create(
         role=role,
         goal=goal,
         instructions=instructions,
+        backstory=backstory,
         tools=tools,
         management_style=management_style,
         management_style_config=management_style_config,

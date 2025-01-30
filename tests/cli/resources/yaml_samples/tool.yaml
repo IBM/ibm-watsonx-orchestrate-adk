@@ -1,55 +1,22 @@
 servers:
- - url: localhost
+ - url: https://meowfacts.herokuapp.com
 paths:
-  /employees/{employeeId}/timeoff:
+  /:
     get:
-      operationId: getEmployeeTimeOff
-      summary: Get an employee's time off records
-      description: Get an employee's time off records
-      parameters:
-        - name: employeeId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: year
-          in: query
-          required: false
-          schema:
-            type: integer
+      operationId: getCatFact
+      summary: Gets a random fact about cats
+      description: Gets a random fact about cats
       responses:
         '200':
-          description: Successfully retrieved time off records
+          description: Successfully retrieved cat fact
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  records:
+                  data:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        startDate:
-                          type: string
-                          format: date
-                        endDate:
-                          type: string
-                          format: date
-                        type:
-                          type: string
-                          enum: [vacation, sick, personal]
-                        status:
-                          type: string
-                          enum: [approved, pending, rejected]
+                      type: string
                 required:
-                  - records
-
-components:
-  securitySchemes:
-    auth: 
-      type: apiKey
-      in: query
-      name: X-API-Key
-security:
-  - auth:
+                  - data

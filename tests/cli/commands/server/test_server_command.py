@@ -143,7 +143,7 @@ def test_cli_start_success(mock_env_files, mock_compose_file):
                 "WATSONX_APIKEY": "test-llm-key"
             }
         )
-        
+
         assert result.exit_code == 0
         assert "Successfully logged in" in result.output
         assert "Services started" in result.output

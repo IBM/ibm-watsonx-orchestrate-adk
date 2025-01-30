@@ -8,7 +8,7 @@ from pydantic import Field
 from typing import Annotated
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
-DEFAULT_LLM = "meta-llama/llama-3-405b-instruct"
+DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
 
 
 class BaseAgentSpec(BaseModel):
@@ -23,7 +23,7 @@ class BaseAgentSpec(BaseModel):
                 raise ValueError('file must end in .json, .yaml, or .yml')
 
     def dumps_spec(self) -> str:
-        dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
+        dumped = self.model_dump(mode='json', exclude_none=True)
         return json.dumps(dumped, indent=2)
 
 # ===============================
@@ -41,7 +41,9 @@ class ExpertAgentSpec(BaseAgentSpec):
     role: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
     goal: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
     instructions: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    tools: Optional[List[str]] | Optional[List['BaseTool']] = None 
+    backstory: Optional[str] = None
+    tools: Optional[List[str]] | Optional[List['BaseTool']] = None
+    llm: str = DEFAULT_LLM
     
     def __init__(self, *args, **kwargs):
         if "tools" in kwargs and kwargs["tools"]:
@@ -68,7 +70,7 @@ def validate_expert_agent_fields(values: dict, mandatory_for_expert: bool = True
         raise ValueError("'type' cannot be empty or just whitespace")
 
     # Check for empty strings or whitespace
-    for field in ["name", "type", "role", "goal", "instructions", "tools"]:
+    for field in ["name", "type", "role", "goal", "instructions", "tools", "llm"]:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
