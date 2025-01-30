@@ -140,7 +140,10 @@ def test_cli_start_success(mock_env_files, mock_compose_file):
             env={
                 "DOCKER_IAM_KEY": "test-key",
                 "REGISTRY_URL": "registry.example.com",
-                "WATSONX_APIKEY": "test-llm-key"
+                "WATSONX_APIKEY": "test-llm-key",
+                "WXO_USER": "temp",
+                "WXO_PASS": "temp",
+                "HEALTH_TIMEOUT": "1"
             }
         )
 

@@ -6,7 +6,11 @@ def test_chat_start_with_env(capsys):
     mock_env_vars = {
         "DOCKER_IAM_KEY": "test-key",
         "REGISTRY_URL": "registry.example.com",
-        "WATSONX_APIKEY": "test-llm-key"
+        "WATSONX_APIKEY": "test-llm-key",
+        "WXO_USER": "temp",
+        "WXO_PASS": "temp",
+        "HEALTH_TIMEOUT": "1",
+        "ORCHESTRATOR_AGENT_NAME": "TEMP_AGENT"
     }
 
     with patch.dict(os.environ, mock_env_vars):
