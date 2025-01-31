@@ -32,7 +32,7 @@ def expert_agent_content() -> dict:
 @pytest.fixture
 def orchestrate_agent_content() -> dict:
     return {
-        "name": "my_agent",
+        "name": "my-orchestrator-agent",
         "type": "orchestrator",
         "management_style": "supervisor",
         "management_style_config": {
@@ -87,14 +87,14 @@ def test_expert_agent_import_python(capsys):
 def test_orchestrate_agent_import_yaml():
     file = "tests/cli/resources/yaml_samples/orchestrator_agent.yaml"
     agents = list(agents_controller.import_agent(file=file))
-    assert agents[0].name == "my_agent"
+    assert agents[0].name == "my-orchestrator-agent"
     assert agents[0].agents == ["cat_agent"]
 
 
 def test_orchestrate_agent_import_json():
     file = "tests/cli/resources/json_samples/orchestrator_agent.json"
     agents = list(agents_controller.import_agent(file=file))
-    assert agents[0].name == "my_agent"
+    assert agents[0].name == "my-orchestrator-agent"
     assert agents[0].agents == ["research_agent", "sales_agent"]
 
 
@@ -164,14 +164,14 @@ def test_expert_agent_create_missing_args():
 def test_orchestrator_agent_create():
 
     orchestrate_agent_spec = agents_controller.generate_agent_spec(
-        name="my_agent",
+        name="my-orchestrator-agent",
         type=AgentTypes("orchestrator"),
         management_style="supervisor",
         management_style_config="reflection_enabled=true,reflection_retry_count=3",
         llm="granite",
         agents="research_agent, sales_agent",
     )
-    assert orchestrate_agent_spec.name == "my_agent"
+    assert orchestrate_agent_spec.name == "my-orchestrator-agent"
 
 
 def test_orchestrator_agent_create_no_args():

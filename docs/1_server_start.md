@@ -66,7 +66,7 @@ The `docker/default.env` file contains additional configuration variables that c
 One reason to do this is if you wish to use different AI models for different orchestrate tasks.
 Here is a brief description of the configuration variables that can be overridden:
 
-- `ORCHESTRATOR_AGENT_NAME`: The name of your orchestrator agent.  This should match the name field when you register expert agents.  The default name is `my_agent`.
+- `ORCHESTRATOR_AGENT_NAME`: The name of your orchestrator agent.  This should match the name field when you register expert agents.  The default name is `my-orchestrator-agent`.
 - `REGISTRY_URL`: The URL of the Docker registry (default: us.icr.io)
 - `JWT_SECRET`: Secret key for JWT token signing. Can be generated with Python secrets module. 
 - `POSTGRES_URL`: URL for Postgres database connection
