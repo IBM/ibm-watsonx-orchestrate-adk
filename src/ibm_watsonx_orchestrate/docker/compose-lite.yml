@@ -7,8 +7,9 @@ services:
     volumes:
       - wxo-server-redis-data:/data
     command: redis-server --loglevel warning
+
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${TAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -24,12 +25,14 @@ services:
     volumes:
       - wxo-server-db:/var/lib/postgresql/data
     command: -c shared_preload_libraries=pgsodium
+
   ui:
-    image: us.icr.io/watson-orchestrate-private/wxo-chat:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-chat:${TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
       NODE_ENV: development
+      REACT_APP_ORCHESTRATOR_AGENT_NAME: ${ORCHESTRATOR_AGENT_NAME}
       VERDI_SSL_ENABLE_VALIDATION: false
       VERDI_CERT_IS_SELF_SIGNED: false
       IBM_WXO_WEB_CHAT_ENVIRONMENT: local
@@ -39,7 +42,6 @@ services:
       REACT_EDITOR: code
       REACT_APP_ENVIRONMENT: local
       DEPLOYMENT_ENVIRONMENT: local
-      REACT_APP_ORCHESTRATOR_AGENT_NAME: ${ORCHESTRATOR_AGENT_NAME}
       UI_APP_CONTEXT_ROOT: /mfe_home
       DE_CLIENT_HEAP_SIZE: 1024
       SERVER_REPLICA_COUNT: 1
@@ -146,7 +148,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-server:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-server-server:${TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -211,7 +213,7 @@ services:
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
 
   wxo-server-worker:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-conversation_controller:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-server-conversation_controller:${TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     depends_on:

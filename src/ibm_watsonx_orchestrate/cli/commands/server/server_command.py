@@ -204,10 +204,9 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
     final_env_file = write_merged_env_file(merged_env_dict)
 
-
-
     print("Waiting for ochestrate server to be fully started and ready...")
-    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'])
+    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
+    is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if not is_successful_server_healthcheck:
         print("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
         return False
