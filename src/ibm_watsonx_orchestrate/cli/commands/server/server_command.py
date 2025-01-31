@@ -73,6 +73,8 @@ def merge_env(
         merged.update(user_env)
 
     for key, val in os.environ.items():
+        if '%' in key:
+            continue
         merged[key] = val
 
     return merged
