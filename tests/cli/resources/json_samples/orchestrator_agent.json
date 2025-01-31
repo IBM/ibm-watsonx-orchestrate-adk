@@ -1,5 +1,5 @@
 {
-  "name": "my_agent",
+  "name": "my-orchestrator-agent",
   "type": "orchestrator",
   "management_style": "supervisor",
   "management_style_config": {

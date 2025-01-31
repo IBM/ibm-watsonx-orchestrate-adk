@@ -1,4 +1,4 @@
-name: my_agent
+name: my-orchestrator-agent
 type: orchestrator
 management_style_config:
   reflection_enabled: true
