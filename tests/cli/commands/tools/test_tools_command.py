@@ -15,12 +15,12 @@ def test_tool_import_call_no_params():
 def test_tool_import_call_python():
     with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock, \
          patch("zipfile.ZipFile") as zipfileMock:
-            tools_command.tool_import(kind="python", file="test_file", requirements_file="requirements.txt")
+            tools_command.tool_import(kind="python", file="test_file", requirements_file="tests/cli/resources/python_samples/requirements.txt")
             mock.assert_called_once_with(
                 kind="python",
                 file="test_file",
                 app_id=None,
-                requirements_file="requirements.txt"
+                requirements_file="tests/cli/resources/python_samples/requirements.txt"
             )
     
     assert zipfileMock.called

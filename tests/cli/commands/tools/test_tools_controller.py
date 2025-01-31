@@ -38,7 +38,7 @@ class MockToolClient:
         pass
     def upload_tools_artifact(self, tool_name: str, file_path: str):
         assert tool_name == self.tool_name
-        assert file_path == self.file_path
+        assert file_path.endswith(self.file_path)
 
 def test_openapi_params_valid(capsys):
     calls = []
@@ -247,7 +247,7 @@ def test_publish_python():
             file_path="artifacts.zip"
         )
 
-        tools_controller = ToolsController(ToolKind.python, "test_tool.py", "requirements.py")
+        tools_controller = ToolsController(ToolKind.python, "test_tool.py", 'tests/cli/resources/python_samples/requirements.txt')
         tools_controller.publish_or_update_tools(tools)
 
 

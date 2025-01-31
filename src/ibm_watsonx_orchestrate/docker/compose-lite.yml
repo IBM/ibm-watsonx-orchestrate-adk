@@ -153,6 +153,8 @@ services:
     restart: unless-stopped
     ports:
       - 4321:4321
+    volumes:
+      - ./sdk/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl:/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl
     depends_on:
       - wxo-server-redis
       - wxo-server-db
@@ -219,6 +221,8 @@ services:
     depends_on:
       - wxo-server-redis
       - wxo-server-db
+    volumes:
+      - ./sdk/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl:/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl
     environment:
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres

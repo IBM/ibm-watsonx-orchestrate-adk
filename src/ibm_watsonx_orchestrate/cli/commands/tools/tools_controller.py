@@ -1,19 +1,21 @@
 import asyncio
-import os
-import typer
-from typing import Iterable, List
-from enum import Enum
 import importlib
-import sys
-from pathlib import Path
 import inspect
+import sys
+import tempfile
 import zipfile
+from enum import Enum
+from os import path
+from pathlib import Path
+from typing import Iterable, List
+
+import typer
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+
 
 class ToolKind(str, Enum):
     openapi = "openapi"
@@ -113,19 +115,32 @@ class ToolsController:
 
     def publish_or_update_tools(self, tools: Iterable[BaseTool]) -> None:
         # Zip the tool's supporting artifacts for python tools
-        tool_artifact = None
-        if self.tool_kind == ToolKind.python:
-            tool_artifact = "artifacts.zip"
-            with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
-                file_path = Path(self.file)
-                zip_tool_artifacts.write(file_path, arcname=file_path.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tool_artifact = None
+            if self.tool_kind == ToolKind.python:
+                tool_artifact = path.join(tmpdir, "artifacts.zip")
+                with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                    file_path = Path(self.file)
+                    zip_tool_artifacts.write(file_path, arcname=file_path.name)
 
-                if self.requirements_file is not None:
-                    requirements_file_path = Path(self.requirements_file)
-                    zip_tool_artifacts.write(requirements_file_path, arcname=requirements_file_path.name)
+                    requirements = []
+                    if self.requirements_file is not None:
+                        with open(self.requirements_file, 'r') as fp:
+                            requirements = fp.readlines()
+                    requirements.append('/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl')
+                    requirements_file = path.join(tmpdir, 'requirements.txt')
 
-        existing_tools = None
-        try:
+                    with open(requirements_file, 'w') as fp:
+                        fp.writelines(requirements)
+                    requirements_file_path = Path(requirements_file)
+                    zip_tool_artifacts.write(requirements_file_path, arcname='requirements.txt')
+
+                    bundle_format_file = path.join(tmpdir, 'bundle-format')
+                    with open(bundle_format_file, 'w') as fp:
+                        fp.writelines(['1.0.0'])
+                    zip_tool_artifacts.write(Path(bundle_format_file), arcname='bundle-format')
+
+            existing_tools = None
             for tool in tools:
                 exist = False
                 tool_id = None
@@ -140,11 +155,6 @@ class ToolsController:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
                 else:
                     self.publish_tool(tool, tool_artifact=tool_artifact)
-        except Exception as e:
-            raise e
-        finally:
-            if tool_artifact is not None and os.path.isfile(tool_artifact):
-                os.remove(tool_artifact)
 
     def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
