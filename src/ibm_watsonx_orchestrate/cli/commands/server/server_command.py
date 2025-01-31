@@ -354,7 +354,9 @@ def server_start(
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):
-    
+    if user_env_file and not Path(user_env_file).exists():
+        print(f"Error: The specified environment file '{user_env_file}' does not exist.")
+        sys.exit(1)
     ensure_docker_installed()
 
     default_env_path = get_default_env_file()
