@@ -1,5 +1,25 @@
+import json
+
 import requests
 from abc import ABC, abstractmethod
+
+
+class ClientAPIException(requests.HTTPError):
+
+    def __init__(self, *args, request=..., response=...):
+        super().__init__(*args, request=request, response=response)
+
+    def __repr__(self):
+        status = self.response.status_code
+        resp = self.response.text
+        try:
+            resp = json.dumps(resp).get('detail', None)
+        except:
+            pass
+        return f"ClientAPIException(status_code={status}, message={resp})"
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class BaseAPIClient:
@@ -56,7 +76,8 @@ class BaseAPIClient:
         try:
             response.raise_for_status()
         except requests.HTTPError as e:
-            raise e
+            raise ClientAPIException(request=e.request, response=e.response)
+
     @abstractmethod
     def create(self, *args, **kwargs):
         raise NotImplementedError("create method of the client must be implemented")

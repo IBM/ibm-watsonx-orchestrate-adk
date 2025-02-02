@@ -116,30 +116,6 @@ class ToolsController:
     def publish_or_update_tools(self, tools: Iterable[BaseTool]) -> None:
         # Zip the tool's supporting artifacts for python tools
         with tempfile.TemporaryDirectory() as tmpdir:
-            tool_artifact = None
-            if self.tool_kind == ToolKind.python:
-                tool_artifact = path.join(tmpdir, "artifacts.zip")
-                with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
-                    file_path = Path(self.file)
-                    zip_tool_artifacts.write(file_path, arcname=file_path.name)
-
-                    requirements = []
-                    if self.requirements_file is not None:
-                        with open(self.requirements_file, 'r') as fp:
-                            requirements = fp.readlines()
-                    requirements.append('/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl')
-                    requirements_file = path.join(tmpdir, 'requirements.txt')
-
-                    with open(requirements_file, 'w') as fp:
-                        fp.writelines(requirements)
-                    requirements_file_path = Path(requirements_file)
-                    zip_tool_artifacts.write(requirements_file_path, arcname='requirements.txt')
-
-                    bundle_format_file = path.join(tmpdir, 'bundle-format')
-                    with open(bundle_format_file, 'w') as fp:
-                        fp.writelines(['1.0.0'])
-                    zip_tool_artifacts.write(Path(bundle_format_file), arcname='bundle-format')
-
             existing_tools = None
             for tool in tools:
                 exist = False
@@ -150,6 +126,29 @@ class ToolsController:
                 if tool.__tool_spec__.name in existing_tools:
                     tool_id = tool.__tool_spec__.name
                     exist = True
+
+                tool_artifact = None
+                if self.tool_kind == ToolKind.python:
+                    tool_artifact = path.join(tmpdir, "artifacts.zip")
+                    with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                        file_path = Path(self.file)
+                        zip_tool_artifacts.write(file_path, arcname=f"{tool.__tool_spec__.name}.py")
+
+                        requirements = []
+                        if self.requirements_file is not None:
+                            with open(self.requirements_file, 'r') as fp:
+                                requirements = fp.readlines()
+                        requirements.append('/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl\n')
+                        requirements_file = path.join(tmpdir, 'requirements.txt')
+                        with open(requirements_file, 'w') as fp:
+                            fp.writelines(requirements)
+                        requirements_file_path = Path(requirements_file)
+                        zip_tool_artifacts.write(requirements_file_path, arcname='requirements.txt')
+
+                        bundle_format_file = path.join(tmpdir, 'bundle-format')
+                        with open(bundle_format_file, 'w') as fp:
+                            fp.writelines(['1.0.0'])
+                        zip_tool_artifacts.write(Path(bundle_format_file), arcname='bundle-format')
 
                 if exist:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
