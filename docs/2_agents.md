@@ -13,7 +13,9 @@
    type: expert 
    role: A natural language definition of the agents role
    goal: A natural language definition of the agents objective
+   backstory: A natural language definition of the agents context, motivation and depth
    instructions: A natural language definition of how the agent is to go about solving the problem
+   llm: watsonx/ibm/granite-3-8b-instruct
    tools:
       - test_tool
       - web_search
@@ -26,7 +28,7 @@
    management_style_config:
       reflection_enabled: true
       reflection_retry_count: 3
-   llm: granite
+   llm: watsonx/ibm/granite-3-8b-instruct
    agents:
       - sample_expert_agent
    ```
@@ -39,7 +41,9 @@
       "type": "expert" ,
       "role": "A natural language definition of the agents role",
       "goal": "A natural language definition of the agents objective",
+      "backstory": "A natural language definition of the agents context, motivation and depth",
       "instructions": "A natural language definition of how the agent is to go about solving the problem",
+      "llm": "watsonx/ibm/granite-3-8b-instruct",
       "tools":[
          "test_tool",
          "web_search"
@@ -56,7 +60,7 @@
          "reflection_enabled": true,
          "reflection_retry_count": 3
       },
-      "llm": "granite",
+      "llm": "watsonx/ibm/granite-3-8b-instruct",
       "agents":[
          "sample_expert_agent"
       ]
@@ -75,7 +79,9 @@
       description="A natural language definition of the agents role",
       role="A natural language definition of the agents role",
       goal="A natural language definition of the agents objective",
+      backstory="A natural language definition of the agents context, motivation and depth",
       instructions="A natural language definition of how the agent is to go about solving the problem",
+      llm="watsonx/ibm/granite-3-8b-instruct",
       tools=[my_tool],
    )
 
@@ -84,7 +90,7 @@
       type="orchestrator",
       management_style="supervisor",
       management_style_config=SupervisorConfig(reflection_enabled=True, reflection_retry_count=3),
-      llm="granite",
+      llm="watsonx/ibm/granite-3-8b-instruct",
       agents=["expert_agent"]
    )
    ```
@@ -101,7 +107,9 @@
     * `--description` is the description of the expert agent
     * `--role` is a natural lanuague description of the role you want the agent to carry out
     * `--goal` is a natural lanuague description of the goal you want the agent to achieve
+    * `--backstory` is a natural language definition of the agents context, motivation and depth
     * `--instructions` is a natural lanuague description of how you want the agent to go about carrying out its role
+    * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
     * `--tools` is a comma seperated list of `tools` that the agent can leverage in order to complete its goal
 
    ```bash
@@ -111,7 +119,9 @@
    --description "Sample agent description" \
    --role "You are a sample agent meant to demonstrate the syntax" \
    --goal "Your mission is to teach people the syntax of the WXO CLI" \
+   --backstory "is a natural language definition of the agents context, motivation and depth" \
    --instructions "Use the tools provided to ..." \
+   --llm watsonx/ibm/granite-3-8b-instruct \
    --tools web_search,my_tool
    ```
 
@@ -122,7 +132,7 @@
     * `--type` / `-t` is the type of agent you wish to create. For orchestrator agents the value should be `orchestrator`
     * `--management_style` what style of management the agent should use
     * `--management_style_config` configuable aspects of the agents management style like `refection_enabled` and `reflection_retry_count`
-    * `--llm` what large language model the agent should use
+    * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
     * `--agents` what expert agents does this agent manage
 
    ```bash
@@ -131,5 +141,5 @@
    --type orchestrator \
    --management_style supervisor \
    --management_style_config reflection_enabled=true,reflection_retry_count=3 \
-   --llm granite \
+   --llm watsonx/ibm/granite-3-8b-instruct \
    --agents sample_expert_agent,sales_agent

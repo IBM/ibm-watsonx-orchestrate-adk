@@ -17,7 +17,7 @@ WATSONX_SPACE_ID=<your watsonx ai space id>
 ```
 Do note, if your team has a shared watsonx instance your WATSONX_APIKEY may be different from your DOCKER_IAM_KEY
 if your team uses a shared ibm cloud account other than your own.
-8. Start your Watson Orchestrate Light server. For more details check out [server_start](./1_server_start)
+8. Start your Watson Orchestrate Light server. For more details check out [server_start](./1_server_start.md)
 ```bash
 orchestrate server start --env-file path/to/.env
 ```
@@ -25,12 +25,12 @@ orchestrate server start --env-file path/to/.env
 ```bash
 orchestrate login --local
 ```
-10. Import your first tool(s). For more details on this check out [docs/2_tools.md](docs/2_tools.md)
+10. Import your first tool(s). For more details on this check out [docs/tools](./2_tools.md)
 ```bash
 orchestrate tools import -k python -f path/to/python/tool.py
 orchestrate tools import -k openapi -f path/to/python/openapi_spec.yaml
 ```
-11. Create an expert agent who can use your tools. For more details on this check out [docs/2_agents.md](docs/2_agents.md)
+11. Create an expert agent who can use your tools. For more details on this check out [docs/agents](./2_agents.md)
 ```bash
 orchestrate agents import -f path/to/expert_agent_spec.yaml
 ```
@@ -38,7 +38,7 @@ orchestrate agents import -f path/to/expert_agent_spec.yaml
 ```bash
 orchestrate agents import -f path/to/orchestrator_agent_spec.yaml
 ```
-13. Start chatting with your newly created orchestrator agent. For more details on this check out [docs/2_agents.md](docs/2_agents.md)
+13. Start chatting with your newly created orchestrator agent. For more details on this check out [docs/agents](./2_agents.md)
 ```bash
 orchestrate chat start --env-file path/to/.env --orchestrator-agent-name <name of orchestrator agent>
 ```
