@@ -5,7 +5,6 @@ import os
 from typing import Callable
 
 import docstring_parser
-import yaml
 from langchain_core.tools.base import create_schema_from_function
 from langchain_core.utils.json_schema import dereference_refs
 from pydantic import TypeAdapter, BaseModel
@@ -86,6 +85,7 @@ def _fix_optional(schema):
 
 
 def tool(
+    *args,
     name: str = None,
     description: str = None,
     input_schema: ToolRequestBody = None,
@@ -94,8 +94,6 @@ def tool(
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
-
-    Support level: Beta
 
     :param name: the agent facing name of the tool (defaults to the function name)
     :param description: the description of the tool (used for tool routing by the agent)
@@ -167,6 +165,8 @@ def tool(
         _all_tools.append(t)
         return t
 
+    if len(args) == 1 and callable(args[0]):
+        return _tool_decorator(args[0])
     return _tool_decorator
 
 

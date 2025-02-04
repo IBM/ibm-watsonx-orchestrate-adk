@@ -56,7 +56,7 @@ def find_users_peers(userId: str) -> List[Any]:
     Search for all peers of a person given their w3 userId. This will include the name, role and contact information
     of those peers. You should first call find_w3_userId_for_name to find the userId for this request if you are only
     given a name.
-    :param userId: T3 id of the user to search for
+    :param userId: W3 id of the user to search for
     :returns: A list of users and their associated userId
     """
     resp = requests.post(

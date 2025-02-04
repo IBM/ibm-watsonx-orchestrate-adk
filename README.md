@@ -33,7 +33,7 @@ handling responses from the service’s APIs.
 7. Create an env file with the following contents
 ```env
 DOCKER_IAM_KEY=<your ibm cloud api key>
-WATSONX_APIKEY=<your ibm cloud api key>
+WATSONX_APIKEY=<your watsonx ai api key>
 WATSONX_SPACE_ID=<your watsonx ai space id>
 ```
 

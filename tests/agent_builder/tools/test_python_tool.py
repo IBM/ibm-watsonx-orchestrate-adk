@@ -6,6 +6,23 @@ from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
 
 
+def test_should_allow_naked_decorators(snapshot):
+    @tool
+    def my_tool():
+        """
+        The description
+        """
+        return 3
+
+    spec = json.loads(my_tool.dumps_spec())
+    spec['binding']['python']['function'] = spec['binding']['python']['function'].split('.')[-1]
+    snapshot.assert_match(spec)
+    assert spec['name'] == 'my_tool'
+    assert spec.get('description') == "The description"
+    assert spec['permission'] == 'read_only'
+    assert spec['binding']['python']['function'] == 'test_python_tool:my_tool'
+    assert my_tool() == 3
+
 def test_should_use_correct_defaults(snapshot):
     description = "test python description"
     @tool(description=description)

@@ -7,6 +7,26 @@ from snapshottest import Snapshot
 
 snapshots = Snapshot()
 
+snapshots['test_should_allow_naked_decorators 1'] = {
+    'binding': {
+        'python': {
+            'function': 'test_python_tool:my_tool'
+        }
+    },
+    'description': 'The description',
+    'input_schema': {
+        'properties': {
+        },
+        'required': [
+        ],
+        'type': 'object'
+    },
+    'name': 'my_tool',
+    'output_schema': {
+    },
+    'permission': 'read_only'
+}
+
 snapshots['test_should_be_possible_to_override_defaults 1'] = {
     'binding': {
         'python': {
