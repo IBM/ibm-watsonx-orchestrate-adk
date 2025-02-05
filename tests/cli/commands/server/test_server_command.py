@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import patch, Mock, mock_open
+from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 from dotenv import dotenv_values
@@ -31,6 +31,35 @@ def mock_env_files(tmp_path):
     
     return default_env, user_env
 
+@pytest.fixture
+def valid_user_env(tmp_path):
+    env_file = tmp_path / "user_valid.env"
+    env_file.write_text(
+        "DOCKER_IAM_KEY=test-key\n"
+        "REGISTRY_URL=registry.example.com\n"
+        "WATSONX_APIKEY=test-llm-key\n"
+        "WXO_USER=temp\n"
+        "WXO_PASS=temp\n"
+        "HEALTH_TIMEOUT=1\n"
+        "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
+    )
+    return env_file
+
+@pytest.fixture
+def invalid_user_env(tmp_path):
+    env_file = tmp_path / "user_invalid.env"
+    env_file.write_text(
+        "DOCKER_IAM_KEY=invalid-key\n"
+        "REGISTRY_URL=registry.example.com\n"
+        "WATSONX_APIKEY=test-llm-key\n"
+        "WXO_USER=temp\n"
+        "WXO_PASS=temp\n"
+        "HEALTH_TIMEOUT=1\n"
+        "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
+    )
+    return env_file
+
+# Fixture for a valid compose file.
 @pytest.fixture
 def mock_compose_file(tmp_path):
     compose = tmp_path / "compose-lite.yml"
@@ -89,7 +118,7 @@ def test_merge_env_environment_override(monkeypatch, mock_env_files):
     default_env, user_env = mock_env_files
     monkeypatch.setenv("OVERLAP_VAR", "env_val")
     merged = merge_env(default_env, user_env)
-    assert merged["OVERLAP_VAR"] == "env_val"
+    assert merged["OVERLAP_VAR"] == "user_val"
 
 def test_apply_llm_defaults():
     env = {
@@ -103,94 +132,83 @@ def test_apply_llm_defaults():
 
 def test_write_merged_env_file(tmp_path):
     mock_env = {"KEY1": "value1", "KEY2": "value2"}
-    with patch("tempfile.NamedTemporaryFile", new=mock_open()) as mock_temp:
-        result = write_merged_env_file(mock_env)
-        mock_temp().write.assert_any_call("KEY1=value1\n")
-        mock_temp().write.assert_any_call("KEY2=value2\n")
-        assert isinstance(result, Path)
+    result_path = write_merged_env_file(mock_env)
+    content = result_path.read_text()
+    assert "KEY1=value1\n" in content
+    assert "KEY2=value2\n" in content
+    result_path.unlink()
+    assert isinstance(result_path, Path)
 
 def test_run_compose_lite_success():
     mock_env_file = Path("/tmp/test.env")
     with patch("subprocess.run") as mock_run, \
          patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
-        run_compose_lite(mock_env_file)
+        with patch.object(Path, "exists", return_value=True):
+            run_compose_lite(mock_env_file)
+            mock_unlink.assert_called()
 
 def test_run_compose_lite_failure():
     mock_env_file = Path("/tmp/test.env")
     with patch("subprocess.run") as mock_run, \
-         patch("pathlib.Path.unlink") as mock_unlink:
+         patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 1
         with pytest.raises(SystemExit):
             run_compose_lite(mock_env_file)
         mock_unlink.assert_not_called()
 
-def test_cli_start_success(mock_env_files, mock_compose_file):
-    default_env, user_env = mock_env_files
+def test_cli_start_success(valid_user_env, mock_compose_file):
     with patch("subprocess.run") as mock_run, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose:
-        mock_default.return_value = default_env
+        mock_default.return_value = valid_user_env
         mock_compose.return_value = mock_compose_file
         mock_run.return_value.returncode = 0
         
         result = runner.invoke(
             server_app,
-            ["start", "--env-file", str(user_env)],
-            env={
-                "DOCKER_IAM_KEY": "test-key",
-                "REGISTRY_URL": "registry.example.com",
-                "WATSONX_APIKEY": "test-llm-key",
-                "WXO_USER": "temp",
-                "WXO_PASS": "temp",
-                "HEALTH_TIMEOUT": "1"
-            }
+            ["start", "--env-file", str(valid_user_env)]
         )
-
+        
         assert result.exit_code == 0
-        assert "Successfully logged in" in result.output
-        assert "Services started" in result.output
+        assert "Services started successfully." in result.output
 
 def test_cli_start_missing_credentials():
     result = runner.invoke(
         server_app,
         ["start"],
-        env={"PATH": os.environ["PATH"]}
+        env={"PATH": os.environ.get("PATH", "")}
     )
     assert result.exit_code == 1
     assert "DOCKER_IAM_KEY is required" in result.output
 
-def test_cli_stop_command(mock_env_files):
-    default_env, user_env = mock_env_files
+def test_cli_stop_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down:
         result = runner.invoke(
             server_app,
-            ["stop"]
+            ["stop", "--env-file", str(valid_user_env)]
         )
         assert result.exit_code == 0
         mock_down.assert_called_once()
 
-def test_cli_reset_command(mock_env_files):
-    default_env, user_env = mock_env_files
+def test_cli_reset_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.write_merged_env_file") as mock_write_env:
-        
-        mock_write_env.return_value = Path("/var/folders/ln/ndmmgvfj5j14pc32x4t0rxmm0000gn/T/tmpod5lu281.env")
+        temp_env_path = Path("/tmp/tmpenv.env")
+        mock_write_env.return_value = temp_env_path
         
         result = runner.invoke(
             server_app,
-            ["reset"]
+            ["reset", "--env-file", str(valid_user_env)]
         )
-        
         assert result.exit_code == 0
-        mock_down.assert_called_once_with(final_env_file=mock_write_env.return_value, is_reset=True)
+        mock_down.assert_called_once_with(final_env_file=temp_env_path, is_reset=True)
 
-def test_cli_logs_command(mock_env_files):
-    default_env, user_env = mock_env_files
+def test_cli_logs_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_logs") as mock_logs:
         result = runner.invoke(
             server_app,
-            ["logs"]
+            ["logs", "--env-file", str(valid_user_env)]
         )
         assert result.exit_code == 0
         mock_logs.assert_called_once()
@@ -200,32 +218,34 @@ def test_missing_default_env_file():
         mock_default.return_value = Path("/non/existent/path")
         result = runner.invoke(server_app, ["start"])
         assert result.exit_code == 1
-        assert "Error: DOCKER_IAM_KEY is required but not set in the environment." in result.output
+        assert "DOCKER_IAM_KEY is required in the environment file." in result.output
 
-def test_invalid_docker_credentials():
+def test_invalid_docker_credentials(invalid_user_env):
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1
         mock_run.return_value.stderr = b"Invalid credentials"
         result = runner.invoke(
             server_app,
-            ["start"],
-            env={"DOCKER_IAM_KEY": "invalid-key", "REGISTRY_URL": "registry.example.com"}
+            ["start", "--env-file", str(invalid_user_env)]
         )
         assert result.exit_code == 1
         assert "Invalid credentials" in result.output
 
-def test_missing_compose_file():
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose:
-        mock_compose.return_value = Path("/non/existent/compose.yml")
-        result = runner.invoke(server_app, ["start"])
-        assert result.exit_code == 1
-        assert "Error: DOCKER_IAM_KEY is required but not set in the environment." in result.output
+def test_missing_compose_file(valid_user_env):
+  with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+       patch("subprocess.run") as mock_run:
+      mock_compose.return_value = Path("/non/existent/compose.yml")
+      mock_run.return_value.returncode = 1
+      mock_run.return_value.stderr = b"Error response from daemon: Get \"https://registry.example.com/v2/\": dial tcp: lookup registry.example.com on 192.168.5.3:53: lame referral\n"
+      result = runner.invoke(server_app, ["start", "--env-file", str(valid_user_env)])
+      assert result.exit_code == 1
+      assert "Error logging into Docker:" in result.output
 
 def test_env_variable_conflict_resolution(monkeypatch, mock_env_files):
     default_env, user_env = mock_env_files
     monkeypatch.setenv("OVERLAP_VAR", "env_override")
     merged = merge_env(default_env, user_env)
-    assert merged["OVERLAP_VAR"] == "env_override"
+    assert merged["OVERLAP_VAR"] == "user_val"
 
 def test_llm_defaults_missing_keys():
     env = {}
@@ -238,4 +258,4 @@ def test_cli_command_failure():
         mock_run.return_value.returncode = 1
         result = runner.invoke(server_app, ["start"])
     assert result.exit_code == 1
-    assert "Error: DOCKER_IAM_KEY is required but not set in the environment." in result.output
+    assert "DOCKER_IAM_KEY is required" in result.output

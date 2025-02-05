@@ -72,10 +72,6 @@ def merge_env(
         user_env = dotenv_values(str(user_env_path))
         merged.update(user_env)
 
-    for key, val in os.environ.items():
-        if '%' in key:
-            continue
-        merged[key] = val
 
     return merged
 
@@ -187,7 +183,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
-        print("Error: REGISTRY_URL is required but not set in the environment.")
+        print("Error: REGISTRY_URL is required in the environment file.")
         sys.exit(1)
 
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
@@ -370,12 +366,12 @@ def server_start(
 
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
     if not iam_api_key:
-        print("Error: DOCKER_IAM_KEY is required but not set in the environment.")
+        print("Error: DOCKER_IAM_KEY is required in the environment file.")
         sys.exit(1)
 
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
-        print("Error: REGISTRY_URL is required but not set in the environment.")
+        print("Error: REGISTRY_URL is required in the environment file.")
         sys.exit(1)
 
     docker_login(iam_api_key, registry_url)

@@ -38,17 +38,15 @@ The following environment variables must be set before running the command:
 
 - `WATSONX_APIKEY`: The API key for your Watson X service. This can be created in your Watson X account at https://cloud.ibm.com. Go to "Service credentials" and create a new credential.
 
-- `TAVILY_API_KEY`: The API key for the Tavily service. You can sign up at https://tavily.com.  
-
-You may set these in your shell environment, or put them in a environment file and refer to that with the start command.
+You should set these in a environment file and refer to that with the start command.
 For example:
 - `orchestrate server start --env-file=./env.lite`
+
 Where env.lite contains:
 ```
 DOCKER_IAM_KEY=your IBM key from cloud.ibm.com
 WATSONX_SPACE_ID=your watsonx space id 
 WATSONX_APIKEY=your watsonx api key
-TAVILY_API_KEY=your tavili api key
 ```
 
 
