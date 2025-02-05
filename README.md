@@ -10,8 +10,8 @@ handling responses from the service’s APIs.
 
 ## Prerequisites
 
-- **Python 3.12+**  
-  Ensure you have Python 3.12 or later installed.
+- **Python 3.11-3.13**  
+  Ensure you have Python 3.11-3.13 installed.
 
 - **Dependencies**  
   All required python dependencies will be automatically installed when you install the package. However,
@@ -26,8 +26,10 @@ handling responses from the service’s APIs.
 - docker
 - docker compose
 - python 3.12
-3. Clone this repository
-4. Run `pip install .` at the root of the repository.
+3. Make sure your ssh key is uploaded to your personal github account 
+   1. Run cat ~/.ssh/id_rsa.pub and if it returns `cat: /some/path/.ssh/id_rsa.pub: No such file or directory`, run ssh-keygen
+   2. Take the contents printed out by running cat ~/.ssh/id_rsa.pub and upload it to [github](https://github.ibm.com/settings/keys)  
+4. Run pip install git+ssh://github.ibm.com/WatsonOrchestrate/wxo-clients.git
 5. Next we'll need to create an IBM Cloud IAM key so that we will be able to download orchestrate lite. Follow the instructions [here](https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=ui) making sure to not close the page after generating the api key.
 6. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 7. Create an env file with the following contents
