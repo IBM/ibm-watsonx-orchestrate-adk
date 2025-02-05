@@ -83,3 +83,21 @@ Here is a brief description of the configuration variables that can be overridde
 - `LANGFUSE_*`: Configuration for Langfuse service
 - `CELERY_*`: Celery worker settings
 - `DEFAULT_SETTINGS` / `*_PROMPTS_DIR`: Paths to various config files
+
+## Troubleshot
+
+### server start fails with `pull access denied`
+1). try to login manually `docker login -u iamapikey -p APIKEY  us.icr.io` and verify indeed the apikey gives the access.
+if login fails, reach out to slack `#wxo-agent-buider`   
+2). if 1) is successful and server still fails to start , try to locate `~/.docker/config.json`. if the file does not exist, run `touch ~/.docker/config.json` to create the file. 
+Add the following section:    
+```
+{
+        "auths": {
+                "us.icr.io": {
+                        "auth": BASE64_ENCODED_CRED
+                }
+        }
+}
+```
+Note: BASE64_ENCODED_CRED should be based64 encoded string of `iamapikey:APIKEY`.
