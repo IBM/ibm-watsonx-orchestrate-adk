@@ -1,6 +1,7 @@
 services:
   wxo-server-redis:
-    image: redis:alpine
+    image: us.icr.io/watson-orchestrate-private/redis:latest
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - 6379:6379
@@ -9,7 +10,8 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${TAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
+    platform: linux/amd64    
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -27,7 +29,7 @@ services:
     command: -c shared_preload_libraries=pgsodium
 
   ui:
-    image: us.icr.io/watson-orchestrate-private/wxo-chat:${TAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -98,7 +100,8 @@ services:
       - ui-data:/data
 
   wxo-server-minio:
-    image: minio/minio
+    image: us.icr.io/watson-orchestrate-private/minio/minio:latest
+    platform: linux/amd64
     ports:
       - '9000:9000'
       - '9001:9001'
@@ -114,7 +117,8 @@ services:
     volumes:
       - wxo-server-minio-data:/data
   wxo-server-minio-setup:
-    image: minio/mc
+    image: us.icr.io/watson-orchestrate-private/minio/mc:latest
+    platform: linux/amd64
     depends_on:
       wxo-server-minio:
         condition: service_healthy
