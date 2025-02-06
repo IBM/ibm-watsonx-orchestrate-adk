@@ -19,7 +19,9 @@ WATSONX_SPACE_ID=<your watsonx ai space id>
 ```
 Do note, if your team has a shared watsonx instance your WATSONX_APIKEY may be different from your DOCKER_IAM_KEY
 if your team uses a shared ibm cloud account other than your own.
+
 8. Start your Watson Orchestrate Light server. For more details check out [server_start](./1_server_start.md)
+
 ```bash
 orchestrate server start --env-file path/to/.env
 ```

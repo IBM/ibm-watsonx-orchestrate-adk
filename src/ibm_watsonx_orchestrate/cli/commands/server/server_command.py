@@ -202,7 +202,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
     final_env_file = write_merged_env_file(merged_env_dict)
 
-    print("Waiting for ochestrate server to be fully started and ready...")
+    print("Waiting for orchestrate server to be fully started and ready...")
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if not is_successful_server_healthcheck:
@@ -381,7 +381,7 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file)
 
-    print("Waiting for ochestrate server to be fully initialized and ready...")
+    print("Waiting for orchestrate server to be fully initialized and ready...")
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:

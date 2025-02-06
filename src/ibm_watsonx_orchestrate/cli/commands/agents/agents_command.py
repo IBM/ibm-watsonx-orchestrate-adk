@@ -67,7 +67,7 @@ def agent_create(
         str,
         typer.Option(
             "--backstory",
-            help="The backsotry ot the expert agent for further context. Optional for type=['expert']",
+            help="The backstory of the Expert agent. This provides further context as to how the agent should behave. Optional for type=['expert']",
         ),
     ] = None,
     tools: Annotated[
