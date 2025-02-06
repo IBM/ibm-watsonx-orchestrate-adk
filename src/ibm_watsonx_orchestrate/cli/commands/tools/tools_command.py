@@ -53,3 +53,23 @@ def tool_import(
     )
     
     tools_controller.publish_or_update_tools(tools)
+
+@tools_app.command(name="list")
+def list_tools(
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="List full details of all tools as json"),
+    ] = False,
+):  
+    tools_controller = ToolsController()
+    tools_controller.list_tools(verbose=verbose)
+
+@tools_app.command(name="remove")
+def remove_tool(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the tool you wish to remove"),
+    ],
+):  
+    tools_controller = ToolsController()
+    tools_controller.remove_tool(name=name)

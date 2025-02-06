@@ -1,6 +1,8 @@
 import json
 import sys
 from warnings import warn
+from rich.table import Table
+from rich.console import Console
 
 import requests
 import typer
@@ -12,7 +14,6 @@ from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection
     CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.cli.commands.connections.application.types import ApplicationConnectionType
-
 
 _outh_connection_types = {
     ApplicationConnectionType.oauth_auth_code_flow,
@@ -166,11 +167,41 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
         exit(1)
 
 
-def delete_application_connection(app_id: str):
+def remove_application_connection(app_id: str):
     client = instantiate_client(ApplicationConnectionsClient)
     try:
         client.delete(app_id=app_id)
-        print(f"Successfully deleted application connection with app_id: {app_id}")
+        print(f"Successfully removed application connection with app_id: {app_id}")
     except requests.HTTPError as e:
         print(e.response.text, file=sys.stderr)
+        exit(1)
+
+def list_application_connections():
+    client = instantiate_client(ApplicationConnectionsClient)
+
+    table = Table(show_header=True, header_style="bold white", show_lines=True)
+    columns = ["App ID", "Connection Type", "Shared", "Connected", "Connection ID"]
+    for column in columns:
+        table.add_column(column)
+
+    try:
+        connections = client.get()
+
+        for conn in connections:
+            table.add_row(
+                conn.appid,
+                conn.connection_type,
+                str(conn.shared),
+                str(conn.is_connected),
+                conn.connection_id
+            )
+
+        
+        Console().print(table)
+
+    except requests.HTTPError as e:
+        if e.response.status_code == 404 and "Connections not found" in e.response.text:
+                Console().print(table)
+        else:
+            print(e.response.text, file=sys.stderr)
         exit(1)

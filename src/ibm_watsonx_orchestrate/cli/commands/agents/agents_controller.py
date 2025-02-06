@@ -1,6 +1,8 @@
 import yaml
 import json
+import rich
 import typer
+import requests
 import importlib
 import inspect
 import sys
@@ -260,3 +262,93 @@ class AgentsController:
     def persist_record(self, agent: OrchestrateAgent | ExpertAgent, **kwargs):
         if "output_file" in kwargs and kwargs["output_file"] is not None:
             agent.dump_spec(kwargs["output_file"])
+    
+    def list_agents(self, type: AgentTypes=None, verbose: bool=False):
+        if type == AgentTypes.orchestrator or type is None:
+            response = self.get_orchestrator_client().get()
+            orchestrator_agents = [OrchestrateAgent.model_validate(agent) for agent in response]
+
+            if verbose:
+                for agent in orchestrator_agents:
+                    rich.print(agent.dumps_spec())
+            else:
+                orchestrator_table = rich.table.Table(
+                    show_header=True, 
+                    header_style="bold white", 
+                    title="Orchestrator Agents",
+                    show_lines=True)
+                column_args = {
+                    "Name": {},
+                    "Management Style": {}, 
+                    "Management Style Config": {}, 
+                    "LLM": {"overflow": "fold"}, 
+                    "Agents": {}
+                    }
+                for column in column_args:
+                    orchestrator_table.add_column(column, **column_args[column])
+                
+                for agent in orchestrator_agents:
+                    orchestrator_table.add_row(
+                        agent.name,
+                        agent.management_style,
+                        agent.management_style_config.model_dump_json(),
+                        agent.llm,
+                        ", ".join(agent.agents)
+                    )
+                rich.print(orchestrator_table)
+
+        if type == AgentTypes.expert or type is None:
+            response = self.get_expert_client().get()
+            expert_agents = [ExpertAgent.model_validate(agent) for agent in response]
+
+            if verbose:
+                for agent in expert_agents:
+                    rich.print(agent.dumps_spec())
+            else:
+                expert_table = rich.table.Table(
+                    show_header=True, 
+                    header_style="bold white", 
+                    title="Expert Agents",
+                    show_lines=True)
+                column_args = {
+                    "Name": {},
+                    "Type": {},
+                    "Description": {},
+                    "Role": {},
+                    "Goal": {},
+                    "Instructions": {}, 
+                    "Backstory": {},
+                    "LLM": {"overflow": "fold"},
+                    "Tools": {}}
+                
+                for column in column_args:
+                    expert_table.add_column(column, **column_args[column])
+                
+                for agent in expert_agents:
+                    expert_table.add_row(
+                        agent.name,
+                        agent.type,
+                        agent.description,
+                        agent.role,
+                        agent.goal,
+                        agent.instructions,
+                        agent.backstory,
+                        agent.llm,
+                        ", ".join(agent.tools)
+                    )
+                rich.print(expert_table)
+
+    def remove_agent(self, name: str, type: AgentTypes):
+            try:
+                if type == AgentTypes.orchestrator:
+                    self.get_orchestrator_client().delete(agent_id=name)
+                elif type == AgentTypes.expert:
+                    self.get_expert_client().delete(agent_id=name)
+                else:
+                    raise ValueError("'type' must be either 'expert' or 'orchestrator'")
+                
+                print(f"Successfully removed agent {name}")
+            except requests.HTTPError as e:
+                print(e.response.text, file=sys.stderr)
+                exit(1)
+

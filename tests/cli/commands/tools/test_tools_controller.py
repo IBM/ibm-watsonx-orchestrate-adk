@@ -19,7 +19,7 @@ class MockSDKResponse:
         return json.dumps(self.response_obj)
 
 class MockToolClient:
-    def __init__(self, expected, get_reponse=[], tool_name="", file_path=""):
+    def __init__(self, expected=None, get_reponse=[], tool_name="", file_path=""):
         self.expected = expected
         self.get_reponse = get_reponse
         self.tool_name = tool_name
@@ -34,8 +34,8 @@ class MockToolClient:
         assert name in [x["name"] for x in self.get_reponse]
         for key in self.expected:
             assert spec[key] == self.expected[key]
-    def delete(self):
-        pass
+    def delete(self, agent_id):
+        assert agent_id == self.tool_name
     def upload_tools_artifact(self, tool_name: str, file_path: str):
         assert tool_name == self.tool_name
         assert file_path.endswith(self.file_path)
@@ -283,3 +283,58 @@ def test_update_python():
 
         mock_instantiate_client.assert_called_once_with(ToolClient)
         mock_zipfile.assert_called
+
+@mock.patch(
+    "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.get_client",
+    return_value=MockToolClient(tool_name="test_tool")
+)
+def test_expert_agent_remove(mock, capsys):
+    tools_controller = ToolsController()
+    tool_name = "test_tool"
+    tools_controller.remove_tool(name=tool_name)
+
+    captured = capsys.readouterr()
+    assert f"Successfully removed tool {tool_name}" in captured.out
+
+@mock.patch(
+    "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.get_client",
+    return_value=MockToolClient(get_reponse=[
+        {
+            "name": "test_tool",
+            "description": "testing_tool",
+            "permission": "read_only",
+            "binding": {
+                "python": {"function": "test_function"}
+            }
+        }
+    ])
+)
+def test_tool_list(mock):
+
+    tools_controller = ToolsController()
+    tools_controller.list_tools()
+
+@mock.patch(
+    "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.get_client",
+    return_value=MockToolClient(get_reponse=[
+        {
+            "name": "test_tool",
+            "description": "testing_tool",
+            "permission": "read_only",
+            "binding": {
+                "python": {"function": "test_function"}
+            }
+        }
+    ])
+)
+def test_tool_list_verbose(mock, capsys):
+
+    tools_controller = ToolsController()
+    tools_controller.list_tools(verbose=True)
+
+    captured = capsys.readouterr()
+    print(captured.out)
+
+    assert "test_tool" in captured.out
+    assert "testing_tool" in captured.out
+    assert "read_only" in captured.out

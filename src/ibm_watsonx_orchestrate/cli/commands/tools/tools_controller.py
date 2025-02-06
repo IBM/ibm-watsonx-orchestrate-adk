@@ -3,15 +3,18 @@ import importlib
 import inspect
 import sys
 import tempfile
+import requests
 import zipfile
 from enum import Enum
 from os import path
 from pathlib import Path
 from typing import Iterable, List
+import rich
 
+import rich.table
 import typer
 
-from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -21,7 +24,6 @@ class ToolKind(str, Enum):
     openapi = "openapi"
     python = "python"
     # skill = "skill"
-
 
 def validate_params(kind: ToolKind, **args) -> None:
     if kind != 'openapi' and args.get('app_id') is not None:
@@ -109,6 +111,38 @@ class ToolsController:
 
         for tool in tools:
             yield tool
+    
+    def list_tools(self, verbose=False):
+        response = self.get_client().get()
+        tool_specs = [ToolSpec.model_validate(tool) for tool in response]
+        tools = [BaseTool(spec=spec) for spec in tool_specs]
+
+        if verbose:
+            for tool in tools:
+                rich.print(tool.dumps_spec())
+        else:
+            table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
+            columns = ["Name", "Description", "Permission", "Type"]
+            for column in columns:
+                table.add_column(column)
+            
+            for tool in tools:
+                tool_binding = tool.__tool_spec__.binding
+                if tool_binding.python is not None:
+                        tool_type=ToolKind.python
+                elif tool_binding.openapi is not None:
+                        tool_type=ToolKind.openapi
+                else:
+                        tool_type="Unknown"
+                
+                table.add_row(
+                    tool.__tool_spec__.name,
+                    tool.__tool_spec__.description,
+                    tool.__tool_spec__.permission,
+                    tool_type,
+                )
+
+            rich.print(table)
 
     def get_all_tools(self) -> dict:
         return {entry["name"]: entry["id"] for entry in self.get_client().get()}
@@ -178,3 +212,11 @@ class ToolsController:
             self.get_client().upload_tools_artifact(tool_name=tool_name, file_path=tool_artifact)
 
         print(f"Tool '{tool.__tool_spec__.name}' updated successfully")
+    
+    def remove_tool(self, name: str):
+        try:
+            self.get_client().delete(agent_id=name)
+            print(f"Successfully removed tool {name}")
+        except requests.HTTPError as e:
+            print(e.response.text, file=sys.stderr)
+            exit(1)

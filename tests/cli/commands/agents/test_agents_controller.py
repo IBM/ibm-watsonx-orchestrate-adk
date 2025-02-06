@@ -11,6 +11,7 @@ import json
 from typer import BadParameter
 from unittest.mock import patch
 import pytest
+import requests
 
 agents_controller = AgentsController()
 
@@ -49,6 +50,17 @@ class MockSDKResponse:
 
     def dumps_spec(self):
         return json.dumps(self.response_obj)
+
+class MockAgent:
+    def __init__(self, expected_name=None, fake_agent=None):
+        self.expected_name = expected_name
+        self.fake_agent = fake_agent
+
+    def delete(self, agent_id):
+        assert agent_id == self.expected_name
+    
+    def get(self):
+        return [self.fake_agent]
 
 
 @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExpertAgent")
@@ -183,3 +195,68 @@ def test_orchestrator_agent_create_no_args():
             llm=None,
             agents=None,
         )
+
+@patch(
+    "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_expert_client",
+    return_value=MockAgent(expected_name="test_agent")
+)
+def test_expert_agent_remove(mock, capsys):
+    agent_name = "test_agent"
+    agents_controller.remove_agent(name=agent_name, type="expert")
+
+    captured = capsys.readouterr()
+    assert f"Successfully removed agent {agent_name}" in captured.out
+
+@patch(
+    "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_orchestrator_client",
+    return_value=MockAgent(expected_name="test_agent")
+)
+def test_orchestrator_agent_remove(mock, capsys):
+    agent_name = "test_agent"
+    agents_controller.remove_agent(name=agent_name, type="orchestrator")
+
+    captured = capsys.readouterr()
+    assert f"Successfully removed agent {agent_name}" in captured.out
+
+def test_agent_remove_invalid_type(capsys):
+    agent_name = "test_agent"
+    with pytest.raises(ValueError):
+        agents_controller.remove_agent(name=agent_name, type="")
+    
+    captured = capsys.readouterr()
+    assert f"Successfully removed agent {agent_name}" not in captured.out
+
+def test_agent_list(orchestrate_agent_content, expert_agent_content):
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_expert_client"
+    ) as expert_mock:
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_orchestrator_client"
+        ) as orchestrator_mock:
+            expert_mock.return_value = MockAgent(fake_agent=expert_agent_content)
+            orchestrator_mock.return_value = MockAgent(fake_agent=orchestrate_agent_content)
+
+            agents_controller.list_agents()
+
+def test_agent_list_verbose(capsys, orchestrate_agent_content, expert_agent_content):
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_expert_client"
+    ) as expert_mock:
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_orchestrator_client"
+        ) as orchestrator_mock:
+            expert_mock.return_value = MockAgent(fake_agent=expert_agent_content)
+            orchestrator_mock.return_value = MockAgent(fake_agent=orchestrate_agent_content)
+
+            agents_controller.list_agents(verbose=True)
+
+            captured = capsys.readouterr()
+            print(captured.out)
+
+            assert expert_agent_content["name"] in captured.out
+            assert expert_agent_content["type"] in captured.out
+            assert expert_agent_content["tools"][0] in captured.out
+
+            assert orchestrate_agent_content["name"] in captured.out
+            assert orchestrate_agent_content["management_style"] in captured.out
+            assert orchestrate_agent_content["agents"][0] in captured.out

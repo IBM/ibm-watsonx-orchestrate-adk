@@ -13,15 +13,14 @@ def test_tool_import_call_no_params():
 
 
 def test_tool_import_call_python():
-    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock, \
-         patch("zipfile.ZipFile"):
-            tools_command.tool_import(kind="python", file="test_file", requirements_file="tests/cli/resources/python_samples/requirements.txt")
-            mock.assert_called_once_with(
-                kind="python",
-                file="test_file",
-                app_id=None,
-                requirements_file="tests/cli/resources/python_samples/requirements.txt"
-            )
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
+        tools_command.tool_import(kind="python", file="test_file", requirements_file="tests/cli/resources/python_samples/requirements.txt")
+        mock.assert_called_once_with(
+            kind="python",
+            file="test_file",
+            app_id=None,
+            requirements_file="tests/cli/resources/python_samples/requirements.txt"
+        )
 
 def test_tool_import_call_openapi():
     with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
@@ -51,3 +50,35 @@ def test_tool_import_call_openapi():
 #             skill_operation_path="fake_path",
 #             app_id=None
 #         )
+
+def test_tool_remove():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.remove_tool"
+    ) as mock:
+        tools_command.remove_tool(
+            name="test_tool",
+        )
+
+        mock.assert_called_once_with(
+            name="test_tool",
+        )
+
+def test_list_tools_non_verbose():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.list_tools"
+    ) as mock:
+        tools_command.list_tools()
+
+        mock.assert_called_once_with(
+            verbose=False
+        )
+
+def testlist_tools_verbose():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.list_tools"
+    ) as mock:
+        tools_command.list_tools(verbose=True)
+
+        mock.assert_called_once_with(
+            verbose=True
+        )

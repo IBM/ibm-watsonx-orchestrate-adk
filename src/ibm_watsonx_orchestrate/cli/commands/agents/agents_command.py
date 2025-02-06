@@ -132,3 +132,32 @@ def agent_create(
         output_file=output_file,
     )
     agents_controller.publish_or_update_agents([agent])
+
+@agents_app.command(name="list")
+def list_agents(
+    type: Annotated[
+        AgentTypes,
+        typer.Option("--type", "-t", help="The type of agent you wish to create"),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="List full details of all agentss a json"),
+    ] = False,
+):  
+    agents_controller = AgentsController()
+    agents_controller.list_agents(type=type, verbose=verbose)
+
+@agents_app.command(name="remove")
+def remove_agent(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent you wish to remove"),
+    ],
+
+    type: Annotated[
+        AgentTypes,
+        typer.Option("--type", "-t", help="The type of agent you wish to remove"),
+    ]
+):  
+    agents_controller = AgentsController()
+    agents_controller.remove_agent(name=name, type=type)

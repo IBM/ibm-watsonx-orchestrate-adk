@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Union, Any
+from typing import Union, Any, List
 
 from pydantic import BaseModel
 
@@ -132,6 +132,14 @@ class DeleteConnectionResponse(BaseModel):
     connection_id: str = None
     detail: str = None
 
+class ListConnectionResponse(BaseModel):
+    appid: str = None
+    shared: bool = None
+    tenant_id: str = None
+    is_connected: bool = None
+    connection_type: str = None
+    connection_id: str = None
+
 
 class ApplicationConnectionsClient(BaseAPIClient):
     """
@@ -141,8 +149,12 @@ class ApplicationConnectionsClient(BaseAPIClient):
     def create(self, connection: CREATE_CONNECTION) -> CreateConnectionResponse:
         return CreateConnectionResponse.model_validate(self._post("/api/v1/connections/applications", data=connection.model_dump()))
 
-    def get(self) -> dict:
-        raise RuntimeError('unimplemented')
+    def get(self) -> List[ListConnectionResponse]:
+        response = self._get("/api/v1/connections/applications")
+        connections = []
+        for conn in response:
+            connections.append(ListConnectionResponse.model_validate(conn))
+        return connections
 
     def update(self, agent_id: str, data: dict) -> dict:
         raise RuntimeError('unimplemented')

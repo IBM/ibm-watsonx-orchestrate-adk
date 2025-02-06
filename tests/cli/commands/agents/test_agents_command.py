@@ -85,3 +85,53 @@ def test_agent_create_call_orchestrator_agent():
             agents="test_agent_1, test_agent_2",
             output_file=None,
         )
+
+def test_agent_remove_call_expert_agent():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.remove_agent"
+    ) as mock:
+        agents_command.remove_agent(
+            name="test_expert_agent",
+            type="expert",
+        )
+
+        mock.assert_called_once_with(
+            name="test_expert_agent",
+            type="expert",
+        )
+
+def test_agent_remove_call_orchestrator_agent():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.remove_agent"
+    ) as mock:
+        agents_command.remove_agent(
+            name="test_orchestrator_agent",
+            type="orchestrator",
+        )
+
+        mock.assert_called_once_with(
+            name="test_orchestrator_agent",
+            type="orchestrator",
+        )
+
+def test_agent_list_agents_non_verbose():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.list_agents"
+    ) as mock:
+        agents_command.list_agents()
+
+        mock.assert_called_once_with(
+            type=None,
+            verbose=False
+        )
+
+def test_agent_list_agents_verbose():
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.list_agents"
+    ) as mock:
+        agents_command.list_agents(verbose=True)
+
+        mock.assert_called_once_with(
+            type=None,
+            verbose=True
+        )

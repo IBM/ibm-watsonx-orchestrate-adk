@@ -17,4 +17,5 @@ from .applications_connections_client import ConnectionType, \
     CreateConnectionResponse, \
     DeleteConnectionResponse, \
     ApplicationConnectionsClient, \
+    ListConnectionResponse, \
     CREATE_CONNECTION

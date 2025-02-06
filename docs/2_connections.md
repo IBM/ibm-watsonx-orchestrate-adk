@@ -63,7 +63,7 @@ orchestrate tools import -k openapi -f <path to openapi spec> --app-id my-basic-
 
 
 ### Deleting an application connection
-To delete an application connection simply run the following: 
+To remove an application connection simply run the following: 
 ```bash
-orchestrate connections application delete --app-id my-basic-app
+orchestrate connections application remove --app-id my-basic-app
 ```

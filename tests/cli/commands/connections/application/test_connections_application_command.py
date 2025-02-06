@@ -1,7 +1,6 @@
 from unittest.mock import patch
 from ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_command \
-    import create_application_connection_command, delete_application_connection_command
-
+    import create_application_connection_command, remove_application_connection_command, list_application_connection_command
 
 def test_create_application_connection_command(capsys):
     with patch("ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_command.create_application_connection") as mock:
@@ -33,11 +32,16 @@ def test_create_application_connection_command(capsys):
         )
 
 
-def test_delete_application_connection_command(capsys):
-    with patch("ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_command.delete_application_connection") as mock:
-        delete_application_connection_command(
+def test_remove_application_connection_command(capsys):
+    with patch("ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_command.remove_application_connection") as mock:
+        remove_application_connection_command(
             app_id='app_id'
         )
         mock.assert_called_once_with(
             app_id='app_id',
         )
+
+def test_list_application_connection_command():
+    with patch("ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_command.list_application_connections") as mock:
+        list_application_connection_command()
+        assert mock.called

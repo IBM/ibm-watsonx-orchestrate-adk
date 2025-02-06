@@ -1,9 +1,7 @@
-import asyncio
-
 import typer
 from typing_extensions import Annotated
 
-from .connections_application_controller import create_application_connection, delete_application_connection
+from .connections_application_controller import create_application_connection, remove_application_connection, list_application_connections
 from .types import ApplicationConnectionType
 
 connections_application_app = typer.Typer(no_args_is_help=True)
@@ -114,14 +112,21 @@ def create_application_connection_command(
 
 
 @connections_application_app.command(
-    name="delete",
-    help='Deletes a connection (credential binding) to an external application for use in, for example, an openapi tool'
+    name="remove",
+    help='Removes a connection (credential binding) to an external application for use in, for example, an openapi tool'
 )
-def delete_application_connection_command(
+def remove_application_connection_command(
         app_id: Annotated[
             str,
             typer.Option('--app-id', '-a', help='The app_id to use to reference this connection when importing an openapi tool')
         ]
 ):
-    delete_application_connection(app_id=app_id)
+    remove_application_connection(app_id=app_id)
+
+@connections_application_app.command(
+    name="list",
+    help='Lists all connections (credential binding) to external applications for use in, for example, an openapi tool     '
+)
+def list_application_connection_command():
+    list_application_connections()
 

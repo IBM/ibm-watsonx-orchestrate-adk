@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
 def get_application_connections_mock():
     create = mock.MagicMock()
     delete = mock.MagicMock()
+    get = mock.MagicMock()
 
     class ApplicationConnectionsClientMock(BaseAPIClient):
         def __init__(self, base_url: str):
@@ -22,9 +23,9 @@ def get_application_connections_mock():
             pass
 
         def get(self, *args, **kwargs):
-            pass
+             return get(*args, **kwargs)
 
-    return ApplicationConnectionsClientMock, create, delete
+    return ApplicationConnectionsClientMock, create, delete, get
 
 def instantiate_client_mock(client):
     return client(base_url='/')
