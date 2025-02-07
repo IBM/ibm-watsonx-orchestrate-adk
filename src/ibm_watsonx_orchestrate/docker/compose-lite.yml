@@ -10,7 +10,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${TAG:-latest}
     platform: linux/amd64    
     restart: unless-stopped
     environment:
