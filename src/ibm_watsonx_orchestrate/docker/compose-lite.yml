@@ -10,8 +10,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${TAG:-latest}
-    platform: linux/amd64    
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
