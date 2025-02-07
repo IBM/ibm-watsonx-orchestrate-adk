@@ -1,4 +1,5 @@
 import os
+import logging
 import yaml
 from copy import deepcopy
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
@@ -18,6 +19,8 @@ AUTH_MCSP_API_KEY_OPT = "wxo_mcsp_api_key"
 AUTH_MCSP_TOKEN_OPT = "wxo_mcsp_token"
 
 APP_WXO_URL_OPT = "wxo_url"
+
+logger = logging.getLogger(__name__)
 
 def merge_configs(source: dict, destination: dict) -> dict:
     merged_object = deepcopy(source)
@@ -46,7 +49,7 @@ class Config:
             self.create_config_file()
 
     def create_config_file(self) -> None:
-        print(f'Creating config file at location "{self.config_file_path}"')
+        logger.info(f'Creating config file at location "{self.config_file_path}"')
 
         os.makedirs(os.path.dirname(self.config_file_path), exist_ok=True)
         open(self.config_file_path, 'a').close()

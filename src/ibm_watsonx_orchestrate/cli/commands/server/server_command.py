@@ -1,4 +1,4 @@
-import os
+import logging
 import sys
 import subprocess
 import tempfile
@@ -10,6 +10,8 @@ import typer
 import importlib.resources as resources
 from dotenv import dotenv_values
 
+logger = logging.getLogger(__name__)
+
 server_app = typer.Typer(no_args_is_help=True)
 
 
@@ -17,7 +19,7 @@ def ensure_docker_installed() -> None:
     try:
         subprocess.run(["docker", "--version"], check=True, capture_output=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print("Unable to find an installed docker")
+        logger.error("Unable to find an installed docker")
         sys.exit(1)
 
 def ensure_docker_compose_installed() -> list:
@@ -35,16 +37,16 @@ def ensure_docker_compose_installed() -> list:
         sys.exit(1)
 
 def docker_login(iam_api_key: str, registry_url: str) -> None:
-    print(f"Logging into Docker registry: {registry_url} ...")
+    logger.info(f"Logging into Docker registry: {registry_url} ...")
     result = subprocess.run(
         ["docker", "login", "-u", "iamapikey", "--password-stdin", registry_url],
         input=iam_api_key.encode("utf-8"),
         capture_output=True,
     )
     if result.returncode != 0:
-        print(f"Error logging into Docker:\n{result.stderr.decode('utf-8')}")
+        logger.error(f"Error logging into Docker:\n{result.stderr.decode('utf-8')}")
         sys.exit(1)
-    print("Successfully logged in to Docker.")
+    logger.info("Successfully logged in to Docker.")
 
 
 def get_compose_file() -> Path:
@@ -113,19 +115,18 @@ def run_compose_lite(final_env_file: Path) -> None:
         "--remove-orphans"
     ]
 
-    print("Starting docker-compose services...")
+    logger.info("Starting docker-compose services...")
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
-        print("Services started successfully.")
+        logger.info("Services started successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        print(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
-            f"{error_message}"
+        logger.error(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
 
@@ -140,19 +141,19 @@ def wait_for_wxo_server_health_check(timeout_seconds=90, interval_seconds=2):
             if 200 <= response.status_code < 300:
                 return True
             else:
-                print(f"Response code from healthcheck {response.status_code}")
+                logger.debug(f"Response code from healthcheck {response.status_code}")
         except requests.RequestException as e:
             errormsg = e
             #print(f"Request failed: {e}")
 
         time.sleep(interval_seconds)
     if errormsg:
-        print(f"Health check request failed: {errormsg}")
+        logger.error(f"Health check request failed: {errormsg}")
     return False
 
 def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
     url = "http://localhost:3000/chat-lite"
-    print("Waiting for UI component to be initialized...")
+    logger.info("Waiting for UI component to be initialized...")
     start_time = time.time()
     while time.time() - start_time <= timeout_seconds:
         try:
@@ -167,7 +168,7 @@ def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
             #print(f"Request failed for UI: {e}")
 
         time.sleep(interval_seconds)
-    print("UI component is initialized")
+    logger.info("UI component is initialized")
     return False
 
 def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
@@ -175,7 +176,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
     compose_command = ensure_docker_compose_installed()
     ensure_docker_installed()
     default_env_path = get_default_env_file()
-    print(f"user env file: {user_env_file}")
+    logger.debug(f"user env file: {user_env_file}")
     merged_env_dict = merge_env(
         default_env_path,
         user_env_file if user_env_file else None
@@ -183,7 +184,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
-        print("Error: REGISTRY_URL is required in the environment file.")
+        logger.error("Error: REGISTRY_URL is required in the environment file.")
         sys.exit(1)
 
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
@@ -202,11 +203,12 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
 
     final_env_file = write_merged_env_file(merged_env_dict)
 
-    print("Waiting for orchestrate server to be fully started and ready...")
+    logger.info("Waiting for orchestrate server to be fully started and ready...")
+
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if not is_successful_server_healthcheck:
-        print("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
+        logger.error("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
         return False
 
     command = compose_command + [
@@ -218,25 +220,24 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
         "--remove-orphans"
     ]
 
-    print(f"Starting docker-compose UI service with orchestrator agent name {merged_env_dict['ORCHESTRATOR_AGENT_NAME']}...")
+    logger.info(f"Starting docker-compose UI service with orchestrator agent name {merged_env_dict['ORCHESTRATOR_AGENT_NAME']}...")
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
-        print("Chat UI Service started successfully.")
+        logger.info("Chat UI Service started successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        print(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
-            f"{error_message}"
+        logger.error(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         return False
     
     is_successful_ui_healthcheck = wait_for_wxo_ui_health_check()
     if not is_successful_ui_healthcheck:
-        print("The Chat UI service did not initialize within the expected time.  Check the logs for any errors.")
+        logger.error("The Chat UI service did not initialize within the expected time.  Check the logs for any errors.")
 
     return True
 
@@ -265,22 +266,21 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
 
     if is_reset:
         command.append("--volumes")
-        print("Stopping docker-compose UI service and resetting volumes...")
+        logger.info("Stopping docker-compose UI service and resetting volumes...")
     else:
-        print("Stopping docker-compose UI service...")
+        logger.info("Stopping docker-compose UI service...")
 
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
-        print("UI service stopped successfully.")
+        logger.info("UI service stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        print(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
-            f"{error_message}"
+        logger.error(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
 
@@ -296,22 +296,21 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
 
     if is_reset:
         command.append("--volumes")
-        print("Stopping docker-compose services and resetting volumes...")
+        logger.info("Stopping docker-compose services and resetting volumes...")
     else:
-        print("Stopping docker-compose services...")
+        logger.info("Stopping docker-compose services...")
 
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
-        print("Services stopped successfully.")
+        logger.info("Services stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        print(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
-            f"{error_message}"
+        logger.error(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
 
@@ -327,20 +326,19 @@ def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
         "-f"
     ]
 
-    print("Docker Logs...")
+    logger.info("Docker Logs...")
 
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
-        print("End of docker logs")
+        logger.info("End of docker logs")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        print(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n"
-            f"{error_message}"
+        logger.error(
+            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
 
@@ -353,7 +351,7 @@ def server_start(
     )
 ):
     if user_env_file and not Path(user_env_file).exists():
-        print(f"Error: The specified environment file '{user_env_file}' does not exist.")
+        logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
         sys.exit(1)
     ensure_docker_installed()
 
@@ -366,12 +364,12 @@ def server_start(
 
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
     if not iam_api_key:
-        print("Error: DOCKER_IAM_KEY is required in the environment file.")
+        logger.error("Error: DOCKER_IAM_KEY is required in the environment file.")
         sys.exit(1)
 
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
-        print("Error: REGISTRY_URL is required in the environment file.")
+        logger.error("Error: REGISTRY_URL is required in the environment file.")
         sys.exit(1)
 
     docker_login(iam_api_key, registry_url)
@@ -381,15 +379,16 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file)
 
-    print("Waiting for orchestrate server to be fully initialized and ready...")
+    logger.info("Waiting for orchestrate server to be fully initialized and ready...")
+
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 90
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:
-        print("Orchestrate services initialized successfuly")
+        logger.info("Orchestrate services initialized successfuly")
     else:
-        print("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
+        logger.warning("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
 
-    print(f"You can run `orchestrate login --local` to login or `orchestrate chat start` to start the UI service and begin chatting.")
+    logger.info(f"You can run `orchestrate login --local` to login or `orchestrate chat start` to start the UI service and begin chatting.")
 
 @server_app.command(name="stop")
 def server_stop(

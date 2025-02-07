@@ -1,8 +1,8 @@
 import json
 import sys
-from warnings import warn
 from rich.table import Table
 from rich.console import Console
+import logging
 
 import requests
 import typer
@@ -14,6 +14,8 @@ from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection
     CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.cli.commands.connections.application.types import ApplicationConnectionType
+
+logger = logging.getLogger(__name__)
 
 _outh_connection_types = {
     ApplicationConnectionType.oauth_auth_code_flow,
@@ -149,12 +151,11 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
     try:
         resp: CreateConnectionResponse = client.create(connection=conn)
         if resp.status == 'redirect':
-            print(f"Please go to the following url to complete the OAuth2 flow:")
-            print(resp.authorization_url)
+            logger.info(f"Please go to the following url to complete the OAuth2 flow:\n{resp.authorization_url}")
         elif resp.status == 'success':
-            print(f"Successfully created application connection with app_id: {conn.appid}")
+            logger.info(f"Successfully created application connection with app_id: {conn.appid}")
         else:
-            warn(f"Unexpected response status {resp.status}")
+            logger.warning(f"Unexpected response status {resp.status}")
     except requests.HTTPError as e:
         response = e.response
         response_text = response.text
@@ -163,7 +164,7 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
             response_text = resp['detail']
         except:
             pass
-        print(response_text, file=sys.stderr)
+        logger.error(response_text)
         exit(1)
 
 
@@ -171,9 +172,9 @@ def remove_application_connection(app_id: str):
     client = instantiate_client(ApplicationConnectionsClient)
     try:
         client.delete(app_id=app_id)
-        print(f"Successfully removed application connection with app_id: {app_id}")
+        logger.info(f"Successfully removed application connection with app_id: {app_id}")
     except requests.HTTPError as e:
-        print(e.response.text, file=sys.stderr)
+        logger.error(e.response.text)
         exit(1)
 
 def list_application_connections():
@@ -203,5 +204,5 @@ def list_application_connections():
         if e.response.status_code == 404 and "Connections not found" in e.response.text:
                 Console().print(table)
         else:
-            print(e.response.text, file=sys.stderr)
+            logger.error(e.response.text)
         exit(1)

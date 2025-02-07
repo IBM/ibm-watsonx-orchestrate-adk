@@ -6,9 +6,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING, List
 
-
-import os
-import warnings
 import ibm_watsonx_orchestrate.client._wrappers.requests as requests
 from ibm_watsonx_orchestrate.client.resources.wxo_resource import WXOResource
 from ibm_watsonx_orchestrate.client.client_errors import (

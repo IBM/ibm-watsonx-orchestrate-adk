@@ -63,11 +63,11 @@ class LocalServiceInstance(BaseServiceInstance):
         default_tenant = self.get_default_tenant(user_auth_token)
 
         if not default_tenant:
-            logger.warning("no local tenant found. A default tenant is created")
+            logger.info("no local tenant found. A default tenant is created")
             self.create_default_tenant(user_auth_token)
             default_tenant = self.get_default_tenant(user_auth_token)
         else:
-            logger.warning("local tenant found")
+            logger.info("local tenant found")
         tenant_id = default_tenant["id"]
         return tenant_id
 

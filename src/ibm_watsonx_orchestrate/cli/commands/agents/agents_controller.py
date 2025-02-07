@@ -6,6 +6,7 @@ import requests
 import importlib
 import inspect
 import sys
+import logging
 from pathlib import Path
 from enum import Enum
 
@@ -29,6 +30,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
 DEFAULT_REFLECTION_RETRY_COUNT_WHEN_ENABLED = 3
 
+logger = logging.getLogger(__name__)
 
 class AgentTypes(str, Enum):
     expert = "expert"
@@ -347,8 +349,8 @@ class AgentsController:
                 else:
                     raise ValueError("'type' must be either 'expert' or 'orchestrator'")
                 
-                print(f"Successfully removed agent {name}")
+                logger.info(f"Successfully removed agent {name}")
             except requests.HTTPError as e:
-                print(e.response.text, file=sys.stderr)
+                logger.error(e.response.text)
                 exit(1)
 

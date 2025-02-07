@@ -1,10 +1,9 @@
 import copy
 import json
 import os.path
-import datetime
+import logging
 from typing import Dict, Any, List
 
-from warnings import warn
 import yaml
 import yaml.constructor
 import re
@@ -18,6 +17,8 @@ from .types import HTTP_METHOD, ToolPermission, ToolRequestBody, ToolResponseBod
     JsonSchemaObject, ToolBinding, OpenApiSecurityScheme
 
 import json
+
+logger = logging.getLogger(__name__)
 
 # disables the automatic conversion of date-time objects to datetime objects and leaves them as strings
 yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:timestamp'] = \
@@ -317,7 +318,7 @@ async def create_openapi_json_tools_from_uri(
                 continue
             success_codes = list(filter(lambda code: 200 <= int(code) < 300, spec['responses'].keys()))
             if len(success_codes) > 1:
-                warn(
+                logger.warning(
                     f"There were multiple candidate success codes for {method} {path}, using {success_codes[0]} to generate output schema")
 
             tools.append(create_openapi_json_tool(

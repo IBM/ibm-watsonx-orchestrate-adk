@@ -1,9 +1,10 @@
+import logging
 import typer
 from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.login import login_controller
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
-from warnings import warn
+logger = logging.getLogger(__name__)
 
 login_app = typer.Typer(no_args_is_help=True)
 
@@ -27,12 +28,12 @@ def login(
     is_local = False
 
     if local:
-        warn(f"For local development environment, defaulting to url: {DEFAULT_LOCAL_SERVICE_URL}")
+        logger.info(f"For local development environment, defaulting to url: {DEFAULT_LOCAL_SERVICE_URL}")
         url = DEFAULT_LOCAL_SERVICE_URL
         is_local = True
 
     if url and is_local_dev(url):
-        warn("Local development url found. Defaulting to local setup")
+        logger.info("Local development url found. Defaulting to local setup")
         is_local = True
 
     login_controller.login(apikey=apikey, url=url, is_local=is_local)

@@ -1,3 +1,4 @@
+import logging
 import jwt
 import getpass
 from ibm_watsonx_orchestrate.cli.config import (
@@ -14,6 +15,8 @@ from ibm_watsonx_orchestrate.client.client_errors import ClientError
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
 
+logger = logging.getLogger(__name__)
+
 lock = Lock()
 
 def decode_token(token: str, is_local: bool = False) -> dict:
@@ -24,7 +27,7 @@ def decode_token(token: str, is_local: bool = False) -> dict:
             data["expiry"] = claimset["exp"]
         return data
     except jwt.DecodeError as e:
-        print("Invalid token format")
+        logger.error("Invalid token format")
         raise e
 
 
@@ -60,6 +63,6 @@ def login(url: str, apikey: str = None, is_local: bool = False, ) -> None:
                     },
                 }
             )
-        print("Successfully Logged In")
+        logger.info("Successfully Logged In")
     except ClientError as e:
         raise ClientError(e)

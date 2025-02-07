@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import importlib
 import inspect
@@ -18,6 +19,8 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+
+logger = logging.getLogger(__name__)
 
 
 class ToolKind(str, Enum):
@@ -105,7 +108,7 @@ class ToolsController:
                 tools = asyncio.run(import_openapi_tool(file=args["file"], app_id=args.get('app_id')))
             case "skill":
                 tools = []
-                print("Skill Import not implemented yet")
+                logger.warning("Skill Import not implemented yet")
             case _:
                 raise ValueError("Invalid kind selected")
 
@@ -198,12 +201,12 @@ class ToolsController:
             tool_name: str = tool_spec.get("name")
             self.get_client().upload_tools_artifact(tool_name=tool_name, file_path=tool_artifact)
 
-        print(f"Tool '{tool.__tool_spec__.name}' imported successfully")
+        logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
     def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
-        print(f"Existing Tool '{tool.__tool_spec__.name}' found. Updating...")
+        logger.info(f"Existing Tool '{tool.__tool_spec__.name}' found. Updating...")
 
         self.get_client().update(tool_id, tool_spec)
 
@@ -211,12 +214,12 @@ class ToolsController:
             tool_name: str = tool_spec.get("name")
             self.get_client().upload_tools_artifact(tool_name=tool_name, file_path=tool_artifact)
 
-        print(f"Tool '{tool.__tool_spec__.name}' updated successfully")
+        logger.info(f"Tool '{tool.__tool_spec__.name}' updated successfully")
     
     def remove_tool(self, name: str):
         try:
             self.get_client().delete(agent_id=name)
-            print(f"Successfully removed tool {name}")
+            logger.info(f"Successfully removed tool {name}")
         except requests.HTTPError as e:
-            print(e.response.text, file=sys.stderr)
+            logger.error(e.response.text)
             exit(1)

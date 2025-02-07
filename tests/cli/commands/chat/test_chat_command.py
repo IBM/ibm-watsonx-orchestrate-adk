@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from ibm_watsonx_orchestrate.cli.commands.chat import chat_command
 
-def test_chat_start_with_env(capsys):
+def test_chat_start_with_env(caplog):
   env_content = (
       "DOCKER_IAM_KEY=test-key\n"
       "REGISTRY_URL=registry.example.com\n"
@@ -31,8 +31,9 @@ def test_chat_start_with_env(capsys):
           mock_health_check.return_value = True
           
           chat_command.chat_start(agent_name=None, user_env_file=env_file_path)
-          captured = capsys.readouterr()
-          assert "Opening chat interface at http://localhost:3000/chat-lite" in captured.out
+          captured = caplog.text
+          
+          assert "Opening chat interface at http://localhost:3000/chat-lite" in captured
           mock_webbrowser.assert_called_once_with("http://localhost:3000/chat-lite")
           mock_docker_login.assert_called_once_with("test-key", "registry.example.com")
           mock_health_check.assert_called_once()

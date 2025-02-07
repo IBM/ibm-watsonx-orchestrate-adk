@@ -64,7 +64,7 @@ class MockAgent:
 
 
 @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExpertAgent")
-def test_expert_agent_import_yaml(mock, capsys, expert_agent_content):
+def test_expert_agent_import_yaml(mock, expert_agent_content):
     mock.return_value = MockSDKResponse(expert_agent_content)
     file = "tests/cli/resources/yaml_samples/expert_agent.yaml"
     for agent in agents_controller.import_agent(file=file):
@@ -73,7 +73,7 @@ def test_expert_agent_import_yaml(mock, capsys, expert_agent_content):
 
 
 @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExpertAgent")
-def test_expert_agent_import_json(mock, capsys, expert_agent_content):
+def test_expert_agent_import_json(mock, expert_agent_content):
     mock.return_value = MockSDKResponse(expert_agent_content)
     file = "tests/cli/resources/json_samples/expert_agent.json"
     for agent in agents_controller.import_agent(file=file):
@@ -200,23 +200,23 @@ def test_orchestrator_agent_create_no_args():
     "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_expert_client",
     return_value=MockAgent(expected_name="test_agent")
 )
-def test_expert_agent_remove(mock, capsys):
+def test_expert_agent_remove(mock, caplog):
     agent_name = "test_agent"
     agents_controller.remove_agent(name=agent_name, type="expert")
 
-    captured = capsys.readouterr()
-    assert f"Successfully removed agent {agent_name}" in captured.out
+    captured = caplog.text
+    assert f"Successfully removed agent {agent_name}" in captured
 
 @patch(
     "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_orchestrator_client",
     return_value=MockAgent(expected_name="test_agent")
 )
-def test_orchestrator_agent_remove(mock, capsys):
+def test_orchestrator_agent_remove(mock, caplog):
     agent_name = "test_agent"
     agents_controller.remove_agent(name=agent_name, type="orchestrator")
 
-    captured = capsys.readouterr()
-    assert f"Successfully removed agent {agent_name}" in captured.out
+    captured = caplog.text
+    assert f"Successfully removed agent {agent_name}" in captured
 
 def test_agent_remove_invalid_type(capsys):
     agent_name = "test_agent"
@@ -251,7 +251,6 @@ def test_agent_list_verbose(capsys, orchestrate_agent_content, expert_agent_cont
             agents_controller.list_agents(verbose=True)
 
             captured = capsys.readouterr()
-            print(captured.out)
 
             assert expert_agent_content["name"] in captured.out
             assert expert_agent_content["type"] in captured.out

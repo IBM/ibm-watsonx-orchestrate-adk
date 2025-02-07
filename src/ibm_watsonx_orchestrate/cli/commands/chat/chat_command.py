@@ -1,9 +1,12 @@
+import logging
 import typer
 import webbrowser
 from pathlib import Path
 
 chat_app = typer.Typer(no_args_is_help=True)
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import run_compose_lite_ui, run_compose_lite_down_ui
+
+logger = logging.getLogger(__name__)
 
 @chat_app.command(name="start")
 def chat_start(
@@ -26,9 +29,9 @@ def chat_start(
     if is_ui_service_started:
         url = "http://localhost:3000/chat-lite"
         webbrowser.open(url)
-        print(f"Opening chat interface at {url}")
+        logger.info(f"Opening chat interface at {url}")
     else:
-        print("Unable to start orchestrate UI chat service.  Please check error messages and logs")
+        logger.error("Unable to start orchestrate UI chat service.  Please check error messages and logs")
 
 @chat_app.command(name="stop")
 def chat_stop(

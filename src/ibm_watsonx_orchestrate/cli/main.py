@@ -1,5 +1,3 @@
-from importlib import resources
-
 import typer
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
@@ -8,21 +6,6 @@ from ibm_watsonx_orchestrate.cli.commands.tools.tools_command import tools_app
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_app
 from ibm_watsonx_orchestrate.cli.commands.chat.chat_command import chat_app
-import logging
-import logging.config
-import yaml
-
-
-
-
-def _setup_logging():
-    config_file = str(resources.files("ibm_watsonx_orchestrate.cli").joinpath("logging.yaml"))
-    with open(config_file, "r") as f:
-        config = yaml.safe_load(f)
-    logging.config.dictConfig(config)
-
-
-_setup_logging()
 
 app = typer.Typer(
     no_args_is_help=True,

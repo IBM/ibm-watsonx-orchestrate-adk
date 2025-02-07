@@ -40,7 +40,7 @@ class MockToolClient:
         assert tool_name == self.tool_name
         assert file_path.endswith(self.file_path)
 
-def test_openapi_params_valid(capsys):
+def test_openapi_params_valid():
     calls = []
 
     async def create_openapi_json_tools_from_uri(*args, **kwargs):
@@ -288,13 +288,13 @@ def test_update_python():
     "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.get_client",
     return_value=MockToolClient(tool_name="test_tool")
 )
-def test_expert_agent_remove(mock, capsys):
+def test_tool_remove(mock, caplog):
     tools_controller = ToolsController()
     tool_name = "test_tool"
     tools_controller.remove_tool(name=tool_name)
 
-    captured = capsys.readouterr()
-    assert f"Successfully removed tool {tool_name}" in captured.out
+    captured = caplog.text
+    assert f"Successfully removed tool {tool_name}" in captured
 
 @mock.patch(
     "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.get_client",
@@ -333,7 +333,6 @@ def test_tool_list_verbose(mock, capsys):
     tools_controller.list_tools(verbose=True)
 
     captured = capsys.readouterr()
-    print(captured.out)
 
     assert "test_tool" in captured.out
     assert "testing_tool" in captured.out

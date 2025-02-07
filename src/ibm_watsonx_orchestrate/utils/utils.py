@@ -24,7 +24,6 @@ from typing import (
 )
 from subprocess import check_call
 from packaging import version
-from warnings import warn
 
 from ibm_watsonx_orchestrate import ver, pkg_name
 import ibm_watsonx_orchestrate.client._wrappers.requests as requests

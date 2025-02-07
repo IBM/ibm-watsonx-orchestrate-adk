@@ -157,7 +157,7 @@ def test_run_compose_lite_failure():
             run_compose_lite(mock_env_file)
         mock_unlink.assert_not_called()
 
-def test_cli_start_success(valid_user_env, mock_compose_file):
+def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
     with patch("subprocess.run") as mock_run, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose:
@@ -169,18 +169,23 @@ def test_cli_start_success(valid_user_env, mock_compose_file):
             server_app,
             ["start", "--env-file", str(valid_user_env)]
         )
-        
-        assert result.exit_code == 0
-        assert "Services started successfully." in result.output
 
-def test_cli_start_missing_credentials():
+        captured = caplog.text
+
+        assert result.exit_code == 0
+        assert "Services started successfully." in captured
+
+def test_cli_start_missing_credentials(caplog):
     result = runner.invoke(
         server_app,
         ["start"],
         env={"PATH": os.environ.get("PATH", "")}
     )
+
+    captured = caplog.text
+
     assert result.exit_code == 1
-    assert "DOCKER_IAM_KEY is required" in result.output
+    assert "DOCKER_IAM_KEY is required" in captured
 
 def test_cli_stop_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down:
@@ -213,14 +218,17 @@ def test_cli_logs_command(valid_user_env):
         assert result.exit_code == 0
         mock_logs.assert_called_once()
 
-def test_missing_default_env_file():
+def test_missing_default_env_file(caplog):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default:
         mock_default.return_value = Path("/non/existent/path")
         result = runner.invoke(server_app, ["start"])
-        assert result.exit_code == 1
-        assert "DOCKER_IAM_KEY is required in the environment file." in result.output
 
-def test_invalid_docker_credentials(invalid_user_env):
+        captured = caplog.text
+
+        assert result.exit_code == 1
+        assert "DOCKER_IAM_KEY is required in the environment file." in captured
+
+def test_invalid_docker_credentials(invalid_user_env, caplog):
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1
         mock_run.return_value.stderr = b"Invalid credentials"
@@ -228,18 +236,24 @@ def test_invalid_docker_credentials(invalid_user_env):
             server_app,
             ["start", "--env-file", str(invalid_user_env)]
         )
-        assert result.exit_code == 1
-        assert "Invalid credentials" in result.output
 
-def test_missing_compose_file(valid_user_env):
+        captured = caplog.text
+
+        assert result.exit_code == 1
+        assert "Invalid credentials" in captured
+
+def test_missing_compose_file(valid_user_env, caplog):
   with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
        patch("subprocess.run") as mock_run:
       mock_compose.return_value = Path("/non/existent/compose.yml")
       mock_run.return_value.returncode = 1
       mock_run.return_value.stderr = b"Error response from daemon: Get \"https://registry.example.com/v2/\": dial tcp: lookup registry.example.com on 192.168.5.3:53: lame referral\n"
       result = runner.invoke(server_app, ["start", "--env-file", str(valid_user_env)])
+      
+      captured = caplog.text
+
       assert result.exit_code == 1
-      assert "Error logging into Docker:" in result.output
+      assert "Error logging into Docker:" in captured
 
 def test_env_variable_conflict_resolution(monkeypatch, mock_env_files):
     default_env, user_env = mock_env_files
@@ -253,9 +267,12 @@ def test_llm_defaults_missing_keys():
     assert "ASSISTANT_LLM_API_KEY" not in env
     assert "ROUTING_LLM_SPACE_ID" not in env
 
-def test_cli_command_failure():
+def test_cli_command_failure(caplog):
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1
         result = runner.invoke(server_app, ["start"])
+    
+    captured = caplog.text
+
     assert result.exit_code == 1
-    assert "DOCKER_IAM_KEY is required" in result.output
+    assert "DOCKER_IAM_KEY is required" in captured

@@ -17,6 +17,8 @@ except (ModuleNotFoundError, AttributeError):
 
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from ibm_watsonx_orchestrate.client.client import Client
+from ibm_watsonx_orchestrate.utils.logging.logger import setup_logging
 
 Client.version = ver
 __version__ = ver
+setup_logging()

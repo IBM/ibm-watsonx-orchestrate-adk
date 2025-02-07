@@ -439,8 +439,9 @@ def test_should_create_private_connection():
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
     instantiate_client_mock
 )
-def test_create_message_should_print_success_message(capsys):
+def test_create_message_should_print_success_message(caplog):
     ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -452,16 +453,18 @@ def test_create_message_should_print_success_message(capsys):
             password='password',
             shared=True
         )
-        captured = capsys.readouterr()
-        assert captured.out == "Successfully created application connection with app_id: app_id\n"
+        captured = caplog.text
+        assert "Successfully created application connection with app_id: app_id\n" in captured
 
 
 @patch(
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
     instantiate_client_mock
 )
-def test_create_message_should_print_redirect_url(capsys):
+
+def test_create_message_should_print_redirect_url(caplog):
     ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+
     create.return_value = CreateConnectionResponse(status='redirect', authorization_url='https://auth-url')
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -474,16 +477,17 @@ def test_create_message_should_print_redirect_url(capsys):
             password='password',
             shared=True
         )
-        captured = capsys.readouterr()
-        assert captured.out == "Please go to the following url to complete the OAuth2 flow:\nhttps://auth-url\n"
+        captured = caplog.text
+        assert "Please go to the following url to complete the OAuth2 flow:\nhttps://auth-url\n" in captured
 
 
 @patch(
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
     instantiate_client_mock
 )
-def test_create_connection_should_fail_if_create_connection_call_fails(capsys):
+def test_create_connection_should_fail_if_create_connection_call_fails(caplog):
     ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+
     resp = requests.Response()
     resp.status_code = 400
     setattr(resp, '_content', '{"detail": "boom"}'.encode('utf-8'))
@@ -508,8 +512,8 @@ def test_create_connection_should_fail_if_create_connection_call_fails(capsys):
                     shared=True
                 )
             )
-        captured = capsys.readouterr()
-        assert captured.err == "boom\n"
+        captured = caplog.text
+        assert "boom\n" in captured
         assert e.value.code == 1
 
 
@@ -535,7 +539,7 @@ def test_remove_connection_should_remove_connection():
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
     instantiate_client_mock
 )
-def test_remove_connection_should_print_success_message(capsys):
+def test_remove_connection_should_print_success_message(caplog):
     ApplicationConnectionsClientMock, _, delete, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -544,9 +548,10 @@ def test_remove_connection_should_print_success_message(capsys):
         remove_application_connection(
             app_id='app_id'
         )
-        captured = capsys.readouterr()
-        assert captured.out == "Successfully removed application connection with app_id: app_id\n"
 
+        captured = caplog.text
+
+        assert "Successfully removed application connection with app_id: app_id\n" in captured
 
 @patch(
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',

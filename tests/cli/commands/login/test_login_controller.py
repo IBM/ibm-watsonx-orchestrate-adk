@@ -145,10 +145,10 @@ def test_handle_url_and_api_key_from_input(mock, monkeypatch):
     "ibm_watsonx_orchestrate.cli.commands.login.login_controller.decode_token",
     return_value={"token": "test_token"},
 )
-def test_handle_client_local_login(mock, capsys):
+def test_handle_client_local_login(mock, caplog):
     login_controller.login("http://localhost:4321", None, is_local=True)
-    captured = capsys.readouterr()
-    assert captured.out == "Successfully Logged In\n"
+    captured = caplog.text
+    assert "Successfully Logged In\n" in captured
 
 
 
