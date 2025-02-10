@@ -67,3 +67,9 @@ To remove an application connection simply run the following:
 ```bash
 orchestrate connections application remove --app-id my-basic-app
 ```
+
+### Listing all application connections
+To list all existing application connections simply run the following: 
+```bash
+orchestrate connections application list
+```

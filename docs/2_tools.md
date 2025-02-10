@@ -1,9 +1,9 @@
 # Tools
 
-
-#### orchestrate tools import
+## Import Tools
+#### `orchestrate tools import`
 This command allows a user to import tools into the WXO platform
-There are 3 kinds of tool imports, the kind is specified with the `--kind` or `-k` flags
+There are 2 kinds of tool imports, the kind is specified with the `--kind` or `-k` flags
   1. `-k python`
 
      This will require a python (.py) file is passed in through the `--file` of `-f` flag. It will extract all the tools referenced in the python file passed in. This includes all functions with the `@tool` decorator and all tools imported into the file.
@@ -18,7 +18,7 @@ There are 3 kinds of tool imports, the kind is specified with the `--kind` or `-
 
      ```
      ```bash
-     orchestrator tools import -k python -f /test_tool.py
+     orchestrate tools import -k python -f /test_tool.py
 
      {
         "name": "myName",
@@ -50,5 +50,17 @@ There are 3 kinds of tool imports, the kind is specified with the `--kind` or `-
      This will require a yaml (.yaml/.yml) or json (.json) file is passed in through the `--file` of `-f` flag. This yaml or json should be a valid OpenAPI spec for the API you wish to generate tools from.
 
  ```bash
- orchestrate -k openapi -f <path to openapi spec>
+ orchestrate tools import -k openapi -f <path to openapi spec>
+```
+
+## Remove Tool
+To remove an existing tool simply run the following: 
+```bash
+orchestrate tools remove --name my-tool-name
+```
+
+## List Tools
+To list all tools simply run the following: 
+```bash
+orchestrate tools list
 ```

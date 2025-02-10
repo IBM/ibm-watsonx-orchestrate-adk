@@ -1,6 +1,7 @@
 # Agents
 
-#### orchestrate agents import
+## Import Agents
+#### `orchestrate agents import`
   This command allows the user to import both Expert and Orchestrator agents into the WXO platform. It can import these agents from 3 diffrent file types. All files are passed in with the `--file` or `-f` flag.
    ```bash
    orchestrate agents import -f <path to .yaml/.json/.py file>
@@ -94,7 +95,8 @@
       agents=["expert_agent"]
    )
    ```
-#### orchestrate agents create
+## Create Agents
+#### `orchestrate agents create`
   This command allows you to create either an Expert of Orchestrator agent fully defined through the command line.
 
   Depending on which type of agent you are creating the flags you need to provide are diffrent
@@ -143,3 +145,20 @@
    --management_style_config reflection_enabled=true,reflection_retry_count=3 \
    --llm watsonx/ibm/granite-3-8b-instruct \
    --agents sample_expert_agent,sales_agent
+   ```
+
+## Remove Agent
+To remove an existing orchestrator or expert agent simply run the following: 
+```bash
+orchestrate agents remove --name my-expert-agent --type expert
+```
+```bash
+orchestrate agents remove --name my-orchestrator-agent --type orchestrator
+```
+
+## List Agents
+To list all agents simply run the following: 
+```bash
+orchestrate agents list
+```
+

@@ -246,8 +246,10 @@ class AgentsController:
     def publish_agent(self, agent: OrchestrateAgent | ExpertAgent, **kwargs) -> None:
         if isinstance(agent, OrchestrateAgent):
             self.get_orchestrator_client().create(agent.model_dump())
+            logger.info(f"Orchestrator Agent '{agent.name}' imported successfully")
         if isinstance(agent, ExpertAgent):
             self.get_expert_client().create(agent.model_dump())
+            logger.info(f"Expert Agent '{agent.name}' imported successfully")
 
         self.persist_record(agent, **kwargs)
 
@@ -255,9 +257,13 @@ class AgentsController:
         self, agent_id: str, agent: OrchestrateAgent | ExpertAgent, **kwargs
     ) -> None:
         if isinstance(agent, OrchestrateAgent):
+            logger.info(f"Existing Orchestrator Agent '{agent.name}' found. Updating...")
             self.get_orchestrator_client().update(agent_id, agent.model_dump())
+            logger.info(f"Orchestrator Agent '{agent.name}' updated successfully")
         if isinstance(agent, ExpertAgent):
+            logger.info(f"Existing Expert Agent '{agent.name}' found. Updating...")
             self.get_expert_client().update(agent_id, agent.model_dump())
+            logger.info(f"Expert Agent '{agent.name}' updated successfully")
 
         self.persist_record(agent, **kwargs)
 

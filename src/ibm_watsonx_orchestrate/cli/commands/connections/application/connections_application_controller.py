@@ -159,9 +159,14 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
     except requests.HTTPError as e:
         response = e.response
         response_text = response.text
+        status_code = response.status_code
         try:
-            resp = json.loads(response_text)
-            response_text = resp['detail']
+            # Remove when we are able to upsert connection details
+            if status_code == 409:
+                response_text = f"Failed to create connection. A connection with the App ID '{conn.appid}' already exists. Please select a diffrent App ID or delete the existing resource."
+            else:
+                resp = json.loads(response_text)
+                response_text = resp['detail']
         except:
             pass
         logger.error(response_text)
