@@ -67,7 +67,7 @@ def merge_env(
     default_env_path: Path,
     user_env_path: Path | None
 ) -> dict:
-    #Default values in docker/default.env and overrides in user .env or environment
+
     merged = dotenv_values(str(default_env_path))
 
     if user_env_path is not None:
