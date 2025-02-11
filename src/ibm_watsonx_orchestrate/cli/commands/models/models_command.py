@@ -2,8 +2,11 @@ import logging
 import os
 import requests
 import sys
+import rich.highlighter
 import typer
-
+import rich
+import typer
+from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import get_default_env_file, merge_env
 
 logger = logging.getLogger(__name__)
@@ -11,8 +14,16 @@ models_app = typer.Typer(no_args_is_help=True)
 
 WATSONX_URL = os.getenv("WATSONX_URL")
 
+class ModelHighlighter(rich.highlighter.RegexHighlighter):
+    base_style = "model."
+    highlights = [r"(?P<name>watsonx\/.+\/.+):"]
+
 @models_app.command(name="list")
 def model_list(
+    print_raw: Annotated[
+        bool,
+        typer.Option("--raw", "-r", help="Display the list of models in a non-tabular format"),
+    ] = False,
 ):
     global WATSONX_URL
     default_env_path = get_default_env_file()
@@ -57,16 +68,36 @@ def model_list(
             return (0 if is_preferred else 1, model_id)
         
         sorted_models = sorted(filtered_models, key=sort_key)
+        
+        if print_raw:
+            theme = rich.theme.Theme({"model.name": "bold cyan"})
+            console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
+            console.print("[bold]Available Models:[/bold]")
+            for model in sorted_models:
+                model_id = model.get("model_id", "N/A")
+                short_desc = model.get("short_description", "No description provided.")
+                full_model_name = f"watsonx/{model_id}: {short_desc}"
+                marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
+                console.print(f"- [yellow]{marker}[/yellow]{full_model_name}")
 
-        logger.info("Available Models:")
-        for model in sorted_models:
-            model_id = model.get("model_id", "N/A")
-            short_desc = model.get("short_description", "No description provided.")
-            full_model_name = f"watsonx/{model_id}: {short_desc}"
-            marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
-            logger.info(f"{marker}{full_model_name}")
+            console.print("[yellow]★[/yellow] [italic dim]indicates a supported and preferred model[/italic dim]" )
+        else:
+            table = rich.table.Table(
+                show_header=True,
+                title="[bold]Available Models[/bold]",
+                caption="[yellow]★[/yellow] indicates a supported and preferred model",
+                show_lines=True)
+            columns = ["Model", "Description"]
+            for col in columns:
+                table.add_column(col)
 
-        logger.info("★ indicates a supported and preferred model" )
+            for model in sorted_models:
+                model_id = model.get("model_id", "N/A")
+                short_desc = model.get("short_description", "No description provided.")
+                marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
+                table.add_row(f"[yellow]{marker}[/yellow]watsonx/{model_id}", short_desc)
+        
+            rich.print(table)
 
 def _get_wxai_foundational_models():
     foundation_models_url = WATSONX_URL + "/ml/v1/foundation_model_specs?version=2024-05-01"

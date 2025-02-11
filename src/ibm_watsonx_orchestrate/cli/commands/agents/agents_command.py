@@ -141,7 +141,7 @@ def list_agents(
     ] = None,
     verbose: Annotated[
         bool,
-        typer.Option("--verbose", "-v", help="List full details of all agentss a json"),
+        typer.Option("--verbose", "-v", help="List full details of all agents in json format"),
     ] = False,
 ):  
     agents_controller = AgentsController()
