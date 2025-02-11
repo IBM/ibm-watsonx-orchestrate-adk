@@ -57,7 +57,10 @@ def model_list(
         filtered_models = []
         for model in models:
             model_id = model.get("model_id", "")
+            short_desc = model.get("short_description", "")
             if any(incomp in model_id.lower() for incomp in incompatible_list):
+                continue
+            if any(incomp in short_desc.lower() for incomp in incompatible_list):
                 continue
             filtered_models.append(model)
         
