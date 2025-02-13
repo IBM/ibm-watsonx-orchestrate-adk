@@ -3,7 +3,7 @@ disable_existing_loggers: false
 
 formatters:  
   standard:
-    format: "[%(levelname)s] - %(message)s"
+    format: "%(levelname)s - %(message)s"
 
 handlers:
   console:
