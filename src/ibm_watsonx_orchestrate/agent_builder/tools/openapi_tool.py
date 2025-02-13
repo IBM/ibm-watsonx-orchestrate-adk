@@ -127,7 +127,7 @@ def create_openapi_json_tool(
         )
     ) if route_spec.get('operationId', None) is not None else None
     spec_name = name or operation_id
-    spec_permission = permission or _action_to_perm(route_spec.get('operation_action'))
+    spec_permission = permission or _action_to_perm(route_spec.get('x-ibm-operation', {}).get('action'))
     if spec_name is None:
         raise ValueError(
             f"No name provided for tool. {http_method}: {http_path} did not specify an operationId, and no name was provided")
