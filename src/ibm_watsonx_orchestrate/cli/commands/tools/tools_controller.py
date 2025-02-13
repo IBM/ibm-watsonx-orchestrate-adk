@@ -175,6 +175,9 @@ class ToolsController:
                         if self.requirements_file is not None:
                             with open(self.requirements_file, 'r') as fp:
                                 requirements = fp.readlines()
+                        # Ensure there is a newline at the end of the file
+                        if len(requirements) > 0 and not requirements[-1].endswith("\n"):
+                            requirements[-1] = requirements[-1]+"\n"
                         requirements.append('/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl\n')
                         requirements_file = path.join(tmpdir, 'requirements.txt')
                         with open(requirements_file, 'w') as fp:
