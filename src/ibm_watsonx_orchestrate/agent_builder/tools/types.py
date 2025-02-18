@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, model_validator, ConfigDict, Field
+from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices
 
 
 class ToolPermission(str, Enum):
@@ -58,7 +58,7 @@ class ToolResponseBody(BaseModel):
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
     scheme: Optional[Literal['basic', 'bearer', 'oauth']] = None
-    in_field: Optional[Literal['query', 'header', 'cookie']] = Field(None, serialization_alias='in')
+    in_field: Optional[Literal['query', 'header', 'cookie']] = Field(None, validation_alias=AliasChoices('in', 'in_field'), serialization_alias='in')
     name: str | None = None
     open_id_connect_url: str | None = None
     flows: dict | None = None
