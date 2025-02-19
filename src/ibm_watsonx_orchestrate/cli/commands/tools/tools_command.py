@@ -28,8 +28,8 @@ def tool_import(
     # ] = None,
     app_id: Annotated[
         str, typer.Option(
-            '--app_id',
-            help='The app_id of the connection to associate with this tool. A application connection represents the server authentication credentials needed to connection to this tool (for example Api Keys, Basic, Bearer or OAuth credentials).'
+            '--app-id', '-a',
+            help='The app id of the connection to associate with this tool. A application connection represents the server authentication credentials needed to connection to this tool (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
     ] = None,
     requirements_file: Annotated[
