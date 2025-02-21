@@ -31,7 +31,7 @@ class ToolKind(str, Enum):
 def validate_params(kind: ToolKind, **args) -> None:
     if kind != 'openapi' and args.get('app_id') is not None:
         raise typer.BadParameter(
-            "--app_id parameter can only be used with openapi tools"
+            "--app-id parameter can only be used with openapi tools"
         )
 
     if kind in {"openapi", "python"} and args["file"] is None:

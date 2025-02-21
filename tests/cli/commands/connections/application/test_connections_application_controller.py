@@ -454,7 +454,7 @@ def test_create_message_should_print_success_message(caplog):
             shared=True
         )
         captured = caplog.text
-        assert "Successfully created application connection with app_id: app_id\n" in captured
+        assert "Successfully created application connection with app-id: app_id\n" in captured
 
 
 @patch(
@@ -551,7 +551,7 @@ def test_remove_connection_should_print_success_message(caplog):
 
         captured = caplog.text
 
-        assert "Successfully removed application connection with app_id: app_id\n" in captured
+        assert "Successfully removed application connection with app-id: app_id\n" in captured
 
 @patch(
     'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',

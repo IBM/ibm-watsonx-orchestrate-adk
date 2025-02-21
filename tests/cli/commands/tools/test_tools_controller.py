@@ -222,7 +222,7 @@ def test_validate_params_app_id_for_incorrect_kind():
         tools=tools_controller.import_tool(kind='python', app_id="123")
         list(tools)
 
-    assert exc.value.message == '--app_id parameter can only be used with openapi tools'
+    assert exc.value.message == '--app-id parameter can only be used with openapi tools'
 
 
 def test_publish_python():

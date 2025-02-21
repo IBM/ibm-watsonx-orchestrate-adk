@@ -153,7 +153,7 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
         if resp.status == 'redirect':
             logger.info(f"Please go to the following url to complete the OAuth2 flow:\n{resp.authorization_url}")
         elif resp.status == 'success':
-            logger.info(f"Successfully created application connection with app_id: {conn.appid}")
+            logger.info(f"Successfully created application connection with app-id: {conn.appid}")
         else:
             logger.warning(f"Unexpected response status {resp.status}")
     except requests.HTTPError as e:
@@ -177,7 +177,7 @@ def remove_application_connection(app_id: str):
     client = instantiate_client(ApplicationConnectionsClient)
     try:
         client.delete(app_id=app_id)
-        logger.info(f"Successfully removed application connection with app_id: {app_id}")
+        logger.info(f"Successfully removed application connection with app-id: {app_id}")
     except requests.HTTPError as e:
         logger.error(e.response.text)
         exit(1)
