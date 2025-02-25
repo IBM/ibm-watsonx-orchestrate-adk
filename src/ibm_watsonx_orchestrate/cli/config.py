@@ -3,27 +3,50 @@ import logging
 import yaml
 from copy import deepcopy
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-
-DEFAULT_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.config/orchestrate"
-DEFAULT_CONFIG_FILE = "config.yaml"
-
-AUTH_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.cache/orchestrate"
-AUTH_CONFIG_FILE = "credentials.yaml"
+from enum import Enum
 
 # Section Headers
 AUTH_SECTION_HEADER = "auth"
-APP_SECTION_HEADER = "app"
+CONTEXT_SECTION_HEADER = "context"
+ENVIRONMENTS_SECTION_HEADER = "environments"
 
 # Option Names
 AUTH_MCSP_API_KEY_OPT = "wxo_mcsp_api_key"
 AUTH_MCSP_TOKEN_OPT = "wxo_mcsp_token"
+AUTH_MCSP_TOKEN_EXPIRY_OPT = "wxo_mcsp_token_expiry"
+CONTEXT_ACTIVE_ENV_OPT = "active_environment"
+ENV_WXO_URL_OPT = "wxo_url"
+ENV_IAM_URL_OPT = "iam_url"
+PROTECTED_ENV_NAME = "local"
 
-APP_WXO_URL_OPT = "wxo_url"
+DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
+
+DEFAULT_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.config/orchestrate"
+DEFAULT_CONFIG_FILE = "config.yaml"
+DEFAULT_CONFIG_FILE_CONTENT = {
+    CONTEXT_SECTION_HEADER: {CONTEXT_ACTIVE_ENV_OPT: None},
+    ENVIRONMENTS_SECTION_HEADER: {
+        PROTECTED_ENV_NAME: {
+            ENV_WXO_URL_OPT : DEFAULT_LOCAL_SERVICE_URL
+        }
+    }
+}
+
+AUTH_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.cache/orchestrate"
+AUTH_CONFIG_FILE = "credentials.yaml"
+AUTH_CONFIG_FILE_CONTENT = {
+    AUTH_SECTION_HEADER: {
+        PROTECTED_ENV_NAME: None
+    }
+}
 
 logger = logging.getLogger(__name__)
 
 def merge_configs(source: dict, destination: dict) -> dict:
-    merged_object = deepcopy(source)
+    if source:
+        merged_object = deepcopy(source)
+    else:
+        merged_object = {}
 
     for key, value in destination.items():
         if isinstance(value, dict):
@@ -33,6 +56,15 @@ def merge_configs(source: dict, destination: dict) -> dict:
             merged_object[key] = value
     return merged_object
 
+def _check_if_default_config_file(folder, file):
+    return folder == DEFAULT_CONFIG_FILE_FOLDER and file == DEFAULT_CONFIG_FILE
+
+def _check_if_auth_config_file(folder, file):
+    return folder == AUTH_CONFIG_FILE_FOLDER and file == AUTH_CONFIG_FILE
+
+class ConfigFileTypes(str, Enum):
+    AUTH = 'auth'
+    CONFIG = 'config'
 
 class Config:
     def __init__(
@@ -43,16 +75,38 @@ class Config:
         self.config_file_folder = config_file_folder
         self.config_file = config_file
         self.config_file_path = os.path.join(self.config_file_folder, self.config_file)
+        self.file_type = None
+
+        if _check_if_default_config_file(folder=self.config_file_folder, file=self.config_file):
+            self.file_type = ConfigFileTypes.CONFIG
+        elif _check_if_auth_config_file(folder=self.config_file_folder, file=self.config_file):
+            self.file_type = ConfigFileTypes.AUTH
 
         # Check if config file already exists
         if not os.path.exists(self.config_file_path):
             self.create_config_file()
+        
+        # Check if file has defaults
+        with open(self.config_file_path, 'r') as conf_file:
+            config_data = yaml_safe_load(conf_file) or {}
+            if self.file_type == ConfigFileTypes.CONFIG:
+                if not config_data.get(ENVIRONMENTS_SECTION_HEADER, {}).get(PROTECTED_ENV_NAME, False):
+                    logger.debug("Setting default config data")
+                    self.create_defaults(DEFAULT_CONFIG_FILE_CONTENT)
+            elif self.file_type == ConfigFileTypes.AUTH:
+                if PROTECTED_ENV_NAME not in set(config_data.get(AUTH_SECTION_HEADER, {}).keys()):
+                    logger.debug("Setting default credentials data")
+                    self.create_defaults(AUTH_CONFIG_FILE_CONTENT)
 
     def create_config_file(self) -> None:
         logger.info(f'Creating config file at location "{self.config_file_path}"')
 
         os.makedirs(os.path.dirname(self.config_file_path), exist_ok=True)
         open(self.config_file_path, 'a').close()
+
+    
+    def create_defaults(self, default_content):
+        self.save(default_content)
 
 
     def read(self, section: str, option: str) -> any:
@@ -83,3 +137,67 @@ class Config:
             
         with open(self.config_file_path, 'w') as conf_file:
             yaml.dump(config_data, conf_file, allow_unicode=True)
+    
+    def get(self, *args):
+        """
+        Accesses an item of arbitrary depth from the config file.
+        Takes an arbitrary number of args. Uses the args in order
+        as keys to access deeper sections of the config and then returning the last specified key.
+        """
+        
+        config_data = {}
+        try:
+            with open(self.config_file_path, 'r') as conf_file:
+                config_data = yaml_safe_load(conf_file) or {}
+        except FileNotFoundError:
+            pass
+
+        if len(args) < 1:
+            return config_data
+
+        try:
+            nested_dict = config_data
+            for key in args[:-1]:
+                nested_dict = nested_dict[key]
+            
+            return nested_dict[args[-1]]
+        except KeyError as e:
+            raise KeyError(f"Failed to get data from config. Key {e} not in {list(nested_dict.keys())}")
+    
+    def delete(self, *args) -> None:
+        """
+        Deletes an item of arbitrary depth from the config file.
+        Takes an arbitrary number of args. Uses the args in order
+        as keys to access deeper sections of the config and then deleting the last specified key.
+        """
+        if len(args) < 1:
+            raise ValueError("Config.delete() requires at least one positional argument")
+        
+        config_data = {}
+        try:
+            with open(self.config_file_path, 'r') as conf_file:
+                config_data = yaml_safe_load(conf_file) or {}
+        except FileNotFoundError:
+            pass
+
+        try:
+            deletion_data = deepcopy(config_data)
+            nested_dict = deletion_data
+            for key in args[:-1]:
+                nested_dict = nested_dict[key]
+            
+            del(nested_dict[args[-1]])
+        except KeyError as e:
+            raise KeyError(f"Failed to delete from config. Key {e} not in {list(nested_dict.keys())}")
+        
+        with open(self.config_file_path, 'w') as conf_file:
+            yaml.dump(deletion_data, conf_file, allow_unicode=True)
+
+        
+        
+
+
+
+
+
+

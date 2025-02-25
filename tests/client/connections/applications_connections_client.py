@@ -28,7 +28,7 @@ def test_create_should_call_create_connections_endpoint():
         )
         res = client.create(connection=conn)
         mock.assert_called_once_with(
-            '/api/v1/connections/applications',
+            '/connections/applications',
             headers={'Content-Type': 'application/json'},
             json=conn.model_dump()
         )
@@ -50,7 +50,7 @@ def test_delete_should_call_delete_connections_endpoint():
         client = ApplicationConnectionsClient(base_url='/')
         res = client.delete(app_id='le_app_id')
         mock.assert_called_once_with(
-            '/api/v1/connections/applications/le_app_id',
+            '/connections/applications/le_app_id',
             headers={'Content-Type': 'application/json'}
         )
         assert res == resp_content

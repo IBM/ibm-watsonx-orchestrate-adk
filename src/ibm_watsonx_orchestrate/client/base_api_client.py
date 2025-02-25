@@ -2,6 +2,7 @@ import json
 
 import requests
 from abc import ABC, abstractmethod
+from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 
 
 class ClientAPIException(requests.HTTPError):
@@ -24,18 +25,24 @@ class ClientAPIException(requests.HTTPError):
 
 class BaseAPIClient:
 
-    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, authenticator: MCSPAuthenticator = None):
         self.base_url = base_url.rstrip("/")  # remove trailing slash
         self.api_key = api_key
+        self.authenticator = authenticator
 
         # api path can be re-written by api proxy when deployed
         # TO-DO: re-visit this when shipping to production
         self.is_local = is_local
 
+        if not self.is_local:
+            self.base_url = f"{self.base_url}/v1/orchestrate"
+
     def _get_headers(self) -> dict:
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        elif self.authenticator:
+            headers["Authorization"] = f"Bearer {self.authenticator.token_manager.get_token()}"
         return headers
 
     def _get(self, path: str, params: dict = None) -> dict:

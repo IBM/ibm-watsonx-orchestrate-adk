@@ -21,9 +21,6 @@ class Credentials:
     :param token: service token, used in token authentication
     :type token: str, optional
 
-    :param instance_id: instance ID, mandatory for ICP
-    :type instance_id: str, optional
-
     :param verify: certificate verification flag
     :type verify: bool, optional
     """
@@ -32,18 +29,17 @@ class Credentials:
             self,
             *,
             url: str | None = None,
+            iam_url: str | None = None,
             api_key: str | None = None,
             token: str | None = None,
-            instance_id: str | None = None,
             verify: str | bool | None = None,
     ) -> None:
         env_credentials = Credentials._get_values_from_env_vars()
-
         self.url = url
+        self.iam_url = iam_url if iam_url is not None else "https://iam.platform.saas.ibm.com"
         self.api_key = api_key
         self.token = token
         self.local_global_token = None
-        self.instance_id = instance_id
         self.verify = verify
         self._is_env_token = token is None and "token" in env_credentials
 
@@ -88,18 +84,6 @@ class Credentials:
                 if os.environ.get(k) is not None and os.environ.get(k) != ""
             ]
         )
-
-    def _set_env_vars_from_credentials(self) -> None:
-
-        env_vars_mapping = {
-            "WX_CLIENT_VERIFY_REQUESTS": "verify",
-        }
-
-        for env_key, property_key in env_vars_mapping.items():
-            if (
-                    os.environ.get(env_key) is None or os.environ.get(env_key) == ""
-            ) and self.__dict__.get(property_key) is not None:
-                os.environ[env_key] = str(self.__dict__[property_key])
 
     def to_dict(self) -> dict[str, Any]:
         """Get dictionary from the Credentials object.

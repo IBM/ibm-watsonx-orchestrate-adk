@@ -1,0 +1,174 @@
+import logging
+import rich
+import jwt
+import getpass
+from ibm_watsonx_orchestrate.cli.config import (
+    Config,
+    AUTH_CONFIG_FILE_FOLDER,
+    AUTH_CONFIG_FILE,
+    AUTH_SECTION_HEADER,
+    AUTH_MCSP_TOKEN_OPT,
+    AUTH_MCSP_TOKEN_EXPIRY_OPT,
+    CONTEXT_ACTIVE_ENV_OPT,
+    CONTEXT_SECTION_HEADER,
+    ENV_WXO_URL_OPT,
+    ENV_IAM_URL_OPT,
+    ENVIRONMENTS_SECTION_HEADER,
+    PROTECTED_ENV_NAME
+)
+from ibm_watsonx_orchestrate.client.client import Client
+from ibm_watsonx_orchestrate.client.client_errors import ClientError
+from ibm_watsonx_orchestrate.client.credentials import Credentials
+from threading import Lock
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity
+
+logger = logging.getLogger(__name__)
+
+lock = Lock()
+
+def _decode_token(token: str, is_local: bool = False) -> dict:
+    try:
+        claimset = jwt.decode(token, options={"verify_signature": False})
+        data = {AUTH_MCSP_TOKEN_OPT: token}
+        if not is_local:
+            data[AUTH_MCSP_TOKEN_EXPIRY_OPT] = claimset["exp"]
+        return data
+    except jwt.DecodeError as e:
+        logger.error("Invalid token format")
+        raise e
+
+def _login(name: str, apikey: str = None) -> None:
+    cfg = Config()
+    auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+
+    env_cfg = cfg.get(ENVIRONMENTS_SECTION_HEADER, name)
+    url = env_cfg.get(ENV_WXO_URL_OPT)
+    iam_url = env_cfg.get(ENV_IAM_URL_OPT)
+    is_local = name == PROTECTED_ENV_NAME or is_local_dev(url=url)
+
+
+    if apikey is None and not is_local:
+        apikey = getpass.getpass("Please enter WXO API key: ")
+
+    try:
+        creds = Credentials(url=url, api_key=apikey, iam_url=iam_url)
+        client = Client(creds)
+        token = _decode_token(client.token, is_local)
+        with lock:
+            auth_cfg.save(
+                {
+                    AUTH_SECTION_HEADER: {
+                        name:token
+                    },
+                }
+            )
+    except ClientError as e:
+        raise ClientError(e)
+
+def activate(name: str, apikey: str=None) -> None:
+    cfg = Config()
+    auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+    env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
+
+    if not env_cfg:
+        logger.error(f"Environment '{name}' does not exist. Please create it with `orchestrate env add`")
+        return
+    elif not env_cfg.get(ENV_WXO_URL_OPT):
+        logger.error(f"Environment '{name}' is misconfigured. Please re-create it with `orchestrate env add`")
+        return
+
+    existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(name, {})
+    existing_token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
+
+    if not check_token_validity(existing_token):
+        _login(name=name, apikey=apikey)
+
+    with lock:
+        cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, name)
+    
+    # TODO: Remove the following when SAAS support is released
+    url = cfg.get(ENVIRONMENTS_SECTION_HEADER, name, ENV_WXO_URL_OPT)
+    if not is_local_dev(url):
+        logger.warning("SAAS support is limited, no access to tools, agent or connections")
+
+    logger.info(f"Environment '{name}' is now active")
+
+def add(name: str, url: str, should_activate: bool=False, iam_url: str=None) -> None:
+    if name == PROTECTED_ENV_NAME:
+        logger.error(f"The name '{PROTECTED_ENV_NAME}' is a reserved environment name. Please select a diffrent name or use `orchestrate env activate {PROTECTED_ENV_NAME}` to swap to '{PROTECTED_ENV_NAME}'")
+        return
+
+    cfg = Config()
+    existing_env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
+    if existing_env_cfg:
+        logger.info(f"Existing environment with name '{name}' found.")
+        update_response = input(f"Would you like to update the environment '{name}'? (Y/n)")
+        if update_response.lower() == "n":
+            logger.info(f"No changes made to environments")
+            return
+    with lock:
+        cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_WXO_URL_OPT: url})
+        if iam_url:
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_IAM_URL_OPT: iam_url})
+
+    logger.info(f"Environment '{name}' has been created")
+    if should_activate:
+        activate(name)
+
+def remove(name: str) -> None:
+    if name == PROTECTED_ENV_NAME:
+        logger.error(f"The environment '{PROTECTED_ENV_NAME}' is a default environment and cannot be removed.")
+        return
+
+    cfg = Config()
+    auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+    active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+    existing_env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
+    existing_auth_env_cfg = auth_cfg.read(AUTH_SECTION_HEADER, name)
+
+    if not existing_env_cfg:
+        logger.info(f"No environment named '{name}' exists")
+        return
+
+    if name == active_env:
+        remove_confirmation = input(f"The environment '{name}' is currently active, are you sure you wish to remove it? (y/N)")
+        if remove_confirmation.lower() != 'y':
+            logger.info("No changes made to environments")
+            return
+        cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, None)
+
+    cfg.delete(ENVIRONMENTS_SECTION_HEADER, name)
+    if existing_auth_env_cfg:
+        auth_cfg.delete(AUTH_SECTION_HEADER, name)
+    logger.info(f"Successfully removed environment '{name}'")
+
+def list_envs() -> None:
+    cfg = Config()
+    active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+    envs = cfg.get(ENVIRONMENTS_SECTION_HEADER)
+
+    table = rich.table.Table(
+        show_header=False,
+        box=None
+    )
+    columns = ["Environment", "Url", ""]
+    for col in columns:
+        table.add_column(col)
+
+    # Make order active first followed alphabetically
+    env_names = []
+    if active_env:
+        env_names.append(active_env)
+    else:
+        logger.warning("No active environment is currently set. Use `orchestrate env activate` to set one")
+    envs_keys = list(envs.keys())
+    if active_env in envs_keys: envs_keys.remove(active_env)
+    envs_keys.sort()
+    env_names += envs_keys
+
+    for env in env_names:
+        active_tag = "[green](active)[/green]" if env == active_env else ""
+        table.add_row(env, envs.get(env, {}).get(ENV_WXO_URL_OPT, "N/A"), active_tag)
+    
+    console = rich.console.Console()
+    console.print(table)

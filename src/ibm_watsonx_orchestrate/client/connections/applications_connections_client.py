@@ -147,10 +147,10 @@ class ApplicationConnectionsClient(BaseAPIClient):
     """
 
     def create(self, connection: CREATE_CONNECTION) -> CreateConnectionResponse:
-        return CreateConnectionResponse.model_validate(self._post("/api/v1/connections/applications", data=connection.model_dump()))
+        return CreateConnectionResponse.model_validate(self._post("/connections/applications", data=connection.model_dump()))
 
     def get(self) -> List[ListConnectionResponse]:
-        response = self._get("/api/v1/connections/applications")
+        response = self._get("/connections/applications")
         connections = []
         for conn in response:
             connections.append(ListConnectionResponse.model_validate(conn))
@@ -160,4 +160,4 @@ class ApplicationConnectionsClient(BaseAPIClient):
         raise RuntimeError('unimplemented')
 
     def delete(self, app_id: str) -> DeleteConnectionResponse:
-        return DeleteConnectionResponse.model_validate(self._delete(f"/api/v1/connections/applications/{app_id}"))
+        return DeleteConnectionResponse.model_validate(self._delete(f"/connections/applications/{app_id}"))

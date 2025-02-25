@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -x
 
-orchestrate login --local
+orchestrate env activate local
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 for python_tool in  find_user_id.py find_user_management_chain.py find_user_peers.py; do

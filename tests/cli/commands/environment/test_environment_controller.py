@@ -1,0 +1,273 @@
+from unittest.mock import patch
+import re
+import pytest
+from ibm_watsonx_orchestrate.cli.commands.environment import environment_controller
+
+tokens = {
+    "valid_token_w_expiry": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjk5OTk5OTk5OTl9.Vg30C57s3l90JNap_VgMhKZjfc-p7SoBXaSAy8c28HA",
+    "valid_token_wo_expiry": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+    "invalid_token_expired": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjEwMDAwMDAwMDB9.9oF3tWEwFMK-0ut1pNLF0tOfZ-onpT5upqOCX58xlko",
+    "invalid_token": "not a real token",
+}
+
+class MockConfig():
+    def __init__(self, read_value=None, expected_write=None, expected_save=None):
+        self.read_value = read_value
+        self.expected_write = expected_write
+        self.expected_save = expected_save
+
+    def read(self, section, option):
+        return self.read_value.get(section, {}).get(option)
+    
+    def get(self, *args):
+        nested_value = self.read_value.copy()
+        for arg in args:
+            nested_value = nested_value[arg]
+        return nested_value
+
+    def write(self, section, option, value):
+        assert value == self.expected_write
+
+    def save(self, data):
+        assert data == self.expected_save
+    
+    def delete(self, *args, **kwargs):
+        pass
+
+class MockClient:
+    def __init__(self, credentials):
+        self.token = tokens["valid_token_w_expiry"]
+
+class MockCredentials:
+    def __init__(self, url, api_key, iam_url):
+        pass
+
+@pytest.fixture
+def mock_read_value():
+    yield {
+            "context": {
+                "active_environment": "testing"
+            },
+            "environments": {
+                "testing": {"wxo_url": "testing"},
+                "anothertesting": {"wxo_url": "another testing"},
+            },
+            "auth": {
+                "testing": {
+                    "wxo_mcsp_token": "token",
+                    "wxo_mcsp_token_expiry": 999999999
+                }
+            }
+        }
+
+class TestActivate:
+
+    @pytest.mark.parametrize(
+            ("url", "token", "token_expiry"),
+            [
+                ("http://localhost:1234", tokens["valid_token_wo_expiry"], None),
+                ("https://www.testing.com", tokens["valid_token_w_expiry"], 9999999999)
+            ]
+    )
+    def test_activate_valid_token(self, mock_read_value, url, token, token_expiry, caplog):
+        read_value = mock_read_value.copy()
+        read_value['environments']['testing']['wxo_url'] = url
+        read_value['auth']['testing']['wxo_mcsp_token'] = token
+        read_value['auth']['testing']['wxo_mcsp_token_expiry'] = token
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+            
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write="testing", expected_save={
+                "auth": {
+                    "testing":{
+                        "wxo_mcsp_token": "test_token",
+                        "wxo_mcsp_token_expiry": 0
+                    }
+                }
+            })
+
+            environment_controller.activate(name="testing", apikey="123")
+
+            captured = caplog.text
+            assert "Environment 'testing' is now active" in captured
+    
+    @pytest.mark.parametrize(
+            ("url", "token", "token_expiry"),
+            [
+                ("http://localhost:1234", tokens["invalid_token"], None),
+                ("https://www.testing.com", tokens["invalid_token_expired"], 9999999999)
+            ]
+    )
+    def test_activate_invalid_token(self, mock_read_value, url, token, token_expiry, caplog):
+        read_value = mock_read_value.copy()
+        read_value['environments']['testing']['wxo_url'] = url
+        read_value['auth']['testing']['wxo_mcsp_token'] = token
+        read_value['auth']['testing']['wxo_mcsp_token_expiry'] = token
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+            
+            expected_save = {
+                "auth": {
+                    "testing":{
+                        "wxo_mcsp_token": tokens["valid_token_w_expiry"],
+                    }
+                }
+            }
+
+            if token_expiry:
+                expected_save["auth"]["testing"]["wxo_mcsp_token_expiry"] = token_expiry
+
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write="testing", expected_save=expected_save)
+
+            environment_controller.activate(name="testing", apikey="123")
+
+            captured = caplog.text
+            assert "Environment 'testing' is now active" in captured
+    
+class TestAdd:
+    def test_add(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write={"wxo_url": "test url"})
+
+            environment_controller.add(name="testing123", url="test url")
+
+            captured = caplog.text
+            assert "Environment 'testing123' has been created" in captured
+        
+    def test_add_local(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write={"wxo_url": "test url"})
+
+            environment_controller.add(name="local", url="test url")
+
+            captured = caplog.text
+            assert "The name 'local' is a reserved environment name" in captured
+
+    def test_add_existing_confirm(self, mock_read_value, caplog, monkeypatch):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write={"wxo_url": "test url"})
+            monkeypatch.setattr('builtins.input', lambda _: "y")
+            
+            environment_controller.add(name="testing", url="test url")
+
+            captured = caplog.text
+
+            assert "Environment 'testing' has been created" in captured
+            assert "Existing environment with name 'testing' found" in captured
+    
+    def test_add_existing_reject(self, mock_read_value, caplog, monkeypatch):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write={"wxo_url": "test url"})
+            monkeypatch.setattr('builtins.input', lambda _: "n")
+            
+            environment_controller.add(name="testing", url="test url")
+
+            captured = caplog.text
+
+            assert "Environment 'testing' has been created" not in captured
+            assert "Existing environment with name 'testing' found" in captured
+            assert "No changes made to environments" in captured
+
+    def test_add_activate(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg,\
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.activate") as mock_activate:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write={"wxo_url": "test url"})
+
+            environment_controller.add(name="testing123", url="test url", should_activate=True)
+
+            mock_activate.assert_called_once
+
+            captured = caplog.text
+            assert "Environment 'testing123' has been created" in captured
+        
+class TestRemove:
+    def test_remove(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value)
+
+            environment_controller.remove(name="anothertesting")
+
+            captured = caplog.text
+            assert "Successfully removed environment 'anothertesting'" in captured
+        
+    def test_remove_local(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value)
+
+            environment_controller.remove(name="local")
+
+            captured = caplog.text
+            assert "The environment 'local' is a default environment and cannot be removed" in captured
+
+    def test_remove_non_existant(self, mock_read_value, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value)
+            
+            environment_controller.remove(name="testing123")
+
+            captured = caplog.text
+
+            assert "No environment named 'testing123' exists" in captured
+
+    def test_remove_activate_confirm(self, mock_read_value, caplog, monkeypatch):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write=None)
+
+            monkeypatch.setattr('builtins.input', lambda _: "y")
+
+            environment_controller.remove(name="testing")
+
+            captured = caplog.text
+            assert "Successfully removed environment 'testing'" in captured
+    
+    def test_remove_activate_reject(self, mock_read_value, caplog, monkeypatch):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write=None)
+
+            monkeypatch.setattr('builtins.input', lambda _: "n")
+
+            environment_controller.remove(name="testing")
+
+            captured = caplog.text
+            assert "No changes made to environments" in captured
+            assert "Successfully removed environment 'testing'" not in captured
+
+class TestList:
+    def test_list(self, mock_read_value, capsys):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value)
+            
+            environment_controller.list_envs()
+
+            captured = capsys.readouterr()
+
+            testing_env_regex = re.compile(r"testing\s*testing\s*\(active\)")
+            anothertesting_env_regex = re.compile(r"anothertesting\s*another testing\s*$")
+
+            assert len(testing_env_regex.findall(captured.out)) != 0
+            assert len(anothertesting_env_regex.findall(captured.out)) != 0
+
+    def test_list_no_active(self, mock_read_value, capsys, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg:
+            read_value = mock_read_value.copy()
+            read_value["context"]["active_environment"] = None
+
+            mock_cfg.return_value = MockConfig(read_value=read_value)
+            
+            environment_controller.list_envs()
+
+            captured = capsys.readouterr()
+
+            active_testing_env_regex = re.compile(r"testing\s*testing\s*\(active\)")
+            testing_env_regex = re.compile(r"testing\s*testing\s*$")
+            anothertesting_env_regex = re.compile(r"anothertesting\s*another testing\s*\n")
+
+            assert "No active environment is currently set" in caplog.text
+            print(captured)
+            assert len(active_testing_env_regex.findall(captured.out)) == 0
+            assert len(testing_env_regex.findall(captured.out)) != 0
+            assert len(anothertesting_env_regex.findall(captured.out)) != 0

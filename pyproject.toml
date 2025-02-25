@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ibm-watsonx-orchestrate"
-version = "0.2.4"
+version = "0.3.0"
 description = "IBM watsonx.orchestrate SDK"
 authors = [
     { name = "IBM", email = "support@ibm.com" }
@@ -15,6 +15,7 @@ dependencies = [
     "certifi>=2024.8.30",
     "docstring-parser>=0.16,<1.0",
     "httpx>=0.28.1,<1.0.0",
+    "ibm-cloud-sdk-core>=3.22.0",
     "jsonref==1.1.0",
     "jsonschema>=4.23.0,<5.0.0",
     "langchain-community>=0.3.12,<1.0.0",

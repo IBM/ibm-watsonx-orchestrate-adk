@@ -388,7 +388,7 @@ def server_start(
     else:
         logger.warning("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
 
-    logger.info(f"You can run `orchestrate login --local` to login or `orchestrate chat start` to start the UI service and begin chatting.")
+    logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
 
 @server_app.command(name="stop")
 def server_stop(

@@ -27,7 +27,7 @@ orchestrate server start --env-file path/to/.env
 ```
 9. Login to your local server so that all future import commands target the local environment.
 ```bash
-orchestrate login --local
+orchestrate env activate local
 ```
 10. Import your first tool(s). For more details on this check out [docs/tools](./2_tools.md)
 ```bash
