@@ -74,3 +74,4 @@ sdk/python/ibm_watsonx_orchestrate/ibm_watsonx_orchestrate/utils/__pycache__/
 .env.*
 .idea/
 .vscode/
+coverage/

@@ -4,13 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ibm-watsonx-orchestrate"
-version = "0.3.0"
+dynamic = ["version"]
+
 description = "IBM watsonx.orchestrate SDK"
 authors = [
     { name = "IBM", email = "support@ibm.com" }
 ]
-readme = "README.md"
+#readme = { file = "README.md", content-type = 'text/markdown'}
+license = {text = "MIT License"}
+license-files = ["LICENSE"]
 requires-python = ">=3.11, <3.14"
+classifiers = []
 dependencies = [
     "certifi>=2024.8.30",
     "docstring-parser>=0.16,<1.0",
@@ -34,6 +38,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.4,<9.0.0",
+    "pytest-cov==6.0.0",
     "snapshottest==1.0.0a1",
     "pytest-mock==3.14.0",
     "pytest-asyncio==0.25.1",
@@ -48,13 +53,17 @@ dependencies = [
 ]
 detached = true
 
+[tool.hatch.version]
+path = "src/ibm_watsonx_orchestrate/__init__.py"
+
+
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ibm_watsonx_orchestrate"]
 
 [tool.hatch.build]
 include = [
-    "src/ibm_watsonx_orchestrate/docker/compose-lite.yml",
-    "src/ibm_watsonx_orchestrate/docker/default.env"
+    "src/*"
 ]
 
 [project.scripts]
@@ -77,6 +86,14 @@ omit = [
   "*/__init__.py",
   "tests/*"
 ]
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pkg[dev]"
+]
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.11", "3.12", "3.13"]
 
 [tool.coverage.report]
 show_missing=true
