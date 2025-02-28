@@ -65,7 +65,6 @@ class TestActivate:
     @pytest.mark.parametrize(
             ("url", "token", "token_expiry"),
             [
-                ("http://localhost:1234", tokens["valid_token_wo_expiry"], None),
                 ("https://www.testing.com", tokens["valid_token_w_expiry"], 9999999999)
             ]
     )
@@ -97,6 +96,7 @@ class TestActivate:
             ("url", "token", "token_expiry"),
             [
                 ("http://localhost:1234", tokens["invalid_token"], None),
+                ("http://localhost:1234", tokens["valid_token_wo_expiry"], None),
                 ("https://www.testing.com", tokens["invalid_token_expired"], 9999999999)
             ]
     )

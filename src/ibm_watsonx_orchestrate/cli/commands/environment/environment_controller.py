@@ -69,6 +69,8 @@ def activate(name: str, apikey: str=None) -> None:
     cfg = Config()
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
     env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
+    url = cfg.get(ENVIRONMENTS_SECTION_HEADER, name, ENV_WXO_URL_OPT)
+    is_local = is_local_dev(url)
 
     if not env_cfg:
         logger.error(f"Environment '{name}' does not exist. Please create it with `orchestrate env add`")
@@ -80,15 +82,14 @@ def activate(name: str, apikey: str=None) -> None:
     existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(name, {})
     existing_token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
 
-    if not check_token_validity(existing_token):
+    if not check_token_validity(existing_token) or is_local:
         _login(name=name, apikey=apikey)
 
     with lock:
         cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, name)
     
     # TODO: Remove the following when SAAS support is released
-    url = cfg.get(ENVIRONMENTS_SECTION_HEADER, name, ENV_WXO_URL_OPT)
-    if not is_local_dev(url):
+    if not is_local:
         logger.warning("SAAS support is limited, no access to tools, agent or connections")
 
     logger.info(f"Environment '{name}' is now active")
