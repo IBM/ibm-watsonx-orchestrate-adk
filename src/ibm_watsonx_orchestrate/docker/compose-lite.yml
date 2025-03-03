@@ -399,7 +399,7 @@ services:
       SSL_DIRECTORY: "/shared/tls/keystore/keypair"
       COMMON_CONFIG_FILE: "/shared/common-config.yaml"
       SERVER_MODE: production
-      SERVER_ENVIRONMENT: AWS
+      SERVER_ENVIRONMENT: SDK
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
       SERVER_CALLBACK_URL: https://atm:/asb/atm/task/callback/{thread_id}/{requestId}
       SERVER_INTERNAL_PROTOCOL: https
@@ -457,7 +457,7 @@ services:
       OPENID_TOKEN_REFRESH_URL: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/token
       OPENID_JWK_URL: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/jwks
       JWT_CERTIFICATE_KEY_ID: watson_orchestrate
-      IS_WO: "true"
+      IS_WO: "SDK"
       REDIS_HOST: wxo-server-redis
       REDIS_PASSWORD: ""
       REDIS_USER: ""
@@ -467,10 +467,8 @@ services:
       CONTEXT_ROOT_PREFIX: /asb/cfe
       AE_DATABASE_TYPE: ""
       BA2_CONTEXT: "/v1"
-      GIT_TYPE: dbastudio-storage-services
-      GIT_HOST: "" # TODO
-      GIT_PORT: "" # TODO
-      GIT_PATH: "" # TODO
+      GIT_TYPE: fs
+      GIT_PATH: "/shared/cfe"
       TEAM_SERVER_GRAPH_QL_URL: ""
       DATA_PERSISTENCE_USE_MONGO_DB: "false"
       MONGO_DB_URL: ""
@@ -493,6 +491,7 @@ services:
       - ./tempus/server.cert:/shared/tls/keystore/keypair/tls.crt
       - ./tempus/server.key:/shared/tls/keystore/keypair/tls.key
       - ./tempus/common-config.yaml:/shared/common-config.yaml
+      - ./tempus/cfe:/shared/cfe
     depends_on:
       - wxo-server-redis
     
