@@ -1,5 +1,6 @@
 import typer
 
+from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
 from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_command import tools_app
@@ -11,7 +12,8 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import
 
 app = typer.Typer(
     no_args_is_help=True,
-    pretty_exceptions_enable=False
+    pretty_exceptions_enable=False,
+    callback=init_callback
 )
 app.add_typer(login_app)
 app.add_typer(tools_app, name="tools")

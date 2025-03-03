@@ -48,3 +48,38 @@ orchestrate chat start --env-file path/to/.env --orchestrator-agent-name <name o
 ```
 
 Samples of these tools and agents can be found in the examples folder.
+
+## Troubleshoot
+
+### orchestrate --version fails with DockerException: ConnectionRefusedError
+
+Users of `colima` or `rancher desktop` for managing docker containers may encounter the above error. An [open defect](https://github.com/docker/docker-py/issues/3059) in `docker-py` summarizes the following:
+
+```
+With latest release of docker, the context of the client is changed from default to desktop-linux which uses different endpoint and therefore breaks the docker client."
+```
+
+In order to amend the above, follow the listed steps:
+1. Run `docker info` to find see which context the client uses:
+
+```
+$ docker info
+Client:
+ Context:    desktop-linux
+...
+```
+
+2. Run `docker context ls` to find the endpoint configuration
+
+```
+$ docker context ls
+NAME                TYPE                DESCRIPTION                               DOCKER ENDPOINT                                  KUBERNETES ENDPOINT   ORCHESTRATOR
+default             moby                Current DOCKER_HOST based configuration   unix:///var/run/docker.sock                                            swarm
+desktop-linux *     moby                                                          unix:///Users/ec2-user/.docker/run/docker.sock
+```
+
+3. Set `$DOCKER_HOST` to the endpoint you see for the default context
+```
+export DOCKER_HOST=unix:///Users/ec2-user/.docker/run/docker.sock
+```
+

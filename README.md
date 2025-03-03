@@ -57,6 +57,7 @@ orchestrate --help
  Usage: orchestrate [OPTIONS] COMMAND [ARGS]...                                 
                                                                                 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --version                     Check the version of package dependencies.     │
 │ --install-completion          Install completion for the current shell.      │
 │ --show-completion             Show completion for the current shell, to copy │
 │                               it or customize the installation.              │
