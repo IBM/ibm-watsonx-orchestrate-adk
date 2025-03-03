@@ -5,7 +5,8 @@
 
 pkg_name = "ibm-watsonx-orchestrate"
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
+
 
 try:
     from importlib.metadata import version

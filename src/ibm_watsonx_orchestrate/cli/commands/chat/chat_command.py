@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 def chat_start(
     agent_name: str = typer.Option(
         None,
-        "--orchestrator-agent-name",
+        "--orchestrator-agent-name", "-o",
         help="Orchestrator agent name to use when starting the chat."
     ), 
     user_env_file: str = typer.Option(
         None,
-        "--env-file",
+        "--env-file", "-e",
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):
@@ -37,7 +37,7 @@ def chat_start(
 def chat_stop(
     user_env_file: str = typer.Option(
         None,
-        "--env-file",
+        "--env-file", "-e",
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):

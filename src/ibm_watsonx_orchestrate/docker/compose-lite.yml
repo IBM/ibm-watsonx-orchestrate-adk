@@ -1,4 +1,7 @@
 services:
+########################
+# Orchestrate Lite dependencies
+########################
   wxo-server-redis:
     image: us.icr.io/watson-orchestrate-private/redis:latest
     platform: linux/amd64
@@ -125,6 +128,7 @@ services:
       /bin/sh -c "
       /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-server-storage-bucket;
+      /usr/bin/mc mb wxo-server-minio/langfuse;
       exit 0;
       "
   socket-handler:
@@ -159,9 +163,15 @@ services:
     volumes:
       - ./sdk:/packages
     depends_on:
-      - wxo-server-redis
-      - wxo-server-db
-      - wxo-server-worker
+      wxo-server-redis:
+          condition: service_started
+      wxo-server-db:
+          condition: service_started
+      wxo-server-worker:
+          condition: service_started
+      langfuse-worker:
+          condition: service_started
+          required: False
     environment:
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
@@ -196,9 +206,9 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -222,8 +232,13 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
-      - wxo-server-redis
-      - wxo-server-db
+      wxo-server-redis:
+          condition: service_started
+      wxo-server-db:
+          condition: service_started
+      langfuse-worker:
+          condition: service_started
+          required: False
     volumes:
       - ./sdk:/packages
     environment:
@@ -256,9 +271,9 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -277,6 +292,100 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
+########################
+# LANGFUSE dependencies
+########################
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    restart: unless-stopped
+    profiles: [langfuse]
+    depends_on: &langfuse-depends-on
+      wxo-server-db:
+        condition: service_healthy
+      wxo-server-minio:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    ports:
+      - "3030:3030"
+    environment: &langfuse-worker-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
+      SHADOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      SALT: "mysalt"
+      ENCRYPTION_KEY: "4cb5c10dfb35f77a50e871c4607bd199396725244b0f99caee33d329de6862f9" # generate via `openssl rand -hex 32`
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
+      CLICKHOUSE_MIGRATION_URL: ${LANGFUSE_CLICKHOUSE_MIGRATION_URL:-clickhouse://langfuse-clickhouse:9000}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://langfuse-clickhouse:8123}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: ${CLICKHOUSE_CLUSTER_ENABLED:-false}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://wxo-server-minio:9000}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://wxo-server-minio:9000}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
+      LANGFUSE_INGESTION_QUEUE_DELAY_MS: ${LANGFUSE_INGESTION_QUEUE_DELAY_MS:-}
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: ${LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS:-}
+      LANGFUSE_INIT_ORG_ID: ibm
+      LANGFUSE_INIT_ORG_NAME: IBM
+      LANGFUSE_INIT_PROJECT_ID: orchestrate-lite
+      LANGFUSE_INIT_PROJECT_NAME: Watsonx Orchestrate Lite Project
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_EMAIL}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_USERNAME}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_PASSWORD}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      REDIS_CONNECTION_STRING: redis://wxo-server-redis:6379/1
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    restart: unless-stopped
+    depends_on: *langfuse-depends-on
+    profiles: [langfuse]
+    ports:
+      - "3010:3000"
+    environment:
+      <<: *langfuse-worker-env
+      # NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: http://localhost:3010
+      NEXTAUTH_SECRET: mysecret
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server
+    restart: unless-stopped
+    user: "101:101"
+    profiles: [langfuse]
+    container_name: clickhouse
+    hostname: clickhouse
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - "8123:8123"
+      - "9002:9000"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+
+
 
 volumes:
   wxo-server-redis-data:
@@ -286,6 +395,10 @@ volumes:
   wxo-server-minio-data:
     driver: local
   ui-data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
     driver: local
 networks:
   default:

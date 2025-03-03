@@ -36,7 +36,7 @@ def tool_import(
         str,
         typer.Option(
             "--requirements-file",
-            "-rf",
+            "-r",
             help="Path to Python requirements.txt file. Required for kind python",
         ),
     ] = None,

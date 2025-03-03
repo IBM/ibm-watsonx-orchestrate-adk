@@ -4,10 +4,12 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 from dotenv import dotenv_values
+import posixpath
 
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     server_app,
     ensure_docker_installed,
+    ensure_docker_compose_installed,
     docker_login,
     merge_env,
     apply_llm_api_key_defaults,
@@ -84,6 +86,43 @@ def test_ensure_docker_installed_failure():
             ensure_docker_installed()
         assert exc.value.code == 1
 
+def test_ensure_docker_compose_installed_success():
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        ensure_docker_compose_installed()
+        mock_run.assert_called_once_with(
+            ["docker", "compose", "version"],
+            check=True,
+            capture_output=True
+        )
+
+
+def test_ensure_docker_compose_hyphen_success():
+    with patch("subprocess.run") as mock_run:
+        def mock_failure():
+            yield FileNotFoundError
+            while True:
+                yield 0
+
+        mock_run.side_effect = mock_failure()
+        ensure_docker_compose_installed()
+        mock_run.assert_called_with(
+            ["docker-compose", "version"],
+            check=True,
+            capture_output=True
+        )
+
+def test_ensure_docker_compose_failure(capsys):
+    with patch("subprocess.run") as mock_run:
+
+        mock_run.side_effect = FileNotFoundError
+        with pytest.raises(SystemExit) as exc:
+            ensure_docker_compose_installed()
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Unable to find an installed docker-compose or docker compose" in captured.out
+
 def test_docker_login_success():
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
@@ -156,6 +195,39 @@ def test_run_compose_lite_failure():
         with pytest.raises(SystemExit):
             run_compose_lite(mock_env_file)
         mock_unlink.assert_not_called()
+
+def test_run_compose_lite_success_langfuse_true():
+    mock_env_file = Path("/tmp/test.env")
+    with patch("subprocess.run") as mock_run, \
+        patch.object(Path, "unlink") as mock_unlink:
+        mock_run.return_value.returncode = 0
+        with patch.object(Path, "exists", return_value=True):
+            run_compose_lite(mock_env_file, experimental_with_langfuse=True)
+            mock_unlink.assert_called()
+
+
+def test_run_compose_lite_success_langfuse_false():
+    mock_env_file = Path("/tmp/test.env")
+    with patch("subprocess.run") as mock_run, \
+         patch.object(Path, "unlink") as mock_unlink:
+        mock_run.return_value.returncode = 0
+        with patch.object(Path, "exists", return_value=True):
+            run_compose_lite(mock_env_file, experimental_with_langfuse=False)
+            mock_unlink.assert_called()
+
+def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
+    mock_env_file = Path("test.env")
+    with patch("subprocess.run") as mock_run, \
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+        patch.object(Path, "unlink") as mock_unlink:
+        mock_run.return_value.returncode = 0
+        mock_compose.return_value = mock_compose_file
+        with patch.object(Path, "exists", return_value=True):
+            run_compose_lite(mock_env_file, experimental_with_langfuse=True)
+            mock_run.assert_called_with(
+                ['docker', 'compose', '--profile', 'langfuse', '-f', posixpath.abspath(mock_compose_file), '--env-file', posixpath.basename(mock_env_file), 'up', '--scale', 'ui=0', '-d', '--remove-orphans'],
+                capture_output=False
+            )
 
 def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
     with patch("subprocess.run") as mock_run, \
