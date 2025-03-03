@@ -60,7 +60,8 @@ def find_users_peers(userId: str) -> List[Any]:
     :returns: A list of users and their associated userId
     """
     resp = requests.post(
-        url='https://w3-graph-w3-graph.dal1a.cirrus.ibm.com/graphql?op=searchPeople',
+        url='https://w3-graph-w3-graph.w3-globals.dal.app.cirrus.ibm.com/graphql?searchPeople',
+        verify=False,
         json={
             'operationName': GET_W3_USER_TEAM_OPERATION_ID,
             'query': GET_W3_USER_TEAM_QUERY,
@@ -72,6 +73,6 @@ def find_users_peers(userId: str) -> List[Any]:
 
 
 # if __name__ == '__main__':
-#     people = find_peers(userId='4G0344897')
+#     people = find_users_peers(userId='4G0344897')
 #     print(json.dumps(people, indent=2))
 

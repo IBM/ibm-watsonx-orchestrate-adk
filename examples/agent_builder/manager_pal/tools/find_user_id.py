@@ -47,7 +47,8 @@ def find_w3_userId_for_name(name: str, rows: int = 10) -> List[W3UserNameAndId]:
     :returns: A list of users and their associated userId
     """
     resp = requests.post(
-        url='https://w3-graph-w3-graph.dal1a.cirrus.ibm.com/graphql?op=searchPeople',
+        url='https://w3-graph-w3-graph.w3-globals.dal.app.cirrus.ibm.com/graphql?searchPeople',
+        verify=False,
         json={
             'operationName': SEARCH_PEOPLE_QUERY_OPERATION_ID,
             'query': SEARCH_PEOPLE_QUERY,

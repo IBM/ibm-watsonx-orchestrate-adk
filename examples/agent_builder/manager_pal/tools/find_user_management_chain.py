@@ -60,7 +60,8 @@ def find_users_management_chain(userId: str) -> List[UserLeader]:
     :returns: The list of managers of the user with the given w3 userId
     """
     resp = requests.post(
-        url='https://w3-graph-w3-graph.dal1a.cirrus.ibm.com/graphql?op=searchPeople',
+        url='https://w3-graph-w3-graph.w3-globals.dal.app.cirrus.ibm.com/graphql?searchPeople',
+        verify=False,
         json={
             'operationName': GET_W3_USER_TEAM_OPERATION_ID,
             'query': GET_W3_USER_TEAM_QUERY,
