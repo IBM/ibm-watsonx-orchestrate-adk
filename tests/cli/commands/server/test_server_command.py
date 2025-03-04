@@ -1,6 +1,7 @@
 import os
+import platform
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 from typer.testing import CliRunner
 from dotenv import dotenv_values
@@ -15,6 +16,8 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     apply_llm_api_key_defaults,
     write_merged_env_file,
     run_compose_lite,
+    get_dbtag_from_architecture,
+    run_db_migration,
     run_compose_lite_down,
     run_compose_lite_logs,
     get_default_env_file,
@@ -348,3 +351,71 @@ def test_cli_command_failure(caplog):
 
     assert result.exit_code == 1
     assert "DOCKER_IAM_KEY is required" in captured
+
+def test_get_dbtag_from_architecture_arm64():
+    with patch("platform.machine") as mock_machine, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
+         patch("os.getenv") as mock_getenv:
+        
+        mock_default.return_value = "/fake/path/.env"
+        mock_machine.return_value = "arm64"
+        mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
+        result = get_dbtag_from_architecture()
+
+        assert result == "arm64-db-tag"
+        mock_machine.assert_called_once()
+        mock_default.assert_called_once()
+        mock_getenv.assert_any_call("ARM64DBTAG")
+
+def test_get_dbtag_from_architecture_amd64():
+    with patch("platform.machine") as mock_machine, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
+         patch("os.getenv") as mock_getenv:
+        mock_default.return_value = "/fake/path/.env"
+        mock_machine.return_value = "x86_64"
+        mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
+        result = get_dbtag_from_architecture()
+
+        assert result == "amd-db-tag"
+        mock_machine.assert_called_once()
+        mock_default.assert_called_once()
+        mock_getenv.assert_any_call("ARMDBTAG")
+
+def test_run_db_migration_success():
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.ensure_docker_compose_installed") as mock_docker_compose, \
+         patch("subprocess.run") as mock_subprocess, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        
+        mock_compose.return_value = "/fake/path/docker-compose.yml"
+        mock_docker_compose.return_value = ["docker-compose"]
+        
+        mock_subprocess.return_value = MagicMock(returncode=0, stderr=b"")
+
+        run_db_migration()
+
+        mock_compose.assert_called_once()
+        mock_docker_compose.assert_called_once()
+        mock_subprocess.assert_called_once()
+        mock_logger.info.assert_any_call("Running Database Migration...")
+        mock_logger.info.assert_any_call("Migration ran successfully.")
+
+def test_run_db_migration_failure():
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.ensure_docker_compose_installed") as mock_docker_compose, \
+         patch("subprocess.run") as mock_subprocess, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+
+        mock_compose.return_value = "/fake/path/docker-compose.yml"
+        mock_docker_compose.return_value = ["docker-compose"]
+
+        mock_subprocess.return_value = MagicMock(returncode=1, stderr=b"Mocked migration failure.")
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_db_migration()
+
+        assert exc_info.value.code == 1
+
+        mock_logger.error.assert_called_with(
+            "Error running database migration):\nMocked migration failure."
+        )

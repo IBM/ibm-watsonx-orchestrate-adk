@@ -89,6 +89,7 @@ class SupervisorConfig(BaseModel):
     reflection_retry_count: int | None = 0
 
 class OrchestrateAgentSpec(BaseAgentSpec):
+    description: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     name: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
     management_style: AgentManagementStyle = AgentManagementStyle.SUPERVISOR
     management_style_config: Optional[SupervisorConfig] = None

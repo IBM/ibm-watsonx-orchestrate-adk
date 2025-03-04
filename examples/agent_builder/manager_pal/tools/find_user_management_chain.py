@@ -51,12 +51,12 @@ class UserLeader(BaseModel):
 @tool(
     permission=ToolPermission.READ_ONLY
 )
-def find_users_management_chain(userId: str) -> List[UserLeader]:
+def find_users_management_chain(user_id: str) -> List[UserLeader]:
     """
     Search for all managers of a person given their w3 userId. This will include the name, role and contact information
     of those managers. The list will first include the person's manager, then the manager of that manager and so on.
     You should first call find_w3_userId_for_name to find the userId for this request if you are only given a name.
-    :param userId: The w3 userId of the user to fetch the peers of
+    :param user_id: The w3 userId of the user to fetch the peers of
     :returns: The list of managers of the user with the given w3 userId
     """
     resp = requests.post(
@@ -65,7 +65,7 @@ def find_users_management_chain(userId: str) -> List[UserLeader]:
         json={
             'operationName': GET_W3_USER_TEAM_OPERATION_ID,
             'query': GET_W3_USER_TEAM_QUERY,
-            'variables': {'userId': userId}
+            'variables': {'userId': user_id}
         }
     )
     resp.raise_for_status()

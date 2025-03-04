@@ -5,10 +5,13 @@ import tempfile
 from pathlib import Path
 import requests
 import time
+import os
+import platform
+
 
 import typer
 import importlib.resources as resources
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +102,52 @@ def write_merged_env_file(merged_env: dict) -> Path:
             tmp.write(f"{key}={val}\n")
     return Path(tmp.name)
 
+def get_dbtag_from_architecture() -> str:
+    """Detects system architecture and returns the corresponding DBTAG."""
+    arch = platform.machine()
+
+    env_file_path = get_default_env_file()
+    load_dotenv(dotenv_path=env_file_path)
+
+    arm64_tag = os.getenv("ARM64DBTAG") 
+    amd_tag = os.getenv("ARMDBTAG")
+
+    if arch in ["aarch64", "arm64"]:
+        return arm64_tag
+    else:
+        return amd_tag
 
 
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
 
+    db_tag = get_dbtag_from_architecture()
+    os.environ["DBTAG"] = db_tag
+
+    logger.info(f"Detected architecture: {platform.machine()}, using DBTAG: {db_tag}")
+
+    # Step 1: Start only the DB container
+    db_command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "up",
+        "-d",
+        "--remove-orphans",
+        "wxo-server-db"
+    ]
+
+    logger.info("Starting database container...")
+    result = subprocess.run(db_command, env=os.environ, capture_output=False)
+
+    if result.returncode != 0:
+        logger.error(f"Error starting DB container: {result.stderr}")
+        sys.exit(1)
+
+    logger.info("Database container started successfully. Now starting other services...")
+
+
+    # Step 2: Start all remaining services (except DB)
     if experimental_with_langfuse:
         command = compose_command + [
             '--profile',
@@ -403,6 +446,8 @@ def server_start(
     else:
         logger.warning("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
 
+    run_db_migration()
+
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
     if experimental_with_langfuse:
         logger.info(f"You can access a the observability platform langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
@@ -467,6 +512,50 @@ def server_logs(
     apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite_logs(final_env_file=final_env_file)
+
+def run_db_migration() -> None:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+
+    command = compose_command + [
+        "-f", str(compose_path),
+        "exec",
+        "wxo-server-db",
+        "bash",
+        "-c",
+        '''
+        APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
+        touch "$APPLIED_MIGRATIONS_FILE"
+
+        for file in /docker-entrypoint-initdb.d/*.sql; do
+            filename=$(basename "$file")
+
+            if grep -Fxq "$filename" "$APPLIED_MIGRATIONS_FILE"; then
+                echo "Skipping already applied migration: $filename"
+            else
+                echo "Applying migration: $filename"
+                if psql -U postgres -d postgres -q -f "$file" > /dev/null 2>&1; then
+                    echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
+                else
+                    echo "Error applying $filename. Stopping migrations."
+                    exit 1
+                fi
+            fi
+        done
+        '''
+    ]
+
+    logger.info("Running Database Migration...")
+    result = subprocess.run(command, capture_output=False)
+
+    if result.returncode == 0:
+        logger.info("Migration ran successfully.")
+    else:
+        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        logger.error(
+            f"Error running database migration):\n{error_message}"
+        )
+        sys.exit(1)
 
 if __name__ == "__main__":
     server_app()

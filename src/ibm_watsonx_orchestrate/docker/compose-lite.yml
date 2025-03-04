@@ -28,6 +28,7 @@ services:
       retries: 20
     volumes:
       - wxo-server-db:/var/lib/postgresql/data
+      - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
     command: -c shared_preload_libraries=pgsodium
 
   ui:
@@ -162,6 +163,7 @@ services:
       - 4321:4321
     volumes:
       - ./sdk:/packages
+      - tools:/tools
     depends_on:
       wxo-server-redis:
           condition: service_started
@@ -173,6 +175,7 @@ services:
           condition: service_started
           required: False
     environment:
+      PIP_NO_CACHE_DIR: 
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
@@ -226,6 +229,7 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
+      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
 
   wxo-server-worker:
     image: us.icr.io/watson-orchestrate-private/wxo-server-conversation_controller:${TAG:-latest}
@@ -241,6 +245,7 @@ services:
           required: False
     volumes:
       - ./sdk:/packages
+      - tools:/tools
     environment:
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
@@ -292,6 +297,7 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
+      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
 ########################
 # LANGFUSE dependencies
 ########################
@@ -392,9 +398,13 @@ volumes:
     driver: local
   wxo-server-db:
     driver: local
+  wxo-applied-migrations:
+    driver: local
   wxo-server-minio-data:
     driver: local
   ui-data:
+    driver: local
+  tools:
     driver: local
   langfuse_clickhouse_data:
     driver: local
