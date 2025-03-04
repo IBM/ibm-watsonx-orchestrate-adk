@@ -66,6 +66,9 @@ def get_default_env_file() -> Path:
         return env_file
 
 
+def read_env_file(env_path: Path|str) -> dict:
+    return dotenv_values(str(env_path))
+
 def merge_env(
     default_env_path: Path,
     user_env_path: Path | None
@@ -102,15 +105,13 @@ def write_merged_env_file(merged_env: dict) -> Path:
             tmp.write(f"{key}={val}\n")
     return Path(tmp.name)
 
-def get_dbtag_from_architecture() -> str:
+
+def get_dbtag_from_architecture(merged_env_dict: dict) -> str:
     """Detects system architecture and returns the corresponding DBTAG."""
     arch = platform.machine()
 
-    env_file_path = get_default_env_file()
-    load_dotenv(dotenv_path=env_file_path)
-
-    arm64_tag = os.getenv("ARM64DBTAG") 
-    amd_tag = os.getenv("ARMDBTAG")
+    arm64_tag = merged_env_dict.get("ARM64DBTAG")
+    amd_tag = merged_env_dict.get("AMDDBTAG")
 
     if arch in ["aarch64", "arm64"]:
         return arm64_tag
@@ -121,10 +122,7 @@ def get_dbtag_from_architecture() -> str:
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
-
-    db_tag = get_dbtag_from_architecture()
-    os.environ["DBTAG"] = db_tag
-
+    db_tag = read_env_file(final_env_file).get('DBTAG', None)
     logger.info(f"Detected architecture: {platform.machine()}, using DBTAG: {db_tag}")
 
     # Step 1: Start only the DB container
@@ -418,6 +416,8 @@ def server_start(
         default_env_path,
         Path(user_env_file) if user_env_file else None
     )
+
+    merged_env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=merged_env_dict)
 
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
     if not iam_api_key:

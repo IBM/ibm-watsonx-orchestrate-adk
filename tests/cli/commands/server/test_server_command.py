@@ -360,12 +360,9 @@ def test_get_dbtag_from_architecture_arm64():
         mock_default.return_value = "/fake/path/.env"
         mock_machine.return_value = "arm64"
         mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
-        result = get_dbtag_from_architecture()
+        result = get_dbtag_from_architecture(merged_env_dict={'ARM64DBTAG': 'arm64-db-tag', 'AMDDBTAG': 'amd-db-tag'})
 
         assert result == "arm64-db-tag"
-        mock_machine.assert_called_once()
-        mock_default.assert_called_once()
-        mock_getenv.assert_any_call("ARM64DBTAG")
 
 def test_get_dbtag_from_architecture_amd64():
     with patch("platform.machine") as mock_machine, \
@@ -374,12 +371,9 @@ def test_get_dbtag_from_architecture_amd64():
         mock_default.return_value = "/fake/path/.env"
         mock_machine.return_value = "x86_64"
         mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
-        result = get_dbtag_from_architecture()
+        result = get_dbtag_from_architecture(merged_env_dict={'ARM64DBTAG': 'arm64-db-tag', 'AMDDBTAG': 'amd-db-tag'})
 
         assert result == "amd-db-tag"
-        mock_machine.assert_called_once()
-        mock_default.assert_called_once()
-        mock_getenv.assert_any_call("ARMDBTAG")
 
 def test_run_db_migration_success():
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
