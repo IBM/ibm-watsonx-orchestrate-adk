@@ -122,8 +122,10 @@ def tool(
         t = PythonTool(fn=fn, spec=spec)
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))
 
+        linux_friendly_os_cwd = os.getcwd().replace("\\", "/")
         function_binding = (inspect.getsourcefile(fn)
-                            .replace(os.getcwd()+'/', '')
+                            .replace("\\", "/")
+                            .replace(linux_friendly_os_cwd+'/', '')
                             .replace('.py', '')
                             .replace('/','.') +
                             f":{fn.__name__}")
