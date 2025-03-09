@@ -450,7 +450,7 @@ def server_start(
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
     if experimental_with_langfuse:
-        logger.info(f"You can access a the observability platform langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
 
 @server_app.command(name="stop")
 def server_stop(
