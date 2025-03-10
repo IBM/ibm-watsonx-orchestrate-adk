@@ -12,10 +12,6 @@ assignees: sampath-dechu, Rijo-Pius, Eric-Marcoux, mario-briggs
 1. _Do not delete these instructions, provide your responses below the line (---)._
 2. _Provide users email address (Note: Bulk requests will only be accepted when users in question report to the same First Line Manager, otherwise multiple requests will be required.)_
 3. _Provide a business justification as to why you require access to the repos in question._
-4. _Request access to the watson orchestrate org via [Access Hub](https://ibm-support.saviyntcloud.com/ECMv6/request/applicationRequest) to
-   Watson Orchestrate. Within that access request make sure to select the WatsonOrchestrate Organization, the following teams:
-    * Watson_Orchestrate_internal_global_GHE_read
-    * Watson_Orchestrate_Global_Engineering
 ---
 
 **1. _Email Address of user requesting access_**:
