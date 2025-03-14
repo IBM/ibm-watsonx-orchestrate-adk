@@ -390,7 +390,7 @@ services:
 
 
   wxo-tempus-atm:
-    image: docker-na-public.artifactory.swg-devops.com/hyc-baw-team-docker-local/ba-saas/ba-saas-agentic-task-manager:latest
+    image: us.icr.io/watson-orchestrate-private/tempus-atm:latest
     restart: unless-stopped
     platform: linux/amd64
     environment:
@@ -433,67 +433,6 @@ services:
       - ./tempus/common-config.yaml:/shared/common-config.yaml
     depends_on:
       - wxo-server-db
-  
-  wxo-tempus-mape:
-    image: docker-na-public.artifactory.swg-devops.com/hyc-baw-team-docker-local/gestalt/solution-server:latest-amd64
-    restart: unless-stopped
-    platform: linux/amd64
-    environment:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
-
-      NODE_ENV: "production"
-      SERVER_ENV_TYPE: "production"
-      DESIGNER_SERVER: "false"
-      ENABLE_AETEST_PAGE: "true"
-      PUBLIC_HOSTNAME: localhost
-      HTTPS_PORT: "3001"
-      PUBLIC_HTTPS_PORT: "3001"
-      INTERNAL_HOSTNAME: "wxo-tempus-mape"
-      INTERNAL_HTTPS_PORT: "3001"
-      CSP_ENABLED: "false"
-      CSP_STRICT: "false"
-      OPENID_ISSUER: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default
-      OPENID_AUTHORIZATION_URL: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/authorize
-      OPENID_TOKEN_REFRESH_URL: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/token
-      OPENID_JWK_URL: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/jwks
-      JWT_CERTIFICATE_KEY_ID: watson_orchestrate
-      IS_WO: "SDK"
-      REDIS_HOST: wxo-server-redis
-      REDIS_PASSWORD: ""
-      REDIS_USER: ""
-      REDIS_PORT: "6379"
-      SESSION_USE_EXTERNAL_STORE: "false"
-      COMMON_CONFIG_FILE: /shared/common-config.yaml
-      CONTEXT_ROOT_PREFIX: /asb/cfe
-      AE_DATABASE_TYPE: ""
-      BA2_CONTEXT: "/v1"
-      GIT_TYPE: fs
-      GIT_PATH: "/shared/cfe"
-      TEAM_SERVER_GRAPH_QL_URL: ""
-      DATA_PERSISTENCE_USE_MONGO_DB: "false"
-      MONGO_DB_URL: ""
-      MONGO_DB_NAME: ""
-      TENANT_MANAGEMENT_TYPE: ""
-      SSL_DIRECTORY: "/shared/tls/keystore/keypair/"
-      IS_UAB_BA2: "true"
-      CDS_HOST: "" # TODO
-      CDS_GET_SKILL_OPEN_API_SPEC_PATH: "/cds/api/v1/automation/skill" # TODO
-      SKILL_PROXY_PATH_PREFIX: "/invoke/skill" # TODO
-      AGENT_TASK_MANAGER_URL: "https://wxo-tempus-atm:9045/asb/atm/task"
-    healthcheck:
-      test: curl -k https://localhost:3001/asb/cfe/k8s/readiness --fail
-      interval: 5s
-      timeout: 60s
-      retries: 20
-    ports:
-      - 3001:3001
-    volumes:
-      - ./tempus/server.cert:/shared/tls/keystore/keypair/tls.crt
-      - ./tempus/server.key:/shared/tls/keystore/keypair/tls.key
-      - ./tempus/common-config.yaml:/shared/common-config.yaml
-      - ./tempus/cfe:/shared/cfe
-    depends_on:
-      - wxo-server-redis
     
 volumes:
   tools:
