@@ -28,9 +28,9 @@ handling responses from the service’s APIs.
 - docker compose
 - python 3.12
 3. Make sure your ssh key is uploaded to your personal github account 
-   1. Run cat ~/.ssh/id_rsa.pub and if it returns `cat: /some/path/.ssh/id_rsa.pub: No such file or directory`, run ssh-keygen
-   2. Take the contents printed out by running cat ~/.ssh/id_rsa.pub and upload it to [github](https://github.ibm.com/settings/keys)  
-4. Run pip install git+ssh://git@github.ibm.com/WatsonOrchestrate/wxo-clients.git
+   1. Run `cat ~/.ssh/id_rsa.pub` and if it returns `cat: /some/path/.ssh/id_rsa.pub: No such file or directory`, run ssh-keygen
+   2. Take the contents printed out by running `cat ~/.ssh/id_rsa.pub` and upload it to [github](https://github.ibm.com/settings/keys)  
+4. Run `pip install git+ssh://git@github.ibm.com/WatsonOrchestrate/wxo-clients.git`
 5. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
 6. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 7. Create an env file with the following contents
