@@ -74,7 +74,7 @@ class TestInstantiateClient:
             }
         return {}
 
-    def mock_yaml_safe_loader_invalid_token(self, file):
+    def mock_yaml_safe_loader_missing_token(self, file):
         if utils.DEFAULT_CONFIG_FILE in file.name:
             return {
                 "context": {
@@ -85,6 +85,24 @@ class TestInstantiateClient:
                 }
             }
         return {}
+
+    def mock_yaml_safe_loader_invalid_token(self, file):
+        if utils.DEFAULT_CONFIG_FILE in file.name:
+            return {
+                "context": {
+                    "active_environment": "testing"
+                },
+                "environments": {
+                    "testing": {"wxo_url": "testing url"}
+                }
+            }
+        return {
+            "auth": {
+                "testing": {
+                    "wxo_mcsp_token": None
+                }
+            }
+        }
 
     utils.DEFAULT_CONFIG_FILE_FOLDER = "tests/client/resources/"
     utils.DEFAULT_CONFIG_FILE = "config.yaml"
@@ -144,6 +162,26 @@ class TestInstantiateClient:
             captured = caplog.text
             assert "No URL found for environment 'testing'" in captured
     
+    @pytest.mark.parametrize(
+        "client",
+        [
+            ToolClient,
+            OrchestratorAgentClient,
+            ExpertAgentClient,
+            ApplicationConnectionsClient
+        ],
+    )
+    def test_missing_token(self, client, caplog):
+        with patch("ibm_watsonx_orchestrate.client.utils.yaml_safe_load") as mock:
+            mock.side_effect = self.mock_yaml_safe_loader_missing_token
+            with pytest.raises(SystemExit) as e:
+                instantiate_client(client)
+            assert e.type == SystemExit
+            assert e.value.code == 1
+
+            captured = caplog.text
+            assert "No credentials found for active env 'testing'. Use `orchestrate env activate testing` to refresh your credentials" in captured
+
     @pytest.mark.parametrize(
         "client",
         [

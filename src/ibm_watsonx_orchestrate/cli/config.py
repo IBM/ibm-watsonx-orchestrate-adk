@@ -62,6 +62,10 @@ def _check_if_default_config_file(folder, file):
 def _check_if_auth_config_file(folder, file):
     return folder == AUTH_CONFIG_FILE_FOLDER and file == AUTH_CONFIG_FILE
 
+def clear_protected_env_credentials_token():
+    auth_cfg = Config(config_file_folder=AUTH_CONFIG_FILE_FOLDER, config_file=AUTH_CONFIG_FILE)
+    auth_cfg.delete(AUTH_SECTION_HEADER, PROTECTED_ENV_NAME, AUTH_MCSP_TOKEN_OPT)
+
 class ConfigFileTypes(str, Enum):
     AUTH = 'auth'
     CONFIG = 'config'

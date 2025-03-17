@@ -63,7 +63,6 @@ def instantiate_client(client: type(T)):
             with open(os.path.join(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE), "r") as f:
                 auth_config = yaml_safe_load(f)
             auth_settings = auth_config.get(AUTH_SECTION_HEADER, {}).get(active_env, {})
-            token = auth_settings.get(AUTH_MCSP_TOKEN_OPT)
 
             if not active_env:
                 logger.error("No active environment set. Use `orchestrate env activate` to activate an environment")
@@ -71,6 +70,10 @@ def instantiate_client(client: type(T)):
             if not url:
                 logger.error(f"No URL found for environment '{active_env}'. Use `orchestrate env list` to view existing environments and `orchesrtate env add` to reset the URL")
                 exit(1)
+            if not auth_settings:
+                logger.error(f"No credentials found for active env '{active_env}'. Use `orchestrate env activate {active_env}` to refresh your credentials")
+                exit(1)
+            token = auth_settings.get(AUTH_MCSP_TOKEN_OPT)
             if not check_token_validity(token):
                 logger.error(f"The token found for environment '{active_env}' is missing or expired. Use `orchestrate env activate {active_env}` to fetch a new one")
                 exit(1)

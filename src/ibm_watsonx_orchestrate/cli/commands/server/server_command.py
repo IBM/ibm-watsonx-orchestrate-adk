@@ -13,6 +13,9 @@ import typer
 import importlib.resources as resources
 from dotenv import dotenv_values, load_dotenv
 
+from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
+from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token
+
 logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
@@ -117,6 +120,13 @@ def get_dbtag_from_architecture(merged_env_dict: dict) -> str:
         return arm64_tag
     else:
         return amd_tag
+
+def refresh_local_credentials() -> None:
+    """
+    Refresh the local credentials
+    """
+    clear_protected_env_credentials_token()
+    _login(name=PROTECTED_ENV_NAME, apikey=None)
 
 
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
@@ -447,6 +457,11 @@ def server_start(
         logger.warning("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
 
     run_db_migration()
+
+    try:
+        refresh_local_credentials()
+    except:
+        logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
     if experimental_with_langfuse:
