@@ -56,7 +56,6 @@ WATSONX_APIKEY=your watsonx api key
 - `orchestrate server reset`: Stops the server, stops all ibm-watsonx-orchestrate docker images, and resets all data volumes
 - `orchestrate server logs`: Displays the server logs
 - `orchestrate chat start`: Launches the UI service and the chat web UI in a browser
-- `orchestrate chat start --agent-name=my_new_name`: Launches the UI service and the chat web UI in a browser overriding the agent name to my_new_name
 
 ## Configuration
 

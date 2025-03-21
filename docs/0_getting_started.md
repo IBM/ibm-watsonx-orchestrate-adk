@@ -40,7 +40,7 @@ orchestrate agents import -f path/to/agent_spec.yaml
 ```
 12. Start chatting with your newly created agent. For more details on this check out [docs/agents](./2_agents.md)
 ```bash
-orchestrate chat start --env-file path/to/.env --agent-name <name of agent>
+orchestrate chat start --env-file path/to/.env
 ```
 
 Samples of these tools and agents can be found in the examples folder.
