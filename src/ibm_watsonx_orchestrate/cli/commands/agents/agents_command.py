@@ -1,13 +1,8 @@
 import typer
-from typing_extensions import Annotated
-from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
-    AgentsController,
-    AgentTypes,
-)
-from ibm_watsonx_orchestrate.agent_builder.agents.types import (
-    AgentManagementStyle,
-    DEFAULT_LLM,
-)
+from typing_extensions import Annotated, List
+from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
+from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme
+import json
 
 agents_app = typer.Typer(no_args_is_help=True)
 
@@ -18,9 +13,15 @@ def agent_import(
         str,
         typer.Option("--file", "-f", help="YAML file with agent definition"),
     ],
+    app_id: Annotated[
+        str, typer.Option(
+            '--app-id', '-a',
+            help='The app id of the connection to associate with this external agent. An application connection represents the server authentication credentials needed to connection to this agent (for example Api Keys, Basic, Bearer or OAuth credentials).'
+        )
+    ] = None,
 ):
     agents_controller = AgentsController()
-    agent_specs = agents_controller.import_agent(file=file)
+    agent_specs = agents_controller.import_agent(file=file, app_id=app_id)
     agents_controller.publish_or_update_agents(agent_specs)
 
 
@@ -30,80 +31,88 @@ def agent_create(
         str,
         typer.Option("--name", "-n", help="Name of the agent you wish to create"),
     ],
-    type: Annotated[
-        AgentTypes,
-        typer.Option("--type", "-t", help="The type of agent you wish to create"),
-    ],
-    # Expert requirements
+    title: Annotated[
+        str,
+        typer.Option("--title", "-t", help="Title of the agent you wish to create. Only needed for External and Assistant Agents"),
+    ] = None,
+    kind: Annotated[
+        AgentKind,
+        typer.Option("--kind", "-k", help="The kind of agent you wish to create"),
+    ] = AgentKind.NATIVE,
+    api_url: Annotated[
+        str,
+        typer.Option("--api", "-a", help="External Api url your Agent will use"),
+    ] = None,
+    auth_scheme: Annotated[
+        ExternalAgentAuthScheme,
+        typer.Option("--auth-scheme", help="External Api auth schema to be used"),
+    ] = ExternalAgentAuthScheme.NONE,
+    auth_config: Annotated[
+        str,
+        typer.Option(
+            "--auth-config",
+            help="Auth configuration to be used in JSON format (e.g., '{\"token\": \"test-api-key1\"')",
+        ),
+    ] = {},
+    tags: Annotated[
+        List[str],
+        typer.Option(
+            "--tags",
+            help="A list of tags for the agent. Format: --tags tag1 --tags tag2 ... Only needed for External and Assistant Agents",
+        ),
+    ] = None,
+    chat_params: Annotated[
+        str,
+        typer.Option(
+            "--chat-params",
+            help="Chat parameters in JSON format (e.g., '{\"stream\": true}'). Only needed for External and Assistant Agents",
+        ),
+    ] = None,
+    config: Annotated[
+        str,
+        typer.Option(
+            "--config",
+            help="Agent configuration in JSON format (e.g., '{\"hidden\": false, \"enable_cot\": false}')",
+        ),
+    ] = None,
+    nickname: Annotated[
+        str,
+        typer.Option("--nickname", help="Agent's nickname"),
+    ] = None,
+    app_id: Annotated[
+        str,
+        typer.Option("--app-id", help="Application ID for the agent"),
+    ] = None,
     description: Annotated[
         str,
         typer.Option(
             "--description",
-            help="Description of Expert agent. Required for type=['expert']",
-        ),
-    ] = None,
-    role: Annotated[
-        str,
-        typer.Option(
-            "--role",
-            help="A description of the role that the Expert agent is to carry out. Required for type=['expert']",
-        ),
-    ] = None,
-    goal: Annotated[
-        str,
-        typer.Option(
-            "--goal",
-            help="The goal the Expert agent is trying to achieve. Required for type=['expert']",
-        ),
-    ] = None,
-    instructions: Annotated[
-        str,
-        typer.Option(
-            "--instructions",
-            help="Instructions for how the Expert agent is to carry out its objective. Required for type=['expert']",
-        ),
-    ] = None,
-    backstory: Annotated[
-        str,
-        typer.Option(
-            "--backstory",
-            help="The backstory of the Expert agent. This provides further context as to how the agent should behave. Optional for type=['expert']",
-        ),
-    ] = None,
-    tools: Annotated[
-        str,
-        typer.Option(
-            "--tools",
-            help="A comma sepertaed list of tools that the Expert agent can use (.e.g 'web_search,conversational_search'). Required for type=['expert']",
-        ),
-    ] = None,
-    # Orchestrator requirements
-    management_style: Annotated[
-        AgentManagementStyle,
-        typer.Option(
-            "--management_style",
-            help="The management style of the Orchestrator agent. Required for type=['orchestrator']",
-        ),
-    ] = AgentManagementStyle.SUPERVISOR,
-    management_style_config: Annotated[
-        str,
-        typer.Option(
-            "--management_style_config",
-            help="Config for management style\nValues:\n -reflection_enabled=[true|false]\n -reflection_retry_count=(int) (.e.g 'reflection_enabled=true,reflection_retry_count=3') . Required for type=['orchestrator']",
+            help="Description of the agent",
         ),
     ] = None,
     llm: Annotated[
         str,
         typer.Option(
             "--llm",
-            help="The LLM used by the Orchestrator agent. Required for type=['orchestrator']",
+            help="The LLM used by the agent",
         ),
     ] = DEFAULT_LLM,
-    agents: Annotated[
-        str,
+    style: Annotated[
+        AgentStyle,
+        typer.Option("--style", help="The style of agent you wish to create"),
+    ] = AgentStyle.DEFAULT,
+    collaborators: Annotated[
+        List[str],
         typer.Option(
-            "--agents",
-            help="A comma sepertaed list of agents that the Orchestrator agent manages (.e.g 'research_agent,sales_agent'). Required for type=['orchestrator']",
+            "--collaborators",
+            help="A list of agent names you wish for the agent to be able to collaborate with. Format --colaborators agent1 --collaborators agent2 ...",
+        ),
+    ] = None,
+    tools: Annotated[
+        List[str],
+        typer.Option(
+            "--tools",
+            help="A list of tool names you wish for the agent to be able to utilise. Format --tools tool1 --tools agent2 ...",
         ),
     ] = None,
     output_file: Annotated[
@@ -115,29 +124,37 @@ def agent_create(
         ),
     ] = None,
 ):
+    chat_params_dict = json.loads(chat_params) if chat_params else {}
+    config_dict = json.loads(config) if config else {}
+    auth_config_dict = json.loads(auth_config) if auth_config else {}
+
     agents_controller = AgentsController()
     agent = agents_controller.generate_agent_spec(
         name=name,
-        type=type,
+        kind=kind,
         description=description,
-        role=role,
-        goal=goal,
-        instructions=instructions,
-        backstory=backstory,
-        tools=tools,
-        management_style=management_style,
-        management_style_config=management_style_config,
+        title=title,
+        api_url=api_url,
+        auth_scheme=auth_scheme,
+        auth_config=auth_config_dict,
         llm=llm,
-        agents=agents,
+        style=style,
+        collaborators=collaborators,
+        tools=tools,
+        tags=tags,
+        chat_params=chat_params_dict,
+        config=config_dict,
+        nickname=nickname,
+        app_id=app_id,
         output_file=output_file,
     )
     agents_controller.publish_or_update_agents([agent])
 
 @agents_app.command(name="list")
 def list_agents(
-    type: Annotated[
-        AgentTypes,
-        typer.Option("--type", "-t", help="The type of agent you wish to create"),
+    kind: Annotated[
+        AgentKind,
+        typer.Option("--kind", "-k", help="The kind of agent you wish to create"),
     ] = None,
     verbose: Annotated[
         bool,
@@ -145,7 +162,7 @@ def list_agents(
     ] = False,
 ):  
     agents_controller = AgentsController()
-    agents_controller.list_agents(type=type, verbose=verbose)
+    agents_controller.list_agents(kind=kind, verbose=verbose)
 
 @agents_app.command(name="remove")
 def remove_agent(
@@ -153,11 +170,10 @@ def remove_agent(
         str,
         typer.Option("--name", "-n", help="Name of the agent you wish to remove"),
     ],
-
-    type: Annotated[
-        AgentTypes,
-        typer.Option("--type", "-t", help="The type of agent you wish to remove"),
+    kind: Annotated[
+        AgentKind,
+        typer.Option("--kind", "-k", help="The kind of agent you wish to remove"),
     ]
 ):  
     agents_controller = AgentsController()
-    agents_controller.remove_agent(name=name, type=type)
+    agents_controller.remove_agent(name=name, kind=kind)

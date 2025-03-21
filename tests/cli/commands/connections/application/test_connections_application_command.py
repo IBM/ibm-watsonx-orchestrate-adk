@@ -15,6 +15,7 @@ def test_create_application_connection_command():
             scope='email',
             client_secret='client_secret',
             well_known_url='well_known_url',
+            entries=[],
             shared=True
         )
         mock.assert_called_once_with(
@@ -28,6 +29,7 @@ def test_create_application_connection_command():
             client_id='client_id',
             client_secret='client_secret',
             well_known_url='well_known_url',
+            entries=[],
             shared=True
         )
 

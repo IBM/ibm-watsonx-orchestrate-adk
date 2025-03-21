@@ -13,15 +13,15 @@ from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection
     CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, OAuth2ClientCredentials, \
     CreateOAuth2ClientCredentialsConnection, CreateConnectionResponse
 from mocks.mock_base_api import get_application_connections_mock as _get_application_connections_mock, \
-    instantiate_client_mock
+    instantiate_client_mock, MockListConnectionResponse
 from utils.matcher import MatchesObjectContaining
 
 
 def get_application_connections_mock():
-    Mock, create, delete, get = _get_application_connections_mock()
+    Mock, create, delete, get, get_draft_by_app_id, get_draft_by_app_ids = _get_application_connections_mock()
     create.return_value = CreateConnectionResponse(status='success')
     get.return_value = []
-    return Mock, create, delete, get
+    return Mock, create, delete, get, get_draft_by_app_id, get_draft_by_app_ids
 
 
 @patch(
@@ -29,7 +29,7 @@ def get_application_connections_mock():
     instantiate_client_mock
 )
 def test_should_create_basic_auth():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
         'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
         ApplicationConnectionsClientMock
@@ -56,7 +56,7 @@ def test_should_create_basic_auth():
     instantiate_client_mock
 )
 def test_should_fail_basic_auth_if_username_missing():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
         'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
         ApplicationConnectionsClientMock
@@ -78,7 +78,7 @@ def test_should_fail_basic_auth_if_username_missing():
     instantiate_client_mock
 )
 def test_should_fail_basic_auth_if_password_missing():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -100,12 +100,12 @@ def test_should_fail_basic_auth_if_password_missing():
     instantiate_client_mock
 )
 def test_should_create_bearer_auth():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
         'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
         ApplicationConnectionsClientMock
     ):
-        ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+        ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -132,7 +132,7 @@ def test_should_create_bearer_auth():
     instantiate_client_mock
 )
 def test_should_create_oauth_code_flow():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
         'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
         ApplicationConnectionsClientMock
@@ -160,7 +160,7 @@ def test_should_create_oauth_code_flow():
     instantiate_client_mock
 )
 def test_should_create_oauth_implicit_flow():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -188,7 +188,7 @@ def test_should_create_oauth_implicit_flow():
     instantiate_client_mock
 )
 def test_should_create_oauth_password_flow():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -218,7 +218,7 @@ def test_should_create_oauth_password_flow():
     instantiate_client_mock
 )
 def test_should_create_oauth_client_credentials_flow():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -259,7 +259,7 @@ def oauth_type(request):
     instantiate_client_mock
 )
 def test_should_fail_oauth_flow_with_missing_client_id(oauth_type):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     auth_type, additional_credentials = oauth_type
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -285,7 +285,7 @@ def test_should_fail_oauth_flow_with_missing_client_id(oauth_type):
     instantiate_client_mock
 )
 def test_should_fail_oauth_flow_with_missing_client_secret(oauth_type):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     auth_type, additional_credentials = oauth_type
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -312,7 +312,7 @@ def test_should_fail_oauth_flow_with_missing_client_secret(oauth_type):
     instantiate_client_mock
 )
 def test_should_fail_oauth_flow_with_missing_well_known_url(oauth_type):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     auth_type, additional_credentials = oauth_type
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -338,7 +338,7 @@ def test_should_fail_oauth_flow_with_missing_well_known_url(oauth_type):
     instantiate_client_mock
 )
 def test_should_fail_oauth_auth_password_flow_with_missing_username():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -364,7 +364,7 @@ def test_should_fail_oauth_auth_password_flow_with_missing_username():
     instantiate_client_mock
 )
 def test_should_fail_oauth_auth_password_flow_with_missing_password():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -390,7 +390,7 @@ def test_should_fail_oauth_auth_password_flow_with_missing_password():
     instantiate_client_mock
 )
 def test_should_create_shared_connection():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -416,7 +416,7 @@ def test_should_create_shared_connection():
     instantiate_client_mock
 )
 def test_should_create_private_connection():
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -440,7 +440,7 @@ def test_should_create_private_connection():
     instantiate_client_mock
 )
 def test_create_message_should_print_success_message(caplog):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
 
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
@@ -463,7 +463,7 @@ def test_create_message_should_print_success_message(caplog):
 )
 
 def test_create_message_should_print_redirect_url(caplog):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
 
     create.return_value = CreateConnectionResponse(status='redirect', authorization_url='https://auth-url')
     with patch(
@@ -486,7 +486,7 @@ def test_create_message_should_print_redirect_url(caplog):
     instantiate_client_mock
 )
 def test_create_connection_should_fail_if_create_connection_call_fails(caplog):
-    ApplicationConnectionsClientMock, create, _, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, create, _, _, _, _ = get_application_connections_mock()
 
     resp = requests.Response()
     resp.status_code = 400
@@ -524,7 +524,8 @@ def test_create_connection_should_fail_if_create_connection_call_fails(caplog):
     instantiate_client_mock
 )
 def test_remove_connection_should_remove_connection():
-    ApplicationConnectionsClientMock, _, delete, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, _, delete, _, get_by_id, _ = get_application_connections_mock()
+    get_by_id.return_value = [MockListConnectionResponse(connection_id='connectionId')]
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -532,7 +533,50 @@ def test_remove_connection_should_remove_connection():
         remove_application_connection(
             app_id='app_id'
         )
-        delete.assert_called_once_with(app_id='app_id')
+        get_by_id.assert_called_once_with(app_id='app_id')
+        delete.assert_called_once_with(connection_id='connectionId')
+
+@patch(
+    'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
+    instantiate_client_mock
+)
+def test_remove_connection_should_exit_with_error_if_no_connection_found(caplog):
+    ApplicationConnectionsClientMock, _, delete, _, get_by_id, _ = get_application_connections_mock()
+    get_by_id.return_value = []
+    with patch(
+            'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
+            ApplicationConnectionsClientMock
+    ):
+        with pytest.raises(SystemExit) as sysexit:
+            remove_application_connection(
+                app_id='app_id'
+            )
+            assert sysexit.value == 1
+        get_by_id.assert_called_once_with(app_id='app_id')
+        captured = caplog.text
+        assert 'Connection with app-id: app_id not found' in captured
+        delete.assert_not_called()
+
+@patch(
+    'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.instantiate_client',
+    instantiate_client_mock
+)
+def test_remove_connection_should_exit_with_error_if_multiple_connection_found(caplog):
+    ApplicationConnectionsClientMock, _, delete, _, get_by_id, _ = get_application_connections_mock()
+    get_by_id.return_value = [MockListConnectionResponse(connection_id='connectionId'), MockListConnectionResponse(connection_id='connectionId2')]
+    with patch(
+            'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
+            ApplicationConnectionsClientMock
+    ):
+        with pytest.raises(SystemExit) as sysexit:
+            remove_application_connection(
+                app_id='app_id'
+            )
+            assert sysexit.value == 1
+        get_by_id.assert_called_once_with(app_id='app_id')
+        captured = caplog.text
+        assert 'Internal error, ambiguious request, multiple Connection IDs found for app-id connectionId, connectionId2' in captured
+        delete.assert_not_called()
 
 
 @patch(
@@ -540,7 +584,8 @@ def test_remove_connection_should_remove_connection():
     instantiate_client_mock
 )
 def test_remove_connection_should_print_success_message(caplog):
-    ApplicationConnectionsClientMock, _, delete, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, _, delete, _, get_by_id, _ = get_application_connections_mock()
+    get_by_id.return_value = [MockListConnectionResponse(connection_id='connectionId')]
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock
@@ -558,7 +603,7 @@ def test_remove_connection_should_print_success_message(caplog):
     instantiate_client_mock
 )
 def test_remove_connection_should_fail_if_remove_connection_call_fails(capsys):
-    ApplicationConnectionsClientMock, _, delete, _ = get_application_connections_mock()
+    ApplicationConnectionsClientMock, _, delete, _, _, _ = get_application_connections_mock()
     resp = requests.Response()
     resp.status_code = 400
     setattr(resp, '_content', '{"detail": "boom"}'.encode('utf-8'))
@@ -580,7 +625,7 @@ def test_remove_connection_should_fail_if_remove_connection_call_fails(capsys):
     instantiate_client_mock
 )
 def test_list_connections():
-    ApplicationConnectionsClientMock, _, _, get = get_application_connections_mock()
+    ApplicationConnectionsClientMock, _, _, get, _, _ = get_application_connections_mock()
     with patch(
             'ibm_watsonx_orchestrate.cli.commands.connections.application.connections_application_controller.ApplicationConnectionsClient',
             ApplicationConnectionsClientMock

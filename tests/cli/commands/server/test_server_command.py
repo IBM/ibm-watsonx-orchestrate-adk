@@ -46,7 +46,6 @@ def valid_user_env(tmp_path):
         "WXO_USER=temp\n"
         "WXO_PASS=temp\n"
         "HEALTH_TIMEOUT=1\n"
-        "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
     )
     return env_file
 
@@ -60,7 +59,6 @@ def invalid_user_env(tmp_path):
         "WXO_USER=temp\n"
         "WXO_PASS=temp\n"
         "HEALTH_TIMEOUT=1\n"
-        "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
     )
     return env_file
 

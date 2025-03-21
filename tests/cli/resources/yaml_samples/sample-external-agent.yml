@@ -1,0 +1,18 @@
+spec_version: v1
+kind: external # Optional, Default=native, Valid options ['native', 'external', 'assistant']
+name: news_agent
+title: News Agent
+description: >
+   An agent running in a custom langchain container capable of communicating with multiple news sources to
+    combat disinformation.
+tags:
+  - test
+  - other
+api_url: "http://my-codeengine.cloud.ibm.com/chat/completions"
+chat_params:
+  stream: true
+config:
+    hidden: false
+    enable_cot: false
+nickname: news_agent # Is this still required?
+app_id: my_news_agent # Optional, can be overridden/specified by the --app-id flag in the cli on import

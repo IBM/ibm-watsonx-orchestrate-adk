@@ -2,8 +2,9 @@ import pytest
 from unittest.mock import patch
 from ibm_watsonx_orchestrate.client import utils
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, instantiate_client
-from ibm_watsonx_orchestrate.client.agents.orchestrator_agent_client import OrchestratorAgentClient
-from ibm_watsonx_orchestrate.client.agents.expert_agent_client import ExpertAgentClient
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+# from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
+# from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
 
@@ -113,8 +114,9 @@ class TestInstantiateClient:
         "client",
         [
             ToolClient,
-            OrchestratorAgentClient,
-            ExpertAgentClient,
+            AgentClient,
+            # ExternalAgentClient,
+            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )
@@ -126,8 +128,9 @@ class TestInstantiateClient:
         "client",
         [
             ToolClient,
-            OrchestratorAgentClient,
-            ExpertAgentClient,
+            AgentClient,
+            # ExternalAgentClient,
+            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )
@@ -146,8 +149,9 @@ class TestInstantiateClient:
         "client",
         [
             ToolClient,
-            OrchestratorAgentClient,
-            ExpertAgentClient,
+            AgentClient,
+            # ExternalAgentClient,
+            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )
@@ -166,8 +170,9 @@ class TestInstantiateClient:
         "client",
         [
             ToolClient,
-            OrchestratorAgentClient,
-            ExpertAgentClient,
+            AgentClient,
+            # ExternalAgentClient,
+            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )
@@ -186,8 +191,9 @@ class TestInstantiateClient:
         "client",
         [
             ToolClient,
-            OrchestratorAgentClient,
-            ExpertAgentClient,
+            AgentClient,
+            # ExternalAgentClient,
+            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )

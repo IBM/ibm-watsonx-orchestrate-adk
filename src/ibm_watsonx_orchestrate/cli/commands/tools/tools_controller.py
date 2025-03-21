@@ -3,6 +3,7 @@ import asyncio
 import importlib
 import inspect
 import sys
+import re
 import tempfile
 import requests
 import zipfile
@@ -11,6 +12,8 @@ from os import path
 from pathlib import Path
 from typing import Iterable, List
 import rich
+import json
+from rich.json import JSON
 
 import rich.table
 import typer
@@ -18,7 +21,9 @@ import typer
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +33,44 @@ class ToolKind(str, Enum):
     python = "python"
     # skill = "skill"
 
-def validate_params(kind: ToolKind, **args) -> None:
-    if kind != 'openapi' and args.get('app_id') is not None:
-        raise typer.BadParameter(
-            "--app-id parameter can only be used with openapi tools"
-        )
+def validate_app_ids(kind: ToolKind, **args) -> None:
+    app_ids = args.get("app_id")
+    if not app_ids:
+        return
+    
+    if kind == ToolKind.openapi:
+        if app_ids and len(app_ids) > 1:
+            raise typer.BadParameter(
+                "Kind 'openapi' can only take one app-id"
+            )
+    
+    connections_client = instantiate_client(ApplicationConnectionsClient)
 
+    imported_connections_list = connections_client.get()
+    imported_connections = {conn.appid:conn for conn in imported_connections_list}
+
+    for app_id in app_ids:
+        if kind == ToolKind.python:
+            # Split on = but not on \=
+            split_pattern = re.compile(r"(?<!\\)=")
+            split_id = re.split(split_pattern, app_id)
+            split_id = [x.replace("\\=", "=") for x in split_id]
+            if len(split_id) == 2:
+                _, app_id = split_id
+            elif len(split_id) == 1:
+                app_id = split_id[0]
+            else:
+                raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
+            
+        if app_id not in imported_connections:
+            logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections application create`")
+
+        else:
+            if kind == ToolKind.openapi and imported_connections.get(app_id).connection_type == 'key_value':
+                logger.error(f"Key value application connections can not be bound to an openapi tool")
+                exit(1)
+
+def validate_params(kind: ToolKind, **args) -> None:
     if kind in {"openapi", "python"} and args["file"] is None:
         raise typer.BadParameter(
             "--file (-f) is required when kind is set to either python or openapi"
@@ -51,8 +88,101 @@ def validate_params(kind: ToolKind, **args) -> None:
             raise typer.BadParameter(
                 f"Missing flags {missing_params} required for kind skill"
             )
+    validate_app_ids(kind=kind, **args)
 
-def import_python_tool(file: str, requirements_file: str = None) -> None:
+def get_connection_id(app_id: str) -> str:
+    connections_client = instantiate_client(ApplicationConnectionsClient)
+    connection_id = None
+    if app_id is not None:
+        connections = connections_client.get_draft_by_app_id(app_id=app_id)
+        if len(connections) == 0:
+            logger.error(f"No connection exists with the app-id '{app_id}'")
+            exit(1)
+        elif len(connections) > 1:
+            logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, connections)))}")
+            exit(1)
+        connection_id = connections[0].connection_id
+    return connection_id
+
+
+def parse_python_app_ids(app_ids: List[str]) -> dict[str,str]:
+    app_id_dict = {}
+    for app_id in app_ids:        
+        # Split on = but not on \=
+        split_pattern = re.compile(r"(?<!\\)=")
+        split_id = re.split(split_pattern, app_id)
+        split_id = [x.replace("\\=", "=") for x in split_id]
+        if len(split_id) == 2:
+            runtime_id, local_id = split_id
+        elif len(split_id) == 1:
+            runtime_id = split_id[0]
+            local_id = split_id[0]
+        else:
+            raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
+
+        if not len(runtime_id.strip()) or not len(local_id.strip()):
+            raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
+
+        runtime_id = sanatize_app_id(runtime_id)
+        app_id_dict[runtime_id] = get_connection_id(local_id)
+
+    return app_id_dict
+
+def validate_python_connections(tool: BaseTool):
+    if not tool.expected_credentials:
+        return
+    
+    connections_client = instantiate_client(ApplicationConnectionsClient)
+    connections = tool.__tool_spec__.binding.python.connections
+
+    provided_connections = list(connections.keys()) if connections else []
+    imported_connections_list = connections_client.get()
+    imported_connections = {conn.connection_id:conn for conn in imported_connections_list}
+
+    validation_failed = False
+
+    existing_sanatized_expected_tool_app_ids = set()
+
+    for expected_cred in tool.expected_credentials:
+        expected_tool_app_id=None
+        expected_tool_type=None
+
+        if isinstance(expected_cred, str):
+            expected_tool_app_id = expected_cred
+        else:
+            expected_tool_app_id = expected_cred.get("app_id")
+            expected_tool_type = expected_cred.get("type")
+        
+        sanatized_expected_tool_app_id = sanatize_app_id(expected_tool_app_id)
+        if sanatized_expected_tool_app_id in existing_sanatized_expected_tool_app_ids:
+            logger.error(f"Duplicate App ID found '{expected_tool_app_id}'. Multiple expected app ids in the tool '{tool.__tool_spec__.name}' collide after sanaitization to '{sanatized_expected_tool_app_id}'. Please rename the offending app id in your tool.")
+            sys.exit(1)
+        existing_sanatized_expected_tool_app_ids.add(sanatized_expected_tool_app_id)
+        
+        if sanatized_expected_tool_app_id not in provided_connections:
+            logger.error(f"The tool '{tool.__tool_spec__.name}' requires an app-id '{expected_tool_app_id}'. Please use the `--app-id` flag to provide the required app-id")
+            validation_failed = True
+
+        if not connections:
+            continue
+
+        connection_id = connections.get(sanatized_expected_tool_app_id)
+        
+        imported_connection = imported_connections.get(connection_id)
+
+        if connection_id and not imported_connection:
+            logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being delted. Please rec-reate the connection and re-import the tool")
+            validation_failed = True
+
+        if imported_connection and expected_tool_type and expected_tool_type != imported_connection.connection_type:
+            logger.error(f"The app-id '{imported_connection.appid}' is of type '{imported_connection.connection_type}'. The tool '{tool.__tool_spec__.name}' expects this connection to be of type '{expected_tool_type}'. Use `orchestrate connections application list` to view current connections and use `orchestrate connections application create` to create or update the relevent connection")
+            validation_failed = True
+        
+    if validation_failed:
+        exit(1)
+
+
+def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None) -> None:
     try:
         file_path = Path(file)
         file_directory = file_path.parent
@@ -77,12 +207,15 @@ def import_python_tool(file: str, requirements_file: str = None) -> None:
     for _, obj in inspect.getmembers(module):
         if isinstance(obj, BaseTool) :
             obj.__tool_spec__.binding.python.requirements = requirements
+            if app_id and len(app_id):
+                obj.__tool_spec__.binding.python.connections = parse_python_app_ids(app_id)
+            validate_python_connections(obj)
             tools.append(obj)
     
     return tools
 
-async def import_openapi_tool(file: str, app_id: str) -> List[BaseTool]:
-    tools = await create_openapi_json_tools_from_uri(file, app_id)
+async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
+    tools = await create_openapi_json_tools_from_uri(file, connection_id)
     return tools
 
 class ToolsController:
@@ -99,13 +232,30 @@ class ToolsController:
 
     @staticmethod
     def import_tool(kind: ToolKind, **args) -> Iterable:
+        # Ensure app_id is a list
+        if args.get("app_id") and isinstance(args.get("app_id"), str):
+            args["app_id"] = [args.get("app_id")]
+    
         validate_params(kind=kind, **args)
 
         match kind:
             case "python":
-                tools = import_python_tool(file=args["file"], requirements_file=args["requirements_file"])
+                tools = import_python_tool(file=args["file"], requirements_file=args["requirements_file"], app_id=args.get("app_id"))
             case "openapi":
-                tools = asyncio.run(import_openapi_tool(file=args["file"], app_id=args.get('app_id')))
+                connections_client: ApplicationConnectionsClient =  instantiate_client(ApplicationConnectionsClient)
+                app_id = args.get('app_id', None)
+                connection_id = None
+                if app_id is not None:
+                    app_id = app_id[0]
+                    connections = connections_client.get_draft_by_app_id(app_id=app_id)
+                    if len(connections) == 0:
+                        logger.error(f"No connection exists with the app-id '{app_id}'")
+                        exit(1)
+                    elif len(connections) > 1:
+                        logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, connections)))}")
+                        exit(1)
+                    connection_id = connections[0].connection_id
+                tools = asyncio.run(import_openapi_tool(file=args["file"], connection_id=connection_id))
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")
@@ -114,23 +264,45 @@ class ToolsController:
 
         for tool in tools:
             yield tool
-    
+
+
     def list_tools(self, verbose=False):
         response = self.get_client().get()
         tool_specs = [ToolSpec.model_validate(tool) for tool in response]
         tools = [BaseTool(spec=spec) for spec in tool_specs]
+        
 
         if verbose:
+            tools_list = []
             for tool in tools:
-                rich.print(tool.dumps_spec())
+
+                tools_list.append(json.loads(tool.dumps_spec()))
+
+            rich.print(JSON(json.dumps(tools_list, indent=4)))
         else:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
-            columns = ["Name", "Description", "Permission", "Type"]
+            columns = ["Name", "Description", "Permission", "Type", "App ID"]
             for column in columns:
                 table.add_column(column)
             
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
+                
+                connection_ids = []
+
+                if tool_binding is not None:
+                    if tool_binding.openapi is not None and hasattr(tool_binding.openapi, "connection_id"):
+                        connection_ids = [tool_binding.openapi.connection_id]
+                    elif tool_binding.python is not None and hasattr(tool_binding.python, "connections") and tool_binding.python.connections is not None:
+                        for conn in tool_binding.python.connections:
+                            connection_ids.append(tool_binding.python.connections[conn])
+                
+                connections_client: ApplicationConnectionsClient = instantiate_client(ApplicationConnectionsClient)
+                app_ids = []
+                for connection_id in connection_ids:
+                    app_id = str(connections_client.get_draft_by_id(connection_id))
+                    app_ids.append(app_id)
+
                 if tool_binding.python is not None:
                         tool_type=ToolKind.python
                 elif tool_binding.openapi is not None:
@@ -143,6 +315,7 @@ class ToolsController:
                     tool.__tool_spec__.description,
                     tool.__tool_spec__.permission,
                     tool_type,
+                    ", ".join(app_ids),
                 )
 
             rich.print(table)
@@ -153,16 +326,19 @@ class ToolsController:
     def publish_or_update_tools(self, tools: Iterable[BaseTool]) -> None:
         # Zip the tool's supporting artifacts for python tools
         with tempfile.TemporaryDirectory() as tmpdir:
-            existing_tools = None
             for tool in tools:
                 exist = False
                 tool_id = None
 
-                if not existing_tools:
-                    existing_tools = self.get_all_tools()
-                if tool.__tool_spec__.name in existing_tools:
-                    tool_id = tool.__tool_spec__.name
+                existing_tools = self.get_client().get_draft_by_name(tool.__tool_spec__.name)
+                if len(existing_tools) > 1:
+                    logger.error(f"Multiple existing tools found with name '{tool.__tool_spec__.name}'. Failed to update tool")
+                    sys.exit(1)
+                
+                if len(existing_tools) > 0:
+                    existing_tool = existing_tools[0]
                     exist = True
+                    tool_id = existing_tool.get("id")
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
@@ -178,7 +354,7 @@ class ToolsController:
                         # Ensure there is a newline at the end of the file
                         if len(requirements) > 0 and not requirements[-1].endswith("\n"):
                             requirements[-1] = requirements[-1]+"\n"
-                        requirements.append('/packages/ibm_watsonx_orchestrate-0.1.0-py3-none-any.whl\n')
+                        requirements.append('/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n')
                         requirements_file = path.join(tmpdir, 'requirements.txt')
                         with open(requirements_file, 'w') as fp:
                             fp.writelines(requirements)
@@ -198,11 +374,11 @@ class ToolsController:
     def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
-        self.get_client().create(tool_spec)
+        response = self.get_client().create(tool_spec)
+        tool_id = response.get("id")
 
         if tool_artifact is not None:
-            tool_name: str = tool_spec.get("name")
-            self.get_client().upload_tools_artifact(tool_name=tool_name, file_path=tool_artifact)
+            self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
@@ -214,15 +390,24 @@ class ToolsController:
         self.get_client().update(tool_id, tool_spec)
 
         if tool_artifact is not None:
-            tool_name: str = tool_spec.get("name")
-            self.get_client().upload_tools_artifact(tool_name=tool_name, file_path=tool_artifact)
+            self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' updated successfully")
     
     def remove_tool(self, name: str):
         try:
-            self.get_client().delete(agent_id=name)
-            logger.info(f"Successfully removed tool {name}")
+            client = self.get_client()
+            draft_tools = client.get_draft_by_name(tool_name=name)
+            if len(draft_tools) > 1:
+                logger.error(f"Multiple existing tools found with name '{name}'. Failed to remove tool")
+                sys.exit(1)
+            if len(draft_tools) > 0:
+                draft_tool = draft_tools[0]
+                tool_id = draft_tool.get("id")
+                self.get_client().delete(tool_id=tool_id)
+                logger.info(f"Successfully removed tool {name}")
+            else:
+                logger.warning(f"No tool named '{name}' found")
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)

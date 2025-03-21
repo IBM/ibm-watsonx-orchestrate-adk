@@ -83,7 +83,7 @@ def create_openapi_json_tool(
         permission: ToolPermission = None,
         input_schema: ToolRequestBody = None,
         output_schema: ToolResponseBody = None,
-        app_id: str = None
+        connection_id: str = None
 ) -> OpenAPITool:
     """
     Creates a tool from an openapi spec
@@ -98,8 +98,8 @@ def create_openapi_json_tool(
     :param permission: Which orchestrate permission level does a user need to have to invoke this tool
     :param input_schema: The JSONSchema of the inputs to the http request
     :param output_schema: The expected JSON schema of the outputs of the http response
-    :param app_id: The app id of the connection containing the credentials needed to authenticate against this api
-    :return: An OpenAPITool that can be used by an expert agent
+    :param connection_id: The connection id of the application containing the credentials needed to authenticate against this api
+    :return: An OpenAPITool that can be used by an agent
     """
 
     # limitation does not support circular $refs
@@ -216,7 +216,7 @@ def create_openapi_json_tool(
         http_method=http_method,
         security=security,
         servers=servers,
-        app_id=app_id
+        connection_id=connection_id
     ))
 
     return OpenAPITool(spec=spec)
@@ -286,7 +286,7 @@ async def create_openapi_json_tool_from_uri(
     :param input_schema: The JSONSchema of the inputs to the http request
     :param output_schema: The expected JSON schema of the outputs of the http response
     :param app_id: The app id of the connection containing the credentials needed to authenticate against this api
-    :return: An OpenAPITool that can be used by an expert agent
+    :return: An OpenAPITool that can be used by an agent
     """
     openapi_contents = await _get_openapi_spec_from_uri(openapi_uri)
 
@@ -307,7 +307,7 @@ async def create_openapi_json_tool_from_uri(
 
 async def create_openapi_json_tools_from_uri(
         openapi_uri: str,
-        app_id: str = None
+        connection_id: str = None
 ) -> List[OpenAPITool]:
     openapi_contents = await _get_openapi_spec_from_uri(openapi_uri)
     tools: List[OpenAPITool] = []
@@ -326,7 +326,7 @@ async def create_openapi_json_tools_from_uri(
                 http_path=path,
                 http_method=method.upper(),
                 http_success_response_code=success_codes[0] if len(success_codes) > 0 else None,
-                app_id=app_id
+                connection_id=connection_id
             ))
 
     return tools

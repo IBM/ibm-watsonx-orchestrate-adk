@@ -1,9 +1,0 @@
-name: manager_pal
-type: orchestrator
-management_style_config:
-  reflection_enabled: false
-  reflection_retry_count: 3
-llm: watsonx/meta-llama/llama-3-1-70b-instruct
-agents:
-  - hr_agent
-  - jokester_agent

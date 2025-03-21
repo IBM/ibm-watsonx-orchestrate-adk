@@ -54,7 +54,6 @@ class ToolResponseBody(BaseModel):
     anyOf: List['JsonSchemaObject'] = None
     required: List[str] = None
 
-
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
     scheme: Optional[Literal['basic', 'bearer', 'oauth']] = None
@@ -92,7 +91,7 @@ class OpenApiToolBinding(BaseModel):
     success_status_code: int = 200  # this is a diff from the spec
     security: Optional[List[OpenApiSecurityScheme]] = None
     servers: Optional[List[str]] = None
-    app_id: str | None = None
+    connection_id: str | None = None
 
     @model_validator(mode='after')
     def validate_openapi_tool_binding(self):
@@ -104,6 +103,7 @@ class OpenApiToolBinding(BaseModel):
 class PythonToolBinding(BaseModel):
     function: str
     requirements: Optional[List[str]] = []
+    connections: dict[str, str] = None
 
 
 class WxFlowsToolBinding(BaseModel):

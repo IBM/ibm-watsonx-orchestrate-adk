@@ -1,5 +1,6 @@
 import typer
 from typing_extensions import Annotated
+from typing import List
 
 from .connections_application_controller import create_application_connection, remove_application_connection, list_application_connections
 from .types import ApplicationConnectionType
@@ -26,7 +27,7 @@ def create_application_connection_command(
             typer.Option(
                 '--app-id',
                 '-a',
-                help='The app_id to use to reference this connection when importing an openapi tool'
+                help='The app-id to use to reference this connection when importing an openapi tool'
             )
         ],
         username: Annotated[
@@ -88,6 +89,13 @@ def create_application_connection_command(
                 help='For oauth_auth_code_flow, oauth_auth_implicit_flow, oauth_auth_password_flow, oauth_auth_client_credentials_flow, the well_known_url to authenticate with'
             )
         ] = None,
+        entries: Annotated[
+            List[str],
+            typer.Option(
+                '--entries', "-e",
+                help="A key value pair in the form '<key>=<value>'. Used for key_value."
+            )
+        ] = None,
         shared: Annotated[
             bool,
             typer.Option(
@@ -107,6 +115,7 @@ def create_application_connection_command(
         client_secret=client_secret,
         scope=scope,
         well_known_url=well_known_url,
+        entries=entries,
         shared=shared
     )
 
@@ -118,7 +127,7 @@ def create_application_connection_command(
 def remove_application_connection_command(
         app_id: Annotated[
             str,
-            typer.Option('--app-id', '-a', help='The app_id to use to reference this connection when importing an openapi tool')
+            typer.Option('--app-id', '-a', help='The app-id to use to reference this connection when importing an openapi tool')
         ]
 ):
     remove_application_connection(app_id=app_id)

@@ -10,21 +10,15 @@ logger = logging.getLogger(__name__)
 
 @chat_app.command(name="start")
 def chat_start(
-    agent_name: str = typer.Option(
-        None,
-        "--orchestrator-agent-name", "-o",
-        help="Orchestrator agent name to use when starting the chat."
-    ), 
     user_env_file: str = typer.Option(
         None,
         "--env-file", "-e",
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):
-    agent_name_str = agent_name if agent_name is not None else None
     user_env_file_path = Path(user_env_file) if user_env_file else None
 
-    is_ui_service_started = run_compose_lite_ui(user_env_file=user_env_file_path, agent_name=agent_name_str)
+    is_ui_service_started = run_compose_lite_ui(user_env_file=user_env_file_path)
 
     if is_ui_service_started:
         url = "http://localhost:3000/chat-lite"

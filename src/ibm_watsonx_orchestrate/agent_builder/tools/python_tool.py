@@ -2,7 +2,8 @@ import importlib
 import inspect
 import json
 import os
-from typing import Callable
+from typing import Callable, List
+import logging
 
 import docstring_parser
 from langchain_core.tools.base import create_schema_from_function
@@ -15,12 +16,13 @@ from .types import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, 
     PythonToolBinding
 
 _all_tools = []
-
+logger = logging.getLogger(__name__)
 
 class PythonTool(BaseTool):
-    def __init__(self, fn, spec: ToolSpec):
+    def __init__(self, fn, spec: ToolSpec, expected_credentials: List[str|dict[str,str]]=None):
         BaseTool.__init__(self, spec=spec)
         self.fn = fn
+        self.expected_credentials=expected_credentials
 
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)
@@ -83,6 +85,11 @@ def _fix_optional(schema):
 
     return schema
 
+def _validate_input_schema(input_schema: ToolRequestBody) -> None:
+    props = input_schema.properties
+    for prop in props:
+        if not props.get(prop).type:
+            logger.warning(f"Missing type hint for tool property '{prop}' defaulting to 'str'. To remove this warning add a type hint to the property in the tools signature. See Python docs for guidance: https://docs.python.org/3/library/typing.html")
 
 def tool(
     *args,
@@ -90,7 +97,8 @@ def tool(
     description: str = None,
     input_schema: ToolRequestBody = None,
     output_schema: ToolResponseBody = None,
-    permission: ToolPermission = ToolPermission.READ_ONLY
+    permission: ToolPermission = ToolPermission.READ_ONLY,
+    expected_credentials: List[str|dict[str,str]] = None
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -119,7 +127,7 @@ def tool(
             permission=permission
         )
 
-        t = PythonTool(fn=fn, spec=spec)
+        t = PythonTool(fn=fn, spec=spec, expected_credentials=expected_credentials)
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))
 
         linux_friendly_os_cwd = os.getcwd().replace("\\", "/")
@@ -148,6 +156,8 @@ def tool(
             )
         else:
             spec.input_schema = input_schema
+
+        _validate_input_schema(spec.input_schema)
 
         if not output_schema:
             ret = sig.return_annotation

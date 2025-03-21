@@ -2,7 +2,7 @@
 ## Welcome to `ibm-watsonx-orchestrate`
 ******************************************
 
-`ibm-watsonx-orchestrate` is a Python SDK that allows you to build expert and orchestrator agents and interact with the 
+`ibm-watsonx-orchestrate` is a Python SDK that allows you to build agents and interact with the 
 watsonx.orchestrate service. It also provides a convenient interface for managing credentials, sending requests, and 
 handling responses from the service’s APIs.
 

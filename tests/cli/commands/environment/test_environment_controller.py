@@ -39,7 +39,7 @@ class MockClient:
         self.token = tokens["valid_token_w_expiry"]
 
 class MockCredentials:
-    def __init__(self, url, api_key, iam_url):
+    def __init__(self, url, api_key, iam_url, auth_type):
         pass
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def mock_read_value():
                 "active_environment": "testing"
             },
             "environments": {
-                "testing": {"wxo_url": "testing"},
+                "testing": {"wxo_url": "testing", "auth_type": None },
                 "anothertesting": {"wxo_url": "another testing"},
             },
             "auth": {
@@ -63,14 +63,15 @@ def mock_read_value():
 class TestActivate:
 
     @pytest.mark.parametrize(
-            ("url", "token", "token_expiry"),
+            ("url", "token", "token_expiry", "auth_type"),
             [
-                ("https://www.testing.com", tokens["valid_token_w_expiry"], 9999999999)
+                ("https://www.testing.com", tokens["valid_token_w_expiry"], 9999999999, None)
             ]
     )
-    def test_activate_valid_token(self, mock_read_value, url, token, token_expiry, caplog):
+    def test_activate_valid_token(self, mock_read_value, url, token, token_expiry, caplog, auth_type):
         read_value = mock_read_value.copy()
         read_value['environments']['testing']['wxo_url'] = url
+        read_value['environments']['testing']['auth_type'] = auth_type
         read_value['auth']['testing']['wxo_mcsp_token'] = token
         read_value['auth']['testing']['wxo_mcsp_token_expiry'] = token
 
@@ -93,16 +94,17 @@ class TestActivate:
             assert "Environment 'testing' is now active" in captured
     
     @pytest.mark.parametrize(
-            ("url", "token", "token_expiry"),
+            ("url", "token", "token_expiry", "auth_type"),
             [
-                ("http://localhost:1234", tokens["invalid_token"], None),
-                ("http://localhost:1234", tokens["valid_token_wo_expiry"], None),
-                ("https://www.testing.com", tokens["invalid_token_expired"], 9999999999)
+                ("http://localhost:1234", tokens["invalid_token"], None, None),
+                ("http://localhost:1234", tokens["valid_token_wo_expiry"], None, None),
+                ("https://www.testing.com", tokens["invalid_token_expired"], 9999999999, None)
             ]
     )
-    def test_activate_invalid_token(self, mock_read_value, url, token, token_expiry, caplog):
+    def test_activate_invalid_token(self, mock_read_value, url, token, token_expiry, caplog, auth_type ):
         read_value = mock_read_value.copy()
         read_value['environments']['testing']['wxo_url'] = url
+        read_value['environments']['testing']['auth_type'] = auth_type
         read_value['auth']['testing']['wxo_mcsp_token'] = token
         read_value['auth']['testing']['wxo_mcsp_token_expiry'] = token
 
@@ -267,7 +269,6 @@ class TestList:
             anothertesting_env_regex = re.compile(r"anothertesting\s*another testing\s*\n")
 
             assert "No active environment is currently set" in caplog.text
-            print(captured)
             assert len(active_testing_env_regex.findall(captured.out)) == 0
             assert len(testing_env_regex.findall(captured.out)) != 0
             assert len(anothertesting_env_regex.findall(captured.out)) != 0

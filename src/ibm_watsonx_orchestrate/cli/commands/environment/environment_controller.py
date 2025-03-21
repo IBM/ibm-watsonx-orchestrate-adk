@@ -14,13 +14,15 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENV_WXO_URL_OPT,
     ENV_IAM_URL_OPT,
     ENVIRONMENTS_SECTION_HEADER,
-    PROTECTED_ENV_NAME
+    PROTECTED_ENV_NAME,
+    ENV_AUTH_TYPE
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity
+from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +47,17 @@ def _login(name: str, apikey: str = None) -> None:
     url = env_cfg.get(ENV_WXO_URL_OPT)
     iam_url = env_cfg.get(ENV_IAM_URL_OPT)
     is_local = name == PROTECTED_ENV_NAME or is_local_dev(url=url)
+    try:
+        auth_type = cfg.get(ENVIRONMENTS_SECTION_HEADER, name, ENV_AUTH_TYPE)
+    except (KeyError, AttributeError):
+        auth_type = None
 
 
     if apikey is None and not is_local:
         apikey = getpass.getpass("Please enter WXO API key: ")
 
     try:
-        creds = Credentials(url=url, api_key=apikey, iam_url=iam_url)
+        creds = Credentials(url=url, api_key=apikey, iam_url=iam_url, auth_type=auth_type)
         client = Client(creds)
         token = _decode_token(client.token, is_local)
         with lock:
@@ -94,7 +100,7 @@ def activate(name: str, apikey: str=None) -> None:
 
     logger.info(f"Environment '{name}' is now active")
 
-def add(name: str, url: str, should_activate: bool=False, iam_url: str=None) -> None:
+def add(name: str, url: str, should_activate: bool=False, iam_url: str=None, type: EnvironmentAuthType=None) -> None:
     if name == PROTECTED_ENV_NAME:
         logger.error(f"The name '{PROTECTED_ENV_NAME}' is a reserved environment name. Please select a diffrent name or use `orchestrate env activate {PROTECTED_ENV_NAME}` to swap to '{PROTECTED_ENV_NAME}'")
         return
@@ -111,6 +117,9 @@ def add(name: str, url: str, should_activate: bool=False, iam_url: str=None) -> 
         cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_WXO_URL_OPT: url})
         if iam_url:
             cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_IAM_URL_OPT: iam_url})
+        if type:
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_AUTH_TYPE: str(type)})
+        
 
     logger.info(f"Environment '{name}' has been created")
     if should_activate:

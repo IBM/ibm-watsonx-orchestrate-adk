@@ -593,9 +593,9 @@ async def test_adds_app_id_to_binding(mocker):
         },
         http_path='/test',
         http_method='POST',
-        app_id='appId'
+        connection_id='connectionId'
     )
-    assert tool.__tool_spec__.binding.openapi.app_id == 'appId'
+    assert tool.__tool_spec__.binding.openapi.connection_id == 'connectionId'
 
 
 @pytest.mark.asyncio

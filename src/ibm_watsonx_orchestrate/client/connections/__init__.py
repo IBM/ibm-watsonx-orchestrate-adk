@@ -14,6 +14,8 @@ from .applications_connections_client import ConnectionType, \
     CreateOAuth2ImplicitConnection, \
     CreateOAuth2PasswordConnection, \
     CreateOAuth2ClientCredentialsConnection, \
+    CreateKeyValueConnection, \
+    KeyValueConnectionCredentials, \
     CreateConnectionResponse, \
     DeleteConnectionResponse, \
     ApplicationConnectionsClient, \

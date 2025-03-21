@@ -12,10 +12,8 @@ for openapi_tool in cat-facts.openapi.yml; do
   orchestrate tools import -k openapi -f ${SCRIPT_DIR}/tools/${openapi_tool} -r ${SCRIPT_DIR}/tools/requirements.txt
 done
 
-for expert_agent in hr_agent.yaml jokester_agent.yaml; do
-  orchestrate agents import -f ${SCRIPT_DIR}/agents/${expert_agent}
+for agent in jokester_agent.yaml hr_agent.yaml manager_agent.yaml; do
+  orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
 done
-
-orchestrate agents import -f ${SCRIPT_DIR}/manager_pal_orchestrator.yaml
 
 

@@ -2,158 +2,123 @@
 
 ## Import Agents
 #### `orchestrate agents import`
-  This command allows the user to import both Expert and Orchestrator agents into the WXO platform. It can import these agents from 3 diffrent file types. All files are passed in with the `--file` or `-f` flag.
+  This command allows the user to import agents into the WXO platform. It can import agents from 3 different file types. All files are passed in with the `--file` or `-f` flag.
    ```bash
    orchestrate agents import -f <path to .yaml/.json/.py file>
    ```
     1. **YAML files (.yaml/.yml)**
    ```yaml
-   #expert agent example
-   name: sample_expert_agent
-   description: A description of the agent
-   type: expert 
-   role: A natural language definition of the agents role
-   goal: A natural language definition of the agents objective
-   backstory: A natural language definition of the agents context, motivation and depth
-   instructions: A natural language definition of how the agent is to go about solving the problem
+   spec_version: v1
+   kind: native
+   name: agent_name
+   description: A description of what the agent does and how it should carry out its objecting
    llm: watsonx/ibm/granite-3-8b-instruct
+   style: default
+   collaborators:
+    - name_of_collaborator_agent_1
+    - name_of_collaborator_agent_1
    tools:
-      - test_tool
-      - web_search
-   ```
-   ```yaml
-   #orchestrator agent example
-   name: sample_orchestrator_agent
-   type: orchestrator
-   management_style: supervisor
-   management_style_config:
-      reflection_enabled: true
-      reflection_retry_count: 3
-   llm: watsonx/ibm/granite-3-8b-instruct
-   agents:
-      - sample_expert_agent
+    - name_of_tool_1
    ```
     2. **JSON files (.json)**
    ```json
-   #expert agent example
    {
-      "name": "sample_expert_agent",
-      "description": "A description of the agent",
-      "type": "expert" ,
-      "role": "A natural language definition of the agents role",
-      "goal": "A natural language definition of the agents objective",
-      "backstory": "A natural language definition of the agents context, motivation and depth",
-      "instructions": "A natural language definition of how the agent is to go about solving the problem",
+      "spec_version": "v1",
+      "kind": "native",
+      "name": "agent_name",
+      "description": "A description of what the agent does and how it should carry out its objecting",
       "llm": "watsonx/ibm/granite-3-8b-instruct",
+      "style": "default",
+      "collaborators":[
+         "name_of_collaborator_agent_1",
+         "name_of_collaborator_agent_1"
+      ],
       "tools":[
-         "test_tool",
-         "web_search"
-      ]
-   }
-   ```
-   ```json
-   #orchestrator agent example
-   {
-      "name": "sample_orchestrator_agent",
-      "type": "orchestrator",
-      "management_style": "supervisor",
-      "management_style_config": {
-         "reflection_enabled": true,
-         "reflection_retry_count": 3
-      },
-      "llm": "watsonx/ibm/granite-3-8b-instruct",
-      "agents":[
-         "sample_expert_agent"
+         "name_of_tool_1"
       ]
    }
    ```
     3. **Python files (.py)**
 
-  Python is unique as it can import multiple Expert and Orchestrator agents from the same file. It can also import tools (see `orchestrate tools import`) used by the agents.
+  Python is unique as it can import multiple agents from the same file. It can also import tools (see `orchestrate tools import`) used by the agents.
    ```python
-   from ibm_watsonx_orchestrate.agent_builder.agents import ExpertAgent, OrchestrateAgent
+   from ibm_watsonx_orchestrate.agent_builder.agents import Agent, AgentStyle
    from sample_project.tools import my_tool
 
-   expert_agent = ExpertAgent(
-      name="sample_expert_agent",
-      type="expert",
-      description="A natural language definition of the agents role",
-      role="A natural language definition of the agents role",
-      goal="A natural language definition of the agents objective",
-      backstory="A natural language definition of the agents context, motivation and depth",
-      instructions="A natural language definition of how the agent is to go about solving the problem",
+   agent = Agent(
+      name="agent_name",
+      description="A description of what the agent does and how it should carry out its objecting",
       llm="watsonx/ibm/granite-3-8b-instruct",
-      tools=[my_tool],
-   )
-
-   orchestrator_agent = OrchestrateAgent(
-      name="sample_orchestrator_agent",
-      type="orchestrator",
-      management_style="supervisor",
-      management_style_config=SupervisorConfig(reflection_enabled=True, reflection_retry_count=3),
-      llm="watsonx/ibm/granite-3-8b-instruct",
-      agents=["expert_agent"]
+      style=AgentStyle.REACT,
+      collaborators=[],
+      tools=[my_tool]
    )
    ```
 ## Create Agents
 #### `orchestrate agents create`
-  This command allows you to create either an Expert of Orchestrator agent fully defined through the command line.
+  This command allows you to create an agent fully defined through the command line.
 
-  Depending on which type of agent you are creating the flags you need to provide are diffrent
+  <!-- Depending on which type of agent you are creating the flags you need to provide are different -->
 
-  **Expert Agent**
+  **Native Agent**
 
   Flags
-    * `--name` / `-n` is the name of the Expert agent you want to create
-    * `--type` / `-t` is the type of agent you wish to create. For expert agents the value should be `expert`
-    * `--description` is the description of the expert agent
-    * `--role` is a natural lanuague description of the role you want the agent to carry out
-    * `--goal` is a natural lanuague description of the goal you want the agent to achieve
-    * `--backstory` is a natural language definition of the agents context, motivation and depth
-    * `--instructions` is a natural lanuague description of how you want the agent to go about carrying out its role
-    * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
-    * `--tools` is a comma seperated list of `tools` that the agent can leverage in order to complete its goal
+
+   * `--name` / `-n` is the name of the agent you want to create
+   * `--kind` / `-k` is the kind of agent you wish to create. For native agents the value should be `native`
+   * `--description` is the description of the agent
+   * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
+   * `--style` is the style of agent you want to create. Either `default` or `react`
+   * `--collaborators` is a list of agents that the agent should be able to call out to. Multiple collaborators can be specified .e.g. `--collaborators agent_1 --collaborators agent_2`
+   * `--tools` is a list of tools that the agent should be able to use. Multiple tools can be specified .e.g. `--tools tool_1 --tools tool_2`
 
    ```bash
    orchestrate agents create \
-   --name sample_expert_agent \
-   --type expert \
+   --name agent_name \
+   --kind native \
    --description "Sample agent description" \
-   --role "You are a sample agent meant to demonstrate the syntax" \
-   --goal "Your mission is to teach people the syntax of the WXO CLI" \
-   --backstory "is a natural language definition of the agents context, motivation and depth" \
-   --instructions "Use the tools provided to ..." \
    --llm watsonx/ibm/granite-3-8b-instruct \
-   --tools web_search,my_tool
+   --style default \
+   --collaborators agent_1
+   --collaborators agent_2
+   --tools tool_1
    ```
 
-  **Orchestrator Agent**
+   **External Agent**
 
-  Flags
-    * `--name` / `-n` is the name of the Orchestrator agent you want to create
-    * `--type` / `-t` is the type of agent you wish to create. For orchestrator agents the value should be `orchestrator`
-    * `--management_style` what style of management the agent should use
-    * `--management_style_config` configuable aspects of the agents management style like `refection_enabled` and `reflection_retry_count`
-    * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
-    * `--agents` what expert agents does this agent manage
+   Flags
+
+   * `--name` / `-n`    is the name of the agent you want to create
+   * `--kind` / `-k`    is the kind of agent you wish to create. For external agents the value should be `external`
+   * `--title` / `-t`   is the title of the agent you wish to create
+   * `--description`    is the description of the agent
+   * `--api` / `-a`      is External Api url your Agent will use
+   * `--tags`           is the list of tags for the agent. Format: --tags tag1 --tags tag2 ... Only needed for External and Assistant Agents
+   * `--chat-params`    is the chat parameters in JSON format (e.g., '{"stream": true}'). Only needed for External and Assistant Agents
+   * `--config`         is the Agent configuration in JSON format (e.g., '{"hidden": false, "enable_cot": false}')
+   * `--nickname`       is the Agent's nickname
+   * `--app-id`         is Application connection name used by the agent
+
 
    ```bash
    orchestrate agents create \
-   --name sample_orchestrator_agent \
-   --type orchestrator \
-   --management_style supervisor \
-   --management_style_config reflection_enabled=true,reflection_retry_count=3 \
-   --llm watsonx/ibm/granite-3-8b-instruct \
-   --agents sample_expert_agent,sales_agent
+    --name news_agent \
+    --title "News Agent" \
+    --description "Sample agent description" \
+    --api "http://some_url.com" \
+    --kind external \
+    --tags "test,other" \
+    --chat-params '{"stream": true}' \
+    --config '{"hidden": false, "enable_cot": false}' \
+    --nickname "news_agent" \
+    --app-id "my-basic-app"
    ```
+
 
 ## Remove Agent
-To remove an existing orchestrator or expert agent simply run the following: 
+To remove an existing agent simply run the following: 
 ```bash
-orchestrate agents remove --name my-expert-agent --type expert
-```
-```bash
-orchestrate agents remove --name my-orchestrator-agent --type orchestrator
+orchestrate agents remove --name my-agent --kind native
 ```
 
 ## List Agents

@@ -18,6 +18,7 @@ CONTEXT_ACTIVE_ENV_OPT = "active_environment"
 ENV_WXO_URL_OPT = "wxo_url"
 ENV_IAM_URL_OPT = "iam_url"
 PROTECTED_ENV_NAME = "local"
+ENV_AUTH_TYPE="auth_type"
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 

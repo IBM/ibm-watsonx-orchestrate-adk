@@ -1,0 +1,17 @@
+spec_version: v1
+kind: assistant # Optional, Default=native, Valid options ['native', 'external', 'assistant']
+name: hr_assistant
+title: HR Agent
+description: >
+  An assistant for answering general HR queries
+tags:
+  - hr
+  - wxa
+nickname: hr_agent # Is this still required?
+config:
+  api_version: 2021-11-27
+  assistant_id: 27de49b4-4abc-4c1a-91d7-1a612c36fd18
+  crn: "crn:v1:aws:public:wxo:us-east-1:sub/20240412-0950-3314-301c-8dfc5950d337:20240415-0552-2619-5017-c41d62e59413::"
+  instance_url: https://api.us-east-1.aws.watsonassistant.ibm.com/instances/20240415-0552-2619-5017-c41d62e59413
+  environment_id: ef8b93b2-4a4c-4eb8-b479-3fc056c4aa4f
+app_id: my_hr_agent # Optional, can be overridden/specified by the --app-id flag in the cli on import

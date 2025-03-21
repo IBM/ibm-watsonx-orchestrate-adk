@@ -2,6 +2,7 @@ import logging
 import typer
 from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.environment import environment_controller
+from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,12 @@ def add_env(
             "--iam-url", "-i", help="The URL for the IAM token authentication", hidden=True
         ),
     ] = None,
+    type: Annotated[
+        EnvironmentAuthType,
+        typer.Option("--type", "-t", help="The type of auth you wish to use"),
+    ] = None,
     ):
-    environment_controller.add(name=name, url=url, should_activate=activate, iam_url=iam_url)
+    environment_controller.add(name=name, url=url, should_activate=activate, iam_url=iam_url, type=type)
 
 @environment_app.command(name="remove")
 def remove_env(

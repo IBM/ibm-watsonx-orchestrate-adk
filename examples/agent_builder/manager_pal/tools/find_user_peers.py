@@ -75,4 +75,3 @@ def find_users_peers(user_id: str) -> List[Any]:
 # if __name__ == '__main__':
 #     people = find_users_peers(userId='4G0344897')
 #     print(json.dumps(people, indent=2))
-

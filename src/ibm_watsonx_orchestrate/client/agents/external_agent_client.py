@@ -1,0 +1,49 @@
+from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from typing_extensions import List
+
+
+class ExternalAgentClient(BaseAPIClient):
+    """
+    Client to handle CRUD operations for External Agent endpoint
+    """
+
+    def create(self, payload: dict) -> dict:
+        return self._post("/agents/external-chat", data=payload)
+
+    def get(self) -> dict:
+        return self._get("/agents/external-chat")
+
+    def update(self, agent_id: str, data: dict) -> dict:
+        return self._patch(f"/agents/external-chat/{agent_id}", data=data)
+
+    def delete(self, agent_id: str) -> dict:
+        return self._delete(f"/agents/external-chat/{agent_id}")
+    
+    def get_draft_by_name(self, agent_name: str) -> List[dict]:
+        try:
+            return [self._get(f"/agents/external-chat/?name={agent_name}")]
+        except ClientAPIException as e:
+            if e.response.status_code == 404 and "External agent not found with the given name" in e.response.text:
+                # return None
+                return []
+            raise(e)
+
+    def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
+        agents = []
+        for name in agent_names:
+            draft_agent = self.get_draft_by_name(name)
+            if draft_agent:
+                agents += draft_agent
+        return agents
+    
+    def get_draft_by_id(self, agent_id: str) -> List[dict]:
+        if agent_id is None:
+            return ""
+        else:
+            try:
+                agent = self._get(f"/agents/external-chat/{agent_id}")
+                return agent
+            except ClientAPIException as e:
+                if e.response.status_code == 404 and "not found with the given name" in e.response.text:
+                    return ""
+                raise(e)

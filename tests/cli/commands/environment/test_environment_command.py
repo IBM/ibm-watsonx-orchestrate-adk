@@ -57,7 +57,8 @@ class TestEnvAdd:
         "name": "testing",
         "url": "testing url",
         "should_activate": True,
-        "iam_url": None
+        "iam_url": None,
+        "type": None
     }
 
     def test_add(self):

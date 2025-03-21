@@ -1,4 +1,5 @@
 import typer
+from typing import List
 from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 tools_app= typer.Typer(no_args_is_help=True)
@@ -27,7 +28,7 @@ def tool_import(
     #     str, typer.Option("--skill_operation_path", help="Skill operation path in WXO")
     # ] = None,
     app_id: Annotated[
-        str, typer.Option(
+        List[str], typer.Option(
             '--app-id', '-a',
             help='The app id of the connection to associate with this tool. A application connection represents the server authentication credentials needed to connection to this tool (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )

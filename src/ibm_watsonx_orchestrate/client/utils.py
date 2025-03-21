@@ -53,7 +53,7 @@ def check_token_validity(token: str) -> bool:
         return False
 
 
-def instantiate_client(client: type(T)):
+def instantiate_client(client: type(T)) -> T:
     try:
         with LOCK:
             with open(os.path.join(DEFAULT_CONFIG_FILE_FOLDER, DEFAULT_CONFIG_FILE), "r") as f:

@@ -34,17 +34,13 @@ orchestrate env activate local
 orchestrate tools import -k python -f path/to/python/tool.py
 orchestrate tools import -k openapi -f path/to/python/openapi_spec.yaml
 ```
-11. Create an expert agent who can use your tools. For more details on this check out [docs/agents](./2_agents.md)
+11. Create an agent who can use your tools. For more details on this check out [docs/agents](./2_agents.md)
 ```bash
-orchestrate agents import -f path/to/expert_agent_spec.yaml
+orchestrate agents import -f path/to/agent_spec.yaml
 ```
-12. Create an orchestrator agent who can coordinate work between your expert agents
+12. Start chatting with your newly created agent. For more details on this check out [docs/agents](./2_agents.md)
 ```bash
-orchestrate agents import -f path/to/orchestrator_agent_spec.yaml
-```
-13. Start chatting with your newly created orchestrator agent. For more details on this check out [docs/agents](./2_agents.md)
-```bash
-orchestrate chat start --env-file path/to/.env --orchestrator-agent-name <name of orchestrator agent>
+orchestrate chat start --env-file path/to/.env --agent-name <name of agent>
 ```
 
 Samples of these tools and agents can be found in the examples folder.

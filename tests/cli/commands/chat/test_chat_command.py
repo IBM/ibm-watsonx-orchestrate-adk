@@ -12,7 +12,6 @@ class TestChatStart:
             "WXO_USER=temp\n"
             "WXO_PASS=temp\n"
             "HEALTH_TIMEOUT=1\n"
-            "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
         )
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".env", delete=False) as tmp:
             tmp.write(env_content)
@@ -25,7 +24,7 @@ class TestChatStart:
                 
                 mock_run_compose_lite_ui.return_value = True
                 
-                chat_command.chat_start(agent_name=None, user_env_file=env_file_path)
+                chat_command.chat_start(user_env_file=env_file_path)
                 captured = caplog.text
                 
                 assert "Opening chat interface at http://localhost:3000/chat-lite" in captured
@@ -41,7 +40,6 @@ class TestChatStart:
             "WXO_USER=temp\n"
             "WXO_PASS=temp\n"
             "HEALTH_TIMEOUT=1\n"
-            "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
         )
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".env", delete=False) as tmp:
             tmp.write(env_content)
@@ -54,7 +52,7 @@ class TestChatStart:
                 
                 mock_run_compose_lite_ui.return_value = False
                 
-                chat_command.chat_start(agent_name=None, user_env_file=env_file_path)
+                chat_command.chat_start(user_env_file=env_file_path)
                 captured = caplog.text
                 
                 assert "Opening chat interface at http://localhost:3000/chat-lite" not in captured
@@ -73,7 +71,6 @@ class TestChatStop:
             "WXO_USER=temp\n"
             "WXO_PASS=temp\n"
             "HEALTH_TIMEOUT=1\n"
-            "ORCHESTRATOR_AGENT_NAME=TEMP_AGENT\n"
         )
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".env", delete=False) as tmp:
             tmp.write(env_content)

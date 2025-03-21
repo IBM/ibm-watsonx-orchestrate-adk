@@ -9,6 +9,8 @@ class ApplicationConnectionType(str, Enum):
     oauth_auth_implicit_flow = 'oauth_auth_implicit_flow'
     oauth_auth_password_flow = 'oauth_auth_password_flow'
     oauth_auth_client_credentials_flow = 'oauth_auth_client_credentials_flow'
+    key_value = 'key_value'
+    kv = 'kv'
 
     def __str__(self):
         return self.value

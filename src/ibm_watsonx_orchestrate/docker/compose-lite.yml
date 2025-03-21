@@ -13,7 +13,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
+    image: us.icr.io/${DB_REGISTRY:-watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -32,70 +32,36 @@ services:
     command: -c shared_preload_libraries=pgsodium
 
   ui:
-    image: us.icr.io/watson-orchestrate-private/wxo-chat:${UITAG:-latest}
+    image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      REACT_APP_ORCHESTRATOR_AGENT_NAME: ${ORCHESTRATOR_AGENT_NAME}
-      VERDI_SSL_ENABLE_VALIDATION: false
-      VERDI_CERT_IS_SELF_SIGNED: false
-      IBM_WXO_WEB_CHAT_ENVIRONMENT: local
       REACT_APP_WEB_CHAT_ENVIRONMENT: local
-      WEBAPP_TABS_CHAT_ENABLED: "true"
       VCAP_APP_PORT: 4002
-      REACT_EDITOR: code
       REACT_APP_ENVIRONMENT: local
       DEPLOYMENT_ENVIRONMENT: local
       UI_APP_CONTEXT_ROOT: /mfe_home
       DE_CLIENT_HEAP_SIZE: 1024
-      SERVER_REPLICA_COUNT: 1
-      CHATOPS_TIMEOUT: 120000
-      CHATOPS_URL: https://digital-employee-server-service:23450/orchestrator/chatops
-      CHATOPS_PORT: 23450
-      VERDI_API_URL: https://digital-employee-server-service:23450
-      WEBAPP_AUTH_REGISTRATION_ENABLED: "false"
-      WEBAPP_TABS_EXPLORER_ENABLED: "true"
-      WEBAPP_AUTH_SSO_W3_ENABLED: "false"
-      MESSAGING_MODE: rabbitmq
-      AGENT_MENTIONS_ENABLED: "false"
       NODE_LOG_LEVEL: debug
-      SHOW_WORKERS_ONLY: "true"
-      ASSISTANT_MODE_ENABLED: "false"
-      WEBAPP_TABS_SETTINGS_ENABLED: "false"
       RABBITMQ_EXCHANGE: verdi_events_affinity
-      TYPEAHEAD_TEXT_ENABLED: "true"
-      WEBAPP_AUTOMATIONS_ENABLED: "false"
-      ERROR_VIEW_ENABLED: "true"
-      WEBAPP_REASONING_ENABLED: "false"
       SOCKET_PING_TIMEOUT: 20000
-      WEBAPP_AUTH_AUTHZ_ENABLED: "false"
-      ISV_TOKEN_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/token
-      ISV_AUTHORIZATION_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/authorize
-      ISV_DISCOVERY_ENDPOINT: https://wo-ibm-dev.verify.ibm.com/oidc/endpoint/default/.well-known/openid-configuration
-      ISV_JWKS_URI: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
-      ISV_TOKEN_ISSUER: https://dev-conn.watson-orchestrate.ibm.com
-      UI_APP_SKILLS_CATALOG: /configure/skills/
       WXO_DOMAIN_URL: http://localhost:4321
       IS_WXA_WEBCHAT: "true"
       NODE_OPTIONS: --max-http-header-size 32768
-      REDIS_CONNECTION_STRING: rediss://master.wo-dev-conn-redis.4yuwg7.use1.cache.amazonaws.com:6379
       PATH: /opt/app-root/src/node_modules/.bin/:/opt/app-root/src/.npm-global/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       TERM: xterm
       PLATFORM: el8
       MAX_FILE_UPLOAD_SIZE_BYTES: 20971520
       MAX_FILE_UPLOAD_SIZE_BYTES_EXCEL: 1048576
-      DIGRESSION_FEATURE_FLAG: "true"
-      DIGRESSION_TIMER: 5000
       VCAP_APP_HOST: localhost
-      WO_IBM_DEV: "https://wo-ibm-dev.verify.ibm.com"
       DEPLOYMENT_PLATFORM: saas
-      JWKS_URL: https://account-iam.ibm.us-east.platform.test.saas.ibm.com/api/2.0/jwks
       DISMISS_NOTIFICATION_TIMEOUT: 10000
+      STANDALONE: "true"
+      STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
     command: "./StartServer.sh"
     ports:
-      - "3000:3000"
-      - "4002:4002"
+      - "3000:4002"
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -119,6 +85,7 @@ services:
     command: server --console-address ":9001" /data
     volumes:
       - wxo-server-minio-data:/data
+
   wxo-server-minio-setup:
     image: us.icr.io/watson-orchestrate-private/minio/mc:latest
     platform: linux/amd64
@@ -156,14 +123,17 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-server:${TAG:-latest}
+    image: us.icr.io/${SERVER_REGISTRY:-watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
       - 4321:4321
+      - 4322:4322
     volumes:
       - ./sdk:/packages
       - tools:/tools
+      - ./start-up.sh:/start-up.sh  
+    command: ["sh", "/start-up.sh"]
     depends_on:
       wxo-server-redis:
           condition: service_started
@@ -175,7 +145,7 @@ services:
           condition: service_started
           required: False
     environment:
-      PIP_NO_CACHE_DIR: 
+      PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
@@ -216,7 +186,7 @@ services:
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
-      ISV_JWKS_URI: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
+      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
       VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
       MILVUS_URI: ${MILVUS_URI}
@@ -229,10 +199,11 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
-      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      IS_WXO_LITE: 'TRUE'
+      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
 
   wxo-server-worker:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-conversation_controller:${TAG:-latest}
+    image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
@@ -247,6 +218,7 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
@@ -297,7 +269,8 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
-      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+
 ########################
 # LANGFUSE dependencies
 ########################
@@ -394,6 +367,8 @@ services:
 
 
 volumes:
+  tools:
+    driver: local
   wxo-server-redis-data:
     driver: local
   wxo-server-db:
@@ -403,8 +378,6 @@ volumes:
   wxo-server-minio-data:
     driver: local
   ui-data:
-    driver: local
-  tools:
     driver: local
   langfuse_clickhouse_data:
     driver: local

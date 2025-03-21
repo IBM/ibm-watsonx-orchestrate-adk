@@ -75,4 +75,3 @@ def find_users_management_chain(user_id: str) -> List[UserLeader]:
 # if __name__ == '__main__':
 #     people = find_users_management_chain(userId='4G0344897')
 #     print(json.dumps(people, indent=2))
-

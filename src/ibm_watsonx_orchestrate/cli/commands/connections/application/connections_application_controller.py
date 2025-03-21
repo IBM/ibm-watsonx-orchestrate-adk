@@ -1,5 +1,4 @@
 import json
-import sys
 from rich.table import Table
 from rich.console import Console
 import logging
@@ -11,7 +10,7 @@ from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection
     BearerTokenAuthCredentials, CreateBearerTokenAuthConnection, APIKeyAuthCredentials, CreateAPIKeyAuthConnection, \
     OAuth2AuthCodeCredentials, CreateOAuth2AuthCodeConnection, CreateOAuth2ImplicitConnection, \
     OAuth2ImplicitCredentials, OAuth2ClientCredentials, CreateOAuth2ClientCredentialsConnection, \
-    CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse
+    CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse, CreateKeyValueConnection, KeyValueConnectionCredentials
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.cli.commands.connections.application.types import ApplicationConnectionType
 
@@ -23,6 +22,15 @@ _outh_connection_types = {
     ApplicationConnectionType.oauth_auth_password_flow,
     ApplicationConnectionType.oauth_auth_client_credentials_flow
 }
+
+def _parse_entry(entry: str) -> dict[str,str]:
+    split_entry = entry.split('=')
+    if len(split_entry) != 2:
+        message = f"The entry '{entry}' is not in the expected form '<key>=<value>'"
+        logger.error(message)
+        exit(1)
+    return {split_entry[0]: split_entry[1]}
+
 
 def _validate_create_params(type: ApplicationConnectionType, **args) -> None:
     if type in {ApplicationConnectionType.basic, ApplicationConnectionType.oauth_auth_password_flow} and (
@@ -138,6 +146,17 @@ def _get_connection(type: ApplicationConnectionType, **args):
                     well_known_url=args.get('well_known_url')
                 )
             )
+        case ApplicationConnectionType.key_value | ApplicationConnectionType.kv:
+            env = {}
+            for entry in args.get('entries', []):
+                env.update(_parse_entry(entry))
+
+            conn = CreateKeyValueConnection(
+                appid=args.get('app_id'),
+                shared=args.get('shared'),
+                connection_type=ConnectionType.KEY_VALUE,
+                credentials=KeyValueConnectionCredentials(env)
+            )
         case _:
             raise ValueError(f"Invalid type {type} selected")
     return conn
@@ -174,9 +193,17 @@ def create_application_connection(type: ApplicationConnectionType, **kwargs):
 
 
 def remove_application_connection(app_id: str):
-    client = instantiate_client(ApplicationConnectionsClient)
+    client: ApplicationConnectionsClient = instantiate_client(ApplicationConnectionsClient)
     try:
-        client.delete(app_id=app_id)
+        existing = client.get_draft_by_app_id(app_id=app_id)
+        if len(existing) == 0:
+            logger.error(f"Connection with app-id: {app_id} not found")
+            exit(1)
+        elif len(existing) > 1:
+            logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, existing)))}")
+            exit(1)
+
+        client.delete(connection_id=existing[0].connection_id)
         logger.info(f"Successfully removed application connection with app-id: {app_id}")
     except requests.HTTPError as e:
         logger.error(e.response.text)

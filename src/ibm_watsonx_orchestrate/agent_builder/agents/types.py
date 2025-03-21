@@ -4,14 +4,34 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from typing import Annotated
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
 DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
 
+class SpecVersion(str, Enum):
+    V1 = "v1"
+
+class AgentKind(str, Enum):
+    NATIVE = "native"
+    EXTERNAL = "external"
+    ASSISTANT = "assistant"
+
+class ExternalAgentAuthScheme(str, Enum):
+    BEARER_TOKEN = 'BEARER_TOKEN'
+    API_KEY = "API_KEY"
+    NONE = 'NONE'
+
+
 
 class BaseAgentSpec(BaseModel):
+    spec_version: SpecVersion = None
+    kind: AgentKind
+    id: Optional[Annotated[str, Field(json_schema_extra={"min_length_str": 1})]] = None
+    name: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    description: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
         with open(file, 'w') as f:
@@ -27,92 +47,137 @@ class BaseAgentSpec(BaseModel):
         return json.dumps(dumped, indent=2)
 
 # ===============================
-#       EXPERT AGENT TYPES
+#      NATIVE AGENT TYPES
 # ===============================
-class ExpertAgentType(str, Enum):
-    EXPERT = "expert"
 
-class ExpertAgentSpec(BaseAgentSpec):
+class AgentStyle(str, Enum):
+    DEFAULT = "default"
+    REACT = "react"
+
+class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    name: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    description: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    type: ExpertAgentType = None
-    role: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    goal: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    instructions: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    backstory: Optional[str] = None
-    tools: Optional[List[str]] | Optional[List['BaseTool']] = None
+    kind: AgentKind = AgentKind.NATIVE
     llm: str = DEFAULT_LLM
-    
+    style: AgentStyle = AgentStyle.DEFAULT
+    instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
+    collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
+    tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+
+
     def __init__(self, *args, **kwargs):
         if "tools" in kwargs and kwargs["tools"]:
             kwargs["tools"] = [x.__tool_spec__.name if isinstance(x, BaseTool) else x for x in kwargs["tools"]]
+        if "collaborators" in kwargs and kwargs["collaborators"]:
+            kwargs["collaborators"] = [x.name if isinstance(x, BaseAgentSpec) else x for x in kwargs["collaborators"]]
         super().__init__(*args, **kwargs)
 
     @model_validator(mode="before")
-    def validate_fields_for_expert(cls, values):
-        return validate_expert_agent_fields(values, mandatory_for_expert=True)
-
-def validate_expert_agent_fields(values: dict, mandatory_for_expert: bool = True) -> dict:
-    """
-    Common validation function for expert agent fields.
+    def validate_fields(cls, values):
+        return validate_agent_fields(values)
     
-    Parameters:
-    - values: The values to validate
-    - mandatory_for_expert: Whether the fields are mandatory (True for create, False for patch)
-    
-    Returns:
-    - dict: The validated values
-    """
-    #Test for type
-    if values.get('type') is None:
-        raise ValueError("'type' cannot be empty or just whitespace")
+    @model_validator(mode="after")
+    def validate_kind(self):
+        if self.kind != AgentKind.NATIVE:
+            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
+        return self
 
+def validate_agent_fields(values: dict) -> dict:
     # Check for empty strings or whitespace
-    for field in ["name", "type", "role", "goal", "instructions", "tools", "llm"]:
+    for field in ["id", "name", "kind", "description", "collaborators", "tools"]:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
     
+    name = values.get("name")
+    collaborators = values.get("collaborators", [])  if values.get("collaborators", []) else []
+    for collaborator in collaborators:
+        if collaborator == name:
+            raise ValueError(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
+
+
     return values
 
 # ===============================
-#     ORCHESTRATE AGENT TYPES
+#      EXTERNAL AGENT TYPES
 # ===============================
 
-class AgentManagementStyle(str, Enum):
-    SUPERVISOR = 'supervisor'
+class ExternalAgentConfig(BaseModel):
+    hidden: bool = False
+    enable_cot: bool = False
 
-class SupervisorConfig(BaseModel):
-    reflection_enabled : bool | None = False
-    reflection_retry_count: int | None = 0
+class ExternalAgentSpec(BaseAgentSpec):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class OrchestrateAgentSpec(BaseAgentSpec):
-    description: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
-    name: Annotated[str, Field(json_schema_extra={"min_length_str":1})] = None
-    management_style: AgentManagementStyle = AgentManagementStyle.SUPERVISOR
-    management_style_config: Optional[SupervisorConfig] = None
-    llm: str = DEFAULT_LLM
-    agents: Optional[List[str]] | Optional[List['ExpertAgentSpec']]= None
-
-    def __init__(self, *args, **kwargs):
-        if "agents" in kwargs and kwargs["agents"]:
-            kwargs["agents"] = [x.name if isinstance(x, ExpertAgentSpec) else x for x in kwargs["agents"]]
-        super().__init__(*args, **kwargs)
+    kind: AgentKind = AgentKind.EXTERNAL
+    title: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    tags: Optional[List[str]] = None
+    api_url: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    auth_scheme: ExternalAgentAuthScheme = ExternalAgentAuthScheme.NONE
+    auth_config: dict = {}
+    chat_params: dict = None
+    config: ExternalAgentConfig = ExternalAgentConfig()
+    nickname: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    app_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    connection_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
 
     @model_validator(mode="before")
-    def validate_model(cls, values: Dict) -> Dict:
-         return orchestrate_agent_model_validation(cls, values)
+    def validate_fields_for_external(cls, values):
+        return validate_external_agent_fields(values)
 
-def safe_strip(value):
-    return value.strip() if isinstance(value, str) else value
+    @model_validator(mode="after")
+    def validate_kind_for_external(self):
+        if self.kind != AgentKind.EXTERNAL:
+            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create an external agent.")
+        return self
 
-def orchestrate_agent_model_validation(cls, values) -> Dict:
+def validate_external_agent_fields(values: dict) -> dict:
+    # Check for empty strings or whitespace
+    for field in ["name", "kind", "description", "title", "tags", "api_url", "chat_params", "nickname", "app_id"]:
+        value = values.get(field)
+        if value and not str(value).strip():
+            raise ValueError(f"{field} cannot be empty or just whitespace")
 
-    name = safe_strip(values.get("name", ""))
+    return values
 
-    if not name:
-        raise ValueError("name is required and cannot be whitespace")
-    
+# # ===============================
+# #      ASSISTANT AGENT TYPES
+# # ===============================
+
+class AssistantAgentConfig(BaseModel):
+    api_version: str
+    assistant_id: str
+    crn: str
+    # service_instance_url
+    # Optional[Literal['query', 'header', 'cookie']] = Field(None, validation_alias=AliasChoices('in', 'in_field'), serialization_alias='in')
+    instance_url: str = Field(validation_alias=AliasChoices('instance_url', 'service_instance_url'), serialization_alias='service_instance_url')
+    environment_id: str
+
+class AssistantAgentSpec(BaseAgentSpec):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    kind: AgentKind = AgentKind.ASSISTANT
+    title: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    tags: Optional[List[str]] = None
+    config: AssistantAgentConfig
+    nickname: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    app_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+
+    @model_validator(mode="before")
+    def validate_fields_for_external(cls, values):
+        return validate_external_agent_fields(values)
+
+    @model_validator(mode="after")
+    def validate_kind_for_external(self):
+        if self.kind != AgentKind.ASSISTANT:
+            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create an assistant agent.")
+        return self
+
+def validate_external_agent_fields(values: dict) -> dict:
+    # Check for empty strings or whitespace
+    for field in ["name", "kind", "description", "title", "tags", "nickname", "app_id"]:
+        value = values.get(field)
+        if value and not str(value).strip():
+            raise ValueError(f"{field} cannot be empty or just whitespace")
+
     return values

@@ -13,8 +13,12 @@ import typer
 import importlib.resources as resources
 from dotenv import dotenv_values, load_dotenv
 
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
+
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token
+from dotenv import dotenv_values, load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +133,7 @@ def refresh_local_credentials() -> None:
     _login(name=PROTECTED_ENV_NAME, apikey=None)
 
 
+
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
@@ -230,7 +235,7 @@ def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
     logger.info("UI component is initialized")
     return False
 
-def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
+def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     ensure_docker_installed()
@@ -246,6 +251,12 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
         logger.error("Error: REGISTRY_URL is required in the environment file.")
         sys.exit(1)
 
+    agent_client = instantiate_client(AgentClient)
+    agents = agent_client.get()
+    if not agents:
+        logger.error("No agents found for the current environment. Please create an agent before starting the chat.")
+        sys.exit(1)
+
     iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
     if iam_api_key:
         docker_login(iam_api_key, registry_url)
@@ -256,9 +267,6 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
     if not 'WATSONX_APIKEY' in merged_env_dict:
         merged_env_dict['WATSONX_APIKEY']='X'
     apply_llm_api_key_defaults(merged_env_dict)
-
-    if agent_name:
-        merged_env_dict['ORCHESTRATOR_AGENT_NAME'] = agent_name
 
     final_env_file = write_merged_env_file(merged_env_dict)
 
@@ -279,7 +287,7 @@ def run_compose_lite_ui(user_env_file: Path, agent_name: str) -> bool:
         "--remove-orphans"
     ]
 
-    logger.info(f"Starting docker-compose UI service with orchestrator agent name {merged_env_dict['ORCHESTRATOR_AGENT_NAME']}...")
+    logger.info(f"Starting docker-compose UI service...")
     result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:

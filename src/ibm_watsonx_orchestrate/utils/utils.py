@@ -1,6 +1,4 @@
-import json
-
-import numpy
+import re
 
 import yaml
 from typing import BinaryIO
@@ -11,3 +9,7 @@ yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:timestamp
 
 def yaml_safe_load(file : BinaryIO) -> dict:
     return yaml.safe_load(file)
+
+def sanatize_app_id(app_id: str) -> str:
+    sanatize_pattern = re.compile(r"[^a-zA-Z0-9]+")
+    return re.sub(sanatize_pattern,'_', app_id) 

@@ -33,6 +33,7 @@ class Credentials:
             api_key: str | None = None,
             token: str | None = None,
             verify: str | bool | None = None,
+            auth_type: str | None = None,
     ) -> None:
         env_credentials = Credentials._get_values_from_env_vars()
         self.url = url
@@ -41,6 +42,7 @@ class Credentials:
         self.token = token
         self.local_global_token = None
         self.verify = verify
+        self.auth_type = auth_type
         self._is_env_token = token is None and "token" in env_credentials
 
         for k, v in env_credentials.items():
