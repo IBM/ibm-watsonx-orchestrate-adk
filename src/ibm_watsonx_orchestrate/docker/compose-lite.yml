@@ -402,6 +402,7 @@ services:
       SERVER_CONTEXT_PATH: /tempus
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
       SERVER_CALLBACK_URL: http://atm:9044/tempus/task/callback/{thread_id}/{requestId}
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: atm
       SERVER_INTERNAL_PORT: "9044"
