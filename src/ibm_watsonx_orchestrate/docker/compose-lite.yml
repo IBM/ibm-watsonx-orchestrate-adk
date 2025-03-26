@@ -132,8 +132,8 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
-      - ./start-up.sh:/start-up.sh  
-    command: ["sh", "/start-up.sh"]
+      - ./start-up.sh:/app/wo_archer/start-up.sh  
+    command: ["sh", "/app/wo_archer/start-up.sh"]
     depends_on:
       wxo-server-redis:
           condition: service_started
