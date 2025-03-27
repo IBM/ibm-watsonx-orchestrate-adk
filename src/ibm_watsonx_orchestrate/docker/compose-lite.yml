@@ -69,7 +69,7 @@ services:
       - ui-data:/data
 
   wxo-builder:
-    image: us.icr.io/watson-orchestrate-private/builder:latest
+    image: us.icr.io/watson-orchestrate-private/wxo-builder:latest
     platform: linux/amd64
     restart: unless-stopped
     environment:
