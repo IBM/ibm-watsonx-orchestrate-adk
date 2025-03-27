@@ -1,0 +1,90 @@
+openapi: 3.0.0
+info:
+  title: Cat Facts API
+  version: 1.0.0
+  description: API for retrieving and managing cat facts
+
+servers:
+  - url: https://meowfacts.herokuapp.com
+
+paths:
+  /:
+    get:
+      operationId: getCatFact
+      summary: Gets a random fact about cats
+      description: Gets a random fact about cats
+      responses:
+        '200':
+          description: Successfully retrieved cat fact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - data
+
+  /facts/{count}:
+    get:
+      operationId: getMultipleCatFacts
+      summary: Gets multiple random cat facts
+      description: Returns a specified number of random cat facts
+      parameters:
+        - name: count
+          in: path
+          required: true
+          description: Number of cat facts to retrieve
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Successfully retrieved multiple cat facts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - data
+
+  /facts:
+    post:
+      operationId: addCatFact
+      summary: Adds a new cat fact
+      description: Allows users to submit a new cat fact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fact:
+                  type: string
+                  description: The new cat fact
+              required:
+                - fact
+      responses:
+        '201':
+          description: Cat fact added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  fact:
+                    type: string
+                required:
+                  - id
+                  - fact

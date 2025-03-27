@@ -68,12 +68,12 @@ services:
     volumes:
       - ui-data:/data
 
-  builder:
+  wxo-builder:
     image: us.icr.io/watson-orchestrate-private/builder:latest
     platform: linux/amd64
     restart: unless-stopped
     environment:
-      DEPLOYMENT_TYPE: 'SDK'
+      WXO_DEPLOYMENT_TYPE: 'laptop'
     command: 'npm start'
     ports:
       - '4025:4025'
@@ -81,7 +81,7 @@ services:
       test: curl -k http://localhost:4025/api/health --fail
       interval: 5s
       timeout: 60s
-      retries: 20
+      retries: 5
 
   wxo-server-minio:
     image: us.icr.io/watson-orchestrate-private/minio/minio:latest
