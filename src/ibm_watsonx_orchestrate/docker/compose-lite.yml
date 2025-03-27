@@ -147,8 +147,14 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
-      - ./start-up.sh:/start-up.sh  
-    command: ["sh", "/start-up.sh"]
+    command: >
+        bash -c "mkdir -p /tmp/certs && 
+                  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/certs/key.pem -out /tmp/certs/cert.pem -subj '/CN=localhost' && 
+                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --log-level debug wo_archer.api.main:app & 
+                  (for i in {1..20}; do curl --silent --fail -k https://127.0.0.1:4322/health/alive && echo '[INFO] HTTPS Service ready' && break || echo '[INFO] Waiting for HTTPS service...' && sleep 30; done; curl --silent --fail -k https://127.0.0.1:4322/health/alive || (echo '[ERROR] HTTPS service failed to start' && exit 1) ) &&
+                  uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 2 wo_archer.api.main:app & 
+                  (for i in {1..20}; do curl --silent --fail -k http://127.0.0.1:4321/health/alive && echo '[INFO] HTTP Service ready' && break || echo '[INFO] Waiting for HTTP service...' && sleep 30; done; curl --silent --fail -k http://127.0.0.1:4321/health/alive || (echo '[ERROR] HTTP service failed to start' && exit 1) ) && 
+                  wait"
     depends_on:
       wxo-server-redis:
           condition: service_started
@@ -216,6 +222,7 @@ services:
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       IS_WXO_LITE: 'TRUE'
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      ENABLE_WEBHOOKS: false
 
   wxo-server-worker:
     image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -285,6 +292,7 @@ services:
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      ENABLE_WEBHOOKS: false
 
 ########################
 # LANGFUSE dependencies
