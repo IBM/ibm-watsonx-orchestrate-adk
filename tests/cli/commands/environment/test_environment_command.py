@@ -2,10 +2,15 @@ from ibm_watsonx_orchestrate.cli.commands.environment import environment_command
 from unittest.mock import patch
 import pytest
 
+from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
+
+
 class TestEnvActivate:
     base_params = {
         "name": "testing",
-        "apikey": "123"
+        "apikey": "123",
+        "registry": str(RegistryType.LOCAL),
+        'test_package_version_override': None
     }
 
     def test_activate(self):

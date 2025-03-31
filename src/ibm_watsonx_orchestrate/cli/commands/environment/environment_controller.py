@@ -2,6 +2,8 @@ import logging
 import rich
 import jwt
 import getpass
+
+from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
     AUTH_CONFIG_FILE_FOLDER,
@@ -15,7 +17,8 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENV_IAM_URL_OPT,
     ENVIRONMENTS_SECTION_HEADER,
     PROTECTED_ENV_NAME,
-    ENV_AUTH_TYPE
+    ENV_AUTH_TYPE, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT,
+    ENV_ENABLE_SAAS_OPT, DEFAULT_CONFIG_FILE_CONTENT
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
@@ -64,18 +67,20 @@ def _login(name: str, apikey: str = None) -> None:
             auth_cfg.save(
                 {
                     AUTH_SECTION_HEADER: {
-                        name:token
+                        name: token
                     },
                 }
             )
     except ClientError as e:
         raise ClientError(e)
 
-def activate(name: str, apikey: str=None) -> None:
+def activate(name: str, apikey: str=None, registry: RegistryType=None, test_package_version_override=None) -> None:
     cfg = Config()
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
     env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
     url = cfg.get(ENVIRONMENTS_SECTION_HEADER, name, ENV_WXO_URL_OPT)
+    # TODO: Remove bypass_saas_restriction once Saas support is released
+    bypass_saas_restriction = cfg.get(ENVIRONMENTS_SECTION_HEADER, name).get(ENV_ENABLE_SAAS_OPT, False)
     is_local = is_local_dev(url)
 
     if not env_cfg:
@@ -93,9 +98,14 @@ def activate(name: str, apikey: str=None) -> None:
 
     with lock:
         cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, name)
-    
-    # TODO: Remove the following when SAAS support is released
-    if not is_local:
+        if registry is not None:
+            cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, str(registry))
+            cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, test_package_version_override)
+        elif cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) is None:
+            cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT])
+            cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, test_package_version_override)
+
+    if not is_local and not bypass_saas_restriction:
         logger.warning("SAAS support is limited, no access to tools, agent or connections")
 
     logger.info(f"Environment '{name}' is now active")

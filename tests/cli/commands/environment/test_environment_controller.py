@@ -2,6 +2,8 @@ from unittest.mock import patch
 import re
 import pytest
 from ibm_watsonx_orchestrate.cli.commands.environment import environment_controller
+from ibm_watsonx_orchestrate.cli.config import PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, \
+    PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT
 
 tokens = {
     "valid_token_w_expiry": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjk5OTk5OTk5OTl9.Vg30C57s3l90JNap_VgMhKZjfc-p7SoBXaSAy8c28HA",
@@ -13,8 +15,8 @@ tokens = {
 class MockConfig():
     def __init__(self, read_value=None, expected_write=None, expected_save=None):
         self.read_value = read_value
-        self.expected_write = expected_write
-        self.expected_save = expected_save
+        self.expected_write = expected_write if isinstance(expected_write, list) else [expected_write]
+        self.expected_save = expected_save if isinstance(expected_save, list) else [expected_save]
 
     def read(self, section, option):
         return self.read_value.get(section, {}).get(option)
@@ -26,11 +28,35 @@ class MockConfig():
         return nested_value
 
     def write(self, section, option, value):
-        assert value == self.expected_write
+        assert value == (self.expected_write.pop(0) if len(self.expected_write) > 1 else self.expected_write[0])
 
     def save(self, data):
-        assert data == self.expected_save
+        assert data == (self.expected_save.pop(0) if len(self.expected_save) > 1 else self.expected_save[0])
     
+    def delete(self, *args, **kwargs):
+        pass
+
+class MockConfig2():
+    def __init__(self):
+        self.config = {}
+
+    def read(self, section, option):
+        return self.config.get(section, {}).get(option)
+
+    def get(self, *args):
+        nested_value = self.config.copy()
+        for arg in args:
+            nested_value = nested_value[arg]
+        return nested_value
+
+    def write(self, section, option, value):
+        if not section in self.config:
+            self.config[section] = {}
+        self.config[section][option] = value
+
+    def save(self, data):
+        self.config.update(data)
+
     def delete(self, *args, **kwargs):
         pass
 
@@ -57,6 +83,9 @@ def mock_read_value():
                     "wxo_mcsp_token": "token",
                     "wxo_mcsp_token_expiry": 999999999
                 }
+            },
+            "python_registry": {
+                "type": "pypi"
             }
         }
 
@@ -92,7 +121,38 @@ class TestActivate:
 
             captured = caplog.text
             assert "Environment 'testing' is now active" in captured
-    
+
+
+    @pytest.mark.parametrize(
+        ('registry', 'test_package_version_override'),
+        [
+            (None, None),
+            ('pypi', None),
+            ('testpypi', None),
+            ('testpypi', '1.2.3.rc20'),
+            ('local', None),
+        ]
+    )
+    def test_change_registry(self, mock_read_value, caplog, registry, test_package_version_override):
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
+                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
+                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+
+            cfg = MockConfig2()
+            cfg.save(mock_read_value)
+            cfg.write('environments', 'local', {"wxo_url": "http://localhost:4321", "auth_type": None })
+            mock_cfg.return_value = cfg
+            environment_controller.activate(name="local", registry=registry, test_package_version_override=test_package_version_override)
+
+            if registry is None:
+                assert cfg.config.get(PYTHON_REGISTRY_HEADER).get(PYTHON_REGISTRY_TYPE_OPT) == 'pypi'
+            else:
+                assert cfg.config.get(PYTHON_REGISTRY_HEADER).get(PYTHON_REGISTRY_TYPE_OPT) == registry
+                assert cfg.config.get(PYTHON_REGISTRY_HEADER).get(PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) == test_package_version_override
+
+            captured = caplog.text
+            assert "Environment 'local' is now active" in captured
+
     @pytest.mark.parametrize(
             ("url", "token", "token_expiry", "auth_type"),
             [

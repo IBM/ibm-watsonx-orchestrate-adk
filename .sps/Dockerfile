@@ -8,3 +8,4 @@ RUN microdnf install docker
 #RUN microdnf -y install docker-ce docker-ce-cli
 RUN #systemctl start docker
 RUN pip install hatch
+RUN pip install twine

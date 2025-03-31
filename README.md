@@ -26,25 +26,22 @@ handling responses from the service’s APIs.
 2. Make sure you have the following installed:
 - docker
 - docker compose
-- python 3.12
-3. Make sure your ssh key is uploaded to your personal github account 
-   1. Run `cat ~/.ssh/id_rsa.pub` and if it returns `cat: /some/path/.ssh/id_rsa.pub: No such file or directory`, run ssh-keygen
-   2. Take the contents printed out by running `cat ~/.ssh/id_rsa.pub` and upload it to [github](https://github.ibm.com/settings/keys)  
-4. Run `pip install git+ssh://git@github.ibm.com/WatsonOrchestrate/wxo-clients.git`
-5. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
-6. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
-7. Create an env file with the following contents
+- python 3.11-3.13
+3. Run `pip install -i https://test.pypi.org/simple/ --upgrade ibm-watsonx-orchestrate`
+4. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
+5. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
+6. Create an env file with the following contents
 ```env
 DOCKER_IAM_KEY=<will be emailed per step 5>
 WATSONX_APIKEY=<your watsonx ai api key>
 WATSONX_SPACE_ID=<your watsonx ai space id>
 ```
 
-If you're working on WIPRO, Elevance, or are a PM/ developer on Watson Orchestrate, ping [@eric.marcoux](https://ibm.enterprise.slack.com/team/W3PNE8R3L) for watsonx.ai credentials if you do not have them already.
+If you are PM/ developer/ designer who reports up through Vinod, ping [@eric.marcoux](https://ibm.enterprise.slack.com/team/W3PNE8R3L) for watsonx.ai credentials if you do not have them already.
 
 ## Reporting issues
-Please raise issues on [wo-tracker](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=&labels=type-bug&projects=&template=1-wo-bug-report-template.md&title=BUG%3A+XXX)
 and include the agent-builder and Defect labels.
+Please raise issues on [wo-tracker](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=&labels=type-bug&projects=&template=1-wo-bug-report-template.md&title=BUG%3A+XXX)
 
 ## CLI Documentation
 
@@ -52,8 +49,8 @@ After installation, you will have access to the WXO CLI tool
 This tool can be accessed using the `orchestrate` command
 
 ```bash
-orchestrate --help
-
+ orchestrate --help
+                                                                                
  Usage: orchestrate [OPTIONS] COMMAND [ARGS]...                                 
                                                                                 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
@@ -63,13 +60,14 @@ orchestrate --help
 │ --help                        Show this message and exit.                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ env                                                                          │
 │ tools                                                                        │
 │ agents                                                                       │
 │ server                                                                       │
 │ chat                                                                         │
+│ connections                                                                  │
+│ models                                                                       │
+│ env                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-
 ```
 ---
 

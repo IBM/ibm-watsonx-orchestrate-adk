@@ -20,6 +20,10 @@ import typer
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
+from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
+    PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
+    DEFAULT_CONFIG_FILE_CONTENT
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -354,8 +358,29 @@ class ToolsController:
                         # Ensure there is a newline at the end of the file
                         if len(requirements) > 0 and not requirements[-1].endswith("\n"):
                             requirements[-1] = requirements[-1]+"\n"
-                        requirements.append('/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n')
+
+                        cfg = Config()
+                        registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
+
+                        version = importlib.import_module('ibm_watsonx_orchestrate').__version__
+                        if registry_type == RegistryType.LOCAL:
+                            requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
+                        elif registry_type == RegistryType.PYPI:
+                            requirements.append(f"ibm-watsonx-orchestrate=={version}\n")
+                        elif registry_type == RegistryType.TESTPYPI:
+                            override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
+                            orchestrate_links = requests.get('https://test.pypi.org/simple/ibm-watsonx-orchestrate').text
+                            wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
+                            wheel_file = next(filter(lambda x: override_version in x, wheel_files), None)
+                            if not wheel_file:
+                                logger.error(f"Could not find ibm-watsonx-orchestrate@{override_version} on https://test.pypi.org/project/ibm-watsonx-orchestrate")
+                                exit(1)
+                            requirements.append(f"ibm-watsonx-orchestrate @ {wheel_file}\n")
+                        else:
+                            logger.error(f"Unrecognized registry type provided to orchestrate env activate local --registry <registry>")
+                            exit(1)
                         requirements_file = path.join(tmpdir, 'requirements.txt')
+
                         with open(requirements_file, 'w') as fp:
                             fp.writelines(requirements)
                         requirements_file_path = Path(requirements_file)

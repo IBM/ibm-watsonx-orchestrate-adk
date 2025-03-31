@@ -55,7 +55,7 @@ detached = true
 
 [tool.hatch.version]
 path = "src/ibm_watsonx_orchestrate/__init__.py"
-
+validate-bump=false
 
 
 [tool.hatch.build.targets.wheel]
