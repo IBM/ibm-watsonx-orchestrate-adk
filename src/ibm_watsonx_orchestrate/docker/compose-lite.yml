@@ -421,7 +421,7 @@ services:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
       timeout: 60s
-      retries: 20
+      retries: 5
     ports:
       - 9044:9044
     volumes:
