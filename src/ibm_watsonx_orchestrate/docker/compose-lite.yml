@@ -389,8 +389,8 @@ services:
 
 
 
-  wxo-tempus-atm:
-    image: us.icr.io/watson-orchestrate-private/tempus-atm:latest
+  wxo-flow-runtime:
+    image: us.icr.io/watson-orchestrate-private/flow-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
     platform: linux/amd64
     environment:
@@ -401,10 +401,10 @@ services:
       SERVER_HTTP_PORT: "9044"
       SERVER_CONTEXT_PATH: /tempus
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
-      SERVER_CALLBACK_URL: http://wxo-tempus-atm:9044/tempus/task/callback/{thread_id}/{requestId}
+      SERVER_CALLBACK_URL: http://wxo-flow-runtime:9044/tempus/task/callback/{thread_id}/{requestId}
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
-      SERVER_INTERNAL_HOSTNAME: wxo-tempus-atm
+      SERVER_INTERNAL_HOSTNAME: wxo-flow-runtime
       SERVER_INTERNAL_PORT: "9044"
       WATSONX_AI_AUTH_TYPE: iam
       WATSONX_AI_PROJECT_ID: ""
