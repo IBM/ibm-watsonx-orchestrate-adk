@@ -415,11 +415,7 @@ services:
       PG_USER: ${POSTGRES_USER:-postgres}
       PG_PASSWORD: ${POSTGRES_PASSWORD}
       PG_DATABASE: postgres
-      SKILL_PROXY_BASE_URL: "" # TODO
-      SKILL_SERVER_BASE_URL: "" # TODO
-      CDS_BASE_URL: "" # TODO
-      USER_MGNT_BASE_URL: "" # TODO
-      BA_SAAS_TENANT_EVENT_ENABLED: "false"
+      USER_MGMT_BASE_URL: "" # TODO
       WXO_SERVER_BASE_URL: http://wxo-server:4321
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
