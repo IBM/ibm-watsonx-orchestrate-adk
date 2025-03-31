@@ -1,7 +1,7 @@
 import typer
 from typing_extensions import Annotated, List
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
-from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme
+from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
 import json
 
 agents_app = typer.Typer(no_args_is_help=True)
@@ -47,6 +47,10 @@ def agent_create(
         ExternalAgentAuthScheme,
         typer.Option("--auth-scheme", help="External Api auth schema to be used"),
     ] = ExternalAgentAuthScheme.NONE,
+    provider: Annotated[
+        AgentProvider,
+        typer.Option("--provider", "-p", help="Agent Provider to be used.")
+    ] = AgentProvider.EXT_CHAT,
     auth_config: Annotated[
         str,
         typer.Option(
@@ -137,6 +141,7 @@ def agent_create(
         api_url=api_url,
         auth_scheme=auth_scheme,
         auth_config=auth_config_dict,
+        provider=provider,
         llm=llm,
         style=style,
         collaborators=collaborators,

@@ -3,10 +3,13 @@
 ## Import Agents
 #### `orchestrate agents import`
   This command allows the user to import agents into the WXO platform. It can import agents from 3 different file types. All files are passed in with the `--file` or `-f` flag.
+
    ```bash
    orchestrate agents import -f <path to .yaml/.json/.py file>
    ```
     1. **YAML files (.yaml/.yml)**
+
+   **Native Agent**
    ```yaml
    spec_version: v1
    kind: native
@@ -20,7 +23,36 @@
    tools:
     - name_of_tool_1
    ```
+
+   **External Agent**
+   ```yaml
+spec_version: v1
+kind: external 
+name: news_agent
+title: News Agent
+description: >
+   An agent running in a custom langchain container capable of communicating with multiple news sources to
+    combat disinformation.
+tags:
+  - test
+  - other
+api_url: "https://someurl.com"
+chat_params:
+  stream: true
+config:
+    hidden: false
+    enable_cot: true
+nickname: news_agent
+app_id: my_news_agent 
+auth_scheme: BEARER_TOKEN
+auth_config:
+    token: "123" 
+provider: external_chat
+   ```
+
     2. **JSON files (.json)**
+
+   **Native Agent**
    ```json
    {
       "spec_version": "v1",
@@ -38,6 +70,42 @@
       ]
    }
    ```
+
+   **External Agent**
+
+   ```json
+   {
+      "spec_version": "v1",
+      "kind": "external",
+      "name": "news_agent",
+      "title": "News Agent",
+      "description": "An agent running in a custom langchain container capable of communicating with multiple news sources to\n combat disinformation.\n",
+      "tags": [
+         "test",
+         "other"
+      ],
+      "api_url": "https://someurl.com",
+      "chat_params": {
+         "stream": true
+      },
+      "config": {
+         "hidden": false,
+         "enable_cot": true
+      },
+      "nickname": "news_agent",
+      "app_id": "my_news_agent",
+      "auth_scheme": "BEARER_TOKEN",
+      "auth_config": {
+         "token": "123"
+      },
+      "provider": "external-chat"
+   }
+   ```
+
+
+   #### `orchestrate agents import`
+
+
     3. **Python files (.py)**
 
   Python is unique as it can import multiple agents from the same file. It can also import tools (see `orchestrate tools import`) used by the agents.
@@ -86,6 +154,9 @@
 
    **External Agent**
 
+   Allows you to call out to an External Agent that is hosted on a different platform such as Salesforce etc.
+   [External Agent Documentation](https://github.com/watson-developer-cloud/watsonx-orchestrate-developer-toolkit/tree/main/external_agent/examples)
+
    Flags
 
    * `--name` / `-n`    is the name of the agent you want to create
@@ -112,6 +183,41 @@
     --config '{"hidden": false, "enable_cot": false}' \
     --nickname "news_agent" \
     --app-id "my-basic-app"
+   ```
+
+   **WX.AI External Agent**
+   
+   In order to call out to agents on the WX.AI platform, set the Provider to `wx.ai`. 
+    Flags
+
+   * `--name` / `-n`    is the name of the agent you want to create
+   * `--kind` / `-k`    is the kind of agent you wish to create. For external agents the value should be `external`
+   * `--title` / `-t`   is the title of the agent you wish to create
+   * `--description`    is the description of the agent
+   * `--api` / `-a`     is External Api url your Agent will use
+   * `--auth-config`    is External Api Auth Config in JSON format (e.g., '{"token": "sometoken"}')
+   * `--auth-scheme`    is External Api Auth Scheme (e.g., API_KEY for WX.AI)
+   * `--tags`           is the list of tags for the agent. Format: --tags tag1 --tags tag2 ... Only needed for External and Assistant Agents
+   * `--chat-params`    is the chat parameters in JSON format (e.g., '{"stream": true}'). Only needed for External and Assistant Agents
+   * `--config`         is the Agent configuration in JSON format (e.g., '{"hidden": false, "enable_cot": false}')
+   * `--nickname`       is the Agent's nickname
+   * `--app-id`         is Application connection name used by the agent
+   * `--provider`       is External Agent Provider. It will be `wx.ai` for WX.AI agent
+
+   ```bash
+   orchestrate agents create \
+    --name science_agent \
+    --title "Sciene Agent" \
+    --description "This external agent answers questions about Space" \
+    --api "http://some_url.com" \
+    --auth-config '{"token": "sometoken"}' \
+    --auth-scheme 'API_KEY' \
+    --kind external \
+    --tags "wx.ai" \
+    --chat-params '{"stream": true}' \
+    --config '{"hidden": false, "enable_cot": false}' \
+    --nickname "Science Agent" \
+    --provider "wx.ai"
    ```
 
 

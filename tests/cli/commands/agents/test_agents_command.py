@@ -1,5 +1,5 @@
 from ibm_watsonx_orchestrate.cli.commands.agents import agents_command
-from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, ExternalAgentAuthScheme
+from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
 from unittest.mock import patch
 
 class TestAgentImport:
@@ -35,6 +35,7 @@ class TestAgentCreate:
                 api_url=None,
                 auth_scheme=ExternalAgentAuthScheme.API_KEY,
                 auth_config={},
+                provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.DEFAULT,
                 collaborators=[],
@@ -54,6 +55,7 @@ class TestAgentCreate:
                 api_url=None,
                 auth_scheme=ExternalAgentAuthScheme.API_KEY,
                 auth_config={},
+                provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.DEFAULT,
                 collaborators=[],

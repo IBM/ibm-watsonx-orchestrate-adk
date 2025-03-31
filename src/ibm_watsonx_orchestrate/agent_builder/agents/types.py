@@ -23,6 +23,11 @@ class ExternalAgentAuthScheme(str, Enum):
     API_KEY = "API_KEY"
     NONE = 'NONE'
 
+class AgentProvider(str, Enum):
+    WXAI = "wx.ai"
+    EXT_CHAT = "external_chat"
+    SALESFORCE = "salesforce"
+
 
 
 class BaseAgentSpec(BaseModel):
@@ -115,6 +120,7 @@ class ExternalAgentSpec(BaseAgentSpec):
     api_url: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     auth_scheme: ExternalAgentAuthScheme = ExternalAgentAuthScheme.NONE
     auth_config: dict = {}
+    provider: AgentProvider = AgentProvider.EXT_CHAT
     chat_params: dict = None
     config: ExternalAgentConfig = ExternalAgentConfig()
     nickname: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
