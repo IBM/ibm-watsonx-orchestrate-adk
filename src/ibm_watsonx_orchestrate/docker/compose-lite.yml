@@ -75,6 +75,7 @@ services:
     restart: unless-stopped
     environment:
       WXO_DEPLOYMENT_TYPE: 'laptop'
+      AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
     command: 'npm start'
     ports:
       - '4025:4025'
