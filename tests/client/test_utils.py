@@ -166,6 +166,7 @@ class TestInstantiateClient:
             captured = caplog.text
             assert "No URL found for environment 'testing'" in captured
     
+
     @pytest.mark.parametrize(
         "client",
         [
@@ -192,8 +193,6 @@ class TestInstantiateClient:
         [
             ToolClient,
             AgentClient,
-            # ExternalAgentClient,
-            # AssistantAgentClient,
             ApplicationConnectionsClient
         ],
     )

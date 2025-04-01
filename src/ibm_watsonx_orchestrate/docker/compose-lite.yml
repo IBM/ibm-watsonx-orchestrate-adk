@@ -38,6 +38,7 @@ services:
     environment:
       NODE_ENV: development
       REACT_APP_WEB_CHAT_ENVIRONMENT: local
+      REACT_APP_TENANT_ID: ${REACT_APP_TENANT_ID}
       VCAP_APP_PORT: 4002
       REACT_APP_ENVIRONMENT: local
       DEPLOYMENT_ENVIRONMENT: local
