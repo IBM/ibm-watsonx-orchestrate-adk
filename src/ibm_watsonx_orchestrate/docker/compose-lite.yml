@@ -393,6 +393,7 @@ services:
     image: us.icr.io/watson-orchestrate-private/flow-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
     platform: linux/amd64
+    profiles: [with-flow-runtime]
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
       COMMON_CONFIG_FILE: "/shared/common-config.yaml"
