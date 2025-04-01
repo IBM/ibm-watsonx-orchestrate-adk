@@ -11,13 +11,17 @@ import platform
 
 import typer
 import importlib.resources as resources
+import jwt
+
 from dotenv import dotenv_values, load_dotenv
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
 
-from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
-from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token
+from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
+from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
+    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, ENVIRONMENTS_SECTION_HEADER, ENV_WXO_URL_OPT, \
+    CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, AUTH_SECTION_HEADER
 from dotenv import dotenv_values, load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -245,6 +249,15 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
         default_env_path,
         user_env_file if user_env_file else None
     )
+
+    _login(name=PROTECTED_ENV_NAME)
+    auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+    existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(PROTECTED_ENV_NAME, {})
+    existing_token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
+    token = jwt.decode(existing_token, options={"verify_signature": False})
+    tenant_id = token.get('woTenantId', None)
+    merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
+
 
     registry_url = merged_env_dict.get("REGISTRY_URL")
     if not registry_url:
