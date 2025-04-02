@@ -441,7 +441,7 @@ def server_start(
     ),
     with_flow_runtime: bool = typer.Option(
         False,
-        '--with-tempus-runtime', '-w',
+        '--with-tempus-runtime', '-f',
         help='Option to start server with tempus-runtime.',
         hidden=True
     )
