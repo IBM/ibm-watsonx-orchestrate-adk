@@ -173,9 +173,9 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
     else:
         command = compose_command
 
-    # Check if we start the server with flow-runtime.
+    # Check if we start the server with tempus-runtime.
     if with_flow_runtime:
-        command += ['--profile', 'with-flow-runtime']
+        command += ['--profile', 'with-tempus-runtime']
 
     command += [
         "-f", str(compose_path),
@@ -441,8 +441,9 @@ def server_start(
     ),
     with_flow_runtime: bool = typer.Option(
         False,
-        '--with-flow-runtime', '-wfr',
-        help='Option to start server with flow-runtime.'
+        '--with-tempus-runtime', '-w',
+        help='Option to start server with tempus-runtime.',
+        hidden=True
     )
 ):
     if user_env_file and not Path(user_env_file).exists():
