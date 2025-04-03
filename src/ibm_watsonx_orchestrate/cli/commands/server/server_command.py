@@ -138,7 +138,7 @@ def refresh_local_credentials() -> None:
 
 
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_flow_runtime=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -172,6 +172,10 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> 
         ]
     else:
         command = compose_command
+
+    # Check if we start the server with tempus-runtime.
+    if with_flow_runtime:
+        command += ['--profile', 'with-tempus-runtime']
 
     command += [
         "-f", str(compose_path),
@@ -434,6 +438,12 @@ def server_start(
         False,
         '--experimental-with-langfuse', '-l',
         help=''
+    ),
+    with_flow_runtime: bool = typer.Option(
+        False,
+        '--with-tempus-runtime', '-f',
+        help='Option to start server with tempus-runtime.',
+        hidden=True
     )
 ):
     if user_env_file and not Path(user_env_file).exists():
@@ -466,7 +476,7 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse)
+    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_flow_runtime=with_flow_runtime)
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
@@ -487,6 +497,8 @@ def server_start(
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+    if with_flow_runtime:
+        logger.info(f"Starting with flow runtime")
 
 @server_app.command(name="stop")
 def server_stop(

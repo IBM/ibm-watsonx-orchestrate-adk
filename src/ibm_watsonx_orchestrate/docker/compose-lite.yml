@@ -391,6 +391,47 @@ services:
 
 
 
+  wxo-tempus-runtime:
+    image: us.icr.io/watson-orchestrate-private/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
+    restart: unless-stopped
+    platform: linux/amd64
+    profiles: [with-tempus-runtime]
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+      COMMON_CONFIG_FILE: "/shared/common-config.yaml"
+      SERVER_MODE: production
+      SERVER_ENVIRONMENT: SDK
+      SERVER_HTTP_PORT: "9044"
+      SERVER_CONTEXT_PATH:
+      SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
+      SERVER_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
+      JWT_SECRET: ${JWT_SECRET}
+      SERVER_INTERNAL_PROTOCOL: http
+      SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
+      SERVER_INTERNAL_PORT: "9044"
+      WATSONX_AI_AUTH_TYPE: iam
+      WATSONX_AI_PROJECT_ID: ""
+      WATSONX_AI_SPACE_ID: ${WATSONX_SPACE_ID}
+      WATSONX_AI_APIKEY: ${WATSONX_APIKEY}
+      PG_HOST: wxo-server-db
+      PG_PORT: "5432"
+      PG_USER: ${POSTGRES_USER:-postgres}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DATABASE: postgres
+      USER_MGMT_BASE_URL: "" # TODO
+      WXO_SERVER_BASE_URL: http://wxo-server:4321
+    healthcheck:
+      test: curl -k http://localhost:9044/readiness --fail
+      interval: 5s
+      timeout: 60s
+      retries: 5
+    ports:
+      - 9044:9044
+    volumes:
+      - ./tempus/common-config.yaml:/shared/common-config.yaml
+    depends_on:
+      - wxo-server-db
+    
 volumes:
   tools:
     driver: local
