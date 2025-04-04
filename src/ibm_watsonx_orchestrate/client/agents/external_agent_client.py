@@ -21,7 +21,7 @@ class ExternalAgentClient(BaseAPIClient):
     
     def get_draft_by_name(self, agent_name: str) -> List[dict]:
         try:
-            return [self._get(f"/agents/external-chat/?name={agent_name}")]
+            return [self._get(f"/agents/external-chat/?name={agent_name}&include_hidden=true")]
         except ClientAPIException as e:
             if e.response.status_code == 404 and "External agent not found with the given name" in e.response.text:
                 # return None
