@@ -435,6 +435,15 @@ class AgentsController:
             response = self.get_external_client().get()
             external_agents = [ExternalAgent.model_validate(agent) for agent in response]
 
+            response_dict = {agent["id"]: agent for agent in response}
+
+            # Insert config values into config as config object is not retruned from api
+            for external_agent in external_agents:
+                if external_agent.id in response_dict:
+                    response_data = response_dict[external_agent.id]
+                    external_agent.config.enable_cot = response_data.get("enable_cot", external_agent.config.enable_cot)
+                    external_agent.config.hidden = response_data.get("hidden", external_agent.config.hidden)
+
             external_agents_list = []
             if verbose:
                 for agent in external_agents:
