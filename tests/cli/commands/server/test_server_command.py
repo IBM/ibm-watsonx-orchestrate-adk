@@ -233,7 +233,10 @@ def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
 def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
     with patch("subprocess.run") as mock_run, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose:
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check") as mock_wait_for_wxo_server_health_check, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite") as mock_run_compose_lite:
+        mock_wait_for_wxo_server_health_check.return_value = True
         mock_default.return_value = valid_user_env
         mock_compose.return_value = mock_compose_file
         mock_run.return_value.returncode = 0
@@ -246,7 +249,7 @@ def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
         captured = caplog.text
 
         assert result.exit_code == 0
-        assert "Services started successfully." in captured
+        assert "services initialized successfully" in captured
 
 def test_cli_start_missing_credentials(caplog):
     result = runner.invoke(

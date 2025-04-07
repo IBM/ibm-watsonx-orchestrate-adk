@@ -480,12 +480,18 @@ def server_start(
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
-    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 300
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:
-        logger.info("Orchestrate services initialized successfuly")
+        logger.info("Orchestrate services initialized successfully")
     else:
-        logger.warning("Server components are not yet fully started and ready.  You may want to check the logs with `orchestrate server logs`")
+        logger.error(
+            "The server did not successfully start within the given timeout. This is either an indication that something "
+            f"went wrong, or that the server simply did not start within {health_check_timeout} seconds. Please check the logs with "
+            "`orchestrate server logs`, or consider increasing the timeout by adding `HEALTH_TIMEOUT=number-of-seconds` "
+            "to your env file."
+        )
+        exit(1)
 
     run_db_migration()
 
