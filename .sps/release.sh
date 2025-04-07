@@ -70,7 +70,7 @@ function python_release() {
         # Pushing this should trigger another pipeline trigger to start a run that will push the version to artifactory
         git_commit_push "$branch" "Release version ${new_version}" --exclude-pipeline-run-url
 
-        git push origin "${new_version}"
+        git push origin "${branch}"
         sleep 2m
 
         git_create_pr --open-from "${branch}" --title "chore(release-candidate): Release Candidate of ${new_version}" --description "Release candidate of ${new_version} created by pipeline run ${BUILD_NUMBER}" --reviewer "Eric-Marcoux"
