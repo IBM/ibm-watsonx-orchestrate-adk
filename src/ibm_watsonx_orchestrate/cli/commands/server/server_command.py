@@ -478,9 +478,11 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_flow_runtime=with_flow_runtime)
 
+    run_db_migration()
+
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
-    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 300
+    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else (7 * 60)
     is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:
         logger.info("Orchestrate services initialized successfully")
@@ -492,8 +494,6 @@ def server_start(
             "to your env file."
         )
         exit(1)
-
-    run_db_migration()
 
     try:
         refresh_local_credentials()

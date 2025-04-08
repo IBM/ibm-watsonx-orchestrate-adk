@@ -20,21 +20,11 @@ class ExternalAgentClient(BaseAPIClient):
         return self._delete(f"/agents/external-chat/{agent_id}")
     
     def get_draft_by_name(self, agent_name: str) -> List[dict]:
-        try:
-            return [self._get(f"/agents/external-chat/?name={agent_name}&include_hidden=true")]
-        except ClientAPIException as e:
-            if e.response.status_code == 404 and "External agent not found with the given name" in e.response.text:
-                # return None
-                return []
-            raise(e)
+        return self.get_drafts_by_names([agent_name])
 
     def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
-        agents = []
-        for name in agent_names:
-            draft_agent = self.get_draft_by_name(name)
-            if draft_agent:
-                agents += draft_agent
-        return agents
+        formatted_agent_names = [f"names={x}" for x  in agent_names]
+        return self._get(f"/agents/external-chat/?{'&'.join(formatted_agent_names)}&include_hidden=true")
     
     def get_draft_by_id(self, agent_id: str) -> List[dict]:
         if agent_id is None:
