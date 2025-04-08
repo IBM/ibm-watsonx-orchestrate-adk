@@ -15,12 +15,13 @@ from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_p
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
     ExternalAgent,
+    AssistantAgent,
     AgentKind,
     SpecVersion
 )
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
-# from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
 from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
@@ -30,7 +31,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
 logger = logging.getLogger(__name__)
 
-def import_python_agent(file: str) -> List[Agent]:
+def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     # Import tools
     import_python_tool(file)
 
@@ -43,12 +44,12 @@ def import_python_agent(file: str) -> List[Agent]:
 
     agents = []
     for _, obj in inspect.getmembers(module):
-        if isinstance(obj, Agent) or isinstance(obj, ExternalAgent):
+        if isinstance(obj, Agent) or isinstance(obj, ExternalAgent) or isinstance(obj, AssistantAgent):
             agents.append(obj)
     return agents
 
 
-def create_agent_from_spec(file:str, kind:str) -> Agent:
+def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | AssistantAgent:
     if not kind:
         kind = AgentKind.NATIVE
     match kind:
@@ -56,14 +57,14 @@ def create_agent_from_spec(file:str, kind:str) -> Agent:
             agent = Agent.from_spec(file)
         case AgentKind.EXTERNAL:
             agent = ExternalAgent.from_spec(file)
-        # case AgentKind.ASSISTANT:
-        #     agent = AssistantAgent.from_spec(file)
+        case AgentKind.ASSISTANT:
+            agent = AssistantAgent.from_spec(file)
         case _:
             raise ValueError("'kind' must be either 'native' or 'external'")
 
     return agent
 
-def parse_file(file: str) -> List[Agent]:
+def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
         with open(file, 'r') as f:
             if file.endswith(".json"):
@@ -117,6 +118,19 @@ def parse_create_external_args(name: str, kind: AgentKind, description: str | No
 
     return agent_details
 
+def parse_create_assistant_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
+    agent_details = {
+        "name": name,
+        "kind": kind,
+        "description": description,
+        "title": args.get("title"),
+        "tags": args.get("tags", []),
+        "config": args.get("config", {}),
+        "nickname": args.get("nickname"),
+    }
+
+    return agent_details
+
 def get_conn_id_from_app_id(app_id: str) -> str:
     connections_client: ApplicationConnectionsClient =  instantiate_client(ApplicationConnectionsClient)
     connections = connections_client.get_draft_by_app_id(app_id=app_id)
@@ -132,7 +146,7 @@ class AgentsController:
     def __init__(self):
         self.native_client = None
         self.external_client = None
-        # self.assistant_client = None
+        self.assistant_client = None
         self.tool_client = None
 
     def get_native_client(self):
@@ -145,10 +159,10 @@ class AgentsController:
             self.external_client = instantiate_client(ExternalAgentClient)
         return self.external_client
     
-    # def get_assistant_client(self):
-    #     if not self.assistant_client:
-    #         self.assistant_client = instantiate_client(AssistantAgentClient)
-    #     return self.assistant_client
+    def get_assistant_client(self):
+        if not self.assistant_client:
+            self.assistant_client = instantiate_client(AssistantAgentClient)
+        return self.assistant_client
     
     def get_tool_client(self):
         if not self.tool_client:
@@ -159,7 +173,7 @@ class AgentsController:
     def import_agent(file: str, app_id: str) -> Iterable:
         agents = parse_file(file)
         for agent in agents:
-            if app_id and agent.kind != AgentKind.NATIVE:
+            if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
         return agents
 
@@ -167,7 +181,7 @@ class AgentsController:
     @staticmethod
     def generate_agent_spec(
         name: str, kind: AgentKind, description: str, **kwargs
-    ) -> Agent | ExternalAgent:
+    ) -> Agent | ExternalAgent | AssistantAgent:
         match kind:
             case AgentKind.NATIVE:
                 agent_details = parse_create_native_args(name, kind=kind, description=description, **kwargs)
@@ -182,6 +196,10 @@ class AgentsController:
                     connection_id = get_conn_id_from_app_id(kwargs.get("app_id"))
 
                     agent.connection_id = connection_id
+            case AgentKind.ASSISTANT:
+                agent_details = parse_create_assistant_args(name, kind=kind, description=description, **kwargs)
+                agent = AssistantAgent.model_validate(agent_details)
+                AgentsController().persist_record(agent=agent, **kwargs)
             case _:
                 raise ValueError("'kind' must be 'native' or 'external' for agent creation")
         return agent
@@ -192,13 +210,13 @@ class AgentsController:
     def dereference_collaborators(self, agent: Agent) -> Agent:
         native_client = self.get_native_client()
         external_client = self.get_external_client()
-        # assistant_client = self.get_assistant_client()
+        assistant_client = self.get_assistant_client()
 
         deref_agent = deepcopy(agent)
         matching_native_agents = native_client.get_drafts_by_names(deref_agent.collaborators)
         matching_external_agents = external_client.get_drafts_by_names(deref_agent.collaborators)
-        # matching_assistant_agents = assistant_client.get_drafts_by_names(deref_agent.collaborators)
-        matching_agents = matching_native_agents + matching_external_agents #+ matching_assistant_agents
+        matching_assistant_agents = assistant_client.get_drafts_by_names(deref_agent.collaborators)
+        matching_agents = matching_native_agents + matching_external_agents + matching_assistant_agents
         name_id_lookup = {}
         for a in matching_agents:
             if a.get("name") in name_id_lookup:
@@ -241,10 +259,13 @@ class AgentsController:
 
         return deref_agent
     
-    # TODO: Put back AssistantAgent here when its implemented next
     @staticmethod
-    def dereference_app_id(agent: ExternalAgent) -> ExternalAgent:
-        agent.connection_id = get_conn_id_from_app_id(agent.app_id)
+    def dereference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
+        if agent.kind == AgentKind.EXTERNAL:
+            agent.connection_id = get_conn_id_from_app_id(agent.app_id)
+        else:
+            agent.config.connection_id = get_conn_id_from_app_id(agent.config.app_id)
+
         return agent
 
 
@@ -256,18 +277,18 @@ class AgentsController:
 
         return agent
     
-    # TODO: Put back AssistantAgent here when its implemented next
-    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent) -> ExternalAgent:
-        if agent.app_id:
+    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+        agent_dict = agent.model_dump()
+
+        if agent_dict.get("app_id") or agent.config.model_dump().get("app_id"):
             agent = self.dereference_app_id(agent)
 
         return agent
                 
-    def dereference_agent_dependencies(self, agent: Agent ) -> Agent:
+    def dereference_agent_dependencies(self, agent: Agent ) -> Agent | ExternalAgent | AssistantAgent:
         if isinstance(agent, Agent):
             return self.dereference_native_agent_dependencies(agent)
-        # TODO: Put back AssistantAgent here when its implemented next -> isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent)
-        if isinstance(agent, ExternalAgent):
+        if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.dereference_external_or_assistant_agent_dependencies(agent)
         
 
@@ -279,13 +300,16 @@ class AgentsController:
 
             native_client = self.get_native_client()
             external_client = self.get_external_client()
+            assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
             existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
             existing_external_clients = external_client.get_draft_by_name(agent_name)
             existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
+            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
 
-            all_existing_agents = existing_external_clients + existing_native_agents
+            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
             agent = self.dereference_agent_dependencies(agent)
 
             agent_kind = agent.kind
@@ -313,9 +337,9 @@ class AgentsController:
         if isinstance(agent, ExternalAgent):
             self.get_external_client().create(agent.model_dump())
             logger.info(f"External Agent '{agent.name}' imported successfully")
-        # if isinstance(agent, AssistantAgent):
-        #     self.get_assistant_client().create(agent.model_dump(by_alias=True))
-        #     logger.info(f"Assistant Agent '{agent.name}' imported successfully")
+        if isinstance(agent, AssistantAgent):
+            self.get_assistant_client().create(agent.model_dump(by_alias=True))
+            logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
         self, agent_id: str, agent: Agent, **kwargs
@@ -328,10 +352,10 @@ class AgentsController:
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
             self.get_external_client().update(agent_id, agent.model_dump())
             logger.info(f"External Agent '{agent.name}' updated successfully")
-        # if isinstance(agent, AssistantAgent):
-        #     logger.info(f"Existing Assistant Agent '{agent.name}' found. Updating...")
-        #     self.get_assistant_client().update(agent_id, agent.model_dump(by_alias=True))
-        #     logger.info(f"Assistant Agent '{agent.name}' updated successfully")
+        if isinstance(agent, AssistantAgent):
+            logger.info(f"Existing Assistant Agent '{agent.name}' found. Updating...")
+            self.get_assistant_client().update(agent_id, agent.model_dump(by_alias=True))
+            logger.info(f"Assistant Agent '{agent.name}' updated successfully")
 
     @staticmethod
     def persist_record(agent: Agent, **kwargs):
@@ -356,6 +380,7 @@ class AgentsController:
         """Retrieve collaborator names for a given agent based on collaborator IDs."""
         collaborator_client = self.get_native_client()
         external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
         collaborators = []
         
         for agent_id in agent_ids:
@@ -373,6 +398,15 @@ class AgentsController:
                 external_collaborator = external_client.get_draft_by_id(agent_id)
                 if external_collaborator:
                     collaborators.append(external_collaborator["name"])
+                    continue
+            except Exception:
+                pass
+
+            try:
+                # If not found in native or external, check assistant agents
+                assistant_collaborator = assistant_client.get_draft_by_id(agent_id)
+                if assistant_collaborator:
+                    collaborators.append(assistant_collaborator["name"])
                     continue
             except Exception:
                 pass
@@ -433,6 +467,7 @@ class AgentsController:
       
         if kind == AgentKind.EXTERNAL or kind is None:
             response = self.get_external_client().get()
+
             external_agents = [ExternalAgent.model_validate(agent) for agent in response]
 
             response_dict = {agent["id"]: agent for agent in response}
@@ -490,51 +525,63 @@ class AgentsController:
                     )
                 rich.print(external_table)
         
-        # if kind == AgentKind.ASSISTANT or kind is None:
-        #     response = self.get_assistant_client().get()
-        #     assistant_agents = [AssistantAgent.model_validate(agent) for agent in response]
+        if kind == AgentKind.ASSISTANT or kind is None:
+            response = self.get_assistant_client().get()
 
-        #     if verbose:
-        #         for agent in assistant_agents:
-        #             rich.print(agent.dumps_spec())
-        #     else:
-        #         assistants_table = rich.table.Table(
-        #             show_header=True, 
-        #             header_style="bold white", 
-        #             title="Assistant Agents",
-        #             show_lines=True)
-        #         column_args = {
-        #             "Name": {},
-        #             "Title": {},
-        #             "Description": {},
-        #             "Tags": {},
-        #             "Nickname": {},
-        #             "CRN": {},
-        #             "Instance URL": {},
-        #             "Assistant ID": {},
-        #             "Environment ID": {},
-        #             "App ID": {},
-        #             "ID": {}
-        #             }
+            assistant_agents = [AssistantAgent.model_validate(agent) for agent in response]
+
+            response_dict = {agent["id"]: agent for agent in response}
+
+            # Insert config values into config as config object is not retruned from api
+            for assistant_agent in assistant_agents:
+                if assistant_agent.id in response_dict:
+                    response_data = response_dict[assistant_agent.id]
+                    assistant_agent.config.api_version = response_data.get("api_version", assistant_agent.config.api_version)
+                    assistant_agent.config.assistant_id = response_data.get("assistant_id", assistant_agent.config.assistant_id)
+                    assistant_agent.config.crn = response_data.get("crn", assistant_agent.config.crn)
+                    assistant_agent.config.service_instance_url = response_data.get("service_instance_url", assistant_agent.config.service_instance_url)
+                    assistant_agent.config.environment_id = response_data.get("environment_id", assistant_agent.config.environment_id)
+                    assistant_agent.config.authorization_url = response_data.get("authorization_url", assistant_agent.config.authorization_url)
+
+            if verbose:
+                for agent in assistant_agents:
+                    rich.print(agent.dumps_spec())
+            else:
+                assistants_table = rich.table.Table(
+                    show_header=True, 
+                    header_style="bold white", 
+                    title="Assistant Agents",
+                    show_lines=True)
+                column_args = {
+                    "Name": {},
+                    "Title": {},
+                    "Description": {},
+                    "Tags": {},
+                    "Nickname": {},
+                    "CRN": {},
+                    "Instance URL": {},
+                    "Assistant ID": {},
+                    "Environment ID": {},
+                    "ID": {}
+                    }
                 
-        #         for column in column_args:
-        #             assistants_table.add_column(column, **column_args[column])
+                for column in column_args:
+                    assistants_table.add_column(column, **column_args[column])
                 
-        #         for agent in assistant_agents:
-        #             assistants_table.add_row(
-        #                 agent.name,
-        #                 agent.title,
-        #                 agent.description,
-        #                 ", ".join(agent.tags),
-        #                 agent.nickname,
-        #                 agent.config.crn,
-        #                 agent.config.instance_url,
-        #                 agent.config.assistant_id,
-        #                 agent.config.environment_id,
-        #                 agent.app_id,
-        #                 agent.id
-        #             )
-        #         rich.print(assistants_table)
+                for agent in assistant_agents:
+                    assistants_table.add_row(
+                        agent.name,
+                        agent.title,
+                        agent.description,
+                        ", ".join(agent.tags or []),
+                        agent.nickname,
+                        agent.config.crn,
+                        agent.config.service_instance_url,
+                        agent.config.assistant_id,
+                        agent.config.environment_id,
+                        agent.id
+                    )
+                rich.print(assistants_table)
 
     def remove_agent(self, name: str, kind: AgentKind):
             try:
@@ -542,8 +589,8 @@ class AgentsController:
                     client = self.get_native_client()
                 elif kind == AgentKind.EXTERNAL:
                     client = self.get_external_client()
-                # elif kind == AgentKind.ASSISTANT:
-                #     client = self.get_assistant_client()
+                elif kind == AgentKind.ASSISTANT:
+                    client = self.get_assistant_client()
                 else:
                     raise ValueError("'kind' must be 'native'")
 

@@ -27,7 +27,15 @@ class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
     SALESFORCE = "salesforce"
+    WATSONX = "watsonx" #provider type returned from an assistant agent
 
+
+class AssistantAgentAuthType(str, Enum):
+    ICP_IAM = "ICP_IAM"
+    IBM_CLOUD_IAM = "IBM_CLOUD_IAM"
+    MCSP = "MCSP"
+    BEARER_TOKEN = "BEARER_TOKEN"
+    HIDDEN = "<hidden>"
 
 
 class BaseAgentSpec(BaseModel):
@@ -151,13 +159,17 @@ def validate_external_agent_fields(values: dict) -> dict:
 # # ===============================
 
 class AssistantAgentConfig(BaseModel):
-    api_version: str
-    assistant_id: str
-    crn: str
-    # service_instance_url
-    # Optional[Literal['query', 'header', 'cookie']] = Field(None, validation_alias=AliasChoices('in', 'in_field'), serialization_alias='in')
-    instance_url: str = Field(validation_alias=AliasChoices('instance_url', 'service_instance_url'), serialization_alias='service_instance_url')
-    environment_id: str
+    api_version: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    assistant_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    crn: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    service_instance_url: Annotated[str | None, Field(validation_alias=AliasChoices('instance_url', 'service_instance_url'), serialization_alias='service_instance_url')] = None
+    environment_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    auth_type: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    connection_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    api_key: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    authorization_url: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    auth_type: AssistantAgentAuthType = AssistantAgentAuthType.MCSP
+
 
 class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -165,13 +177,13 @@ class AssistantAgentSpec(BaseAgentSpec):
     kind: AgentKind = AgentKind.ASSISTANT
     title: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     tags: Optional[List[str]] = None
-    config: AssistantAgentConfig
+    config: AssistantAgentConfig = AssistantAgentConfig()
     nickname: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
-    app_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
+    connection_id: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
 
     @model_validator(mode="before")
     def validate_fields_for_external(cls, values):
-        return validate_external_agent_fields(values)
+        return validate_assistant_agent_fields(values)
 
     @model_validator(mode="after")
     def validate_kind_for_external(self):
@@ -179,7 +191,7 @@ class AssistantAgentSpec(BaseAgentSpec):
             raise ValueError(f"The specified kind '{self.kind}' cannot be used to create an assistant agent.")
         return self
 
-def validate_external_agent_fields(values: dict) -> dict:
+def validate_assistant_agent_fields(values: dict) -> dict:
     # Check for empty strings or whitespace
     for field in ["name", "kind", "description", "title", "tags", "nickname", "app_id"]:
         value = values.get(field)

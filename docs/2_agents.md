@@ -102,6 +102,31 @@ provider: external_chat
    }
    ```
 
+   **Assistant Agent**
+   ```json
+   {
+   "spec_version": "v1",
+   "title": "async_bot",
+   "kind": "assistant",
+   "description": "This a bot that help with invoking tranfering blue points",
+   "tags": [
+      "string"
+   ],
+   "name": "tranfer_bluepoints_bot",
+   "nickname": "tranfer_bluepoints_bot",
+   "config": {
+      "assistant_id": "1234",
+      "environment_id": "1234",
+      "hidden": false,
+      "api_key": "some_api_key",
+      "service_instance_url": "https://someurl.com",
+      "api_version": "2023-06-15",
+      "auth_type": "MCSP",
+      "authorization_url": "https://some_auth_url.com"
+      }
+   }
+   ```
+
 
    #### `orchestrate agents import`
 
@@ -132,13 +157,13 @@ provider: external_chat
 
   Flags
 
-   * `--name` / `-n` is the name of the agent you want to create
-   * `--kind` / `-k` is the kind of agent you wish to create. For native agents the value should be `native`
-   * `--description` is the description of the agent
-   * `--llm` what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
-   * `--style` is the style of agent you want to create. Either `default` or `react`
-   * `--collaborators` is a list of agents that the agent should be able to call out to. Multiple collaborators can be specified .e.g. `--collaborators agent_1 --collaborators agent_2`
-   * `--tools` is a list of tools that the agent should be able to use. Multiple tools can be specified .e.g. `--tools tool_1 --tools tool_2`
+   * `--name` / `-n`    is the name of the agent you want to create
+   * `--kind` / `-k`    is the kind of agent you wish to create. For native agents the value should be `native`
+   * `--description`    is the description of the agent
+   * `--llm`            what large language model the agent in the format of provider/model_id e.g. watsonx/ibm/granite-3-8b-instruct
+   * `--style`          is the style of agent you want to create. Either `default` or `react`
+   * `--collaborators`  is a list of agents that the agent should be able to call out to. Multiple collaborators can be specified .e.g. `--collaborators agent_1 --collaborators agent_2`
+   * `--tools`          is a list of tools that the agent should be able to use. Multiple tools can be specified .e.g. `--tools tool_1 --tools tool_2`
 
    ```bash
    orchestrate agents create \
@@ -163,7 +188,7 @@ provider: external_chat
    * `--kind` / `-k`    is the kind of agent you wish to create. For external agents the value should be `external`
    * `--title` / `-t`   is the title of the agent you wish to create
    * `--description`    is the description of the agent
-   * `--api` / `-a`      is External Api url your Agent will use
+   * `--api` / `-a`     is External Api url your Agent will use
    * `--tags`           is the list of tags for the agent. Format: --tags tag1 --tags tag2 ... Only needed for External and Assistant Agents
    * `--chat-params`    is the chat parameters in JSON format (e.g., '{"stream": true}'). Only needed for External and Assistant Agents
    * `--config`         is the Agent configuration in JSON format (e.g., '{"hidden": false, "enable_cot": false}')
@@ -184,7 +209,7 @@ provider: external_chat
     --nickname "news_agent" \
     --app-id "my-basic-app"
    ```
-
+   
    **WX.AI External Agent**
    
    In order to call out to agents on the WX.AI platform, set the Provider to `wx.ai`. 
@@ -219,6 +244,29 @@ provider: external_chat
     --nickname "Science Agent" \
     --provider "wx.ai"
    ```
+
+   **Assistant Agent**
+
+   Flags
+
+   * `--name` / `-n`    is the name of the agent you want to create
+   * `--kind` / `-k`    is the kind of agent you wish to create. For external agents the value should be `external`
+   * `--title` / `-t`   is the title of the agent you wish to create
+   * `--description`    is the description of the agent
+   * `--tags`           is the list of tags for the agent. Format: --tags tag1 --tags tag2 ... Only needed for External and Assistant Agents
+   * `--config`         is the Agent configuration in JSON format (e.g., '{"assistant_id": "1", "environment_id": "1", "hidden": false, "api_key": "some_api_key", "service_instance_url": "https://someurl.com",   "api_version": "2023-06-15", "auth_type": "MCSP", "authorization_url": "https://someurl.com"}')
+   * `--nickname`       is the Agent's nickname
+
+    ```bash
+    orchestrate agents create \
+    --name tranfer_bluepoints_bot \
+    --title "async_bot" \
+    --description "This a bot that help with invoking tranfering blue points" \
+    --kind "assistant" \
+    --nickname "tranfer_bluepoints_bot" \
+    --tags "string" \
+    --config '{"assistant_id": "1234", "environment_id": "1234", "hidden": false, "api_key": "xxxx", "service_instance_url": "http://some_url.com", "api_version": "2023-06-15", "auth_type": "MCSP", "authorization_url": "http://some_url.com"}'
+    ```
 
 
 ## Remove Agent
