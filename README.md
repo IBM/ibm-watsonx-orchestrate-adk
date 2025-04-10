@@ -28,7 +28,7 @@ handling responses from the service’s APIs.
 - docker compose
 - python 3.11-3.13
 3. Run `pip install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple ibm-watsonx-orchestrate`
-4. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
+4. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
 5. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 6. Create an env file with the following contents
 ```env
@@ -40,7 +40,6 @@ WATSONX_SPACE_ID=<your watsonx ai space id>
 If you are PM/ developer/ designer who reports up through Vinod, ping [@eric.marcoux](https://ibm.enterprise.slack.com/team/W3PNE8R3L) for watsonx.ai credentials if you do not have them already.
 
 ## Reporting issues
-and include the agent-builder and Defect labels.
 Please raise issues on [wo-tracker](https://github.ibm.com/WatsonOrchestrate/wo-tracker/issues/new?assignees=&labels=type-bug&projects=&template=1-wo-bug-report-template.md&title=BUG%3A+XXX)
 
 ## CLI Documentation
