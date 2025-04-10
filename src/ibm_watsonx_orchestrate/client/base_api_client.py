@@ -35,7 +35,7 @@ class BaseAPIClient:
         self.is_local = is_local
 
         if not self.is_local:
-            self.base_url = f"{self.base_url}/v1/orchestrate"
+            self.base_url = f"{self.base_url}/v1"
 
     def _get_headers(self) -> dict:
         headers = {}
