@@ -26,6 +26,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
 from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
@@ -60,7 +61,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
         case AgentKind.ASSISTANT:
             agent = AssistantAgent.from_spec(file)
         case _:
-            raise ValueError("'kind' must be either 'native' or 'external'")
+            raise BadRequest("'kind' must be either 'native' or 'external'")
 
     return agent
 
@@ -77,7 +78,7 @@ def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
         agents = import_python_agent(file)
         return agents
     else:
-        raise ValueError("file must end in .json, .yaml, .yml or .py")
+        raise BadRequest("file must end in .json, .yaml, .yml or .py")
 
 def parse_create_native_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
     agent_details = {
@@ -170,7 +171,7 @@ class AgentsController:
         return self.tool_client
     
     @staticmethod
-    def import_agent(file: str, app_id: str) -> Iterable:
+    def import_agent(file: str, app_id: str, debug: bool) -> Iterable:
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
@@ -201,7 +202,7 @@ class AgentsController:
                 agent = AssistantAgent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
             case _:
-                raise ValueError("'kind' must be 'native' or 'external' for agent creation")
+                raise BadRequest("'kind' must be 'native' or 'external' for agent creation")
         return agent
 
     def get_all_agents(self, client: None):
@@ -592,7 +593,7 @@ class AgentsController:
                 elif kind == AgentKind.ASSISTANT:
                     client = self.get_assistant_client()
                 else:
-                    raise ValueError("'kind' must be 'native'")
+                    raise BadRequest("'kind' must be 'native'")
 
                 draft_agents = client.get_draft_by_name(name)
                 if len(draft_agents) > 1:

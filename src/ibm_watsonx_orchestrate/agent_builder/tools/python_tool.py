@@ -14,6 +14,7 @@ from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .base_tool import BaseTool
 from .types import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -35,10 +36,10 @@ class PythonTool(BaseTool):
             elif file.endswith('.json'):
                 spec = ToolSpec.model_validate(json.load(f))
             else:
-                raise ValueError('file must end in .json, .yaml, or .yml')
+                raise BadRequest('file must end in .json, .yaml, or .yml')
 
         if spec.binding.python is None:
-            raise ValueError('failed to load python tool as the tool had no python binding')
+            raise BadRequest('failed to load python tool as the tool had no python binding')
 
         [module, fn_name] = spec.binding.python.function.split(':')
         fn = getattr(importlib.import_module(module), fn_name)

@@ -6,6 +6,9 @@ from copy import deepcopy
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from enum import Enum
+from ibm_watsonx_orchestrate.utils.request import BadRequest
+
+STACKTRACE_AMOUNT = 40
 
 # Section Headers
 AUTH_SECTION_HEADER = "auth"
@@ -196,7 +199,7 @@ class Config:
         as keys to access deeper sections of the config and then deleting the last specified key.
         """
         if len(args) < 1:
-            raise ValueError("Config.delete() requires at least one positional argument")
+            raise BadRequest("Config.delete() requires at least one positional argument")
 
         config_data = {}
         try:

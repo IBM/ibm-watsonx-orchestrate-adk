@@ -14,6 +14,7 @@ from ibm_watsonx_orchestrate.client.connections import (
 )
 
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -
         missing_requirements_str = ", ".join(missing_requirements)
         message = f"Missing requirement environment variables '{missing_requirements_str}' for connection '{app_id}'"
         logger.error(message)
-        raise ValueError(message)
+        raise BadRequest(message)
     
     return required_env_vars
 
@@ -121,11 +122,11 @@ def get_application_connection_credentials(type: type[T], app_id: str) -> T:
     if not expected_schema:
         message = f"No credentials found for connections '{app_id}'"
         logger.error(message)
-        raise ValueError(message)
+        raise BadRequest(message)
 
     if not _validate_schema_type(requested_type=type, expected_type=expected_schema):
         message = f"The requested type '{type.__name__}' does not match the type '{expected_schema}' for the connection '{app_id}'"
         logger.error(message)
-        raise ValueError(message)
+        raise BadRequest(message)
 
     return _get_credentials_model(credentials_type=type, app_id=sanitized_app_id)

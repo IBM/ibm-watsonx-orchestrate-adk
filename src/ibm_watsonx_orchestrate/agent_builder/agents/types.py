@@ -6,6 +6,7 @@ from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
 from pydantic import Field, AliasChoices
 from typing import Annotated
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
 DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
@@ -53,7 +54,7 @@ class BaseAgentSpec(BaseModel):
             elif file.endswith('.json'):
                 json.dump(dumped, f, indent=2)
             else:
-                raise ValueError('file must end in .json, .yaml, or .yml')
+                raise BadRequest('file must end in .json, .yaml, or .yml')
 
     def dumps_spec(self) -> str:
         dumped = self.model_dump(mode='json', exclude_none=True)
@@ -92,7 +93,7 @@ class AgentSpec(BaseAgentSpec):
     @model_validator(mode="after")
     def validate_kind(self):
         if self.kind != AgentKind.NATIVE:
-            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
+            raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
         return self
 
 def validate_agent_fields(values: dict) -> dict:
@@ -100,13 +101,13 @@ def validate_agent_fields(values: dict) -> dict:
     for field in ["id", "name", "kind", "description", "collaborators", "tools"]:
         value = values.get(field)
         if value and not str(value).strip():
-            raise ValueError(f"{field} cannot be empty or just whitespace")
+            raise BadRequest(f"{field} cannot be empty or just whitespace")
     
     name = values.get("name")
     collaborators = values.get("collaborators", [])  if values.get("collaborators", []) else []
     for collaborator in collaborators:
         if collaborator == name:
-            raise ValueError(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
+            raise BadRequest(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
 
 
     return values
@@ -142,7 +143,7 @@ class ExternalAgentSpec(BaseAgentSpec):
     @model_validator(mode="after")
     def validate_kind_for_external(self):
         if self.kind != AgentKind.EXTERNAL:
-            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create an external agent.")
+            raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create an external agent.")
         return self
 
 def validate_external_agent_fields(values: dict) -> dict:
@@ -150,7 +151,7 @@ def validate_external_agent_fields(values: dict) -> dict:
     for field in ["name", "kind", "description", "title", "tags", "api_url", "chat_params", "nickname", "app_id"]:
         value = values.get(field)
         if value and not str(value).strip():
-            raise ValueError(f"{field} cannot be empty or just whitespace")
+            raise BadRequest(f"{field} cannot be empty or just whitespace")
 
     return values
 
@@ -188,7 +189,7 @@ class AssistantAgentSpec(BaseAgentSpec):
     @model_validator(mode="after")
     def validate_kind_for_external(self):
         if self.kind != AgentKind.ASSISTANT:
-            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create an assistant agent.")
+            raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create an assistant agent.")
         return self
 
 def validate_assistant_agent_fields(values: dict) -> dict:
@@ -196,6 +197,6 @@ def validate_assistant_agent_fields(values: dict) -> dict:
     for field in ["name", "kind", "description", "title", "tags", "nickname", "app_id"]:
         value = values.get(field)
         if value and not str(value).strip():
-            raise ValueError(f"{field} cannot be empty or just whitespace")
+            raise BadRequest(f"{field} cannot be empty or just whitespace")
 
     return values

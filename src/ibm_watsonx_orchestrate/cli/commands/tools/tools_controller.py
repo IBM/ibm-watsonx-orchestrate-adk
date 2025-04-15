@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,7 @@ class ToolsController:
                 tools = []
                 logger.warning("Skill Import not implemented yet")
             case _:
-                raise ValueError("Invalid kind selected")
+                raise BadRequest("Invalid kind selected")
 
         for tool in tools:
             yield tool

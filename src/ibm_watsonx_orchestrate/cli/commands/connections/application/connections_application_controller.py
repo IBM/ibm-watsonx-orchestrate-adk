@@ -13,6 +13,7 @@ from ibm_watsonx_orchestrate.client.connections import CreateBasicAuthConnection
     CreateOAuth2PasswordConnection, OAuth2PasswordCredentials, ApplicationConnectionsClient, CreateConnectionResponse, CreateKeyValueConnection, KeyValueConnectionCredentials
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.cli.commands.connections.application.types import ApplicationConnectionType
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ def _get_connection(type: ApplicationConnectionType, **args):
                 credentials=KeyValueConnectionCredentials(env)
             )
         case _:
-            raise ValueError(f"Invalid type {type} selected")
+            raise BadRequest(f"Invalid type {type} selected")
     return conn
 
 

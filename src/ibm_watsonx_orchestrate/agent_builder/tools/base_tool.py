@@ -4,6 +4,8 @@ import yaml
 
 from .types import ToolSpec
 
+from ibm_watsonx_orchestrate.utils.request import BadRequest
+
 
 class BaseTool:
     __tool_spec__: ToolSpec
@@ -22,7 +24,7 @@ class BaseTool:
             elif file.endswith('.json'):
                 json.dump(dumped, f, indent=2)
             else:
-                raise ValueError('file must end in .json, .yaml, or .yml')
+                raise BadRequest('file must end in .json, .yaml, or .yml')
 
     def dumps_spec(self) -> str:
         dumped = self.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)

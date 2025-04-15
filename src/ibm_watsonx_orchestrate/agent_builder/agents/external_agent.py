@@ -1,6 +1,7 @@
 import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .types import ExternalAgentSpec
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 
 class ExternalAgent(ExternalAgentSpec):
@@ -13,10 +14,10 @@ class ExternalAgent(ExternalAgentSpec):
             elif file.endswith('.json'):
                 content = json.load(f)
             else:
-                raise ValueError('file must end in .json, .yaml, or .yml')
+                raise BadRequest('file must end in .json, .yaml, or .yml')
             
             if not content.get("spec_version"):
-                raise ValueError(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
+                raise BadRequest(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
             agent = ExternalAgent.model_validate(content)
 
         return agent
