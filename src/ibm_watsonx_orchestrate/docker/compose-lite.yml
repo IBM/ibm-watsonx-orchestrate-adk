@@ -225,6 +225,7 @@ services:
       IS_WXO_LITE: 'TRUE'
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
       ENABLE_WEBHOOKS: false
+      DISABLE_JSON_LOG_CELERY: true
 
   wxo-server-worker:
     image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -295,6 +296,7 @@ services:
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
       ENABLE_WEBHOOKS: false
+      DISABLE_JSON_LOG_CELERY: true
 
 ########################
 # LANGFUSE dependencies
