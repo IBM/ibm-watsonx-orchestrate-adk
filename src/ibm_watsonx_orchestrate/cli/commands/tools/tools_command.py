@@ -50,7 +50,7 @@ def tool_import(
         # skill_id=skill_id,
         # skill_operation_path=skill_operation_path,
         app_id=app_id,
-        requirements_file=requirements_file,
+        requirements_file=requirements_file
     )
     
     tools_controller.publish_or_update_tools(tools)
