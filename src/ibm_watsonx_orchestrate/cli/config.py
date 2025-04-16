@@ -8,8 +8,6 @@ from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from enum import Enum
 from ibm_watsonx_orchestrate.utils.request import BadRequest
 
-STACKTRACE_AMOUNT = 40
-
 # Section Headers
 AUTH_SECTION_HEADER = "auth"
 CONTEXT_SECTION_HEADER = "context"

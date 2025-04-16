@@ -1,5 +1,4 @@
 import typer
-import logging
 import sys
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
@@ -11,8 +10,6 @@ from ibm_watsonx_orchestrate.cli.commands.chat.chat_command import chat_app
 from ibm_watsonx_orchestrate.cli.commands.models.models_command import models_app
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import environment_app
 
-logger = logging.getLogger(__name__)
-
 app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_enable=False
@@ -21,7 +18,6 @@ app = typer.Typer(
 # Global callback to handle --debug flag
 @app.callback()
 def global_flags(debug: bool = False):
-    """This callback adds a global --debug flag."""
     if debug:
         sys.tracebacklimit = 40
     else:

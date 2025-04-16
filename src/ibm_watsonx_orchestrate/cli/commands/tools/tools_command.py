@@ -41,10 +41,6 @@ def tool_import(
             help="Path to Python requirements.txt file. Required for kind python",
         ),
     ] = None,
-    debug: Annotated[
-        bool,
-        typer.Option("--debug", "-d", help="Print out the Stack Trace"),
-    ] = False,
 ):
     tools_controller = ToolsController(kind, file, requirements_file)
     tools = tools_controller.import_tool(
@@ -55,7 +51,6 @@ def tool_import(
         # skill_operation_path=skill_operation_path,
         app_id=app_id,
         requirements_file=requirements_file,
-        debug=debug
     )
     
     tools_controller.publish_or_update_tools(tools)
