@@ -171,7 +171,7 @@ class AgentsController:
         return self.tool_client
     
     @staticmethod
-    def import_agent(file: str, app_id: str, debug: bool) -> Iterable:
+    def import_agent(file: str, app_id: str) -> Iterable:
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
