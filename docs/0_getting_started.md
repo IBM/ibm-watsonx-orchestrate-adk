@@ -40,7 +40,7 @@ orchestrate agents import -f path/to/agent_spec.yaml
 orchestrate chat start --env-file path/to/.env
 ```
 
-13. If you hit an error and wish to see the stack trace, add the `--debug` flag to your command like this:
+13. If you hit an error and wish to see the stack trace, add the `--debug` flag to your command like below. Please note the `--debug` flag must follow `orchestrate`.
 ```
 orchestrate --debug agents import -f tests/cli/resources/yaml_samples/sample-agent.yml
 ```
