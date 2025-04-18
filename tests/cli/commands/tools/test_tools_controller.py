@@ -12,6 +12,7 @@ from typer import BadParameter
 import json
 import pytest
 import uuid
+from ibm_watsonx_orchestrate.utils.request import BadRequest
 
 from mocks.mock_base_api import MockListConnectionResponse
 
@@ -425,7 +426,7 @@ def test_invalid_kind():
         tools = tools_controller.import_tool("invalid")
         list(tools)
         assert False
-    except ValueError as e:
+    except BadRequest as e:
         assert True
         assert str(e) == "Invalid kind selected"
 

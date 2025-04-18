@@ -202,7 +202,7 @@ class AgentsController:
                 agent = AssistantAgent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
             case _:
-                raise BadRequest("'kind' must be 'native' or 'external' for agent creation")
+                raise ValueError("'kind' must be 'native' or 'external' for agent creation")
         return agent
 
     def get_all_agents(self, client: None):
