@@ -41,6 +41,14 @@ def tool_import(
             help="Path to Python requirements.txt file. Required for kind python",
         ),
     ] = None,
+    package_root: Annotated[
+        str,
+        typer.Option("--package-root", "-p", help="""When specified, the package root will be treated 
+as the current working directory from which the module specified by --file will be invoked. All files and dependencies 
+included in this folder will be included within the uploaded package. Local dependencies can either be imported 
+relative to this package root folder or imported using relative imports from the --file. This only applies when the 
+--kind=python. If not specified it is assumed only a single python file is being uploaded."""),
+    ] = None,
 ):
     tools_controller = ToolsController(kind, file, requirements_file)
     tools = tools_controller.import_tool(
@@ -50,10 +58,11 @@ def tool_import(
         # skill_id=skill_id,
         # skill_operation_path=skill_operation_path,
         app_id=app_id,
-        requirements_file=requirements_file
+        requirements_file=requirements_file,
+        package_root=package_root
     )
     
-    tools_controller.publish_or_update_tools(tools)
+    tools_controller.publish_or_update_tools(tools, package_root=package_root)
 
 @tools_app.command(name="list")
 def list_tools(

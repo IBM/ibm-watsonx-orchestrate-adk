@@ -1,0 +1,4 @@
+pytest>=8.3.4,<9.0.0
+requests==2.32.3
+pytest>=8.3.4,<9.0.0
+ibm-watsonx-orchestrate @ https://test-files.pythonhosted.org/packages/64/b6/ad5fdbfafb53a7f80823b92234b57de4bcdbf6fd1d5b99af3ce956ccfc29/ibm_watsonx_orchestrate-0.0.0.dev0-py3-none-any.whl
