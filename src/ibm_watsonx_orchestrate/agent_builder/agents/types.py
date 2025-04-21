@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from pydantic import Field, AliasChoices
 from typing import Annotated
 
@@ -77,6 +78,7 @@ class AgentSpec(BaseAgentSpec):
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     hidden: bool = False
+    knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
 
 
     def __init__(self, *args, **kwargs):

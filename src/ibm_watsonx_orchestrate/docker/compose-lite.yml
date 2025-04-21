@@ -32,7 +32,7 @@ services:
     command: -c shared_preload_libraries=pgsodium
 
   wxo-server-connection-manager:
-    image: us.icr.io/${CM_REGISTRY:-watson-orchestrate-private}/wxo-connections:${CMTAG:-latest}
+    image: us.icr.io/${CM_REGISTRY:-watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -133,6 +133,49 @@ services:
       /usr/bin/mc mb wxo-server-minio/langfuse;
       exit 0;
       "
+      
+  wxo-milvus-standalone:
+    image: milvusdb/milvus:v2.5.6
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+    - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: wxo-milvus-etcd:2379
+      MINIO_ADDRESS: wxo-server-minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      COMMON_SECURITY_DEFAULTROOTPASSWORD: ${MILVUS_PASSWORD}
+    volumes:
+      - wxo-milvus-data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "wxo-milvus-etcd"
+      - "wxo-server-minio"
+
+  wxo-milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - wxo-milvus-etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  
   socket-handler:
     container_name: socket-handler
     profiles:
@@ -229,7 +272,7 @@ services:
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
-      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       MILVUS_URI: ${MILVUS_URI}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "-1"
@@ -247,6 +290,10 @@ services:
       WXO_DEPLOYMENT_PLATFORM: saas
       CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
       CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
+      WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
+      MILVUS_DB_NAME: default
+      MILVUS_USERNAME: root
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
 
   wxo-server-worker:
     image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -305,7 +352,7 @@ services:
       SERVER_TYPE: CELERY
       BAM_API_KEY: ${BAM_API_KEY}
       WXAI_API_KEY: ${WXAI_API_KEY}
-      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       MILVUS_URI: ${MILVUS_URI}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "-1"
@@ -321,6 +368,10 @@ services:
       DISABLE_JSON_LOG_CELERY: true
       CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
       CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
+      WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
+      MILVUS_DB_NAME: default
+      MILVUS_USERNAME: root
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
   
   tools-runtime-manager:
     image: us.icr.io/${TRM_REGISTRY:-watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -528,6 +579,10 @@ volumes:
   wxo-applied-migrations:
     driver: local
   wxo-server-minio-data:
+    driver: local
+  wxo-milvus-data:
+    driver: local
+  wxo-milvus-etcd-data:
     driver: local
   ui-data:
     driver: local

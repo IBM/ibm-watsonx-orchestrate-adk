@@ -119,6 +119,13 @@ def agent_create(
             help="A list of tool names you wish for the agent to be able to utilise. Format --tools tool1 --tools agent2 ...",
         ),
     ] = None,
+    knowledge_base: Annotated[
+        List[str],
+        typer.Option(
+            "--knowledge-bases",
+            help="A list of knowlege bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
+        ),
+    ] = None,
     output_file: Annotated[
         str,
         typer.Option(
@@ -146,6 +153,7 @@ def agent_create(
         style=style,
         collaborators=collaborators,
         tools=tools,
+        knowledge_base=knowledge_base,
         tags=tags,
         chat_params=chat_params_dict,
         config=config_dict,

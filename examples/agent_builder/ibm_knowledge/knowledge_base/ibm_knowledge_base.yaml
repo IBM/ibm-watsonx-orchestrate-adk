@@ -1,0 +1,7 @@
+spec_version: v1
+kind: knowledge_base
+name: ibm_knowledge_base
+description: General information about IBM and its history
+documents:
+ - IBM_wikipedia.pdf
+ - history_of_ibm.pdf

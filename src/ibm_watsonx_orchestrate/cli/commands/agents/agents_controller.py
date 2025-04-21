@@ -24,6 +24,7 @@ from ibm_watsonx_orchestrate.client.agents.external_agent_client import External
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
@@ -95,6 +96,12 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     tools = tools if tools else []
     tools = [x.strip() for x in tools if x.strip() != ""]
     agent_details["tools"] = tools
+
+    knowledge_base = args.get("knowledge_base", [])
+    knowledge_base = knowledge_base if knowledge_base else []
+    knowledge_base = [x.strip() for x in knowledge_base if x.strip() != ""]
+    agent_details["knowledge_base"] = knowledge_base
+
     return agent_details
 
 def parse_create_external_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
@@ -143,6 +150,7 @@ class AgentsController:
         self.external_client = None
         self.assistant_client = None
         self.tool_client = None
+        self.knowledge_base_client = None
 
     def get_native_client(self):
         if not self.native_client:
@@ -163,6 +171,11 @@ class AgentsController:
         if not self.tool_client:
             self.tool_client = instantiate_client(ToolClient)
         return self.tool_client
+    
+    def get_knowledge_base_client(self):
+        if not self.knowledge_base_client:
+            self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
+        return self.knowledge_base_client
     
     @staticmethod
     def import_agent(file: str, app_id: str) -> Iterable:
@@ -254,6 +267,30 @@ class AgentsController:
 
         return deref_agent
     
+    def dereference_knowledge_bases(self, agent: Agent) -> Agent:
+        client = self.get_knowledge_base_client()
+
+        deref_agent = deepcopy(agent)
+        matching_knowledge_bases = client.get_by_names(deref_agent.knowledge_base)
+
+        name_id_lookup = {}
+        for kb in matching_knowledge_bases:
+            if kb.get("name") in name_id_lookup:
+                logger.error(f"Duplicate draft entries for knowledge base '{kb.get('name')}'")
+                sys.exit(1)
+            name_id_lookup[kb.get("name")] = kb.get("id")
+        
+        deref_knowledge_bases = []
+        for name in agent.knowledge_base:
+            id = name_id_lookup.get(name)
+            if not id:
+                logger.error(f"Failed to find knowledge base. No knowledge base found with the name '{name}'")
+                sys.exit(1)
+            deref_knowledge_bases.append(id)
+        deref_agent.knowledge_base = deref_knowledge_bases
+
+        return deref_agent
+    
     @staticmethod
     def dereference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         if agent.kind == AgentKind.EXTERNAL:
@@ -269,6 +306,8 @@ class AgentsController:
             agent = self.dereference_collaborators(agent)
         if agent.tools and len(agent.tools):
             agent = self.dereference_tools(agent)
+        if agent.knowledge_base and len(agent.knowledge_base):
+            agent = self.dereference_knowledge_bases(agent)
 
         return agent
     
@@ -411,7 +450,18 @@ class AgentsController:
 
         return collaborators
 
-
+    def get_agent_knowledge_base_names(self, knowlede_base_ids: List[str]) -> List[str]:
+        """Retrieve knowledge base names for a given agent based on knowledge base IDs."""
+        client = self.get_knowledge_base_client()
+        knowledge_bases = []
+        for id in knowlede_base_ids:
+            try:
+                kb = client.get_by_id(id)
+                knowledge_bases.append(kb["name"])
+            except Exception as e:
+                logger.warning(f"Knowledge base with ID {id} not found. Returning Tool ID")
+                knowledge_bases.append(id)
+        return knowledge_bases
 
     def list_agents(self, kind: AgentKind=None, verbose: bool=False):
         if kind == AgentKind.NATIVE or kind is None:
@@ -439,6 +489,7 @@ class AgentsController:
                     "Style": {},
                     "Collaborators": {},
                     "Tools": {},
+                    "Knowledge Base": {},
                     "ID": {},
                 }
                 for column in column_args:
@@ -446,6 +497,7 @@ class AgentsController:
 
                 for agent in native_agents:
                     tool_names = self.get_agent_tool_names(agent.tools)
+                    knowledge_base_names = self.get_agent_knowledge_base_names(agent.knowledge_base)
                     collaborator_names = self.get_agent_collaborator_names(agent.collaborators)
 
                     native_table.add_row(
@@ -455,6 +507,7 @@ class AgentsController:
                         agent.style,
                         ", ".join(collaborator_names),
                         ", ".join(tool_names),
+                        ", ".join(knowledge_base_names),
                         agent.id,
                     )
                 rich.print(native_table)

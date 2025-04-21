@@ -1,7 +1,6 @@
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from typing_extensions import List
 
-
 class ExternalAgentClient(BaseAPIClient):
     """
     Client to handle CRUD operations for External Agent endpoint
@@ -20,7 +19,14 @@ class ExternalAgentClient(BaseAPIClient):
         return self._delete(f"/agents/external-chat/{agent_id}")
     
     def get_draft_by_name(self, agent_name: str) -> List[dict]:
-        return self.get_drafts_by_names([agent_name])
+        try:
+            response = self._get(f"/agents/external-chat/?name={agent_name}")
+            return response if isinstance(response, list) else [response]
+        except ClientAPIException as e:
+            if e.response.status_code == 404 and "External agent not found with the given name" in e.response.text:
+                # return None
+                return []
+            raise(e)
 
     def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
