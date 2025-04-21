@@ -25,8 +25,9 @@ from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
+from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 
@@ -51,10 +52,10 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 "Kind 'openapi' can only take one app-id"
             )
     
-    connections_client = instantiate_client(ApplicationConnectionsClient)
+    connections_client = get_connections_client()
 
-    imported_connections_list = connections_client.get()
-    imported_connections = {conn.appid:conn for conn in imported_connections_list}
+    imported_connections_list = connections_client.list()
+    imported_connections = {conn.app_id:conn for conn in imported_connections_list}
 
     for app_id in app_ids:
         if kind == ToolKind.python:
@@ -68,12 +69,11 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 app_id = split_id[0]
             else:
                 raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
-            
-        if app_id not in imported_connections:
-            logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections application create`")
 
+        if app_id not in imported_connections:
+            logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections add`")
         else:
-            if kind == ToolKind.openapi and imported_connections.get(app_id).connection_type == 'key_value':
+            if kind == ToolKind.openapi and imported_connections.get(app_id).security_scheme == ConnectionSecurityScheme.KEY_VALUE:
                 logger.error(f"Key value application connections can not be bound to an openapi tool")
                 exit(1)
 
@@ -98,17 +98,14 @@ def validate_params(kind: ToolKind, **args) -> None:
     validate_app_ids(kind=kind, **args)
 
 def get_connection_id(app_id: str) -> str:
-    connections_client = instantiate_client(ApplicationConnectionsClient)
+    connections_client = get_connections_client()
     connection_id = None
     if app_id is not None:
-        connections = connections_client.get_draft_by_app_id(app_id=app_id)
-        if len(connections) == 0:
+        connection = connections_client.get(app_id=app_id)
+        if  not connection:
             logger.error(f"No connection exists with the app-id '{app_id}'")
             exit(1)
-        elif len(connections) > 1:
-            logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, connections)))}")
-            exit(1)
-        connection_id = connections[0].connection_id
+        connection_id = connection.connection_id
     return connection_id
 
 
@@ -139,11 +136,11 @@ def validate_python_connections(tool: BaseTool):
     if not tool.expected_credentials:
         return
     
-    connections_client = instantiate_client(ApplicationConnectionsClient)
+    connections_client = get_connections_client()
     connections = tool.__tool_spec__.binding.python.connections
 
     provided_connections = list(connections.keys()) if connections else []
-    imported_connections_list = connections_client.get()
+    imported_connections_list = connections_client.list()
     imported_connections = {conn.connection_id:conn for conn in imported_connections_list}
 
     validation_failed = False
@@ -151,14 +148,12 @@ def validate_python_connections(tool: BaseTool):
     existing_sanatized_expected_tool_app_ids = set()
 
     for expected_cred in tool.expected_credentials:
-        expected_tool_app_id=None
-        expected_tool_type=None
 
-        if isinstance(expected_cred, str):
-            expected_tool_app_id = expected_cred
+        expected_tool_app_id = expected_cred.app_id
+        if isinstance(expected_cred.type, List):
+            expected_tool_conn_types = expected_cred.type
         else:
-            expected_tool_app_id = expected_cred.get("app_id")
-            expected_tool_type = expected_cred.get("type")
+            expected_tool_conn_types = [expected_cred.type]
         
         sanatized_expected_tool_app_id = sanatize_app_id(expected_tool_app_id)
         if sanatized_expected_tool_app_id in existing_sanatized_expected_tool_app_ids:
@@ -176,13 +171,14 @@ def validate_python_connections(tool: BaseTool):
         connection_id = connections.get(sanatized_expected_tool_app_id)
         
         imported_connection = imported_connections.get(connection_id)
+        imported_connection_auth_type = get_connection_type(security_scheme=imported_connection.security_scheme, auth_type=imported_connection.auth_type)
 
         if connection_id and not imported_connection:
             logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being delted. Please rec-reate the connection and re-import the tool")
             validation_failed = True
 
-        if imported_connection and expected_tool_type and expected_tool_type != imported_connection.connection_type:
-            logger.error(f"The app-id '{imported_connection.appid}' is of type '{imported_connection.connection_type}'. The tool '{tool.__tool_spec__.name}' expects this connection to be of type '{expected_tool_type}'. Use `orchestrate connections application list` to view current connections and use `orchestrate connections application create` to create or update the relevent connection")
+        if imported_connection and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
+            logger.error(f"The app-id '{imported_connection.app_id}' is of type '{imported_connection_auth_type.value}'. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
             validation_failed = True
         
     if validation_failed:
@@ -339,19 +335,13 @@ class ToolsController:
                 )
 
             case "openapi":
-                connections_client: ApplicationConnectionsClient =  instantiate_client(ApplicationConnectionsClient)
+                connections_client = get_connections_client()
                 app_id = args.get('app_id', None)
                 connection_id = None
                 if app_id is not None:
                     app_id = app_id[0]
-                    connections = connections_client.get_draft_by_app_id(app_id=app_id)
-                    if len(connections) == 0:
-                        logger.error(f"No connection exists with the app-id '{app_id}'")
-                        exit(1)
-                    elif len(connections) > 1:
-                        logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, connections)))}")
-                        exit(1)
-                    connection_id = connections[0].connection_id
+                    connection = connections_client.get_draft_by_app_id(app_id=app_id)
+                    connection_id = connection.connection_id
                 tools = asyncio.run(import_openapi_tool(file=args["file"], connection_id=connection_id))
             case "skill":
                 tools = []
@@ -394,7 +384,7 @@ class ToolsController:
                         for conn in tool_binding.python.connections:
                             connection_ids.append(tool_binding.python.connections[conn])
                 
-                connections_client: ApplicationConnectionsClient = instantiate_client(ApplicationConnectionsClient)
+                connections_client = get_connections_client()
                 app_ids = []
                 for connection_id in connection_ids:
                     app_id = str(connections_client.get_draft_by_id(connection_id))

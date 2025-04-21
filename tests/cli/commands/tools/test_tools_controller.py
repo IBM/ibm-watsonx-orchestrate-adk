@@ -10,6 +10,7 @@ from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.config import DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_HEADER, \
     PYTHON_REGISTRY_TYPE_OPT
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.connections.connections_client import ListConfigsResponse
 from typer import BadParameter
 import json
 import pytest
@@ -114,19 +115,23 @@ class MockToolClient:
 
 
 class MockConnectionClient:
-    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[]):
+    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[], list_conn_response=[]):
         self.get_by_id_response = get_by_id_response
         self.get_response = get_response
         self.get_conn_by_id_response = get_conn_by_id_response
+        self.list_conn_response = list_conn_response
 
     def get_draft_by_app_id(self, app_id: str):
         return self.get_by_id_response
     
-    def get(self):
+    def get(self, app_id: str):
         return self.get_response
     
     def get_draft_by_id(self, conn_id: str):
         return self.get_conn_by_id_response
+
+    def list(self):
+        return self.list_conn_response
 
 class MockConnection:
     def __init__(self, appid, connection_type):
@@ -142,12 +147,15 @@ def test_openapi_params_valid():
         calls.append((args, kwargs))
         return []
 
-    client = MockConnectionClient(get_by_id_response=[MockListConnectionResponse(connection_id='connectionId')])
+    client = MockConnectionClient(
+        get_by_id_response=MockListConnectionResponse(connection_id='connectionId'),
+        list_conn_response=[]
+        )
     with mock.patch(
         'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.create_openapi_json_tools_from_uri',
         create_openapi_json_tools_from_uri
     ), mock.patch(
-        'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') \
+        'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') \
     as client_mock:
         client_mock.return_value = client
         file = "../resources/yaml_samples/tool.yaml"
@@ -176,7 +184,13 @@ def test_openapi_no_app_id():
     with mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.create_openapi_json_tools_from_uri',
             create_openapi_json_tools_from_uri
-    ):
+    ), \
+        mock.patch(
+            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client'
+        ) as mock_conn_client:
+        
+        mock_conn_client.return_value = MockConnectionClient()
+
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",
                                              app_id=None)
@@ -195,10 +209,17 @@ def test_openapi_multiple_app_ids():
         list(tools)
     assert "Kind 'openapi' can only take one app-id" in str(e)
 
-def test_openapi_appi_id_key_value(caplog):
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
-        mock_instantiate_client.return_value = MockConnectionClient(
-            get_response=[MockConnection(appid="test", connection_type="key_value")]
+def test_openapi_app_id_key_value(caplog):
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+        mock_client.return_value = MockConnectionClient(
+            get_response=MockConnection(appid="test", connection_type="key_value"),
+            get_by_id_response=[MockConnection(appid="test", connection_type="key_value")],
+            list_conn_response=[ListConfigsResponse(**{
+                    "connection_id": "12345",
+                    "app_id": "test",
+                    "auth_type": None,
+                    "security_scheme": "key_value_creds",
+            })]
         )
 
         with pytest.raises(SystemExit) as e:
@@ -515,9 +536,12 @@ def test_python_params_valid():
     assert tool.__tool_spec__.permission == ToolPermission.ADMIN
 
 def test_python_params_valid_with_app_ids():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         mock_response = MockListConnectionResponse(connection_id="12345")
-        mock_instantiate_client.return_value = MockConnectionClient(get_by_id_response=[mock_response])
+        mock_client.return_value = MockConnectionClient(
+            get_by_id_response=mock_response,
+            get_response=mock_response
+        )
 
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(
@@ -536,9 +560,12 @@ def test_python_params_valid_with_app_ids():
         assert tool.__tool_spec__.binding.python.connections == {"test": "12345"}
 
 def test_python_params_valid_with_split_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         mock_response = MockListConnectionResponse(connection_id="12345")
-        mock_instantiate_client.return_value = MockConnectionClient(get_by_id_response=[mock_response])
+        mock_client.return_value = MockConnectionClient(
+            get_by_id_response=mock_response,
+            get_response=mock_response
+            )
 
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(
@@ -557,7 +584,7 @@ def test_python_params_valid_with_split_app_id():
         assert tool.__tool_spec__.binding.python.connections == {"test_1": "12345"}
 
 def test_python_params_valid_with_split_app_id_invalid_equals():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -571,7 +598,7 @@ def test_python_params_valid_with_split_app_id_invalid_equals():
         assert "The provided --app-id \'test!1=test=123\' is not valid. This is likely caused by having mutliple equal signs, please use \'\\\\=\' to represent a literal \'=\' character" in str(e)
 
 def test_python_params_valid_with_split_app_id_missing_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -585,7 +612,7 @@ def test_python_params_valid_with_split_app_id_missing_app_id():
         assert "The provided --app-id \'test=\' is not valid. --app-id cannot be empty or whitespace" in str(e)
 
 def test_python_params_valid_with_split_app_id_missing_runtime_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -600,11 +627,17 @@ def test_python_params_valid_with_split_app_id_missing_runtime_app_id():
 
 def test_python_tool_expected_connections():
 
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         mock_response = MockListConnectionResponse(connection_id="12345")
-        mock_instantiate_client.return_value = MockConnectionClient(
-            get_response=[MockConnection(appid="test", connection_type="basic_auth")],
-            get_by_id_response=[mock_response]
+        mock_client.return_value = MockConnectionClient(
+            get_response=MockConnection(appid="test", connection_type="basic_auth"),
+            get_by_id_response=[mock_response],
+            list_conn_response=[ListConfigsResponse(**{
+                    "connection_id": "12345",
+                    "app_id": "test",
+                    "auth_type": None,
+                    "security_scheme": "basic_auth",
+            })]
         )
 
         tools_controller = ToolsController()
@@ -796,9 +829,9 @@ def test_tool_remove_non_existent(mock, caplog):
 )
 def test_tool_list(mock_get_client):
     client = MockConnectionClient(get_response=[MockListConnectionResponse(connection_id='connectionId')])
-    with mock.patch(
-        'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client'
-    ) as client_mock:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as client_mock, \
+        mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as conn_client_mock:
+        conn_client_mock.return_value = MockConnectionClient()
         client_mock.return_value = client
         tools_controller = ToolsController()
         tools_controller.list_tools()

@@ -23,9 +23,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
-from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.client.connections import get_connections_client
 
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
@@ -132,15 +130,12 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
     return agent_details
 
 def get_conn_id_from_app_id(app_id: str) -> str:
-    connections_client: ApplicationConnectionsClient =  instantiate_client(ApplicationConnectionsClient)
-    connections = connections_client.get_draft_by_app_id(app_id=app_id)
-    if len(connections) == 0:
+    connections_client = get_connections_client()
+    connection = connections_client.get_draft_by_app_id(app_id=app_id)
+    if not connection:
         logger.error(f"No connection exits with the app-id '{app_id}'")
         exit(1)
-    elif len(connections) > 1:
-        logger.error(f"Internal error, ambiguious request, multiple Connection IDs found for app-id {', '.join(list(map(lambda e: e.connection_id, connections)))}")
-        exit(1)
-    return connections[0].connection_id
+    return connection.connection_id
 
 class AgentsController:
     def __init__(self):
@@ -508,7 +503,7 @@ class AgentsController:
                     external_table.add_column(column, **column_args[column])
                 
                 for agent in external_agents:
-                    connections_client: ApplicationConnectionsClient =  instantiate_client(ApplicationConnectionsClient)
+                    connections_client =  get_connections_client()
                     app_id = connections_client.get_draft_by_id(agent.connection_id)
 
                     external_table.add_row(

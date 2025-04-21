@@ -76,6 +76,7 @@ class AgentSpec(BaseAgentSpec):
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+    hidden: bool = False
 
 
     def __init__(self, *args, **kwargs):

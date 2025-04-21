@@ -12,10 +12,9 @@ from requests.auth import HTTPBasicAuth
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 from ibm_watsonx_orchestrate.run import connections
 
-from ibm_watsonx_orchestrate.client.connections import ConnectionType
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType
 
 CONNECTION_SNOW = 'service-now'
-CONNECTION_SNOW_URL = 'service-now-url'
 
 class ServiceNowIncident(BaseModel):
     """
@@ -30,8 +29,7 @@ class ServiceNowIncident(BaseModel):
 
 @tool(
     expected_credentials=[
-        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH},
-        {"app_id": CONNECTION_SNOW_URL, "type": ConnectionType.KEY_VALUE}
+        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH}
     ]
 )
 def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncident:
@@ -41,9 +39,10 @@ def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncide
     :param incident_number: The uniquely identifying incident number of the ticket.
     :returns: The incident details including number, system ID, description, state, and urgency.
     """
-    base_url = connections.key_value(CONNECTION_SNOW_URL)['url']
-    url = f"{base_url}/api/now/table/incident"
     creds = connections.basic_auth('service-now')
+    base_url = creds.url
+    url = f"{base_url}/api/now/table/incident"
+
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
