@@ -27,6 +27,7 @@ PROTECTED_ENV_NAME = "local"
 ENV_AUTH_TYPE = "auth_type"
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
+CHAT_UI_PORT = "3000"
 
 DEFAULT_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.config/orchestrate"
 DEFAULT_CONFIG_FILE = "config.yaml"

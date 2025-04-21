@@ -25,8 +25,8 @@ LOCK = Lock()
 T = TypeVar("T", bound=BaseAPIClient)
 
 
-def is_local_dev(url: str = None) -> bool:
-    if not url:
+def is_local_dev(url: str | None = None) -> bool:
+    if url is None:
         cfg = Config()
         active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
         url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
