@@ -9,7 +9,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     CONTEXT_SECTION_HEADER,
     CONTEXT_ACTIVE_ENV_OPT,
     ENVIRONMENTS_SECTION_HEADER,
-    ENV_WXO_URL_OPT, ENV_ENABLE_SAAS_OPT
+    ENV_WXO_URL_OPT
 )
 from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
@@ -65,10 +65,10 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
             with open(os.path.join(DEFAULT_CONFIG_FILE_FOLDER, DEFAULT_CONFIG_FILE), "r") as f:
                 config = yaml_safe_load(f)
             active_env = config.get(CONTEXT_SECTION_HEADER, {}).get(CONTEXT_ACTIVE_ENV_OPT)
-            # TODO: Remove bypass_saas_restriction once Saas support is released
-            bypass_saas_restriction = config.get(ENVIRONMENTS_SECTION_HEADER, {}).get(active_env, {}).get(ENV_ENABLE_SAAS_OPT, False)
+
             if not url:
                 url = config.get(ENVIRONMENTS_SECTION_HEADER, {}).get(active_env, {}).get(ENV_WXO_URL_OPT)
+
             with open(os.path.join(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE), "r") as f:
                 auth_config = yaml_safe_load(f)
             auth_settings = auth_config.get(AUTH_SECTION_HEADER, {}).get(active_env, {})
@@ -87,11 +87,6 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
                 logger.error(f"The token found for environment '{active_env}' is missing or expired. Use `orchestrate env activate {active_env}` to fetch a new one")
                 exit(1)
             client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
-
-            # TODO: Remove once Saas support is released
-            if not is_local_dev(url) and not bypass_saas_restriction:
-                logger.error("Action not supported. SAAS functionality is limited, no support for tools, agents or connections")
-                exit(1)
 
         return client_instance
     except FileNotFoundError as e:

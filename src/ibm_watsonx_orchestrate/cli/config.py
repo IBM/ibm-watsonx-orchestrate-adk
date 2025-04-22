@@ -22,7 +22,6 @@ PYTHON_REGISTRY_TYPE_OPT = "type"
 PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT = "test_package_version_override"
 ENV_WXO_URL_OPT = "wxo_url"
 ENV_IAM_URL_OPT = "iam_url"
-ENV_ENABLE_SAAS_OPT = "enable_saas"
 PROTECTED_ENV_NAME = "local"
 ENV_AUTH_TYPE = "auth_type"
 
