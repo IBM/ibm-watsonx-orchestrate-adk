@@ -135,7 +135,7 @@ services:
       "
       
   wxo-milvus-standalone:
-    image: milvusdb/milvus:v2.5.6
+    image: us.icr.io/watson-orchestrate-private/milvus:v2.5.6
     command: ["milvus", "run", "standalone"]
     security_opt:
     - seccomp:unconfined
@@ -161,7 +161,7 @@ services:
       - "wxo-server-minio"
 
   wxo-milvus-etcd:
-    image: quay.io/coreos/etcd:v3.5.18
+    image: us.icr.io/watson-orchestrate-private/etcd:v3.5.18
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
@@ -435,7 +435,7 @@ services:
 # LANGFUSE dependencies
 ########################
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: us.icr.io/watson-orchestrate-private/langfuse-worker:3
     restart: unless-stopped
     profiles: [langfuse]
     depends_on: &langfuse-depends-on
@@ -487,7 +487,7 @@ services:
       REDIS_CONNECTION_STRING: redis://wxo-server-redis:6379/1
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: us.icr.io/watson-orchestrate-private/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
     profiles: [langfuse]
@@ -500,7 +500,7 @@ services:
       NEXTAUTH_SECRET: mysecret
 
   langfuse-clickhouse:
-    image: clickhouse/clickhouse-server
+    image: us.icr.io/watson-orchestrate-private/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
     profiles: [langfuse]
