@@ -43,7 +43,7 @@ Instead of doing the two previous steps, connections and configurations can be d
 Below is a sample connection spec file that uses `basic` auth in draft and `oauth_auth_on_behalf_of_flow` in live
 ```yaml
 spec_version: v1
-kind: connections
+kind: connection
 app_id: my_app
 environments:
     draft:
@@ -60,7 +60,7 @@ environments:
           header:
             content-type: application/x-www-form-urlencoded
           body:
-            requested_token_use: on_behalf_of,
+            requested_token_use: on_behalf_of
             requested_token_type: urn:ietf:params:oauth:token-type:saml2
         app_config:
           header:
@@ -113,7 +113,7 @@ orchestrate tools import -k openapi -f <path to openapi spec> --app-id <my_app_i
 ```
 
 ### Associating a Connection to an OpenAPI Tool
-You can add a connection to an Python tool using the following. Unlike OpenAPI tools, Python tools can support multiple connections. See [Python Tools Credentials](3_python_tool_credentials.md) documentation for more details.
+You can add a connection to a Python tool using the following. Unlike OpenAPI tools, Python tools can support multiple connections. See [Python Tools Credentials](3_python_tool_credentials.md) documentation for more details.
 ```bash
 orchestrate tools import -k python -f <path to python file> --app-id <my_app_id_1> --app-id <my_app_id_2>
 ```

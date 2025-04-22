@@ -46,7 +46,7 @@ from ibm_watsonx_orchestrate.client.connections.connections_client import ListCo
 def connections_spec_content() -> dict:
     return {
         "spec_version": "v1",
-        "kind": "connections",
+        "kind": "connection",
         "app_id": "test_app_id",
         "environments": {
             "draft": {
@@ -157,7 +157,7 @@ class TestValidateConnectionsSpecContent:
         with pytest.raises(SystemExit) as e:
             _validate_connections_spec_content(content)
         
-        message = "Field 'kind' must have a value of 'connections'. Please ensure the spec file is a valid connections spec."
+        message = "Field 'kind' must have a value of 'connection'. Please ensure the spec file is a valid connection spec."
 
         captured = caplog.text
         assert message in captured

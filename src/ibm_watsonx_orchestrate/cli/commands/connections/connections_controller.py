@@ -54,8 +54,8 @@ def _validate_connections_spec_content(content: dict) -> None:
         logger.error("No 'environments' found in provided spec file. Please ensure the spec file is in the correct format")
         sys.exit(1)
     
-    if kind != "connections":
-        logger.error("Field 'kind' must have a value of 'connections'. Please ensure the spec file is a valid connections spec.")
+    if kind != "connection":
+        logger.error("Field 'kind' must have a value of 'connection'. Please ensure the spec file is a valid connection spec.")
         sys.exit(1)
 
 def _create_connection_from_spec(content: dict) -> None:
