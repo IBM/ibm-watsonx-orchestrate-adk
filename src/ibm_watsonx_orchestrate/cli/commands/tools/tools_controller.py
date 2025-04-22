@@ -371,7 +371,7 @@ class ToolsController:
                             override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
                             orchestrate_links = requests.get('https://test.pypi.org/simple/ibm-watsonx-orchestrate').text
                             wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
-                            wheel_file = next(filter(lambda x: override_version in x, wheel_files), None)
+                            wheel_file = next(filter(lambda x: f"{override_version}-py3-none-any.whl" in x, wheel_files), None)
                             if not wheel_file:
                                 logger.error(f"Could not find ibm-watsonx-orchestrate@{override_version} on https://test.pypi.org/project/ibm-watsonx-orchestrate")
                                 exit(1)
