@@ -74,7 +74,7 @@ class BaseAPIClient:
 
     def _patch(self, path: str, data: dict = None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.patch(url, headers=self._get_headers(), data=data)
+        response = requests.patch(url, headers=self._get_headers(), json=data)
         self._check_response(response)
         return response.json() if response.text else {}
     

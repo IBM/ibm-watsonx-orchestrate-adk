@@ -33,7 +33,7 @@ class KnowledgeBaseClient(BaseAPIClient):
         return self._get(f"/api/v1/orchestrate/knowledge-bases/{knowledge_base_id}/status")
 
     def update(self, knowledge_base_id: str, payload: dict) -> dict:
-        return self._patch(f"/api/v1/orchestrate/knowledge-bases/{knowledge_base_id}/documents", data={ "knowledge_base" : json.dumps(payload) })
+        return self._patch_form_data(f"/api/v1/orchestrate/knowledge-bases/{knowledge_base_id}/documents", data={ "knowledge_base" : json.dumps(payload) })
     
     def update_with_documents(self, knowledge_base_id: str, payload: dict, files: list) -> dict:
         return self._patch_form_data(f"/api/v1/orchestrate/knowledge-bases/{knowledge_base_id}/documents", data={ "knowledge_base" : json.dumps(payload) }, files=files)
