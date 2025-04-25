@@ -135,7 +135,7 @@ services:
       "
       
   wxo-milvus-standalone:
-    image: us.icr.io/watson-orchestrate-private/milvus:v2.5.6
+    image: milvusdb/milvus:v2.5.6
     command: ["milvus", "run", "standalone"]
     security_opt:
     - seccomp:unconfined
@@ -161,7 +161,7 @@ services:
       - "wxo-server-minio"
 
   wxo-milvus-etcd:
-    image: us.icr.io/watson-orchestrate-private/etcd:v3.5.18
+    image: quay.io/coreos/etcd:v3.5.18
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000

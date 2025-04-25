@@ -184,7 +184,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
         "--scale",
         "ui=0",
         "-d",
-        "--remove-orphans"
+        "--remove-orphans",
     ]
 
     logger.info("Starting docker-compose services...")
