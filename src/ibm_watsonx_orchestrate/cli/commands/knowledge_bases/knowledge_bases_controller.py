@@ -38,9 +38,13 @@ class KnowledgeBaseController:
 
         try:
             if create_request.documents:
-                file_dir = "/".join(file.split("/")[:-1])
-                files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else f"{file_dir}/{file_path}", 'rb'))) for file_path in create_request.documents]
-                
+                try:
+                    file_dir = "/".join(file.split("/")[:-1])
+                    files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else f"{file_dir}/{file_path}", 'rb'))) for file_path in create_request.documents]
+                except Exception as e:
+                    logger.error(f"Error importing knowledge base: {str(e).replace('[Errno 2] ', '')}")
+                    sys.exit(1);
+
                 payload = create_request.model_dump(exclude_none=True);
                 payload.pop('documents');
 
@@ -170,7 +174,7 @@ class KnowledgeBaseController:
                    and len(kb.conversational_search_tool.index_config) > 0 \
                    and kb.conversational_search_tool.index_config[0].connection_id is not None:
                     connections_client = get_connections_client()
-                    app_id = str(connections_client.get_draft_by_id(kb.conversational_search_tool.index_config.connection_id))
+                    app_id = str(connections_client.get_draft_by_id(kb.conversational_search_tool.index_config[0].connection_id))
 
                 table.add_row(
                     kb.name,

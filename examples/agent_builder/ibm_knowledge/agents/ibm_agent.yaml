@@ -3,7 +3,7 @@ kind: native
 name: ibm_agent
 description: >
     You are an helpful agent that has knowledge about IBM and its history
-llm: watsonx/meta-llama/llama-3-1-70b-instruct
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 knowledge_base:
   - ibm_knowledge_base
