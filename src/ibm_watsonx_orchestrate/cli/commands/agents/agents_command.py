@@ -7,7 +7,7 @@ import json
 agents_app = typer.Typer(no_args_is_help=True)
 
 
-@agents_app.command(name="import")
+@agents_app.command(name="import", help='Import an agent definition into the active env from a file')
 def agent_import(
     file: Annotated[
         str,
@@ -25,7 +25,7 @@ def agent_import(
     agents_controller.publish_or_update_agents(agent_specs)
 
 
-@agents_app.command(name="create")
+@agents_app.command(name="create", help='Create and import an agent into the active env')
 def agent_create(
     name: Annotated[
         str,
@@ -163,7 +163,7 @@ def agent_create(
     )
     agents_controller.publish_or_update_agents([agent])
 
-@agents_app.command(name="list")
+@agents_app.command(name="list", help='List all agents in the active env')
 def list_agents(
     kind: Annotated[
         AgentKind,
@@ -177,7 +177,7 @@ def list_agents(
     agents_controller = AgentsController()
     agents_controller.list_agents(kind=kind, verbose=verbose)
 
-@agents_app.command(name="remove")
+@agents_app.command(name="remove", help='Remove an agent from the active env')
 def remove_agent(
     name: Annotated[
         str,

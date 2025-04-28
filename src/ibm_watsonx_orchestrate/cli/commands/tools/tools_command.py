@@ -4,7 +4,7 @@ from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 tools_app= typer.Typer(no_args_is_help=True)
 
-@tools_app.command(name="import")
+@tools_app.command(name="import", help='Import a tool into the active environment')
 def tool_import(
     kind: Annotated[
         ToolKind,
@@ -64,7 +64,7 @@ relative to this package root folder or imported using relative imports from the
     
     tools_controller.publish_or_update_tools(tools, package_root=package_root)
 
-@tools_app.command(name="list")
+@tools_app.command(name="list", help='List the imported tools in the active environment')
 def list_tools(
     verbose: Annotated[
         bool,
@@ -74,7 +74,7 @@ def list_tools(
     tools_controller = ToolsController()
     tools_controller.list_tools(verbose=verbose)
 
-@tools_app.command(name="remove")
+@tools_app.command(name="remove", help='Remove a tool from the active environment')
 def remove_tool(
     name: Annotated[
         str,

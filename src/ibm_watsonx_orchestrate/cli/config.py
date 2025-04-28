@@ -88,6 +88,7 @@ class ConfigFileTypes(str, Enum):
 
 
 class Config:
+
     def __init__(
             self,
             config_file_folder: str = DEFAULT_CONFIG_FILE_FOLDER,
@@ -133,6 +134,12 @@ class Config:
 
     def create_defaults(self, default_content):
         self.save(default_content)
+
+    def get_active_env(self):
+        return self.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+
+    def get_active_env_config(self, option):
+        return self.read(ENVIRONMENTS_SECTION_HEADER, self.get_active_env()).get(option)
 
     def read(self, section: str, option: str) -> any:
         try:

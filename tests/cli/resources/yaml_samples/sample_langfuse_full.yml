@@ -1,0 +1,9 @@
+spec_version: v1
+kind: langfuse
+project_id: default
+api_key: sk-lf-00000-00000-00000-00000-00000
+url: https://cloud.langfuse.com//api/public/otel
+host_health_uri: https://cloud.langfuse.com
+config_json: 
+  public_key: pk-lf-00000-00000-00000-00000-00000
+mask_pii: true

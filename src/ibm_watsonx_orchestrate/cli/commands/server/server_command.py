@@ -16,6 +16,8 @@ import jwt
 from dotenv import dotenv_values, load_dotenv
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
+    AnalyticsLLMUpsertToolIdentifier
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
 
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
@@ -436,7 +438,7 @@ def server_start(
     ),
     experimental_with_langfuse: bool = typer.Option(
         False,
-        '--experimental-with-langfuse', '-l',
+        '--with-langfuse', '-l',
         help=''
     ),
     with_flow_runtime: bool = typer.Option(
@@ -502,7 +504,19 @@ def server_start(
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
     if experimental_with_langfuse:
-        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+        try:
+            client: AnalyticsLLMClient = instantiate_client(AnalyticsLLMClient)
+            client.update(AnalyticsLLMConfig(
+                projectId=merged_env_dict.get('LANGFUSE_PROJECT_ID', 'default'),
+                apiKey=merged_env_dict.get('LANGFUSE_PRIVATE_KEY'),
+                hostUri=merged_env_dict.get('LANGFUSE_HOST', 'http://host.docker.internal:3010'),
+                tool_identifier=AnalyticsLLMUpsertToolIdentifier.LANGFUSE,
+                config_json=f"{{\"public_key\": \"{merged_env_dict.get('LANGFUSE_PUBLIC_KEY')}\"}}"
+            ))
+            logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+        except Exception as e:
+            logger.error("Failed to configure local langfuse instance")
+
     if with_flow_runtime:
         logger.info(f"Starting with flow runtime")
 

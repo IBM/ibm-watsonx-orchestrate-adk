@@ -14,6 +14,7 @@ DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
 class SpecVersion(str, Enum):
     V1 = "v1"
 
+
 class AgentKind(str, Enum):
     NATIVE = "native"
     EXTERNAL = "external"
@@ -172,7 +173,6 @@ class AssistantAgentConfig(BaseModel):
     api_key: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     authorization_url: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     auth_type: AssistantAgentAuthType = AssistantAgentAuthType.MCSP
-
 
 class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)

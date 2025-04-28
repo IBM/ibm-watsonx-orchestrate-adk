@@ -45,10 +45,10 @@ class BaseAPIClient:
             headers["Authorization"] = f"Bearer {self.authenticator.token_manager.get_token()}"
         return headers
 
-    def _get(self, path: str, params: dict = None) -> dict:
+    def _get(self, path: str, params: dict = None, data=None) -> dict:
 
         url = f"{self.base_url}{path}"
-        response = requests.get(url, headers=self._get_headers(), params=params)
+        response = requests.get(url, headers=self._get_headers(), params=params, data=data)
         self._check_response(response)
         return response.json()
 
@@ -84,9 +84,9 @@ class BaseAPIClient:
         self._check_response(response)
         return response.json() if response.text else {}
 
-    def _delete(self, path: str) -> dict:
+    def _delete(self, path: str, data=None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.delete(url, headers=self._get_headers())
+        response = requests.delete(url, headers=self._get_headers(), json=data)
         self._check_response(response)
         return response.json() if response.text else {}
 
