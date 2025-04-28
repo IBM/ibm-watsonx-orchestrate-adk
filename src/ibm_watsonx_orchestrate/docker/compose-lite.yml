@@ -49,7 +49,7 @@ services:
       - 3001:3001
 
   ui:
-    image: us.icr.io/watson-orchestrate/wxo-chat:20250428123706-RELEASE-WXO-LITE-APRIL-FOR-THINK
+    image: us.icr.io/watson-orchestrate-private/wxo-chat:28-04-2025
     platform: linux/amd64
     restart: unless-stopped
     environment:
