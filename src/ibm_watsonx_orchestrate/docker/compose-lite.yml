@@ -49,7 +49,7 @@ services:
       - 3001:3001
 
   ui:
-    image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-chat:28-04-2025
     platform: linux/amd64
     restart: unless-stopped
     environment:
