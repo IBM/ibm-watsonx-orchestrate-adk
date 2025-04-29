@@ -49,7 +49,7 @@ services:
       - 3001:3001
 
   ui:
-    image: us.icr.io/watson-orchestrate-private/wxo-chat:28-04-2025
+    image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -310,6 +310,7 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      IS_WXO_LITE: 'TRUE'
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
