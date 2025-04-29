@@ -45,6 +45,7 @@ services:
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 10
+      DEPLOYMENT_MODE: laptop
     ports:
       - 3001:3001
 
@@ -74,6 +75,7 @@ services:
       MAX_FILE_UPLOAD_SIZE_BYTES_EXCEL: 1048576
       VCAP_APP_HOST: localhost
       DEPLOYMENT_PLATFORM: laptop
+      CONNECTION_MANAGER_URL: http://localhost:3001
       DISMISS_NOTIFICATION_TIMEOUT: 10000
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
