@@ -141,11 +141,13 @@ class MockConnection:
 
 @pytest.fixture(autouse=True)
 def run_around_tests():
-    import ibm_watsonx_orchestrate
     import pathlib
-    path = str(pathlib.Path(ibm_watsonx_orchestrate.__file__).parent.parent.parent)
+    path = str(pathlib.Path(__file__).parent.parent.parent.parent.parent)
+    print(path)
+    original_path = os.getcwd()
     os.chdir(path)
     yield
+    os.chdir(original_path)
 
 
 

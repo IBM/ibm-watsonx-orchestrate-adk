@@ -44,7 +44,7 @@ def create_service_now_incident(
         short_description: str,
         description: Optional[str] = None,
         urgency: Optional[int] = 3
-) -> ServiceNowIncident:
+):
     """
     Create a new ServiceNow incident.
 
@@ -96,7 +96,7 @@ def create_service_now_incident(
         state=data['state'],
         urgency=data['urgency'],
         created_on=data['opened_at']
-    )
+    ).model_dump_json()
 
 # if __name__ == '__main__':
 #     incident = create_service_now_incident(short_description='Test Incident', description='This is a test incident')

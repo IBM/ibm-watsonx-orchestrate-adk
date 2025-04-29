@@ -503,19 +503,6 @@ def server_start(
         logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
-    if experimental_with_langfuse:
-        try:
-            client: AnalyticsLLMClient = instantiate_client(AnalyticsLLMClient)
-            client.update(AnalyticsLLMConfig(
-                projectId=merged_env_dict.get('LANGFUSE_PROJECT_ID', 'default'),
-                apiKey=merged_env_dict.get('LANGFUSE_PRIVATE_KEY'),
-                hostUri=merged_env_dict.get('LANGFUSE_HOST', 'http://host.docker.internal:3010'),
-                tool_identifier=AnalyticsLLMUpsertToolIdentifier.LANGFUSE,
-                config_json=f"{{\"public_key\": \"{merged_env_dict.get('LANGFUSE_PUBLIC_KEY')}\"}}"
-            ))
-            logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
-        except Exception as e:
-            logger.error("Failed to configure local langfuse instance")
 
     if with_flow_runtime:
         logger.info(f"Starting with flow runtime")

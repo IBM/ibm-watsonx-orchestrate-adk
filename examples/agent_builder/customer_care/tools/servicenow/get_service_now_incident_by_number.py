@@ -32,7 +32,7 @@ class ServiceNowIncident(BaseModel):
         {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH}
     ]
 )
-def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncident:
+def get_service_now_incident_by_number(incident_number: str):
     """
     Fetch a ServiceNow incident based on incident ID, creation date, or other filters.
     
@@ -69,7 +69,7 @@ def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncide
         state=data['state'],
         urgency=data['urgency'],
         created_on=data['opened_at']
-    )
+    ).model_dump_json()
 
 # if __name__ == '__main__':
 #     incident = fetch_service_now_incident(incident_number='INC0010311')

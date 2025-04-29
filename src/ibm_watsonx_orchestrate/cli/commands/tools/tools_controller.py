@@ -455,7 +455,7 @@ class ToolsController:
                         if resolved_package_root is None:
                             # single file.
                             file_path = Path(self.file)
-                            zip_tool_artifacts.write(file_path, arcname=f"{tool.__tool_spec__.name}.py")
+                            zip_tool_artifacts.write(file_path, arcname=f"{file_path.stem}.py")
 
                         else:
                             # multi-file.
