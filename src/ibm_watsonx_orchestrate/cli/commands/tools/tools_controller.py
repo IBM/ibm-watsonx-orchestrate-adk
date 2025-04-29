@@ -221,7 +221,8 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     try:
-        file_path = Path(file)
+        file_path = Path(file).absolute()
+        file_path_str = str(file_path)
 
         if file_path.is_dir():
             raise typer.BadParameter(f"Provided tool file path is not a file.")
@@ -229,16 +230,38 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
         elif file_path.is_symlink():
             raise typer.BadParameter(f"Symbolic links are not supported for tool file path.")
 
-        file_directory = file_path.parent
         file_name = file_path.stem
 
         if __supported_characters_pattern.match(file_name) is None:
             raise typer.BadParameter(f"File name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Filename: \"{file_name}\"")
 
-        sys.path.append(str(file_directory))
         resolved_package_root = get_package_root(package_root)
-        module = importlib.import_module(file_name, package=resolved_package_root)
+        if resolved_package_root:
+            resolved_package_root = str(Path(resolved_package_root).absolute())
+            package_path = str(Path(resolved_package_root).parent.absolute())
+            package_folder = str(Path(resolved_package_root).stem)
+            sys.path.append(package_path)           # allows you to resolve non relative imports relative to the root of the module
+            sys.path.append(resolved_package_root)  # allows you to resolve relative imports in combination with import_module(..., package=...)
+            package = file_path_str.replace(resolved_package_root, '').replace('.py', '').replace('/', '.').replace('\\', '.')
+            if not path.isdir(resolved_package_root):
+                raise typer.BadParameter(f"The provided package root is not a directory.")
+
+            elif not file_path_str.startswith(str(Path(resolved_package_root))):
+                raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
+
+            temp_path = Path(file_path_str[len(str(Path(resolved_package_root))) + 1:])
+            if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
+                raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
+        else:
+            package_folder = file_path.parent
+            package = file_path.stem
+            sys.path.append(str(package_folder))
+
+        module = importlib.import_module(package, package=package_folder)
+        if resolved_package_root:
+            del sys.path[-1]
         del sys.path[-1]
+
 
     except typer.BadParameter as ex:
         raise ex
@@ -246,23 +269,12 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     except Exception as e:
         raise typer.BadParameter(f"Failed to load python module from file {file}: {e}")
 
-    if resolved_package_root is not None:
-        if not path.isdir(resolved_package_root):
-            raise typer.BadParameter(f"The provided package root is not a directory.")
-
-        elif not file.startswith(str(Path(resolved_package_root))):
-            raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
-
-        temp_path = Path(file[len(str(Path(resolved_package_root))) + 1:])
-        if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
-            raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
-
     requirements = []
     resolved_requirements_file = get_resolved_py_tool_reqs_file(tool_file=file, requirements_file=requirements_file,
                                                                 package_root=resolved_package_root)
 
     if resolved_requirements_file is None:
-        logger.warn(f"No requirements file.")
+        logger.warning(f"No requirements file.")
 
     if resolved_requirements_file != requirements_file:
         logger.info(f"Resolved Requirements file: \"{resolved_requirements_file}\"")
@@ -288,10 +300,13 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             raise typer.BadParameter(f"Tool name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Name: \"{obj.__tool_spec__.name}\"")
 
         elif resolved_package_root is None:
-            obj.__tool_spec__.binding.python.function = f"{obj.__tool_spec__.name}{obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':'):]}"
+            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
+            obj.__tool_spec__.binding.python.function = f"{file_name.replace('.py', '')}:{fn}"
 
         else:
-            obj.__tool_spec__.binding.python.function = obj.__tool_spec__.binding.python.function[len(str(Path(resolved_package_root))) + 1:]
+            package = package[1:]
+            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
+            obj.__tool_spec__.binding.python.function = f"{package}:{fn}"
 
         if app_id and len(app_id):
             obj.__tool_spec__.binding.python.connections = parse_python_app_ids(app_id)

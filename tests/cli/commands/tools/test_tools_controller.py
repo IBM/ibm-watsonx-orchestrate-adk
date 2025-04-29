@@ -139,6 +139,15 @@ class MockConnection:
         self.connection_type = connection_type
         self.connection_id = "12345"
 
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    import ibm_watsonx_orchestrate
+    import pathlib
+    path = str(pathlib.Path(ibm_watsonx_orchestrate.__file__).parent.parent.parent)
+    os.chdir(path)
+    yield
+
+
 
 def test_openapi_params_valid():
     calls = []
@@ -292,10 +301,10 @@ def test_python_with_package_root_binding_function_is_set():
     tools_controller = ToolsController()
     tools = list(tools_controller.import_tool(ToolKind.python,
                                               file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples"))
+                                              package_root="tests/cli/resources/python_multi_file_samples/testtool1"))
 
     assert len(tools) == 1
-    assert tools[0].__tool_spec__.binding.python.function == "testtool1.testtool1:my_tool"
+    assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
@@ -360,7 +369,7 @@ def test_python_without_package_root_binding_function_is_set():
                                               package_root=None))
 
     assert len(tools) == 1
-    assert tools[0].__tool_spec__.binding.python.function == "testtool1_name:my_tool"
+    assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
@@ -373,7 +382,7 @@ def test_python_with_package_root_as_empty_string_binding_function_is_set():
                                               package_root=""))
 
     assert len(tools) == 1
-    assert tools[0].__tool_spec__.binding.python.function == "testtool1_name:my_tool"
+    assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
@@ -386,7 +395,7 @@ def test_python_with_package_root_as_whitespace_string_binding_function_is_set()
                                               package_root="    "))
 
     assert len(tools) == 1
-    assert tools[0].__tool_spec__.binding.python.function == "testtool1_name:my_tool"
+    assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
@@ -426,11 +435,11 @@ def test_python_with_no_package_root_and_unsupported_path_to_tool():
     drop_module('test_tool_4')
     tools_controller = ToolsController()
     tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/test-tool 4/test_tool_4.py",
+                                              file="tests/cli/resources/python_multi_file_samples/test-tool 4/testtool_4.py",
                                               package_root=None))
 
     assert len(tools) == 1
-    assert tools[0].__tool_spec__.binding.python.function == "testtool4_name:my_tool"
+    assert tools[0].__tool_spec__.binding.python.function == "testtool_4:my_tool"
     assert tools[0].__tool_spec__.name == "testtool4_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
@@ -463,6 +472,32 @@ def test_python_with_package_root_tool_name_has_unsupported_characters():
                                           package_root="tests/cli/resources/python_multi_file_samples"))
 
     assert str(ex.value) == "Tool name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Name: \"test-tool 5 name\""
+
+def test_python_with_tool_in_subfolder_with_relative_imports():
+    drop_module('testtool6')
+    tools_controller = ToolsController()
+    tools = list(tools_controller.import_tool(ToolKind.python,
+                                              file="tests/cli/resources/python_multi_file_samples/testtool6/tools/testtool6.py",
+                                              package_root="tests/cli/resources/python_multi_file_samples/testtool6",))
+
+    assert len(tools) == 1
+    assert tools[0].__tool_spec__.binding.python.function == "tools.testtool6:my_tool"
+    assert tools[0].__tool_spec__.name == "testtool6_name"
+    assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
+
+def test_python_with_tool_in_subfolder_with_package_level():
+    drop_module('testtool7')
+    tools_controller = ToolsController()
+    tools = list(tools_controller.import_tool(ToolKind.python,
+                                              file="tests/cli/resources/python_multi_file_samples/testtool7/tools/testtool7.py",
+                                              package_root="tests/cli/resources/python_multi_file_samples/testtool7",))
+
+    assert len(tools) == 1
+    assert tools[0].__tool_spec__.binding.python.function == "tools.testtool7:my_tool"
+    assert tools[0].__tool_spec__.name == "testtool7_name"
+    assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests==2.32.3"]
 
 def test_publish_openapi():
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
