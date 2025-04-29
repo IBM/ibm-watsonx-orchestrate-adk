@@ -595,27 +595,36 @@ class TestAgentsControllerUpdateAgent:
             assert f"Assistant Agent '{agent.name}' updated successfully" in captured
 
 class MockConnectionClient:
-    def __init__(self, get_response=[]):
+    def __init__(self, get_response=[], get_draft_by_id_response=None):
         self.get_response = get_response
+        self.get_draft_by_id_response = get_draft_by_id_response
     
     def get(self):
         return self.get_response
+    
+    def get_draft_by_id(self, connection_id):
+        return self.get_draft_by_id_response
 
 class TestListAgents:
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client')
+    @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_knowledge_base_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_collaborator_names')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_tool_names')
-    def test_list_agents(self, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_external_client, mock_get_native_client, mock_get_tool_client):
+    @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client')
+    @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_knowledge_base_names')
+    def test_list_agents(self, get_agent_knowledge_base_names, mock_get_connections_client, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_external_client, mock_get_native_client, mock_get_knowledge_base_client, mock_get_tool_client):
+        mock_get_connections_client.return_value = MockConnectionClient()
+        
         # Mock responses for collaborator and tool names
-    
         mock_get_agent_collaborator_names.return_value = ['Collaborator 1']
         mock_get_agent_tool_names.return_value = ['Test Tool']
+        get_agent_knowledge_base_names.return_value = ['Test Knowledge Base']
         
         # Mock native client response (Native agents)
         mock_get_native_client.return_value.get.side_effect = [
-            [{'id': 'agent1', 'name': 'Agent 1', 'description': 'Test agent 1', 'llm': 'llm_model_1', 'style': 'default', 'collaborators': ['collab_id_1'], 'tools': ['tool_id_1']}],
+            [{'id': 'agent1', 'name': 'Agent 1', 'description': 'Test agent 1', 'llm': 'llm_model_1', 'style': 'default', 'collaborators': ['collab_id_1'], 'tools': ['tool_id_1'], 'knowledge_base': ['knowledge_base_id_1']}],
             [{'id': 'collab_id_1', 'name': 'Collaborator 1'}]
         ]
         
@@ -637,27 +646,29 @@ class TestListAgents:
         
         # Mock tool client response
         mock_get_tool_client.return_value.get_draft_by_id.return_value = {'name': 'Test Tool'}
+
+        # Mock knowlege base client
+        mock_get_knowledge_base_client.return_value.get_by_id.return_value = {'name': 'Test Knowledge Base'}
         
         # Test for Native agents
         agents_controller = AgentsController()
         agents_controller.list_agents(kind=AgentKind.NATIVE)
         
-        print(f"get_tool_client call count (for native): {mock_get_tool_client.call_count}")
-        print(f"get_native_client call count (for native): {mock_get_native_client.call_count}")
         assert mock_get_native_client.call_count == 1, f"Expected get_native_client to be called once, but got {mock_get_native_client.call_count}"
         assert mock_get_tool_client.call_count == 0, f"Expected get_tool_client to be called 0 times, but got {mock_get_tool_client.call_count}"
+        assert mock_get_knowledge_base_client.call_count == 0, f"Expected get_knowledge_base_client to be called 0 times, but got {mock_get_knowledge_base_client.call_count}"
         
         # Test for External agents
         agents_controller.list_agents(kind=AgentKind.EXTERNAL)
-        
-        print(f"get_tool_client call count (for external): {mock_get_tool_client.call_count}")
-        print(f"get_external_client call count (for external): {mock_get_external_client.call_count}")
+
         assert mock_get_external_client.call_count == 1, f"Expected get_external_client to be called once, but got {mock_get_external_client.call_count}"
         assert mock_get_tool_client.call_count == 0, f"Expected get_tool_client to be called 0 times, but got {mock_get_tool_client.call_count}"
+        assert mock_get_knowledge_base_client.call_count == 0, f"Expected get_knowledge_base_client to be called 0 times, but got {mock_get_knowledge_base_client.call_count}"
         
         # Final assertions for mock return values
         assert mock_get_agent_collaborator_names.return_value == ['Collaborator 1'], "Collaborators list should be mocked correctly"
         assert mock_get_agent_tool_names.return_value == ['Test Tool'], "Tool names list should be mocked correctly"
+        assert get_agent_knowledge_base_names.return_value == ['Test Knowledge Base'], "Knowledge Base names list should be mocked correctly"
 
 
 class TestRemoveAgent:

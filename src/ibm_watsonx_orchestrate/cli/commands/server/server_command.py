@@ -16,6 +16,8 @@ import jwt
 from dotenv import dotenv_values, load_dotenv
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
+    AnalyticsLLMUpsertToolIdentifier
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
 
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
@@ -184,7 +186,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
         "--scale",
         "ui=0",
         "-d",
-        "--remove-orphans"
+        "--remove-orphans",
     ]
 
     logger.info("Starting docker-compose services...")
@@ -436,7 +438,7 @@ def server_start(
     ),
     experimental_with_langfuse: bool = typer.Option(
         False,
-        '--experimental-with-langfuse', '-l',
+        '--with-langfuse', '-l',
         help=''
     ),
     with_flow_runtime: bool = typer.Option(
@@ -501,8 +503,7 @@ def server_start(
         logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
-    if experimental_with_langfuse:
-        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+
     if with_flow_runtime:
         logger.info(f"Starting with flow runtime")
 

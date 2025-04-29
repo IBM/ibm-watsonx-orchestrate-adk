@@ -75,6 +75,7 @@ This tool can be accessed using the `orchestrate` command
 - [Server start](./docs/1_server_start.md)
 - [Agents](./docs/2_agents.md)
 - [Tools](./docs/2_tools.md)
+- [Knowledge Bases](./docs/2_knowledge_bases.md)
 - [Connections](./docs/2_connections.md)
 
 

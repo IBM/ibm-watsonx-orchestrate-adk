@@ -11,6 +11,7 @@ from langchain_core.utils.json_schema import dereference_refs
 from pydantic import TypeAdapter, BaseModel
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
 from .types import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
@@ -19,7 +20,7 @@ _all_tools = []
 logger = logging.getLogger(__name__)
 
 class PythonTool(BaseTool):
-    def __init__(self, fn, spec: ToolSpec, expected_credentials: List[str|dict[str,str]]=None):
+    def __init__(self, fn, spec: ToolSpec, expected_credentials: List[ExpectedCredentials]=None):
         BaseTool.__init__(self, spec=spec)
         self.fn = fn
         self.expected_credentials=expected_credentials
@@ -98,7 +99,7 @@ def tool(
     input_schema: ToolRequestBody = None,
     output_schema: ToolResponseBody = None,
     permission: ToolPermission = ToolPermission.READ_ONLY,
-    expected_credentials: List[str|dict[str,str]] = None
+    expected_credentials: List[ExpectedCredentials] = None
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -127,7 +128,15 @@ def tool(
             permission=permission
         )
 
-        t = PythonTool(fn=fn, spec=spec, expected_credentials=expected_credentials)
+        parsed_expected_credentials = []
+        if expected_credentials:
+            for credential in expected_credentials:
+                if isinstance(credential, ExpectedCredentials):
+                    parsed_expected_credentials.append(credential)
+                else:
+                    parsed_expected_credentials.append(ExpectedCredentials.model_validate(credential))
+        
+        t = PythonTool(fn=fn, spec=spec, expected_credentials=parsed_expected_credentials)
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))
 
         linux_friendly_os_cwd = os.getcwd().replace("\\", "/")

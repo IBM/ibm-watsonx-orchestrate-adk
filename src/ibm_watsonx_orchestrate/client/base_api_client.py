@@ -45,17 +45,23 @@ class BaseAPIClient:
             headers["Authorization"] = f"Bearer {self.authenticator.token_manager.get_token()}"
         return headers
 
-    def _get(self, path: str, params: dict = None) -> dict:
+    def _get(self, path: str, params: dict = None, data=None) -> dict:
 
         url = f"{self.base_url}{path}"
-        response = requests.get(url, headers=self._get_headers(), params=params)
+        response = requests.get(url, headers=self._get_headers(), params=params, data=data)
         self._check_response(response)
         return response.json()
 
     def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
-
         url = f"{self.base_url}{path}"
         response = requests.post(url, headers=self._get_headers(), json=data, files=files)
+        self._check_response(response)
+        return response.json() if response.text else {}
+    
+    def _post_form_data(self, path: str, data: dict = None, files: dict = None) -> dict:
+        url = f"{self.base_url}{path}"
+        # Use data argument instead of json so data is encoded as application/x-www-form-urlencoded
+        response = requests.post(url, headers=self._get_headers(), data=data, files=files)
         self._check_response(response)
         return response.json() if response.text else {}
 
@@ -67,15 +73,20 @@ class BaseAPIClient:
         return response.json() if response.text else {}
 
     def _patch(self, path: str, data: dict = None) -> dict:
-
         url = f"{self.base_url}{path}"
         response = requests.patch(url, headers=self._get_headers(), json=data)
         self._check_response(response)
         return response.json() if response.text else {}
-
-    def _delete(self, path: str) -> dict:
+    
+    def _patch_form_data(self, path: str, data: dict = None, files = None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.delete(url, headers=self._get_headers())
+        response = requests.patch(url, headers=self._get_headers(), data=data, files=files)
+        self._check_response(response)
+        return response.json() if response.text else {}
+
+    def _delete(self, path: str, data=None) -> dict:
+        url = f"{self.base_url}{path}"
+        response = requests.delete(url, headers=self._get_headers(), json=data)
         self._check_response(response)
         return response.json() if response.text else {}
 

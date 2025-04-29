@@ -31,6 +31,23 @@ services:
       - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
     command: -c shared_preload_libraries=pgsodium
 
+  wxo-server-connection-manager:
+    image: us.icr.io/${CM_REGISTRY:-watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_NAME: postgres
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      DB_HOST: wxo-server-db
+      DB_PORT: ${DB_PORT:-5432}
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      WXO_SERVER_URL: http://wxo-server:4321
+      MAX_POOL: 10
+    ports:
+      - 3001:3001
+
   ui:
     image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
@@ -116,6 +133,49 @@ services:
       /usr/bin/mc mb wxo-server-minio/langfuse;
       exit 0;
       "
+      
+  wxo-milvus-standalone:
+    image: milvusdb/milvus:v2.5.6
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+    - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: wxo-milvus-etcd:2379
+      MINIO_ADDRESS: wxo-server-minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      COMMON_SECURITY_DEFAULTROOTPASSWORD: ${MILVUS_PASSWORD}
+    volumes:
+      - wxo-milvus-data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "wxo-milvus-etcd"
+      - "wxo-server-minio"
+
+  wxo-milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - wxo-milvus-etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  
   socket-handler:
     container_name: socket-handler
     profiles:
@@ -152,9 +212,9 @@ services:
     command: >
         bash -c "mkdir -p /tmp/certs && 
                   openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/certs/key.pem -out /tmp/certs/cert.pem -subj '/CN=localhost' && 
-                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --log-level debug wo_archer.api.main:app & 
+                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app & 
                   (for i in {1..20}; do curl --silent --fail -k https://127.0.0.1:4322/health/alive && echo '[INFO] HTTPS Service ready' && break || echo '[INFO] Waiting for HTTPS service...' && sleep 30; done; curl --silent --fail -k https://127.0.0.1:4322/health/alive || (echo '[ERROR] HTTPS service failed to start' && exit 1) ) &&
-                  uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 2 wo_archer.api.main:app & 
+                  uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app & 
                   (for i in {1..20}; do curl --silent --fail -k http://127.0.0.1:4321/health/alive && echo '[INFO] HTTP Service ready' && break || echo '[INFO] Waiting for HTTP service...' && sleep 30; done; curl --silent --fail -k http://127.0.0.1:4321/health/alive || (echo '[ERROR] HTTP service failed to start' && exit 1) ) && 
                   wait"
     depends_on:
@@ -170,6 +230,7 @@ services:
     environment:
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
+      TRM_BASE_URL: http://tools-runtime-manager:8080
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
@@ -193,7 +254,7 @@ services:
       ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
       ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
       ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
-      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr}
+      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr-v2}
       ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
       ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
       ASSISTANT_EMBEDDINGS_SPACE_ID: ${ASSISTANT_EMBEDDINGS_SPACE_ID}
@@ -211,8 +272,7 @@ services:
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
-      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
-      MILVUS_URI: ${MILVUS_URI}
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "-1"
       TAVILY_API_KEY: ${TAVILY_API_KEY}
@@ -226,6 +286,13 @@ services:
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
+      WXO_DEPLOYMENT_PLATFORM: saas
+      CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
+      CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
+      WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
+      MILVUS_DB_NAME: default
+      MILVUS_USERNAME: root
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
 
   wxo-server-worker:
     image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -243,6 +310,8 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      IS_WXO_LITE: 'TRUE'
+      TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
@@ -264,7 +333,7 @@ services:
       ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
       ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
       ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
-      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr}
+      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr-v2}
       ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
       ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
       ASSISTANT_EMBEDDINGS_SPACE_ID: ${ASSISTANT_EMBEDDINGS_SPACE_ID}
@@ -283,8 +352,7 @@ services:
       SERVER_TYPE: CELERY
       BAM_API_KEY: ${BAM_API_KEY}
       WXAI_API_KEY: ${WXAI_API_KEY}
-      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER}
-      MILVUS_URI: ${MILVUS_URI}
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "-1"
       TAVILY_API_KEY: ${TAVILY_API_KEY}
@@ -297,12 +365,78 @@ services:
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
+      CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
+      CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
+      WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
+      MILVUS_DB_NAME: default
+      MILVUS_USERNAME: root
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
+  
+  tools-runtime-manager:
+    image: us.icr.io/${TRM_REGISTRY:-watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      wxo-server-db:
+        condition: service_healthy  # Ensures DB is ready before starting
+    volumes:
+      - $HOME/.kube/config:/root/.kube/config
+      - tools-runtime-data:/shared-data
+    environment:
+      KUBECONFIG: /root/.kube/config
+      K8S_SERVER: "https://lima-rancher-desktop:6443"  # Kubernetes API on host
+      DB_HOST: wxo-server-db
+      DB_PORT: ${DB_PORT:-5432}  # Ensure default port
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_SSLMODE: ${DB_SSLMODE:-disable}  # Disable SSL if not configured
+      DB_CONN_LIFE: ${DB_CONN_LIFE}
+      DB_MAX_IDLE_CONN: ${DB_MAX_IDLE_CONN}
+      DB_MAX_CONN: ${DB_MAX_CONN}
+      SERVER_PORT: ${SERVER_PORT}
+      SERVER_HOST: ${SERVER_HOST}
+      SCHEMA_FILE_PATH: ${SCHEMA_FILE_PATH}
+      WXO_BASE_URL: ${WXO_BASE_URL}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      NAMESPACE: ${NAMESPACE}
+      DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
+      VOLUME_MOUNT_PATH: "/shared-data"
+      TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
+      CONNECTION_SERVICE_BASE_URL: http://wxo-server-connection-manager:3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  tools-runtime:
+    image: us.icr.io/${TR_REGISTRY:-watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
+    platform: linux/amd64
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      - wxo-server-db
+    volumes:
+      - $HOME/.kube/config:/root/.kube/config
+      - tools-runtime-data:/shared-data
+    environment:
+      DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
+      VOLUME_MOUNT_PATH: "/shared-data"
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
+      DB_HOST: wxo-server-db
+      DB_PORT: ${DB_PORT:-5432}  # Ensure default port
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_SSLMODE: ${DB_SSLMODE:-disable}  # Disable SSL if not configured
 
 ########################
 # LANGFUSE dependencies
 ########################
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: us.icr.io/watson-orchestrate-private/langfuse-worker:3
     restart: unless-stopped
     profiles: [langfuse]
     depends_on: &langfuse-depends-on
@@ -354,7 +488,7 @@ services:
       REDIS_CONNECTION_STRING: redis://wxo-server-redis:6379/1
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: us.icr.io/watson-orchestrate-private/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
     profiles: [langfuse]
@@ -367,7 +501,7 @@ services:
       NEXTAUTH_SECRET: mysecret
 
   langfuse-clickhouse:
-    image: clickhouse/clickhouse-server
+    image: us.icr.io/watson-orchestrate-private/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
     profiles: [langfuse]
@@ -445,7 +579,13 @@ volumes:
     driver: local
   wxo-server-minio-data:
     driver: local
+  wxo-milvus-data:
+    driver: local
+  wxo-milvus-etcd-data:
+    driver: local
   ui-data:
+    driver: local
+  tools-runtime-data:
     driver: local
   langfuse_clickhouse_data:
     driver: local

@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from pydantic import Field, AliasChoices
 from typing import Annotated
 
@@ -12,6 +13,7 @@ DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
 
 class SpecVersion(str, Enum):
     V1 = "v1"
+
 
 class AgentKind(str, Enum):
     NATIVE = "native"
@@ -76,6 +78,8 @@ class AgentSpec(BaseAgentSpec):
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+    hidden: bool = False
+    knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
 
 
     def __init__(self, *args, **kwargs):
@@ -169,7 +173,6 @@ class AssistantAgentConfig(BaseModel):
     api_key: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     authorization_url: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     auth_type: AssistantAgentAuthType = AssistantAgentAuthType.MCSP
-
 
 class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)

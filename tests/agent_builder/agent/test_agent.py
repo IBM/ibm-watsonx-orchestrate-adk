@@ -20,6 +20,10 @@ def valid_native_agent_sample():
         "tools": [
             "test_tool_1",
             "test_tool_2"
+        ],
+        "knowledge_base": [
+            "test_base_1",
+            "test_base_2"
         ]
     }
 
@@ -29,10 +33,11 @@ def default_values():
         "kind": AgentKind.NATIVE,
         "llm": DEFAULT_LLM,
         "collaborators": [],
-        "tools": []
+        "tools": [],
+        "knowledge_base": []
     }
 
-@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools'])
+@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools', 'knowledge_base'])
 def native_agent_missing_optional_values(request, valid_native_agent_sample):
     native_spec_definition = valid_native_agent_sample
     native_spec_definition.pop(request.param, None)
@@ -64,7 +69,8 @@ class TestAgentInit:
             llm = native_spec_definition["llm"],
             style = native_spec_definition["style"],
             collaborators = native_spec_definition["collaborators"],
-            tools = native_spec_definition["tools"]
+            tools = native_spec_definition["tools"],
+            knowledge_base = native_spec_definition["knowledge_base"]
             )
         
         assert native_agent.spec_version == native_spec_definition["spec_version"]
@@ -75,6 +81,7 @@ class TestAgentInit:
         assert native_agent.style == native_spec_definition["style"]
         assert native_agent.collaborators == native_spec_definition["collaborators"]
         assert native_agent.tools == native_spec_definition["tools"]
+        assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
 
     def test_native_agent_missing_optional_params(self, native_agent_missing_optional_values, default_values):
@@ -111,7 +118,8 @@ class TestAgentString:
             llm = native_spec_definition["llm"],
             style = native_spec_definition["style"],
             collaborators = native_spec_definition["collaborators"],
-            tools = native_spec_definition["tools"]
+            tools = native_spec_definition["tools"],
+            knowledge_base = native_spec_definition["knowledge_base"]
             )
 
         print(native_agent)
@@ -140,6 +148,7 @@ class TestAgentFromSpec:
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
             assert native_agent.tools == native_spec_definition["tools"]
+            assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
     def test_native_agent_from_spec_json(self, valid_native_agent_sample):
         with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.json.load") as mock_loader, \
@@ -160,6 +169,7 @@ class TestAgentFromSpec:
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
             assert native_agent.tools == native_spec_definition["tools"]
+            assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
     def test_native_agent_from_spec_invalid_file_extentionl(self):
        with patch("builtins.open", mock_open()) as mock_file:
