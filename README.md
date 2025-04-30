@@ -32,6 +32,7 @@ handling responses from the service’s APIs.
 5. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 6. Create an env file with the following contents
 ```env
+WO_DEVELOPER_EDITION_SOURCE=internal
 DOCKER_IAM_KEY=<will be emailed per step 5>
 WATSONX_APIKEY=<your watsonx ai api key>
 WATSONX_SPACE_ID=<your watsonx ai space id>

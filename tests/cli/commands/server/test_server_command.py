@@ -36,30 +36,58 @@ def mock_env_files(tmp_path):
     
     return default_env, user_env
 
-@pytest.fixture
-def valid_user_env(tmp_path):
+@pytest.fixture(params=["internal", "myibm"])
+def valid_user_env(tmp_path, request):
     env_file = tmp_path / "user_valid.env"
-    env_file.write_text(
-        "DOCKER_IAM_KEY=test-key\n"
-        "REGISTRY_URL=registry.example.com\n"
-        "WATSONX_APIKEY=test-llm-key\n"
-        "WXO_USER=temp\n"
-        "WXO_PASS=temp\n"
-        "HEALTH_TIMEOUT=1\n"
-    )
+    if request.param == "internal":
+        env_file.write_text(
+            "WO_DEVELOPER_EDITION_SOURCE=internal\n"
+            "DOCKER_IAM_KEY=test-key\n"
+            "REGISTRY_URL=registry.example.com\n"
+            "WATSONX_APIKEY=test-llm-key\n"
+            "WXO_USER=temp\n"
+            "WXO_PASS=temp\n"
+            "HEALTH_TIMEOUT=1\n"
+        )
+    elif request.param == "myibm":
+        env_file.write_text(
+            "WO_DEVELOPER_EDITION_SOURCE=myibm\n"
+            "WO_ENTITLEMENT_KEY=test-key\n"
+            "REGISTRY_URL=registry.example.com\n"
+            "WATSONX_APIKEY=test-llm-key\n"
+            "WXO_USER=temp\n"
+            "WXO_PASS=temp\n"
+            "HEALTH_TIMEOUT=1\n"
+        )
+    # TODO: add test case for orchestrate
+        
     return env_file
 
-@pytest.fixture
-def invalid_user_env(tmp_path):
+@pytest.fixture(params=["internal", "myibm"])
+def invalid_user_env(tmp_path, request):
     env_file = tmp_path / "user_invalid.env"
-    env_file.write_text(
-        "DOCKER_IAM_KEY=invalid-key\n"
+    if request.param == "internal":
+        env_file.write_text(
+            "WO_DEVELOPER_EDITION_SOURCE=internal\n"
+            "DOCKER_IAM_KEY=invalid-key\n"
+            "REGISTRY_URL=registry.example.com\n"
+            "WATSONX_APIKEY=test-llm-key\n"
+            "WXO_USER=temp\n"
+            "WXO_PASS=temp\n"
+            "HEALTH_TIMEOUT=1\n"
+        )
+    elif request.param == "myibm":
+        env_file.write_text(
+        "WO_DEVELOPER_EDITION_SOURCE=myibm\n"
+        "WO_ENTITLEMENT_KEY=invalid-key\n"
         "REGISTRY_URL=registry.example.com\n"
         "WATSONX_APIKEY=test-llm-key\n"
         "WXO_USER=temp\n"
         "WXO_PASS=temp\n"
         "HEALTH_TIMEOUT=1\n"
     )
+    # TODO: add test case for orchestrate
+    
     return env_file
 
 # Fixture for a valid compose file.
@@ -261,7 +289,7 @@ def test_cli_start_missing_credentials(caplog):
     captured = caplog.text
 
     assert result.exit_code == 1
-    assert "DOCKER_IAM_KEY is required" in captured
+    assert "WO_ENTITLEMENT_KEY is required" in captured
 
 def test_cli_stop_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down:
@@ -302,7 +330,7 @@ def test_missing_default_env_file(caplog):
         captured = caplog.text
 
         assert result.exit_code == 1
-        assert "DOCKER_IAM_KEY is required in the environment file." in captured
+        assert "WO_ENTITLEMENT_KEY is required in the environment file." in captured
 
 def test_invalid_docker_credentials(invalid_user_env, caplog):
     with patch("subprocess.run") as mock_run:
@@ -351,7 +379,7 @@ def test_cli_command_failure(caplog):
     captured = caplog.text
 
     assert result.exit_code == 1
-    assert "DOCKER_IAM_KEY is required" in captured
+    assert "WO_ENTITLEMENT_KEY is required" in captured
 
 def test_get_dbtag_from_architecture_arm64():
     with patch("platform.machine") as mock_machine, \

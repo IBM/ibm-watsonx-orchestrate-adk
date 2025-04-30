@@ -62,6 +62,18 @@ class TestChatStart:
         finally:
             Path(env_file_path).unlink()
 
+    def test_chat_start_without_env(self, caplog):
+        with patch("webbrowser.open") as mock_webbrowser, \
+            patch("ibm_watsonx_orchestrate.cli.commands.chat.chat_command.run_compose_lite_ui") as mock_run_compose_lite_ui:
+            
+            mock_run_compose_lite_ui.return_value = True
+            
+            chat_command.chat_start("")
+            captured = caplog.text
+            
+            assert "Opening chat interface at http://localhost:3000/chat-lite" in captured
+            mock_webbrowser.assert_called_once_with("http://localhost:3000/chat-lite")
+
 class TestChatStop:
     def test_chat_stop_with_env(self, caplog):
         env_content = (

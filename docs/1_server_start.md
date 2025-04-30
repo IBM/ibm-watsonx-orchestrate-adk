@@ -32,11 +32,13 @@ After issuing the `orchestrate server start` command, the following services wil
 
 The following environment variables must be set before running the command:
 
-- `DOCKER_IAM_KEY`: The IAM API key for authenticating with the Docker registry. This can be obtained from your IBM Cloud account at https://cloud.ibm.com. Go to "Manage" > "Access (IAM)" > "API keys" and create a new key.
-
 - `WATSONX_SPACE_ID`: The ID of your Watson X space. This can be found in your Watson X account at https://cloud.ibm.com. Go to your Watson X space and copy the "Space ID" value. 
 
 - `WATSONX_APIKEY`: The API key for your Watson X service. This can be created in your Watson X account at https://cloud.ibm.com. Go to "Service credentials" and create a new credential.
+
+- `WO_ENTITLEMENT_KEY`: The entitlement key for accessing the IBM Container software library. This can be obtained from https://myibm.ibm.com/products-services/containerlibrary. Go to "Entitlement keys" and create a new key (or use an existing one). This is only required if `WO_DEVELOPER_EDITION_SOURCE` is set to `myibm` (default), which means the client will fetch images from the IBM Container software library.
+
+- `DOCKER_IAM_KEY`: The IAM API key for authenticating with the Docker registry. This is only required if `WO_DEVELOPER_EDITION_SOURCE` is set to `internal`, which means the client will fetch images from the internal IBM Cloud registry. This can be obtained from your IBM Cloud account at https://cloud.ibm.com. Go to "Manage" > "Access (IAM)" > "API keys" and create a new key.
 
 You should set these in a environment file and refer to that with the start command.
 For example:

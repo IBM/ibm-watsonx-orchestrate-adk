@@ -52,11 +52,11 @@ def ensure_docker_compose_installed() -> list:
         typer.echo("Unable to find an installed docker-compose or docker compose")
         sys.exit(1)
 
-def docker_login(iam_api_key: str, registry_url: str) -> None:
+def docker_login(api_key: str, registry_url: str, username:str = "iamapikey") -> None:
     logger.info(f"Logging into Docker registry: {registry_url} ...")
     result = subprocess.run(
-        ["docker", "login", "-u", "iamapikey", "--password-stdin", registry_url],
-        input=iam_api_key.encode("utf-8"),
+        ["docker", "login", "-u", username, "--password-stdin", registry_url],
+        input=api_key.encode("utf-8"),
         capture_output=True,
     )
     if result.returncode != 0:
@@ -64,6 +64,24 @@ def docker_login(iam_api_key: str, registry_url: str) -> None:
         sys.exit(1)
     logger.info("Successfully logged in to Docker.")
 
+def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
+    registry_url = env_dict["REGISTRY_URL"]
+    if source == "internal":
+        iam_api_key = env_dict.get("DOCKER_IAM_KEY")
+        if not iam_api_key:
+            raise ValueError("DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
+        docker_login(iam_api_key, registry_url, "iamapikey")
+    elif source == "myibm":
+        wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
+        if not wo_entitlement_key:
+            raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
+        docker_login(wo_entitlement_key, registry_url, "cp")
+    elif source == "orchestrate":
+        wo_auth_type = env_dict.get("WO_AUTH_TYPE")
+        if not wo_auth_type:
+            raise ValueError("WO_AUTH_TYPE is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'orchestrate'.")
+        api_key, username = get_docker_cred_by_wo_auth_type(env_dict, wo_auth_type)
+        docker_login(api_key, registry_url, username)
 
 def get_compose_file() -> Path:
     with resources.as_file(
@@ -93,9 +111,51 @@ def merge_env(
         user_env = dotenv_values(str(user_env_path))
         merged.update(user_env)
 
-
     return merged
 
+def get_default_registry_env_vars_by_dev_edition_source(env_dict: dict, source: str) -> dict[str,str]:
+    component_registry_var_names = {key for key in env_dict if key.endswith("_REGISTRY")}
+    
+    result = {}
+    if source == "internal":
+        result["REGISTRY_URL"] = "us.icr.io"
+        for name in component_registry_var_names:
+            result[name] = "us.icr.io/watson-orchestrate-private"
+    elif source == "myibm":
+        result["REGISTRY_URL"] = "cp.icr.io"
+        for name in component_registry_var_names:
+            result[name] = "cp.icr.io/cp/wxo-lite"
+    elif source == "orchestrate":
+        raise NotImplementedError("The 'orchestrate' source is not implemented yet.")
+        # TODO: confirm with Tej about the registry url for orchestrate source
+    return result
+
+def get_dev_edition_source(env_dict: dict) -> str:
+    source = env_dict.get("WO_DEVELOPER_EDITION_SOURCE")
+
+    if source:
+        return source
+    if env_dict.get("WO_INSTANCE"):
+        return "orchestrate"
+    return "myibm"
+
+def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str) -> tuple[str, str]:
+    if auth_type in {"mcsp", "ibm_iam"}:
+        wo_api_key = env_dict.get("WO_API_KEY")
+        if not wo_api_key:
+            raise ValueError("WO_API_KEY is required in the environment file if the WO_AUTH_TYPE is set to 'mcsp' or 'ibm_iam'.")
+        return wo_api_key, "wouser"
+    elif auth_type == "cpd":
+        wo_api_key = env_dict.get("WO_API_KEY")
+        wo_password = env_dict.get("WO_PASSWORD")
+        if not wo_api_key and not wo_password:
+            raise ValueError("WO_API_KEY or WO_PASSWORD is required in the environment file if the WO_AUTH_TYPE is set to 'cpd'.")
+        wo_username = env_dict.get("WO_USERNAME")
+        if not wo_username:
+            raise ValueError("WO_USERNAME is required in the environment file if the WO_AUTH_TYPE is set to 'cpd'.")
+        return wo_api_key or wo_password, wo_username  # type: ignore[return-value]
+    else:
+        raise ValueError(f"Unknown value for WO_AUTH_TYPE: {auth_type}. Must be one of ['mcsp', 'ibm_iam', 'cpd'].")
 
 def apply_llm_api_key_defaults(env_dict: dict) -> None:
     llm_value = env_dict.get("WATSONX_APIKEY")
@@ -249,12 +309,18 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     ensure_docker_installed()
-    default_env_path = get_default_env_file()
-    logger.debug(f"user env file: {user_env_file}")
-    merged_env_dict = merge_env(
-        default_env_path,
-        user_env_file if user_env_file else None
-    )
+    
+    default_env = read_env_file(get_default_env_file())
+    user_env = read_env_file(user_env_file) if user_env_file else {}
+    
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
+
+    merged_env_dict = {
+        **default_env,
+        **default_registry_vars,
+        **user_env,
+    }
 
     _login(name=PROTECTED_ENV_NAME)
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
@@ -264,21 +330,17 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     tenant_id = token.get('woTenantId', None)
     merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
 
-
-    registry_url = merged_env_dict.get("REGISTRY_URL")
-    if not registry_url:
-        logger.error("Error: REGISTRY_URL is required in the environment file.")
-        sys.exit(1)
-
     agent_client = instantiate_client(AgentClient)
     agents = agent_client.get()
     if not agents:
         logger.error("No agents found for the current environment. Please create an agent before starting the chat.")
         sys.exit(1)
 
-    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
-    if iam_api_key:
-        docker_login(iam_api_key, registry_url)
+    try:
+        docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
+    except ValueError as ignored:
+        # do nothing, as the docker login here is not mandatory
+        pass
 
     #These are to removed warning and not used in UI component
     if not 'WATSONX_SPACE_ID' in merged_env_dict:
@@ -429,6 +491,8 @@ def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
         )
         sys.exit(1)
 
+
+
 @server_app.command(name="start")
 def server_start(
     user_env_file: str = typer.Option(
@@ -453,26 +517,25 @@ def server_start(
         sys.exit(1)
     ensure_docker_installed()
 
-    default_env_path = get_default_env_file()
+    default_env = read_env_file(get_default_env_file())
+    user_env = read_env_file(user_env_file) if user_env_file else {}
+    
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
 
-    merged_env_dict = merge_env(
-        default_env_path,
-        Path(user_env_file) if user_env_file else None
-    )
+    merged_env_dict = {
+        **default_env,
+        **default_registry_vars,
+        **user_env,
+    }
 
     merged_env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=merged_env_dict)
 
-    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
-    if not iam_api_key:
-        logger.error("Error: DOCKER_IAM_KEY is required in the environment file.")
+    try:
+        docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
+    except ValueError as e:
+        logger.error(f"Error: {e}")
         sys.exit(1)
-
-    registry_url = merged_env_dict.get("REGISTRY_URL")
-    if not registry_url:
-        logger.error("Error: REGISTRY_URL is required in the environment file.")
-        sys.exit(1)
-
-    docker_login(iam_api_key, registry_url)
 
     apply_llm_api_key_defaults(merged_env_dict)
 
