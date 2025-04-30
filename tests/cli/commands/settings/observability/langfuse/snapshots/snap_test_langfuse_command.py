@@ -21,7 +21,7 @@ snapshots['TestObservabilityConfiguration.test_configure_should_show_warning_if_
 snapshots['TestObservabilityConfiguration.test_configure_should_update_langfuse_with_config_file 1'] = {
     'api_key': 'sk-lf-00000-00000-00000-00000-00000',
     'config_json': {
-        "public_key": "pk-lf-00000-00000-00000-00000-00000"
+        'public_key': 'pk-lf-00000-00000-00000-00000-00000'
     },
     'host_health_uri': 'https://cloud.langfuse.com',
     'host_uri': 'https://cloud.langfuse.com//api/public/otel',
@@ -32,7 +32,8 @@ snapshots['TestObservabilityConfiguration.test_configure_should_update_langfuse_
 
 snapshots['TestObservabilityConfiguration.test_configure_should_update_langfuse_with_config_file_mixed 1'] = {
     'api_key': 'api_key',
-    'config_json': {},
+    'config_json': {
+    },
     'host_health_uri': 'https://cloud.langfuse.com//api/public/otel',
     'host_uri': 'https://cloud.langfuse.com',
     'mask_pii': False,
@@ -42,7 +43,8 @@ snapshots['TestObservabilityConfiguration.test_configure_should_update_langfuse_
 
 snapshots['TestObservabilityConfiguration.test_configure_should_update_langfuse_without_config_file 1'] = {
     'api_key': 'api_key',
-    'config_json': {},
+    'config_json': {
+    },
     'host_health_uri': 'https://cloud.langfuse.com//api/public/otel',
     'host_uri': 'https://cloud.langfuse.com',
     'mask_pii': True,
@@ -76,80 +78,6 @@ snapshots['TestObservabilityPrintToConsole.test_get_should_print_to_console_with
 kind: langfuse
 active: true
 mask_pii: true
-extra: 3
-
-'''
-
-snapshots['test_configure_should_show_warning_if_project_id_missing 1'] = {
-    'apiKey': 'api_key',
-    'config_json': '{}',
-    'hostUri': 'https://cloud.langfuse.com',
-    'mask_pii': False,
-    'projectId': 'default',
-    'toolIdentifier': 'langfuse'
-}
-
-snapshots['test_configure_should_update_langfuse_with_config_file 1'] = {
-    'apiKey': 'api_key',
-    'config_json': '{"custom_field": 3}',
-    'hostUri': 'https://cloud.langfuse.com',
-    'mask_pii': True,
-    'projectId': 'projectId',
-    'toolIdentifier': 'langfuse'
-}
-
-snapshots['test_configure_should_update_langfuse_with_config_file_mixed 1'] = {
-    'apiKey': 'api_key',
-    'config_json': '{"custom_field": 3}',
-    'hostUri': 'https://cloud.langfuse.com',
-    'mask_pii': False,
-    'projectId': 'projectId',
-    'toolIdentifier': 'langfuse'
-}
-
-snapshots['test_configure_should_update_langfuse_without_config_file 1'] = {
-    'apiKey': 'api_key',
-    'config_json': '{}',
-    'hostUri': 'https://cloud.langfuse.com',
-    'mask_pii': True,
-    'projectId': 'projectId',
-    'toolIdentifier': 'langfuse'
-}
-
-snapshots['test_get_should_output_to_json 1'] = '''{
-  "spec_version": "v1",
-  "kind": "langfuse",
-  "url": "host_uri",
-  "project_id": "my-project",
-  "api_key": "my-api-key",
-  "mask_pii": false,
-  "extra": 3
-}'''
-
-snapshots['test_get_should_output_to_yaml 1'] = '''spec_version: v1
-kind: langfuse
-url: host_uri
-project_id: my-project
-api_key: my-api-key
-mask_pii: false
-extra: 3
-'''
-
-snapshots['test_get_should_print_to_console 1'] = '''spec_version: v1
-kind: langfuse
-url: host_uri
-project_id: my-project
-api_key: my-api-key
-mask_pii: true
-
-'''
-
-snapshots['test_get_should_print_to_console_with_extras 1'] = '''spec_version: v1
-kind: langfuse
-url: host_uri
-project_id: my-project
-api_key: my-api-key
-mask_pii: false
 extra: 3
 
 '''
