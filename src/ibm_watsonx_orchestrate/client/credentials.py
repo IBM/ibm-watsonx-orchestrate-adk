@@ -37,7 +37,7 @@ class Credentials:
     ) -> None:
         env_credentials = Credentials._get_values_from_env_vars()
         self.url = url
-        self.iam_url = iam_url if iam_url is not None else "https://iam.platform.saas.ibm.com"
+        self.iam_url = iam_url
         self.api_key = api_key
         self.token = token
         self.local_global_token = None

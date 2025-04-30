@@ -27,7 +27,7 @@ handling responses from the service’s APIs.
 - docker
 - docker compose
 - python 3.11-3.13
-3. Run `pip install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple ibm-watsonx-orchestrate`
+3. Run `pip install --upgrade ibm-watsonx-orchestrate`
 4. Open a request on wo-tracker for access to the laptop-lite docker registry [here](https://github.ibm.com/WatsonOrchestrate/wxo-clients/issues/new?assignees=sampath-dechu%2C+Rijo-Pius%2C+Eric-Marcoux%2C+mario-briggs&labels=agent-builder%2Corchestrate-lite-access-request&projects=&template=wxo-agent-builder-sdk-access-request.md&title=Orchestrate+Lite+Docker+Registry+Access+Request). Once approved the value to put on DOCKER_IAM_KEY will be emailed to you. 
 5. Create a watsonx ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 6. Create an env file with the following contents

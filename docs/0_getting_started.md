@@ -5,7 +5,7 @@
 - docker
 - docker compose
 - python 3.12
-3. Run `pip install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple ibm-watsonx-orchestrate`
+3. Run `pip install --upgrade ibm-watsonx-orchestrate`
 4. Next we'll need to create an IBM Cloud IAM key so that we will be able to download orchestrate lite. Follow the instructions [here](https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=ui) making sure to not close the page after generating the api key.
 5. Create a watsonx.ai instance if you do not have one already and locate your space id. These can be found [here](https://dataplatform.cloud.ibm.com/developer-access?context=wx).
 6. Create an env file with the following contents
