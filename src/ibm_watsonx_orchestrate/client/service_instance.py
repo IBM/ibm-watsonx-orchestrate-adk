@@ -51,7 +51,8 @@ class ServiceInstance(BaseServiceInstance):
         try:
             match auth_type:
                 case EnvironmentAuthType.MCSP:
-                    authenticator = MCSPAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
+                    url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://iam.platform.saas.ibm.com"
+                    authenticator = MCSPAuthenticator(apikey=self._credentials.api_key, url=url)
                 case EnvironmentAuthType.IBM_CLOUD_IAM:
                     authenticator = IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
                 case _:
