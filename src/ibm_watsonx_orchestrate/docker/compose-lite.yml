@@ -3,7 +3,7 @@ services:
 # Orchestrate Lite dependencies
 ########################
   wxo-server-redis:
-    image: us.icr.io/watson-orchestrate-private/redis:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/redis:7.2
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -105,7 +105,7 @@ services:
       retries: 5
 
   wxo-server-minio:
-    image: us.icr.io/watson-orchestrate-private/minio/minio:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
     platform: linux/amd64
     ports:
       - '9000:9000'
@@ -123,7 +123,7 @@ services:
       - wxo-server-minio-data:/data
 
   wxo-server-minio-setup:
-    image: us.icr.io/watson-orchestrate-private/minio/mc:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
     platform: linux/amd64
     depends_on:
       wxo-server-minio:
@@ -137,7 +137,7 @@ services:
       "
       
   wxo-milvus-standalone:
-    image: milvusdb/milvus:v2.5.6
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.6
     command: ["milvus", "run", "standalone"]
     security_opt:
     - seccomp:unconfined
@@ -214,7 +214,7 @@ services:
     command: >
         bash -c "mkdir -p /tmp/certs && 
                   openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/certs/key.pem -out /tmp/certs/cert.pem -subj '/CN=localhost' && 
-                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app & 
+                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --workers 2 --log-level debug wo_archer.api.main:app & 
                   (for i in {1..20}; do curl --silent --fail -k https://127.0.0.1:4322/health/alive && echo '[INFO] HTTPS Service ready' && break || echo '[INFO] Waiting for HTTPS service...' && sleep 30; done; curl --silent --fail -k https://127.0.0.1:4322/health/alive || (echo '[ERROR] HTTPS service failed to start' && exit 1) ) &&
                   uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app & 
                   (for i in {1..20}; do curl --silent --fail -k http://127.0.0.1:4321/health/alive && echo '[INFO] HTTP Service ready' && break || echo '[INFO] Waiting for HTTP service...' && sleep 30; done; curl --silent --fail -k http://127.0.0.1:4321/health/alive || (echo '[ERROR] HTTP service failed to start' && exit 1) ) && 
@@ -438,7 +438,7 @@ services:
 # LANGFUSE dependencies
 ########################
   langfuse-worker:
-    image: us.icr.io/watson-orchestrate-private/langfuse-worker:3
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse-worker:3
     restart: unless-stopped
     profiles: [langfuse]
     depends_on: &langfuse-depends-on
@@ -490,7 +490,7 @@ services:
       REDIS_CONNECTION_STRING: redis://wxo-server-redis:6379/1
 
   langfuse-web:
-    image: us.icr.io/watson-orchestrate-private/langfuse:3
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
     profiles: [langfuse]
@@ -503,7 +503,7 @@ services:
       NEXTAUTH_SECRET: mysecret
 
   langfuse-clickhouse:
-    image: us.icr.io/watson-orchestrate-private/clickhouse-server:latest
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/clickhouse/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
     profiles: [langfuse]

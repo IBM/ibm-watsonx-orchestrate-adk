@@ -31,6 +31,8 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client, g
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 
+from  ibm_watsonx_orchestrate import __version__
+
 logger = logging.getLogger(__name__)
 
 __supported_characters_pattern = re.compile("^(\\w|_)+$")
@@ -489,7 +491,7 @@ class ToolsController:
                         cfg = Config()
                         registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
 
-                        version = importlib.import_module('ibm_watsonx_orchestrate').__version__
+                        version = __version__
                         if registry_type == RegistryType.LOCAL:
                             requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
                         elif registry_type == RegistryType.PYPI:
