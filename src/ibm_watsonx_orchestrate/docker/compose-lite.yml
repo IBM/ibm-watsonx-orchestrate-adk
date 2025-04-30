@@ -46,7 +46,7 @@ services:
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 10
     ports:
-      - 3001:3001
+      - 8124:3001
 
   ui:
     image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
