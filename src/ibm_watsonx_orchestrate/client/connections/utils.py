@@ -3,7 +3,7 @@ from ibm_watsonx_orchestrate.client.connections.connections_client import Connec
 from ibm_watsonx_orchestrate.cli.config import Config, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, ENV_WXO_URL_OPT
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionType, ConnectionAuthType, ConnectionSecurityScheme
 
-LOCAL_CONNECTION_MANAGER_PORT = 8124
+LOCAL_CONNECTION_MANAGER_PORT = 3001
 
 def _get_connections_manager_url() -> str:
     cfg = Config()

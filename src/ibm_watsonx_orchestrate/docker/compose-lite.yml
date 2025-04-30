@@ -46,7 +46,7 @@ services:
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 10
     ports:
-      - 8124:3001
+      - 3001:3001
 
   ui:
     image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
@@ -377,7 +377,7 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     ports:
-      - "8125:8080"
+      - "8080:8080"
     depends_on:
       wxo-server-db:
         condition: service_healthy  # Ensures DB is ready before starting
@@ -413,7 +413,7 @@ services:
     image: us.icr.io/${TR_REGISTRY:-watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
     platform: linux/amd64
     ports:
-      - "8126:8000"
+      - "8000:8000"
     restart: unless-stopped
     depends_on:
       - wxo-server-db
