@@ -1,30 +1,25 @@
+import importlib.resources as resources
 import logging
-import sys
-import subprocess
-import tempfile
-from pathlib import Path
-import requests
-import time
 import os
 import platform
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
 
-
-import typer
-import importlib.resources as resources
 import jwt
+import requests
+import typer
+from dotenv import dotenv_values
 
-from dotenv import dotenv_values, load_dotenv
-
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
-from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
-    AnalyticsLLMUpsertToolIdentifier
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
-
-from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
+from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
+from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, \
+    ENV_ACCEPT_LICENSE
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
-    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, ENVIRONMENTS_SECTION_HEADER, ENV_WXO_URL_OPT, \
-    CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER
-from dotenv import dotenv_values, load_dotenv
+    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +110,7 @@ def merge_env(
 
 def get_default_registry_env_vars_by_dev_edition_source(env_dict: dict, source: str) -> dict[str,str]:
     component_registry_var_names = {key for key in env_dict if key.endswith("_REGISTRY")}
-    
+
     result = {}
     if source == "internal":
         result["REGISTRY_URL"] = "us.icr.io"
@@ -210,7 +205,7 @@ def persist_user_env(env: dict, include_secrets: bool = False) -> None:
         persistable_env = env
     else:
         persistable_env = {k:env[k] for k in NON_SECRET_ENV_ITEMS if k in env}
-    
+
     cfg = Config()
     cfg.save(
         {
@@ -332,13 +327,12 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     ensure_docker_installed()
-    
+
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
-
     if not user_env:
         user_env = get_persisted_user_env()
-    
+
     dev_edition_source = get_dev_edition_source(user_env)
     default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
 
@@ -517,6 +511,33 @@ def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
         )
         sys.exit(1)
 
+def confirm_accepts_license_agreement(accepts_by_argument: bool):
+    cfg = Config()
+    accepts_license = cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE)
+    if accepts_license != True:
+        logger.warning(('''
+            By running the following command your machine will install IBM watsonx Orchestrate Developer Edition, which is governed by the following IBM license agreement:
+            - * https://www.ibm.com/support/customer/csol/terms/?id=L-YRMZ-PB6MHM&lc=en
+            Additionally, the following prerequisite open source programs will be obtained from Docker Hub and will be installed on your machine. Each of the below programs are Separately Licensed Code, and are governed by the separate license agreements identified below, and not by the IBM license agreement:
+            * redis (7.2)               - https://github.com/redis/redis/blob/7.2.7/COPYING
+            * minio                     - https://github.com/minio/minio/blob/master/LICENSE
+            * milvus-io                 - https://github.com/milvus-io/milvus/blob/master/LICENSE
+            * etcd                      - https://github.com/etcd-io/etcd/blob/main/LICENSE
+            * clickhouse-server         - https://github.com/ClickHouse/ClickHouse/blob/master/LICENSE
+            * langfuse                  - https://github.com/langfuse/langfuse/blob/main/LICENSE
+            After installation, you are solely responsible for obtaining and installing updates and fixes, including security patches, for the above prerequisite open source programs. To update images the customer will run `orchestrate server reset && orchestrate server start -e .env`.
+        ''').strip())
+        if not accepts_by_argument:
+            result = input('\nTo accept the terms and conditions of the IBM license agreement and the Separately Licensed Code licenses above please enter "I accept": ')
+        else:
+            result = None
+        if result == 'I accept' or accepts_by_argument:
+            cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, True)
+        else:
+            logger.error('The terms and conditions were not accepted, exiting.')
+            exit(1)
+
+
 
 
 @server_app.command(name="start")
@@ -543,8 +564,15 @@ def server_start(
         '--persist-env-secrets', '-p',
         help='Option to store secret values from the provided env file in the config file (~/.config/orchestrate/config.yaml)',
         hidden=True
-    )
+    ),
+    accept_terms_and_conditions: bool = typer.Option(
+        False,
+        "--accept-terms-and-conditions",
+        help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
+    ),
 ):
+    confirm_accepts_license_agreement(accept_terms_and_conditions)
+
     if user_env_file and not Path(user_env_file).exists():
         logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
         sys.exit(1)
@@ -552,9 +580,7 @@ def server_start(
 
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
-    
     persist_user_env(user_env, include_secrets=persist_env_secrets)
-
     dev_edition_source = get_dev_edition_source(user_env)
     default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
 
