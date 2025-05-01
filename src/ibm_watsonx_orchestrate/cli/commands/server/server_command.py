@@ -23,7 +23,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
     AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, ENVIRONMENTS_SECTION_HEADER, ENV_WXO_URL_OPT, \
-    CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, AUTH_SECTION_HEADER
+    CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER
 from dotenv import dotenv_values, load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,30 @@ def refresh_local_credentials() -> None:
     clear_protected_env_credentials_token()
     _login(name=PROTECTED_ENV_NAME, apikey=None)
 
+NON_SECRET_ENV_ITEMS = {
+    "WO_DEVELOPER_EDITION_SOURCE",
+    "WO_INSTANCE",
+    "USE_SAAS_ML_TOOLS_RUNTIME",
+    "WXO_MCSP_EXCHANGE_URL",
+    "OPENSOURCE_REGISTRY_PROXY"
+}
+def persist_user_env(env: dict, include_secrets: bool = False) -> None:
+    if include_secrets:
+        persistable_env = env
+    else:
+        persistable_env = {k:env[k] for k in NON_SECRET_ENV_ITEMS if k in env}
+    
+    cfg = Config()
+    cfg.save(
+        {
+            USER_ENV_CACHE_HEADER: persistable_env
+        }
+    )
 
+def get_persisted_user_env() -> dict | None:
+    cfg = Config()
+    user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
+    return user_env
 
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_flow_runtime=False) -> None:
     compose_path = get_compose_file()
@@ -312,6 +335,9 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
+
+    if not user_env:
+        user_env = get_persisted_user_env()
     
     dev_edition_source = get_dev_edition_source(user_env)
     default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
@@ -511,6 +537,13 @@ def server_start(
         help='Option to start server with tempus-runtime.',
         hidden=True
     )
+    ,
+    persist_env_secrets: bool = typer.Option(
+        False,
+        '--persist-env-secrets', '-p',
+        help='Option to store secret values from the provided env file in the config file (~/.config/orchestrate/config.yaml)',
+        hidden=True
+    )
 ):
     if user_env_file and not Path(user_env_file).exists():
         logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
@@ -520,6 +553,8 @@ def server_start(
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
     
+    persist_user_env(user_env, include_secrets=persist_env_secrets)
+
     dev_edition_source = get_dev_edition_source(user_env)
     default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
 
