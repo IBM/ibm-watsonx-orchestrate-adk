@@ -5,7 +5,7 @@
 
 <html>
     <h2 align="center">
-      <img src="https://mintlify.s3.us-west-1.amazonaws.com/agent-connect/images/watsonx-hero-connect.png" width="512"/>
+      <img src="./_docs/assets/watsonx-orchestrate-hero.png" width="512"/>
     </h2>
     <h3 align="center">
       <p>Important Links:</p>
