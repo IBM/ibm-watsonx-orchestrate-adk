@@ -466,7 +466,7 @@ class ToolsController:
                                     raise typer.BadParameter(f"Symbolic links in packages are not supported. - {path_str}")
 
                                 try:
-                                    zip_tool_artifacts.write(path_str, arcname=path_str[len(str(Path(resolved_package_root))) + 1:])
+                                    zip_tool_artifacts.write(path_str, arcname=str(Path(path_str).relative_to(Path(resolved_package_root))))
 
                                 except Exception as ex:
                                     logger.error(f"Could not write file {path_str} to artifact. {ex}")
