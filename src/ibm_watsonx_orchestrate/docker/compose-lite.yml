@@ -556,6 +556,10 @@ services:
       PG_DATABASE: postgres
       USER_MGMT_BASE_URL: "" # TODO
       WXO_SERVER_BASE_URL: http://wxo-server:4321
+      REDIS_ENDPOINT: wxo-server-redis:6379
+      REDIS_USER:
+      REDIS_PASSWORD:
+      REDIS_TLS: false
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
