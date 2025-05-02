@@ -635,6 +635,9 @@ def server_start(
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
 
+    if experimental_with_langfuse:
+        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+
     if with_flow_runtime:
         logger.info(f"Starting with flow runtime")
 
