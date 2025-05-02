@@ -22,7 +22,7 @@ tool that allows builders to configure agents that run on the IBM watsonx Orches
 integrating agents and tools built on other frameworks.
 
 These agents and tools can be run developed locally via an offering known as the watsonx Orchestrate Developer Edition,
-a fully self-contained local copy of watsonx Orchestrate that can run on your laptop where you can rapidly
+a fully self-contained local copy of watsonx Orchestrate that can run on your laptop or desktop where you can rapidly
 iterate in isolation.
 
 Once you are satisfied with what you built, it is possible to connect the ADK to a production instance of 
@@ -33,7 +33,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 ------------------------------------------
 
 ## Prerequisites
-### The Application Developer Kit (ADK)
+### The Agent Developer Kit (ADK)
 **Python 3.11-3.13**  
   Ensure you have Python 3.11-3.13 installed.
 
