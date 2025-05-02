@@ -16,45 +16,45 @@
 </html>
 
 
-The IBM watsonx Orchestrate Agent Development Kit (ADK) is a set of tools designed to make it easy to build and deploy 
+The **IBM&reg; watsonx Orchestrate Agent Development Kit (ADK)** is a set of tools designed to make it easy to build and deploy 
 agents using IBM watsonx Orchestrate. It is packaged as a Python library and command line 
 tool that allows builders to configure agents that run on the IBM watsonx Orchestrate platform. The ADK also supports 
 integrating agents and tools built on other frameworks.
 
-These agents and tools can be run developed locally via an offering known as the watsonx Orchestrate Developer Edition,
-a fully self-contained local copy of watsonx Orchestrate that can run on your laptop or desktop computer where you can rapidly
-iterate in isolation.
+In addition to the ADK, with the **watsonx Orchestrate Developer Edition**, you can run agents and tools that you develop locally. The Developer Edition
+of watsonx Orchestrate is a completely self-contained local copy of the platform that you can run on your laptop or desktop computer where
+you can rapidly iterate in isolation.
 
-Once you are satisfied with what you built, it is possible to connect the ADK to a production instance of 
-watsonx Orchestrate to share what you have built locally with your team and run at scale!
+When you are satisfied with what you built, you can connect the ADK to a production instance of watsonx Orchestrate to share
+what you have built locally with your team and run at scale!
 
-To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.com">ADK Documentation</a>!
+To learn more, check out the <a href="https://developer.watson-orchestrate.ibm.com">ADK Documentation</a>!
 
 ------------------------------------------
 
 ## Prerequisites
-### The Agent Developer Kit (ADK)
+### The Agent Development Kit (ADK)
 **Python 3.11-3.13**  
-  Ensure you have Python 3.11-3.13 installed.
+  Ensure you have Python 3.11 or up to 3.13.x installed.
 
-### watsonx Orchestrate Developer Edition
-**Machine Specs**
+### IBM watsonx Orchestrate Developer Edition
+**Machine minimum specification**
 - 16GB RAM
 - 8 cores
 - 25GB disk space
 
-**A docker engine**   
-  Ensure that you have a docker engine installed capable of running docker compose.
-  The watsonx Orchestrate team recommends either [Rancher](https://rancherdesktop.io/) or [Colima](https://github.com/abiosoft/colima).
+**Docker Engine**   
+  Ensure that you have a Docker Engine installed capable of running Docker Compose.
+  The watsonx Orchestrate Team recommends using either [Rancher](https://rancherdesktop.io/) or [Colima](https://github.com/abiosoft/colima).
 
-  Please make sure your instance of Rancher or Colima is configured with the following settings:
-  * [Rancher](./_docs/recommended-docker-settings/rancher-settings.md)
-  * [Colima](./_docs/recommended-docker-settings/coilma-settings.md)
+  Please make sure that your instance of Rancher or Colima is configured with the following settings:
+  * [Settings for Rancher](./_docs/recommended-docker-settings/rancher-settings.md)
+  * [Settings for Colima](./_docs/recommended-docker-settings/coilma-settings.md)
 
 ------------------------------------------
 
 ## Getting started
-In order to install the watonx Orchestrate Agent Developer Kit simply run:
+To install the watsonx Orchestrate ADK, run:
 ```bash
 pip install --upgrade ibm-watsonx-orchestrate
 ```
@@ -62,7 +62,7 @@ pip install --upgrade ibm-watsonx-orchestrate
 
 
 ## The ADK command line tool
-After installation, you will have access to the WXO CLI tool. This tool can be accessed using the `orchestrate` command 
+After the installation, you should have access to the Orchestrate CLI tool. Access this tool by using the `orchestrate` command, 
 which exposes the following functionality.
 
 Check out our [documentation](https://developer.watson-orchestrate.ibm.com/) to get started building today!
@@ -93,9 +93,9 @@ $ orchestrate --help
 ```
 
 ## watsonx Orchestrate Developer Edition
-The Developer Edition of Watsonx Orchestrate can be installed following the
-instructions [here](https://developer.watson-orchestrate.ibm.com/getting_started/wxOde_setup). After which
-you will be able to start, activate, import into and rapidly reset a local server of watsonx Orchestrate.
+Install the Developer Edition of watsonx Orchestrate by following the
+instructions [here](https://developer.watson-orchestrate.ibm.com/getting_started/wxOde_setup). After the installation, 
+you should be able to start, activate, import into, and rapidly reset a local server of watsonx Orchestrate.
 ```bash
 $ orchestrate server start -e .env
 [INFO] - Logging into Docker registry: us.icr.io ...
