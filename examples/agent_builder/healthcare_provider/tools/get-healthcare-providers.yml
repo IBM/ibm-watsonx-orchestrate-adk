@@ -1,0 +1,54 @@
+servers:
+ - url: https://find-provider.1sqnxi8zv3dh.us-east.codeengine.appdomain.cloud
+paths:
+  /:
+    get:
+      operationId: getHealthCareProviders
+      summary: Gets a list of healthcare providers
+      description: Gets a list of healthcare providers
+      parameters:
+        - in: path
+          name: location
+          schema:
+            type: string
+          required: false
+          description: The city, state or zipcode you want to get healthcare providers
+        - in: path
+          name: speciality
+          schema:
+            type: string
+            enum: ["General Medicine", "Cardiology", "Pediatrics", "Orthopedics", "ENT", "Multi-specialty"]
+          required: false
+          description: The speciality of the healthcare provider
+      responses:
+        '200':
+          description: Successfully retrieved list of healthcare providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        address:
+                            type: string
+                        contact:
+                            type: object
+                            properties:
+                                email:
+                                    type: string
+                                phone:
+                                    type: string
+                        name:
+                            type: string
+                        provider_id:
+                            type: string
+                        provider_type:
+                            type: string
+                        specialty:
+                            type: string
+                required:
+                  - data
