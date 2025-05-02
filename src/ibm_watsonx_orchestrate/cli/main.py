@@ -23,7 +23,7 @@ app.add_typer(tools_app, name="tools", help='Interact with the tools in your act
 app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledge your agents can search through to your active env")
 app.add_typer(connections_app, name="connections", help='Interact with the agents in your active env')
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires an Entitlement]')
-app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local list wxo lite server [requires docker pull credentials]')
+app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Developer Edition server [requires docker pull credentials]')
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
 app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat)")
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
