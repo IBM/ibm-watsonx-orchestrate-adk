@@ -72,3 +72,17 @@ class MatchAny:
             return f"Any({self.type})"
 
         return 'Any'
+
+
+class MatchesStringContaining:
+    def __init__(self, containing):
+        self.str = containing
+
+    def __eq__(self, other) -> bool:
+        return self.str in other
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return f"MatchesStringContaining({self.str})"

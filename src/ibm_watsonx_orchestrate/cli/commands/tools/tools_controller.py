@@ -275,14 +275,8 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     resolved_requirements_file = get_resolved_py_tool_reqs_file(tool_file=file, requirements_file=requirements_file,
                                                                 package_root=resolved_package_root)
 
-    if resolved_requirements_file is None:
-        logger.warning(f"No requirements file.")
-
-    if resolved_requirements_file != requirements_file:
-        logger.info(f"Resolved Requirements file: \"{resolved_requirements_file}\"")
-
-    else:
-        logger.info(f"Requirements file: \"{requirements_file}\"")
+    if resolved_requirements_file is not None:
+        logger.info(f"Using requirement file: \"{resolved_requirements_file}\"")
 
     if resolved_requirements_file is not None:
         try:
@@ -472,7 +466,7 @@ class ToolsController:
                                     raise typer.BadParameter(f"Symbolic links in packages are not supported. - {path_str}")
 
                                 try:
-                                    zip_tool_artifacts.write(path_str, arcname=path_str[len(str(Path(resolved_package_root))) + 1:])
+                                    zip_tool_artifacts.write(path_str, arcname=str(Path(path_str).relative_to(Path(resolved_package_root))))
 
                                 except Exception as ex:
                                     logger.error(f"Could not write file {path_str} to artifact. {ex}")

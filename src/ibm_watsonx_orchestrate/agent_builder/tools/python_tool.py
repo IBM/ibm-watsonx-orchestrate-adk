@@ -121,6 +121,7 @@ def tool(
         _desc = description
         if description is None and doc is not None:
             _desc = doc.description
+
         
         spec = ToolSpec(
             name=name or fn.__name__,
@@ -150,7 +151,11 @@ def tool(
 
         sig = inspect.signature(fn)
         if not input_schema:
-            input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, fn, parse_docstring=True)
+            try:
+                input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, fn, parse_docstring=True)
+            except:
+                logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
+                input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, fn, parse_docstring=False)
             input_schema_json = input_schema_model.model_json_schema()
             input_schema_json = dereference_refs(input_schema_json)
 
@@ -165,7 +170,7 @@ def tool(
             )
         else:
             spec.input_schema = input_schema
-
+        
         _validate_input_schema(spec.input_schema)
 
         if not output_schema:
