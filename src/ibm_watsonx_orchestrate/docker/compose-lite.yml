@@ -595,3 +595,4 @@ volumes:
 networks:
   default:
     name: wxo-server
+    

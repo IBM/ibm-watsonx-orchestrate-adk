@@ -27,8 +27,9 @@ from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, C
     DEFAULT_CONFIG_FILE_CONTENT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 
 from  ibm_watsonx_orchestrate import __version__
@@ -41,6 +42,7 @@ __supported_characters_pattern = re.compile("^(\\w|_)+$")
 class ToolKind(str, Enum):
     openapi = "openapi"
     python = "python"
+    mcp = "mcp"
     # skill = "skill"
 
 def validate_app_ids(kind: ToolKind, **args) -> None:
@@ -368,21 +370,24 @@ class ToolsController:
         response = self.get_client().get()
         tool_specs = [ToolSpec.model_validate(tool) for tool in response]
         tools = [BaseTool(spec=spec) for spec in tool_specs]
-        
 
         if verbose:
             tools_list = []
             for tool in tools:
-
                 tools_list.append(json.loads(tool.dumps_spec()))
 
             rich.print(JSON(json.dumps(tools_list, indent=4)))
         else:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
-            columns = ["Name", "Description", "Permission", "Type", "App ID"]
+            columns = ["Name", "Description", "Permission", "Type", "Toolkit", "App ID"]
             for column in columns:
                 table.add_column(column)
-            
+
+            connections_client = get_connections_client()
+            connections = connections_client.list()
+
+            connections_dict = {conn.connection_id: conn for conn in connections}
+
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
                 
@@ -394,25 +399,49 @@ class ToolsController:
                     elif tool_binding.python is not None and hasattr(tool_binding.python, "connections") and tool_binding.python.connections is not None:
                         for conn in tool_binding.python.connections:
                             connection_ids.append(tool_binding.python.connections[conn])
-                
-                connections_client = get_connections_client()
+                    elif tool_binding.mcp is not None and hasattr(tool_binding.mcp, "connections"):
+                        for conn in tool_binding.mcp.connections:
+                            connection_ids.append(tool_binding.mcp.connections[conn])
+
+
                 app_ids = []
                 for connection_id in connection_ids:
-                    app_id = str(connections_client.get_draft_by_id(connection_id))
+                    connection = connections_dict.get(connection_id)
+                    if connection:
+                        app_id = str(connection.app_id or connection.connection_id)
+                    elif connection_id:
+                        app_id = str(connection_id)
+                    else:
+                        app_id = ""
                     app_ids.append(app_id)
 
                 if tool_binding.python is not None:
                         tool_type=ToolKind.python
                 elif tool_binding.openapi is not None:
                         tool_type=ToolKind.openapi
+                elif tool_binding.mcp is not None:
+                        tool_type=ToolKind.mcp
                 else:
                         tool_type="Unknown"
+                
+                toolkit_name = ""
+
+                if is_local_dev():
+                    toolkit_client = instantiate_client(ToolKitClient)
+                    if tool.__tool_spec__.toolkit_id:
+                        toolkit = toolkit_client.get_draft_by_id(tool.__tool_spec__.toolkit_id)
+                        if isinstance(toolkit, dict) and "name" in toolkit:
+                            toolkit_name = toolkit["name"]
+                        elif toolkit:
+                            toolkit_name = str(toolkit)
+
                 
                 table.add_row(
                     tool.__tool_spec__.name,
                     tool.__tool_spec__.description,
                     tool.__tool_spec__.permission,
                     tool_type,
+                    toolkit_name,
                     ", ".join(app_ids),
                 )
 
