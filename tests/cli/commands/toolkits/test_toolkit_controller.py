@@ -4,6 +4,8 @@ import pytest
 import tempfile
 import os
 
+from utils.matcher import MatchesStringContaining
+
 
 def test_remove_toolkit_success():
     mock_client = MagicMock()
@@ -37,17 +39,6 @@ def test_remove_toolkit_not_found():
         mock_client.delete.assert_not_called()
 
 
-def test_create_zip():
-    with tempfile.TemporaryDirectory() as tempdir:
-        file_path = os.path.join(tempdir, "test.txt")
-        with open(file_path, "w") as f:
-            f.write("content")
-
-        controller = ToolkitController()
-        zip_path = controller._create_zip(tempdir)
-        assert os.path.exists(zip_path)
-
-
 def test_remap_connections_single_id():
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-123"):
         controller = ToolkitController()
@@ -73,7 +64,6 @@ def test_import_toolkit_exits_if_toolkit_exists():
     mock_client.get_draft_by_name.return_value = [{"id": "already-there"}]
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-     patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._create_zip", return_value="/fake/path.zip"), \
      patch("sys.exit", side_effect=SystemExit) as mock_exit:
         controller = ToolkitController(
             kind=ToolkitKind.MCP,
@@ -93,9 +83,10 @@ def test_import_toolkit_successful_path():
     mock_client = MagicMock()
     mock_client.get_draft_by_name.return_value = []
     mock_client.create_toolkit.return_value = {"id": "new-toolkit"}
+    mock_client._create_zip.return_value = None
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._create_zip", return_value="dummy.zip"), \
+         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip", return_value="dummy.zip"), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"):
         
         controller = ToolkitController(
@@ -107,4 +98,4 @@ def test_import_toolkit_successful_path():
         )
         controller.import_toolkit(tools=["tool1", "tool2"], app_id=["app1"])
         mock_client.create_toolkit.assert_called_once()
-        mock_client.upload.assert_called_once_with(toolkit_id="new-toolkit", zip_file_path="dummy.zip")
+        mock_client.upload.assert_called_once_with(toolkit_id="new-toolkit", zip_file_path=MatchesStringContaining(".zip"))
