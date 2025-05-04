@@ -867,7 +867,8 @@ def test_tool_remove_non_existent(mock, caplog):
 def test_tool_list(mock_get_client):
     client = MockConnectionClient(get_response=[MockListConnectionResponse(connection_id='connectionId')])
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as client_mock, \
-        mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as conn_client_mock:
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True), \
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as conn_client_mock:
         conn_client_mock.return_value = MockConnectionClient()
         client_mock.return_value = client
         tools_controller = ToolsController()

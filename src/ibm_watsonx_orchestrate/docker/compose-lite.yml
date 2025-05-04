@@ -596,6 +596,7 @@ volumes:
 networks:
   default:
     name: wxo-server
+    
 
 configs:
   proxy_config:
