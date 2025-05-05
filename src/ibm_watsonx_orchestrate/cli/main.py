@@ -12,10 +12,12 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_command import channel_app
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_command import knowledge_bases_app
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
+from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 
 app = typer.Typer(
     no_args_is_help=True,
-    pretty_exceptions_enable=False
+    pretty_exceptions_enable=False,
+    callback=init_callback
 )
 app.add_typer(login_app)
 app.add_typer(environment_app, name="env", help='Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)')
