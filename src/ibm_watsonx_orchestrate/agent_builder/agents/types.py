@@ -5,6 +5,7 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from pydantic import Field, AliasChoices
 from typing import Annotated
 
@@ -85,6 +86,8 @@ class AgentSpec(BaseAgentSpec):
     def __init__(self, *args, **kwargs):
         if "tools" in kwargs and kwargs["tools"]:
             kwargs["tools"] = [x.__tool_spec__.name if isinstance(x, BaseTool) else x for x in kwargs["tools"]]
+        if "knowledge_base" in kwargs and kwargs["knowledge_base"]:
+            kwargs["knowledge_base"] = [x.name if isinstance(x, KnowledgeBase) else x for x in kwargs["knowledge_base"]]
         if "collaborators" in kwargs and kwargs["collaborators"]:
             kwargs["collaborators"] = [x.name if isinstance(x, BaseAgentSpec) else x for x in kwargs["collaborators"]]
         super().__init__(*args, **kwargs)
@@ -101,7 +104,7 @@ class AgentSpec(BaseAgentSpec):
 
 def validate_agent_fields(values: dict) -> dict:
     # Check for empty strings or whitespace
-    for field in ["id", "name", "kind", "description", "collaborators", "tools"]:
+    for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base"]:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")

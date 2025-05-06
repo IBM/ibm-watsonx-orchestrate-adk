@@ -1,7 +1,7 @@
 import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-from .types import KnowledgeBaseSpec
-
+from .types import KnowledgeBaseSpec, KnowledgeBaseKind
+from pydantic import model_validator
 
 class KnowledgeBase(KnowledgeBaseSpec):
 
@@ -25,3 +25,16 @@ class KnowledgeBase(KnowledgeBaseSpec):
 
     def __str__(self):
         return self.__repr__()
+    
+    # Not a model validator since we only want to validate this on import
+    def validate_documents_or_index_exists(self):
+        if self.documents and self.conversational_search_tool and self.conversational_search_tool.index_config or \
+            (not self.documents and (not self.conversational_search_tool or not self.conversational_search_tool.index_config)):
+            raise ValueError("Must provide either \"documents\" or \"conversational_search_tool.index_config\", but not both")
+        return self
+    
+    @model_validator(mode="after")
+    def validate_kind(self):
+        if self.kind != KnowledgeBaseKind.KNOWLEDGE_BASE:
+            raise ValueError(f"The specified kind '{self.kind}' cannot be used to create a knowledge base")
+        return self

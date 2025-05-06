@@ -1,3 +1,5 @@
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import ConversationalSearchConfig, IndexConnection, MilvusConnection, FieldMapping
 from ibm_watsonx_orchestrate.agent_builder.agents.agent import Agent
 from ibm_watsonx_orchestrate.agent_builder.agents.external_agent import ExternalAgent
 from ibm_watsonx_orchestrate.agent_builder.agents.assistant_agent import AssistantAgent
@@ -8,6 +10,23 @@ import rich
 @tool(name="testing_tool", description="testing tool")
 def sample_tool():
     print("Hello")
+
+calculus_knowledge_base = KnowledgeBase(
+    name="calculus_knowledge_base",
+    description="Knowlege base with documentation about how to do calculus",
+    conversational_search_tool=ConversationalSearchConfig(
+        index_config=[
+            IndexConnection(milvus=MilvusConnection(
+                grpc_host="https://xxxx.lakehouse.appdomain.cloud",
+                database="default",
+                collection="calculus_docs",
+                index="dense",
+                embedding_model_id="sentence-transformers/all-minilm-l12-v2",
+                field_mapping=FieldMapping(title="title", body="text")
+            ))
+        ]
+    )
+)
 
 agent2 = ExternalAgent(
     name="news_agent",
@@ -49,13 +68,18 @@ agent1 = Agent(
         agent2,
         "algebra_agent"
     ],
-    # tools can take a mix of Agent objects or string with agent names
+    # collaborators can take a mix of Agent objects or string with agent names
     tools=[
         "add",
         "subtract",
         sample_tool,
-    ]
+    ],
     # tools can take a mix of Tool objects or string with tool names
+    knowledge_base=[
+        "algebra_knowlege_base",
+        calculus_knowledge_base
+    ]
+    # knowlege_base can take a mix of KnowlegeBase objects or string with knowlege_base names
 )
 
 agent5 = AssistantAgent(
