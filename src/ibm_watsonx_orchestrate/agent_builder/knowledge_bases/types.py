@@ -225,6 +225,7 @@ class KnowledgeBaseSpec(BaseModel):
     vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
     conversational_search_tool: Optional[ConversationalSearchConfig] | Optional[UUID] = None
     prioritize_built_in_index: Optional[bool] = None
+    representation: Optional[KnowledgeBaseRepresentation] = None
     vector_index_id: Optional[UUID] = None 
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None 
