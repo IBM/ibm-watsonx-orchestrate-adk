@@ -115,17 +115,9 @@ def create_openapi_json_tool(
         raise ValueError(
             f"Path {http_path} did not have an http_method {http_method}. Available methods are {list(route.keys())}")
 
-    operation_id = (
-        re.sub(
-            '_+',
-            '_',
-            re.sub(
-                r'[^a-zA-Z_]',
-                '_',
-                route_spec.get('operationId', None)
-            )
-        )
-    ) if route_spec.get('operationId', None) is not None else None
+    operation_id = re.sub( r'(\W|_)+', '_', route_spec.get('operationId') ) \
+                     if route_spec.get('operationId', None) else None
+
     spec_name = name or operation_id
     spec_permission = permission or _action_to_perm(route_spec.get('x-ibm-operation', {}).get('action'))
     if spec_name is None:
@@ -142,7 +134,7 @@ def create_openapi_json_tool(
         description=spec_description,
         permission=spec_permission
     )
-    
+
     spec.input_schema = input_schema or ToolRequestBody(
         type='object',
         properties={},

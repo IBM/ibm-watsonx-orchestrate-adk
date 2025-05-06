@@ -51,7 +51,7 @@ class ConnectionsClient(BaseAPIClient):
     # DELETE api/v1/connections/applications/{app_id}
     def delete(self, app_id: str) -> dict:
         return self._delete(f"/connections/applications/{app_id}")
-    
+
     # GET /api/v1/connections/applications/{app_id}
     def get(self, app_id: str) -> GetConnectionResponse:
         try:
@@ -60,7 +60,7 @@ class ConnectionsClient(BaseAPIClient):
             if e.response.status_code == 404:
                 return None
             raise e
-    
+
 
     # GET api/v1/connections/applications
     def list(self) -> List[ListConfigsResponse]:
@@ -75,15 +75,15 @@ class ConnectionsClient(BaseAPIClient):
                 return []
             raise e
 
-    
+
     # POST /api/v1/connections/applications/{app_id}/configurations
     def create_config(self, app_id: str, payload: dict) -> None:
         self._post(f"/connections/applications/{app_id}/configurations", data=payload)
-    
+
     # PATCH /api/v1/connections/applications/{app_id}/configurations/{env}
     def update_config(self, app_id: str, env: ConnectionEnvironment, payload: dict) -> None:
         self._patch(f"/connections/applications/{app_id}/configurations/{env}", data=payload)
-    
+
     # `GET /api/v1/connections/applications/{app_id}/configurations/{env}'
     def get_config(self, app_id: str, env: ConnectionEnvironment) -> GetConfigResponse:
         try:
@@ -93,7 +93,7 @@ class ConnectionsClient(BaseAPIClient):
             if e.response.status_code == 404:
                 return None
             raise e
-    
+
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
     def create_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
@@ -101,7 +101,7 @@ class ConnectionsClient(BaseAPIClient):
             self._post(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._post(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
-    
+
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
     def update_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
@@ -109,7 +109,7 @@ class ConnectionsClient(BaseAPIClient):
             self._patch(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._patch(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
-    
+
     # GET /api/v1/connections/applications/{app_id}/configs/credentials?env={env}
     # GET /api/v1/connections/applications/{app_id}/configs/runtime_credentials?env={env}
     def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> dict:
@@ -122,7 +122,7 @@ class ConnectionsClient(BaseAPIClient):
             if e.response.status_code == 404:
                 return None
             raise e
-    
+
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
     def delete_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> None:
@@ -130,7 +130,7 @@ class ConnectionsClient(BaseAPIClient):
             self._delete(f"/connections/applications/{app_id}/configs/{env}/credentials")
         else:
             self._delete(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials")
-    
+
     def get_draft_by_app_id(self, app_id: str) -> GetConnectionResponse:
         return self.get(app_id=app_id)
 
@@ -141,7 +141,7 @@ class ConnectionsClient(BaseAPIClient):
             if connection:
                 connections += connection
         return connections
-    
+
     def get_draft_by_id(self, conn_id) -> str:
         """Retrieve the app ID for a given connection ID."""
         if conn_id is None:
@@ -151,12 +151,12 @@ class ConnectionsClient(BaseAPIClient):
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 logger.warning(f"Connections not found. Returning connection ID: {conn_id}")
-                return conn_id 
+                return conn_id
             raise
 
         app_id = next((conn.app_id for conn in connections if conn.connection_id == conn_id), None)
 
         if app_id is None:
             logger.warning(f"Connection with ID {conn_id} not found. Returning connection ID.")
-            return conn_id  
+            return conn_id
         return app_id
