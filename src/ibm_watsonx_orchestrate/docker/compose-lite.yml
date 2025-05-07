@@ -556,6 +556,8 @@ services:
       PG_DATABASE: postgres
       USER_MGMT_BASE_URL: "" # TODO
       WXO_SERVER_BASE_URL: http://wxo-server:4321
+      TRM_SERVER_BASE_URL: http://tools-runtime-manager:8080
+      CONNECTION_MANAGER_SERVER_BASE_URL: http://wxo-server-connection-manager:3001
       REDIS_ENDPOINT: wxo-server-redis:6379
       REDIS_USER:
       REDIS_PASSWORD:
