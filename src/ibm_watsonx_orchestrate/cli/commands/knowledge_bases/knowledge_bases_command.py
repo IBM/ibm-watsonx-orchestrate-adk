@@ -9,7 +9,7 @@ knowledge_bases_app = typer.Typer(no_args_is_help=True)
 def knowledge_base_import(
     file: Annotated[
         str,
-        typer.Option("--file", "-f", help="YAML file with knowledge base definition"),
+        typer.Option("--file", "-f", help="YAML, JSON or Python file with knowledge base definition(s)"),
     ],
     app_id: Annotated[
         str, typer.Option(
@@ -25,7 +25,7 @@ def knowledge_base_import(
 def knowledge_base_patch(
     file: Annotated[
         str,
-        typer.Option("--file", "-f", help="YAML file with knowledge base definition"),
+        typer.Option("--file", "-f", help="YAML or JSON file with knowledge base definition"),
     ],
     name: Annotated[
         str,
