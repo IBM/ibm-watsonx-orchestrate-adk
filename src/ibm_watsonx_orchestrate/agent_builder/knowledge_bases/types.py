@@ -206,16 +206,6 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None
     
-class CreateKnowledgeBase(BaseModel):
-    """request payload schema"""
-    name: Optional[str] = None
-    description: Optional[str] = None
-    documents: list[str] = None
-    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
-    conversational_search_tool: Optional[ConversationalSearchConfig] = None
-    prioritize_built_in_index: Optional[bool] = None
-    
-    
 class PatchKnowledgeBase(BaseModel):
     """request payload schema"""
     description: Optional[str] = None
@@ -224,20 +214,21 @@ class PatchKnowledgeBase(BaseModel):
     prioritize_built_in_index: Optional[bool] = None
     representation: Optional[KnowledgeBaseRepresentation] = None
     
-    
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
     spec_version: SpecVersion = None
     kind: KnowledgeBaseKind = KnowledgeBaseKind.KNOWLEDGE_BASE
     id: Optional[UUID] = None 
     tenant_id: Optional[str] = None
-    name: Optional[str] = None
+    name: str
     description: Optional[str] = None
     vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
     conversational_search_tool: Optional[ConversationalSearchConfig] | Optional[UUID] = None
     prioritize_built_in_index: Optional[bool] = None
+    representation: Optional[KnowledgeBaseRepresentation] = None
     vector_index_id: Optional[UUID] = None 
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None 
     updated_at: Optional[datetime] = None
-
+    # For import/update
+    documents: list[str] = None

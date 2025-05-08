@@ -13,7 +13,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/${DB_REGISTRY:-watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
+    image: ${DB_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -32,7 +32,7 @@ services:
     command: -c shared_preload_libraries=pgsodium
 
   wxo-server-connection-manager:
-    image: us.icr.io/${CM_REGISTRY:-watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
+    image: ${CM_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -44,12 +44,13 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
-      MAX_POOL: 10
+      MAX_POOL: 60
+      DEPLOYMENT_MODE: laptop
     ports:
       - 3001:3001
 
   ui:
-    image: us.icr.io/${UI_REGISTRY:-watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
+    image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -74,6 +75,7 @@ services:
       MAX_FILE_UPLOAD_SIZE_BYTES_EXCEL: 1048576
       VCAP_APP_HOST: localhost
       DEPLOYMENT_PLATFORM: laptop
+      CONNECTION_MANAGER_URL: http://localhost:3001
       DISMISS_NOTIFICATION_TIMEOUT: 10000
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
@@ -87,7 +89,7 @@ services:
       - ui-data:/data
 
   wxo-builder:
-    image: us.icr.io/${BUILDER_REGISTRY:-watson-orchestrate-private}/wxo-builder:${BUILDER_TAG:-latest}
+    image: ${BUILDER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-builder:${BUILDER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -200,7 +202,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/${SERVER_REGISTRY:-watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
+    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -295,7 +297,7 @@ services:
       MILVUS_PASSWORD: ${MILVUS_PASSWORD}
 
   wxo-server-worker:
-    image: us.icr.io/${WORKER_REGISTRY:-watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
+    image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
@@ -373,7 +375,7 @@ services:
       MILVUS_PASSWORD: ${MILVUS_PASSWORD}
   
   tools-runtime-manager:
-    image: us.icr.io/${TRM_REGISTRY:-watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
+    image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -410,7 +412,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   tools-runtime:
-    image: us.icr.io/${TR_REGISTRY:-watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
+    image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
     platform: linux/amd64
     ports:
       - "8000:8000"
@@ -528,7 +530,7 @@ services:
 
 
   wxo-tempus-runtime:
-    image: us.icr.io/watson-orchestrate-private/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
+    image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
     platform: linux/amd64
     profiles: [with-tempus-runtime]
@@ -556,10 +558,16 @@ services:
       PG_DATABASE: postgres
       USER_MGMT_BASE_URL: "" # TODO
       WXO_SERVER_BASE_URL: http://wxo-server:4321
+      TRM_SERVER_BASE_URL: http://tools-runtime-manager:8080
+      CONNECTION_MANAGER_SERVER_BASE_URL: http://wxo-server-connection-manager:3001
       REDIS_ENDPOINT: wxo-server-redis:6379
       REDIS_USER:
       REDIS_PASSWORD:
       REDIS_TLS: false
+      LANGFUSE_ENABLED: "true"
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
+      LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
@@ -598,6 +606,7 @@ volumes:
 networks:
   default:
     name: wxo-server
+    
 
 configs:
   proxy_config:

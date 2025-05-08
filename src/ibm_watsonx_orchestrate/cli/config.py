@@ -12,6 +12,8 @@ AUTH_SECTION_HEADER = "auth"
 CONTEXT_SECTION_HEADER = "context"
 ENVIRONMENTS_SECTION_HEADER = "environments"
 PYTHON_REGISTRY_HEADER = "python_registry"
+USER_ENV_CACHE_HEADER = "cached_user_env"
+LICENSE_HEADER = "license"
 
 # Option Names
 AUTH_MCSP_API_KEY_OPT = "wxo_mcsp_api_key"
@@ -24,6 +26,7 @@ ENV_WXO_URL_OPT = "wxo_url"
 ENV_IAM_URL_OPT = "iam_url"
 PROTECTED_ENV_NAME = "local"
 ENV_AUTH_TYPE = "auth_type"
+ENV_ACCEPT_LICENSE = 'accepts_license_agreements'
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 CHAT_UI_PORT = "3000"
@@ -40,7 +43,8 @@ DEFAULT_CONFIG_FILE_CONTENT = {
         PROTECTED_ENV_NAME: {
             ENV_WXO_URL_OPT: DEFAULT_LOCAL_SERVICE_URL
         }
-    }
+    },
+    USER_ENV_CACHE_HEADER: {}
 }
 
 AUTH_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.cache/orchestrate"

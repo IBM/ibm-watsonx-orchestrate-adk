@@ -128,6 +128,7 @@ class MockAgent:
 class TestImportPythonAgent:
     def test_import_python_agent(self, native_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.importlib.import_module") as import_module_mock:
             
@@ -140,6 +141,7 @@ class TestImportPythonAgent:
             agents = import_python_agent("test.py")
 
             python_tool_import_mock.assert_called_once_with("test.py")
+            python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
             getmembers_mock.assert_called_once()
 
@@ -147,6 +149,7 @@ class TestImportPythonAgent:
 
     def test_import_python_external_agent(self, external_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.importlib.import_module") as import_module_mock:
             
@@ -156,6 +159,7 @@ class TestImportPythonAgent:
             agents = import_python_agent("test.py")
 
             python_tool_import_mock.assert_called_once_with("test.py")
+            python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
             getmembers_mock.assert_called_once()
 
@@ -247,14 +251,15 @@ class TestParseFile:
 
     def test_parse_file_py(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_knowledge_base") as python_knowledge_base_import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.inspect.getmembers") as getmembers_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.importlib.import_module") as import_module_mock:
 
             getmembers_mock.return_value = []
             agents = parse_file("test.py")
 
-
             python_tool_import_mock.assert_called_once_with("test.py")
+            python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
             getmembers_mock.assert_called_once()
 

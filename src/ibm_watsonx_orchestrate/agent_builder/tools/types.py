@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Any, Dict, Literal, Optional
+from typing import List, Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices
 
@@ -14,7 +14,7 @@ class ToolPermission(str, Enum):
 class JsonSchemaObject(BaseModel):
     model_config = ConfigDict(extra='allow')
 
-    type: Optional[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null']] = None
+    type: Optional[Union[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null'], List[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null']]]] = None
     title: str | None = None
     description: str | None = None
     properties: Optional[Dict[str, 'JsonSchemaObject']] = None
@@ -34,13 +34,19 @@ class JsonSchemaObject(BaseModel):
     aliasName: str | None = None
     "Runtime feature where the sdk can provide the original name of a field before prefixing"
 
+    @model_validator(mode='after')
+    def normalize_type_field(self) -> 'JsonSchemaObject':
+        if isinstance(self.type, list):
+            self.type = self.type[0]
+        return self
+
 
 class ToolRequestBody(BaseModel):
     model_config = ConfigDict(extra='allow')
 
     type: Literal['object']
     properties: Dict[str, JsonSchemaObject]
-    required: List[str]
+    required: Optional[List[str]] = None
 
 
 class ToolResponseBody(BaseModel):
@@ -52,7 +58,7 @@ class ToolResponseBody(BaseModel):
     items: JsonSchemaObject = None
     uniqueItems: bool = None
     anyOf: List['JsonSchemaObject'] = None
-    required: List[str] = None
+    required: Optional[List[str]] = None
 
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
@@ -128,6 +134,10 @@ class SkillToolBinding(BaseModel):
 class ClientSideToolBinding(BaseModel):
     pass
 
+class McpToolBinding(BaseModel):
+    server_url: Optional[str] = None
+    source: str
+    connections: Dict[str, str]
 
 class ToolBinding(BaseModel):
     openapi: OpenApiToolBinding = None
@@ -135,6 +145,7 @@ class ToolBinding(BaseModel):
     wxflows: WxFlowsToolBinding = None
     skill: SkillToolBinding = None
     client_side: ClientSideToolBinding = None
+    mcp: McpToolBinding = None
 
     @model_validator(mode='after')
     def validate_binding_type(self) -> 'ToolBinding':
@@ -143,7 +154,8 @@ class ToolBinding(BaseModel):
             self.python is not None,
             self.wxflows is not None,
             self.skill is not None,
-            self.client_side is not None
+            self.client_side is not None,
+            self.mcp is not None
         ]
         if sum(bindings) == 0:
             raise ValueError("One binding must be set")
@@ -159,4 +171,5 @@ class ToolSpec(BaseModel):
     input_schema: ToolRequestBody = None
     output_schema: ToolResponseBody = None
     binding: ToolBinding = None
+    toolkit_id: str | None = None
 
