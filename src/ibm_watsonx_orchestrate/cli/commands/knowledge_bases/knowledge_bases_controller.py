@@ -3,16 +3,43 @@ import json
 import rich
 import requests
 import logging
+import importlib
+import inspect
+from pathlib import Path
+from typing import List
 
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseCreateRequest, KnowledgeBaseUpdateRequest
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseUpdateRequest
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
-
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
 logger = logging.getLogger(__name__)
+
+def import_python_knowledge_base(file: str) -> List[KnowledgeBase]:
+    file_path = Path(file)
+    file_directory = file_path.parent
+    file_name = file_path.stem
+    sys.path.append(str(file_directory))
+    module = importlib.import_module(file_name)
+    del sys.path[-1]
+
+    knowledge_bases = []
+    for _, obj in inspect.getmembers(module):
+        if isinstance(obj, KnowledgeBase):
+            knowledge_bases.append(obj)
+    return knowledge_bases
+
+def parse_file(file: str) -> List[KnowledgeBase]:
+    if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
+        knowledge_base = KnowledgeBase.from_spec(file=file)
+        return [knowledge_base]
+    elif file.endswith('.py'):
+        knowledge_bases = import_python_knowledge_base(file)
+        return knowledge_bases
+    else:
+        raise ValueError("file must end in .json, .yaml, .yml or .py")
 
 def to_column_name(col: str):
     return " ".join([word.capitalize() if not word[0].isupper() else word for word in col.split("_")])
@@ -34,45 +61,43 @@ class KnowledgeBaseController:
     
     def import_knowledge_base(self, file: str, app_id: str):
         client = self.get_client()
-        create_request = KnowledgeBaseCreateRequest.from_spec(file=file)
 
-        try:
-            if create_request.documents:
-                try:
+        knowledge_bases = parse_file(file=file)
+        for kb in knowledge_bases:
+            try:
+                kb.validate_documents_or_index_exists()
+                if kb.documents:
                     file_dir = "/".join(file.split("/")[:-1])
-                    files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else f"{file_dir}/{file_path}", 'rb'))) for file_path in create_request.documents]
-                except Exception as e:
-                    logger.error(f"Error importing knowledge base: {str(e).replace('[Errno 2] ', '')}")
-                    sys.exit(1);
+                    files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else (file_path if not file_dir else f"{file_dir}/{file_path}"), 'rb'))) for file_path in kb.documents]
+                    
+                    payload = kb.model_dump(exclude_none=True);
+                    payload.pop('documents');
 
-                payload = create_request.model_dump(exclude_none=True);
-                payload.pop('documents');
+                    client.create_built_in(payload=payload, files=files)
+                else:
+                    if len(kb.conversational_search_tool.index_config) != 1:
+                        raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(kb.conversational_search_tool.index_config)}.")
+                    
+                    if app_id:
+                        connections_client = get_connections_client()
+                        connection_id = None
+                        if app_id is not None:
+                            connections = connections_client.get_draft_by_app_id(app_id=app_id)
+                            if not connections:
+                                logger.error(f"No connection exists with the app-id '{app_id}'")
+                                exit(1)
 
-                client.create_built_in(payload=payload, files=files)
-            else:
-                if len(create_request.conversational_search_tool.index_config) != 1:
-                    raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(create_request.conversational_search_tool.index_config)}.")
+                            connection_id = connections.connection_id
+                            kb.conversational_search_tool.index_config[0].connection_id = connection_id
+
+                    client.create(payload=kb.model_dump(exclude_none=True))
                 
-                if app_id:
-                    connections_client = get_connections_client()
-                    connection_id = None
-                    if app_id is not None:
-                        connections = connections_client.get_draft_by_app_id(app_id=app_id)
-                        if not connections:
-                            logger.error(f"No connection exists with the app-id '{app_id}'")
-                            exit(1)
-
-                        connection_id = connections.connection_id
-                        create_request.conversational_search_tool.index_config[0].connection_id = connection_id
-
-                client.create(payload=create_request.model_dump(exclude_none=True))
-            
-            logger.info(f"Successfully imported knowledge base '{create_request.name}'")
-        except ClientAPIException as e:
-            if "duplicate key value violates unique constraint" in e.response.text:
-                logger.error(f"A knowledge base with the name '{create_request.name}' already exists. Failed to import knowledge base")
-            else:
-                logger.error(f"Error importing knowledge base '{create_request.name}\n' {e.response.text}")
+                logger.info(f"Successfully imported knowledge base '{kb.name}'")
+            except ClientAPIException as e:
+                if "duplicate key value violates unique constraint" in e.response.text:
+                    logger.error(f"A knowledge base with the name '{kb.name}' already exists. Failed to import knowledge base")
+                else:
+                    logger.error(f"Error importing knowledge base '{kb.name}\n' {e.response.text}")
     
     def get_id(
         self, id: str, name: str

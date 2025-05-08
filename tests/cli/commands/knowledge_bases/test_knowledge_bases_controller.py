@@ -1,7 +1,7 @@
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file
 from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseCreateRequest, KnowledgeBaseUpdateRequest
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseUpdateRequest
 import json
 from unittest.mock import patch, mock_open, Mock
 import pytest
@@ -27,6 +27,7 @@ def built_in_knowledge_base_content() -> dict:
 @pytest.fixture
 def external_knowledge_base_content() -> dict:
     return {
+        "spec_version": SpecVersion.V1,
         "name": "test_external_knowledge_base",
         "description": "Watsonx Assistant Documentation",
         "prioritize_built_in_index": False,
@@ -114,18 +115,59 @@ class MockConnection:
         self.appid = appid
         self.connection_type = connection_type
         self.connection_id = "12345"
+        
+class TestParseFile:
+    def test_parse_file_yaml(self, built_in_knowledge_base_content):
+        with patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.yaml_safe_load") as mock_loader:
+            
+            mock_loader.return_value = built_in_knowledge_base_content
+
+            parse_file("test.yaml")
+
+            mock_file.assert_called_once_with("test.yaml", "r")
+            mock_loader.assert_called_once()
+
+    def test_parse_file_json(self, built_in_knowledge_base_content):
+        with patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.json.load") as mock_loader:
+            
+            mock_loader.return_value = built_in_knowledge_base_content
+
+            parse_file("test.json")
+
+            mock_file.assert_called_once_with("test.json", "r")
+            mock_loader.assert_called_once()
+
+    def test_parse_file_py(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.inspect.getmembers") as getmembers_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.importlib.import_module") as import_module_mock:
+
+            getmembers_mock.return_value = []
+            knowledge_bases = parse_file("test.py")
+
+            import_module_mock.assert_called_with("test")
+            getmembers_mock.assert_called_once()
+
+            assert len(knowledge_bases) == 0
+
+    def test_parse_file_invalid(self):
+        with pytest.raises(ValueError) as e:
+            parse_file("test.test")
+            assert "file must end in .json, .yaml, .yml or .py" in str(e)
+
 class TestImportKnowledgeBase:
     def test_import_built_in_knowledge_base(self, caplog, built_in_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
-             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests.KnowledgeBaseCreateRequest.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
              patch("builtins.open", mock_open()) as mock_file:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
-            knowledge_base_create_req = KnowledgeBaseCreateRequest(**built_in_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_base_create_req
+            knowlege_Base = KnowledgeBase(**built_in_knowledge_base_content)
+            from_spec_mock.return_value = knowlege_Base
 
-            knowledge_base_payload = knowledge_base_create_req.model_dump(exclude_none=True)
+            knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
             knowledge_base_payload.pop("documents")
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
 
@@ -142,16 +184,16 @@ class TestImportKnowledgeBase:
     def test_import_external_knowledge_base(self, caplog, external_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch('ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.get_connections_client') as conn_client_mock,  \
-             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests.KnowledgeBaseCreateRequest.from_spec") as from_spec_mock:
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
             
             mock_response = MockListConnectionResponse(connection_id="12345")
             conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
                         
-            knowledge_base_create_req = KnowledgeBaseCreateRequest(**external_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_base_create_req
+            knowlege_Base = KnowledgeBase(**external_knowledge_base_content)
+            from_spec_mock.return_value = knowlege_Base
 
-            knowledge_base_create_req.conversational_search_tool.index_config[0].connection_id = "12345"
-            knowledge_base_payload = knowledge_base_create_req.model_dump(exclude_none=True)
+            knowlege_Base.conversational_search_tool.index_config[0].connection_id = "12345"
+            knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
 
             knowledge_base_controller.import_knowledge_base("test.json", "my-app-id")
