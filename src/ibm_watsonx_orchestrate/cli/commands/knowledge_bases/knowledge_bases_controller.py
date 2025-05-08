@@ -70,6 +70,7 @@ class KnowledgeBaseController:
                     file_dir = "/".join(file.split("/")[:-1])
                     files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else (file_path if not file_dir else f"{file_dir}/{file_path}"), 'rb'))) for file_path in kb.documents]
                     
+                    kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True);
                     payload.pop('documents');
 
@@ -77,6 +78,7 @@ class KnowledgeBaseController:
                 else:
                     if len(kb.conversational_search_tool.index_config) != 1:
                         raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(kb.conversational_search_tool.index_config)}.")
+                    
                     
                     if app_id:
                         connections_client = get_connections_client()
@@ -90,6 +92,7 @@ class KnowledgeBaseController:
                             connection_id = connections.connection_id
                             kb.conversational_search_tool.index_config[0].connection_id = connection_id
 
+                    kb.prioritize_built_in_index = False
                     client.create(payload=kb.model_dump(exclude_none=True))
                 
                 logger.info(f"Successfully imported knowledge base '{kb.name}'")
@@ -128,11 +131,14 @@ class KnowledgeBaseController:
             file_dir = "/".join(file.split("/")[:-1])
             files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else f"{file_dir}/{file_path}", 'rb'))) for file_path in update_request.documents]
             
+            update_request.prioritize_built_in_index = True
             payload = update_request.model_dump(exclude_none=True);
             payload.pop('documents');
 
             self.get_client().update_with_documents(knowledge_base_id, payload=payload, files=files)
         else:
+            if update_request.conversational_search_tool and update_request.conversational_search_tool.index_config:
+                update_request.prioritize_built_in_index = False
             self.get_client().update(knowledge_base_id, update_request.model_dump(exclude_none=True))
 
         logEnding = f"with ID '{id}'" if id else f"'{name}'"

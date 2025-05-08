@@ -30,7 +30,6 @@ def external_knowledge_base_content() -> dict:
         "spec_version": SpecVersion.V1,
         "name": "test_external_knowledge_base",
         "description": "Watsonx Assistant Documentation",
-        "prioritize_built_in_index": False,
         "conversational_search_tool": {
             "index_config": [
                 {
@@ -168,6 +167,7 @@ class TestImportKnowledgeBase:
             from_spec_mock.return_value = knowlege_Base
 
             knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
+            knowledge_base_payload["prioritize_built_in_index"] = True
             knowledge_base_payload.pop("documents")
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
 
@@ -194,6 +194,7 @@ class TestImportKnowledgeBase:
 
             knowlege_Base.conversational_search_tool.index_config[0].connection_id = "12345"
             knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
+            knowledge_base_payload["prioritize_built_in_index"] = False
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
 
             knowledge_base_controller.import_knowledge_base("test.json", "my-app-id")
@@ -203,13 +204,14 @@ class TestImportKnowledgeBase:
 
 
 class TestKnowledgeBaseControllerUpdateKnowledgeBase:
-    def test_update_knowledge_base_with_name(self, caplog):
+    def test_update_knowledge_base_with_name_and_documents(self, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests.KnowledgeBaseUpdateRequest.from_spec") as from_spec_mock:
                         
             knowledge_base_update_req = KnowledgeBaseUpdateRequest(**{ "name" : "new_name" })
             from_spec_mock.return_value = knowledge_base_update_req
 
+            knowledge_base_update_req.prioritize_built_in_index = True
             client_mock.return_value = MockClient(already_existing=True, expected_payload=knowledge_base_update_req.model_dump(exclude_none=True))
 
             knowledge_base_controller.update_knowledge_base(None, "old_name", "test.json")
