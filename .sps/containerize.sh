@@ -99,9 +99,9 @@ elif is_release_branch; then
   pypi_api_key=$(get_env "test-pypi-watson-devex")
   docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
 
-  pypi_repo="pypi"
-  pypi_api_key=$(get_env "pypi-watson-devex")
-  docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
+#  pypi_repo="pypi"
+#  pypi_api_key=$(get_env "pypi-watson-devex")
+#  docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
 
   github_create_release ${VERSION}
 fi

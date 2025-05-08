@@ -11,6 +11,7 @@ from copy import deepcopy
 
 from typing import Iterable, List
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     # Import tools
     import_python_tool(file)
+    import_python_knowledge_base(file)
 
     file_path = Path(file)
     file_directory = file_path.parent

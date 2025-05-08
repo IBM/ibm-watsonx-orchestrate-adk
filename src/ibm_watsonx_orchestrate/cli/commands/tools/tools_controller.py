@@ -49,13 +49,13 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
     app_ids = args.get("app_id")
     if not app_ids:
         return
-    
+
     if kind == ToolKind.openapi:
         if app_ids and len(app_ids) > 1:
             raise typer.BadParameter(
                 "Kind 'openapi' can only take one app-id"
             )
-    
+
     connections_client = get_connections_client()
 
     imported_connections_list = connections_client.list()
@@ -115,7 +115,7 @@ def get_connection_id(app_id: str) -> str:
 
 def parse_python_app_ids(app_ids: List[str]) -> dict[str,str]:
     app_id_dict = {}
-    for app_id in app_ids:        
+    for app_id in app_ids:
         # Split on = but not on \=
         split_pattern = re.compile(r"(?<!\\)=")
         split_id = re.split(split_pattern, app_id)
@@ -139,7 +139,7 @@ def parse_python_app_ids(app_ids: List[str]) -> dict[str,str]:
 def validate_python_connections(tool: BaseTool):
     if not tool.expected_credentials:
         return
-    
+
     connections_client = get_connections_client()
     connections = tool.__tool_spec__.binding.python.connections
 
@@ -158,13 +158,13 @@ def validate_python_connections(tool: BaseTool):
             expected_tool_conn_types = expected_cred.type
         else:
             expected_tool_conn_types = [expected_cred.type]
-        
+
         sanatized_expected_tool_app_id = sanatize_app_id(expected_tool_app_id)
         if sanatized_expected_tool_app_id in existing_sanatized_expected_tool_app_ids:
             logger.error(f"Duplicate App ID found '{expected_tool_app_id}'. Multiple expected app ids in the tool '{tool.__tool_spec__.name}' collide after sanaitization to '{sanatized_expected_tool_app_id}'. Please rename the offending app id in your tool.")
             sys.exit(1)
         existing_sanatized_expected_tool_app_ids.add(sanatized_expected_tool_app_id)
-        
+
         if sanatized_expected_tool_app_id not in provided_connections:
             logger.error(f"The tool '{tool.__tool_spec__.name}' requires an app-id '{expected_tool_app_id}'. Please use the `--app-id` flag to provide the required app-id")
             validation_failed = True
@@ -173,7 +173,7 @@ def validate_python_connections(tool: BaseTool):
             continue
 
         connection_id = connections.get(sanatized_expected_tool_app_id)
-        
+
         imported_connection = imported_connections.get(connection_id)
         imported_connection_auth_type = get_connection_type(security_scheme=imported_connection.security_scheme, auth_type=imported_connection.auth_type)
 
@@ -184,7 +184,7 @@ def validate_python_connections(tool: BaseTool):
         if imported_connection and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
             logger.error(f"The app-id '{imported_connection.app_id}' is of type '{imported_connection_auth_type.value}'. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
             validation_failed = True
-        
+
     if validation_failed:
         exit(1)
 
@@ -311,7 +311,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
 
         validate_python_connections(obj)
         tools.append(obj)
-    
+
     return tools
 
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
@@ -335,7 +335,7 @@ class ToolsController:
         # Ensure app_id is a list
         if args.get("app_id") and isinstance(args.get("app_id"), str):
             args["app_id"] = [args.get("app_id")]
-    
+
         validate_params(kind=kind, **args)
 
         match kind:
@@ -390,7 +390,7 @@ class ToolsController:
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
-                
+
                 connection_ids = []
 
                 if tool_binding is not None:
@@ -402,7 +402,6 @@ class ToolsController:
                     elif tool_binding.mcp is not None and hasattr(tool_binding.mcp, "connections"):
                         for conn in tool_binding.mcp.connections:
                             connection_ids.append(tool_binding.mcp.connections[conn])
-
 
                 app_ids = []
                 for connection_id in connection_ids:
@@ -463,7 +462,7 @@ class ToolsController:
                 if len(existing_tools) > 1:
                     logger.error(f"Multiple existing tools found with name '{tool.__tool_spec__.name}'. Failed to update tool")
                     sys.exit(1)
-                
+
                 if len(existing_tools) > 0:
                     existing_tool = existing_tools[0]
                     exist = True
@@ -569,7 +568,7 @@ class ToolsController:
             self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' updated successfully")
-    
+
     def remove_tool(self, name: str):
         try:
             client = self.get_client()
