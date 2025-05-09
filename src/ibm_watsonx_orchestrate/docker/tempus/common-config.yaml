@@ -1,1 +1,1 @@
-NODE_LOG_LEVEL: trace
+NODE_LOG_LEVEL: audit
