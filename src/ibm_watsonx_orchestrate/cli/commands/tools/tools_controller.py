@@ -3,6 +3,7 @@ import asyncio
 import importlib
 import inspect
 import sys
+import io
 import re
 import tempfile
 import requests
@@ -318,6 +319,18 @@ async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
     tools = await create_openapi_json_tools_from_uri(file, connection_id)
     return tools
 
+def _get_kind_from_spec(spec: dict) -> ToolKind:
+    name = spec.get("name")
+    tool_binding = spec.get("binding")
+
+    if ToolKind.python in tool_binding:
+        return ToolKind.python
+    elif ToolKind.openapi in tool_binding:
+        return ToolKind.openapi
+    else:
+        logger.error(f"Could not determine 'kind' of tool '{name}'")
+        sys.exit(1) 
+
 class ToolsController:
     def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: str = None):
         self.client = None
@@ -586,3 +599,51 @@ class ToolsController:
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)
+
+    def download_tool(self, name: str) -> bytes | None:
+        tool_client = self.get_client()
+        draft_tools = tool_client.get_draft_by_name(tool_name=name)
+        if len(draft_tools) > 1:
+            logger.error(f"Multiple existing tools found with name '{name}'. Failed to get tool")
+            sys.exit(1)
+        if len(draft_tools) == 0:
+            logger.error(f"No tool named '{name}' found")
+            sys.exit(1)
+
+        draft_tool = draft_tools[0]
+        draft_tool_kind = _get_kind_from_spec(draft_tool)
+        
+        # TODO: Add openapi tool support
+        if draft_tool_kind != ToolKind.python:
+            logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
+            return
+
+        tool_id = draft_tool.get("id")
+
+        tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+        return tool_artifacts_bytes
+    
+    def export_tool(self, name: str, output_path: str) -> None:
+        
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+        if output_file_extension != ".zip":
+            logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+        
+        logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
+
+        tool_artifact_bytes = self.download_tool(name)
+
+        if not tool_artifact_bytes:
+            return
+        
+        with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in, \
+            zipfile.ZipFile(output_path, 'w') as zip_file_out:
+            
+            for item in zip_file_in.infolist():
+                buffer = zip_file_in.read(item.filename)
+                if (item.filename != 'bundle-format'):
+                    zip_file_out.writestr(item, buffer)
+        
+        logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")

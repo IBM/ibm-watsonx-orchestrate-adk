@@ -190,3 +190,32 @@ def remove_agent(
 ):  
     agents_controller = AgentsController()
     agents_controller.remove_agent(name=name, kind=kind)
+
+@agents_app.command(name="export", help='Export an agent and its dependencies to a zip file or yaml')
+def export_agent(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent you wish to export"),
+    ],
+    kind: Annotated[
+        AgentKind,
+        typer.Option("--kind", "-k", help="The kind of agent you wish to export"),
+    ],
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to a where the file containing the exported data should be saved",
+        ),
+    ],
+    agent_only_flag: Annotated[
+        bool,
+        typer.Option(
+            "--agent-only",
+            help="Export only the yaml to the specified agent, excluding its dependencies",
+        ),
+    ]=False
+):  
+    agents_controller = AgentsController()
+    agents_controller.export_agent(name=name, kind=kind, output_path=output_file, agent_only_flag=agent_only_flag)

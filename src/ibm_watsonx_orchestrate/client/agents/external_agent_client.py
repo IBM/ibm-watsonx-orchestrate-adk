@@ -33,6 +33,10 @@ class ExternalAgentClient(BaseAPIClient):
                 agent = self._get(f"/agents/external-chat/{agent_id}")
                 return agent
             except ClientAPIException as e:
-                if e.response.status_code == 404 and "not found with the given name" in e.response.text:
+                if e.response.status_code == 404 and ("not found with the given name" in e.response.text or "Assistant not found" in e.response.text):
                     return ""
                 raise(e)
+
+    def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
+        formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
+        return self._get(f"/agents/external-chat?{'&'.join(formatted_agent_ids)}")
