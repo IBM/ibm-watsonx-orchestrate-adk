@@ -3,7 +3,7 @@ services:
 # Orchestrate Lite dependencies
 ########################
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:${DBTAG:-latest}
+    image: us.icr.io/watson-orchestrate-private/wxo-server-db:02-05-2025
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
