@@ -330,6 +330,12 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
         sys.exit(1) 
 
+def get_whl_in_registry(registry_url: str, version: str) -> str| None:
+    orchestrate_links = requests.get(registry_url).text
+    wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
+    wheel_file = next(filter(lambda x: f"{version}-py3-none-any.whl" in x, wheel_files), None)
+    return wheel_file
+
 class ToolsController:
     def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: str = None):
         self.client = None
@@ -529,12 +535,14 @@ class ToolsController:
                         if registry_type == RegistryType.LOCAL:
                             requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
                         elif registry_type == RegistryType.PYPI:
+                            wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
+                            if not wheel_file:
+                                logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
+                                exit(1)
                             requirements.append(f"ibm-watsonx-orchestrate=={version}\n")
                         elif registry_type == RegistryType.TESTPYPI:
                             override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
-                            orchestrate_links = requests.get('https://test.pypi.org/simple/ibm-watsonx-orchestrate').text
-                            wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
-                            wheel_file = next(filter(lambda x: f"{override_version}-py3-none-any.whl" in x, wheel_files), None)
+                            wheel_file = get_whl_in_registry(registry_url='https://test.pypi.org/simple/ibm-watsonx-orchestrate', version=override_version)
                             if not wheel_file:
                                 logger.error(f"Could not find ibm-watsonx-orchestrate@{override_version} on https://test.pypi.org/project/ibm-watsonx-orchestrate")
                                 exit(1)
