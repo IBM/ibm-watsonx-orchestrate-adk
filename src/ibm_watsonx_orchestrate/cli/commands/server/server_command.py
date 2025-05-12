@@ -244,43 +244,43 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
     logger.info("Database container started successfully. Now starting other services...")
 
 
-    # Step 2: Start all remaining services (except DB)
-    if experimental_with_langfuse:
-        command = compose_command + [
-            '--profile',
-            'langfuse'
-        ]
-    else:
-        command = compose_command
-
-    # Check if we start the server with tempus-runtime.
-    if with_flow_runtime:
-        command += ['--profile', 'with-tempus-runtime']
-
-    command += [
-        "-f", str(compose_path),
-        "--env-file", str(final_env_file),
-        "up",
-        "--scale",
-        "ui=0",
-        "-d",
-        "--remove-orphans",
-    ]
-
-    logger.info("Starting docker-compose services...")
-    result = subprocess.run(command, capture_output=False)
-
-    if result.returncode == 0:
-        logger.info("Services started successfully.")
-        # Remove the temp file if successful
-        if final_env_file.exists():
-            final_env_file.unlink()
-    else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        logger.error(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
-        )
-        sys.exit(1)
+    # # Step 2: Start all remaining services (except DB)
+    # if experimental_with_langfuse:
+    #     command = compose_command + [
+    #         '--profile',
+    #         'langfuse'
+    #     ]
+    # else:
+    #     command = compose_command
+    #
+    # # Check if we start the server with tempus-runtime.
+    # if with_flow_runtime:
+    #     command += ['--profile', 'with-tempus-runtime']
+    #
+    # command += [
+    #     "-f", str(compose_path),
+    #     "--env-file", str(final_env_file),
+    #     "up",
+    #     "--scale",
+    #     "ui=0",
+    #     "-d",
+    #     "--remove-orphans",
+    # ]
+    #
+    # logger.info("Starting docker-compose services...")
+    # result = subprocess.run(command, capture_output=False)
+    #
+    # if result.returncode == 0:
+    #     logger.info("Services started successfully.")
+    #     # Remove the temp file if successful
+    #     if final_env_file.exists():
+    #         final_env_file.unlink()
+    # else:
+    #     error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+    #     logger.error(
+    #         f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
+    #     )
+    #     sys.exit(1)
 
 def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=90, interval_seconds=2):
     url = "http://localhost:4321/api/v1/auth/token"
@@ -611,35 +611,35 @@ def server_start(
     final_env_file = write_merged_env_file(merged_env_dict)
     run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_flow_runtime=with_flow_runtime)
 
-    run_db_migration()
-
-    logger.info("Waiting for orchestrate server to be fully initialized and ready...")
-
-    health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else (7 * 60)
-    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'], timeout_seconds=health_check_timeout)
-    if is_successful_server_healthcheck:
-        logger.info("Orchestrate services initialized successfully")
-    else:
-        logger.error(
-            "The server did not successfully start within the given timeout. This is either an indication that something "
-            f"went wrong, or that the server simply did not start within {health_check_timeout} seconds. Please check the logs with "
-            "`orchestrate server logs`, or consider increasing the timeout by adding `HEALTH_TIMEOUT=number-of-seconds` "
-            "to your env file."
-        )
-        exit(1)
-
-    try:
-        refresh_local_credentials()
-    except:
-        logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
-
-    logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
-
-    if experimental_with_langfuse:
-        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
-
-    if with_flow_runtime:
-        logger.info(f"Starting with flow runtime")
+    # run_db_migration()
+    #
+    # logger.info("Waiting for orchestrate server to be fully initialized and ready...")
+    #
+    # health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else (7 * 60)
+    # is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'], timeout_seconds=health_check_timeout)
+    # if is_successful_server_healthcheck:
+    #     logger.info("Orchestrate services initialized successfully")
+    # else:
+    #     logger.error(
+    #         "The server did not successfully start within the given timeout. This is either an indication that something "
+    #         f"went wrong, or that the server simply did not start within {health_check_timeout} seconds. Please check the logs with "
+    #         "`orchestrate server logs`, or consider increasing the timeout by adding `HEALTH_TIMEOUT=number-of-seconds` "
+    #         "to your env file."
+    #     )
+    #     exit(1)
+    #
+    # try:
+    #     refresh_local_credentials()
+    # except:
+    #     logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
+    #
+    # logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
+    #
+    # if experimental_with_langfuse:
+    #     logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+    #
+    # if with_flow_runtime:
+    #     logger.info(f"Starting with flow runtime")
 
 @server_app.command(name="stop")
 def server_stop(
