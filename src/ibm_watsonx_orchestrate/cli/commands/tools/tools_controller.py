@@ -168,18 +168,17 @@ def validate_python_connections(tool: BaseTool):
 
         if sanatized_expected_tool_app_id not in provided_connections:
             logger.error(f"The tool '{tool.__tool_spec__.name}' requires an app-id '{expected_tool_app_id}'. Please use the `--app-id` flag to provide the required app-id")
-            validation_failed = True
+            sys.exit(1)
 
         if not connections:
             continue
-
+            
         connection_id = connections.get(sanatized_expected_tool_app_id)
-
         imported_connection = imported_connections.get(connection_id)
         imported_connection_auth_type = get_connection_type(security_scheme=imported_connection.security_scheme, auth_type=imported_connection.auth_type)
 
         if connection_id and not imported_connection:
-            logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being delted. Please rec-reate the connection and re-import the tool")
+            logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being deleted. Please rec-reate the connection and re-import the tool")
             validation_failed = True
 
         if imported_connection and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
@@ -303,9 +302,9 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             obj.__tool_spec__.binding.python.function = f"{file_name.replace('.py', '')}:{fn}"
 
         else:
-            package = package[1:]
+            pkg = package[1:]
             fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
-            obj.__tool_spec__.binding.python.function = f"{package}:{fn}"
+            obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
         if app_id and len(app_id):
             obj.__tool_spec__.binding.python.connections = parse_python_app_ids(app_id)
