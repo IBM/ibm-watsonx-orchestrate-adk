@@ -38,6 +38,16 @@ def test_tool_import_call_openapi():
             package_root=None
         )
 
+def test_tool_import_call_flow():
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
+        tools_command.tool_import(kind="flow", file="test_file")
+        mock.assert_called_once_with(
+            kind="flow",
+            file="test_file",
+            app_id=None,
+            requirements_file=None,
+            package_root=None
+        )
 
 # def test_tool_import_call_skill():
 #     with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.tools_controller.import_tool") as mock:

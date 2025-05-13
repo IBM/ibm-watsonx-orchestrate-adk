@@ -1,0 +1,211 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "ibm_knowledge_to_emails",
+    "display_name": "ibm_knowledge_to_emails",
+    "description": "This flow will send a random fact about IBM to a group of people",
+    "input_schema": {
+      "$ref": "#/schemas/ibm_knowledge_to_emails_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/FlowOutput"
+    }
+  },
+  "nodes": {
+    "ask_agent_for_ibm_knowledge": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_agent_for_ibm_knowledge",
+        "display_name": "ask_agent_for_ibm_knowledge",
+        "description": "Get a random fact about IBM.",
+        "input_schema": {
+          "$ref": "#/schemas/ask_agent_for_ibm_knowledge_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/IBMAgentOutput"
+        },
+        "message": "Please retrieve a random fact about IBM on a topic.",
+        "agent": "ibm_agent"
+      }
+    },
+    "ask_agent_to_send_email": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_agent_to_send_email",
+        "display_name": "ask_agent_to_send_email",
+        "description": "This agent will send email content to a list of email addresses",
+        "input_schema": {
+          "$ref": "#/schemas/ask_agent_to_send_email_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/EmailAgentOutput"
+        },
+        "message": "Please send email based on the following email addresses and based on a fact about IBM.'",
+        "agent": "email_agent"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "ask_agent_for_ibm_knowledge"
+    },
+    {
+      "start": "ask_agent_for_ibm_knowledge",
+      "end": "ask_agent_to_send_email"
+    },
+    {
+      "start": "ask_agent_to_send_email",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "ibm_knowledge_to_emails_input": {
+      "type": "object",
+      "title": "ibm_knowledge_to_emails_input",
+      "required": [
+        "question",
+        "emails"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for about IBM"
+        },
+        "emails": {
+          "type": "array",
+          "title": "Emails",
+          "description": "a list of email address",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "FlowOutput": {
+      "type": "object",
+      "title": "FlowOutput",
+      "required": [
+        "question",
+        "answer",
+        "emails"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for about IBM"
+        },
+        "answer": {
+          "type": "string",
+          "title": "Answer",
+          "description": "A fact about IBM"
+        },
+        "emails": {
+          "type": "array",
+          "title": "Emails",
+          "description": "The email addresse the we sent",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ask_agent_for_ibm_knowledge_input": {
+      "type": "object",
+      "title": "ask_agent_for_ibm_knowledge_input",
+      "required": [
+        "question"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for"
+        }
+      }
+    },
+    "IBMAgentOutput": {
+      "type": "object",
+      "title": "IBMAgentOutput",
+      "required": [
+        "question",
+        "answer"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for"
+        },
+        "answer": {
+          "type": "string",
+          "title": "Answer",
+          "description": "A fact about IBM"
+        }
+      }
+    },
+    "ask_agent_to_send_email_input": {
+      "type": "object",
+      "title": "ask_agent_to_send_email_input",
+      "required": [
+        "emails",
+        "question",
+        "answer"
+      ],
+      "properties": {
+        "emails": {
+          "type": "array",
+          "title": "Emails",
+          "description": "The email addresses",
+          "items": {
+            "type": "string"
+          }
+        },
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for about IBM"
+        },
+        "answer": {
+          "type": "string",
+          "title": "Answer",
+          "description": "The email content"
+        }
+      }
+    },
+    "EmailAgentOutput": {
+      "type": "object",
+      "title": "EmailAgentOutput",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "The message we sent."
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-05-06T15:30:21.281269+00:00"
+  }
+}

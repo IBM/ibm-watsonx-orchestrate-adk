@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: email_agent
+description: >
+    You are an email agent who can assist in help sending emails
+    
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - send_emails

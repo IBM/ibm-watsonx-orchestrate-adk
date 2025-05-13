@@ -191,6 +191,54 @@ def test_openapi_params_valid():
             )
         ]
 
+# def test_flow_with_python_based_flow():
+#     tools_controller = ToolsController()
+#     tools = list(tools_controller.import_tool(ToolKind.flow,
+#                                               file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.py"))
+    
+#     assert len(tools) == 2
+#     assert tools[0].__tool_spec__.binding.openapi.http_method == "POST"
+#     assert tools[0].__tool_spec__.binding.openapi.http_path == "/run/async"
+#     assert tools[0].__tool_spec__.name == "get_pet_facts"
+#     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+#     assert tools[1].__tool_spec__.binding.openapi.http_method == "GET"
+#     assert tools[1].__tool_spec__.binding.openapi.http_path == "/v1/flows"
+#     assert tools[1].__tool_spec__.name == "get_flow_status"
+#     assert tools[1].__tool_spec__.permission == ToolPermission.READ_ONLY
+   
+# def test_flow_with_json_based_flow():
+#     tools_controller = ToolsController()
+#     tools = list(tools_controller.import_tool(ToolKind.flow,
+#                                               file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.json"))
+    
+#     assert len(tools) == 2
+#     assert tools[0].__tool_spec__.binding.openapi.http_method == "POST"
+#     assert tools[0].__tool_spec__.binding.openapi.http_path == "/run/async"
+#     assert tools[0].__tool_spec__.name == "get_pet_facts"
+#     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+#     assert tools[1].__tool_spec__.binding.openapi.http_method == "GET"
+#     assert tools[1].__tool_spec__.binding.openapi.http_path == "/v1/flows"
+#     assert tools[1].__tool_spec__.name == "get_flow_status"
+#     assert tools[1].__tool_spec__.permission == ToolPermission.READ_ONLY
+
+# def test_flow_no_file():
+#     with pytest.raises(BadParameter):
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file=None)
+#         list(tools)
+# def test_flow_wrong_file_extension():
+#     with pytest.raises(BadParameter) as e:
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.yaml")
+#         list(tools)
+#     assert "Unknown file type.  Only python or json are supported." in str(e)
+
+# def test_flow_file_not_exists():
+#     with pytest.raises(BadParameter) as e:
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file="file_not_exists.json")
+#         list(tools)
+#     assert "Failed to load model from file file_not_exists.json: [Errno 2] No such file or directory: 'file_not_exists.json'" in str(e)
 
 def test_openapi_no_app_id():
     calls = []

@@ -293,7 +293,7 @@ async def create_openapi_json_tool_from_uri(
         description=description,
         input_schema=input_schema,
         output_schema=output_schema,
-        app_id=app_id
+        connection_id=app_id
     )
 
 
@@ -302,6 +302,15 @@ async def create_openapi_json_tools_from_uri(
         connection_id: str = None
 ) -> List[OpenAPITool]:
     openapi_contents = await _get_openapi_spec_from_uri(openapi_uri)
+    tools: List[OpenAPITool] = await create_openapi_json_tools_from_content(openapi_contents, connection_id)
+
+    return tools
+
+async def create_openapi_json_tools_from_content(
+        openapi_contents: dict,
+        connection_id: str = None
+) -> List[OpenAPITool]:
+   
     tools: List[OpenAPITool] = []
 
     for path, methods in openapi_contents.get('paths', {}).items():

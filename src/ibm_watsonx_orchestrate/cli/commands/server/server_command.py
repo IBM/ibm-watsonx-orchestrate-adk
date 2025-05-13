@@ -550,13 +550,12 @@ def server_start(
     experimental_with_langfuse: bool = typer.Option(
         False,
         '--with-langfuse', '-l',
-        help=''
+        help='Option to enable Langfuse support.'
     ),
     with_flow_runtime: bool = typer.Option(
         False,
-        '--with-tempus-runtime', '-f',
-        help='Option to start server with tempus-runtime.',
-        hidden=True
+        '--with-flow-runtime', '-f',
+        help='Option to enable Flow support.'
     )
     ,
     persist_env_secrets: bool = typer.Option(

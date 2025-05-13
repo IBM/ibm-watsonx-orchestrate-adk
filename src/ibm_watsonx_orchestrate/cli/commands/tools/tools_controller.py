@@ -20,18 +20,28 @@ import glob
 import rich.table
 import typer
 
+from rich.console import Console
+from rich.panel import Panel
+
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.cli.commands.models.models_command import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection
+from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
+from ibm_watsonx_orchestrate.experimental.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.client.utils import is_local_dev
+from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+from ibm_watsonx_orchestrate.experimental.flow_builder.utils import import_flow_model
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -44,6 +54,7 @@ class ToolKind(str, Enum):
     openapi = "openapi"
     python = "python"
     mcp = "mcp"
+    flow = "flow"
     # skill = "skill"
 
 def validate_app_ids(kind: ToolKind, **args) -> None:
@@ -314,6 +325,107 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
 
     return tools
 
+async def import_flow_tool(file: str) -> None:
+    
+    '''
+    Import a flow tool from a file. The file can be either a python file or a json file.
+    If the file is a python file, it should contain a flow model builder function decorated with the @flow decorator.
+    If the file is a json file, it should contain a flow model in json format.
+    Also, a connection will be created for the flow if one does not exists and the environment token will be used.  This is a 
+    workaround until flow bindings are supported in the server.
+    The function will return a list of tools created from the flow model.
+    '''
+
+    theme = rich.theme.Theme({"model.name": "bold cyan"})
+    console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
+    
+    message = f"""[bold cyan]Flow Tools: Experimental Feature[/bold cyan]
+   
+The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].  
+    
+[bold cyan]Additional information:[/bold cyan]
+
+- Ensure the flow engine is running by issuing the [bold cyan]orchestrate server start[/bold cyan] command with the [bold cyan]--with-flow-runtime[/bold cyan] option
+- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. Ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
+- Include additional instructions in your agent to call the [bold green]get_flow_status[/bold green] tool to retrieve the flow output. For example: [green]"If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow."[/green]
+
+    """
+
+    console.print(Panel(message,  title="[bold blue]Flow tool support information[/bold blue]", border_style="bright_blue"))
+   
+
+    if not is_local_dev():
+        raise typer.BadParameter(f"Flow tools are only supported in local environment.")
+
+    model = None
+    
+    # Load the Flow JSON model from the file
+    try:
+        file_path = Path(file).absolute()
+        file_path_str = str(file_path)
+
+        if file_path.is_dir():
+            raise typer.BadParameter(f"Provided flow file path is not a file.")
+
+        elif file_path.is_symlink():
+            raise typer.BadParameter(f"Symbolic links are not supported for flow file path.")
+
+        if file_path.suffix.lower() == ".py":
+            
+            # borrow code from python tool import to be able to load the script that holds the flow model
+
+            resolved_package_root = get_package_root(str(file_path.parent))
+            if resolved_package_root:
+                resolved_package_root = str(Path(resolved_package_root).absolute())
+                package_path = str(Path(resolved_package_root).parent.absolute())
+                package_folder = str(Path(resolved_package_root).stem)
+                sys.path.append(package_path)           # allows you to resolve non relative imports relative to the root of the module
+                sys.path.append(resolved_package_root)  # allows you to resolve relative imports in combination with import_module(..., package=...)
+                package = file_path_str.replace(resolved_package_root, '').replace('.py', '').replace('/', '.').replace('\\', '.')
+                if not path.isdir(resolved_package_root):
+                    raise typer.BadParameter(f"The provided package root is not a directory.")
+
+                elif not file_path_str.startswith(str(Path(resolved_package_root))):
+                    raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
+
+                temp_path = Path(file_path_str[len(str(Path(resolved_package_root))) + 1:])
+                if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
+                    raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
+            else:
+                package_folder = file_path.parent
+                package = file_path.stem
+                sys.path.append(str(package_folder))
+
+            module = importlib.import_module(package, package=package_folder)
+            
+            if resolved_package_root:
+                del sys.path[-1]
+            del sys.path[-1]
+
+            for _, obj in inspect.getmembers(module):
+                    
+                if not isinstance(obj, FlowWrapper):
+                    continue
+                
+                model = obj().to_json()
+                break
+
+        elif file_path.suffix.lower() == ".json":
+            with open(file) as f:
+                model = json.load(f)
+        else:
+            raise typer.BadParameter(f"Unknown file type.  Only python or json are supported.")
+
+
+    except typer.BadParameter as ex:
+        raise ex
+    
+    except Exception as e:
+        raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
+    
+    return await import_flow_model(model)
+
+
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
     tools = await create_openapi_json_tools_from_uri(file, connection_id)
     return tools
@@ -374,6 +486,8 @@ class ToolsController:
                     connection = connections_client.get_draft_by_app_id(app_id=app_id)
                     connection_id = connection.connection_id
                 tools = asyncio.run(import_openapi_tool(file=args["file"], connection_id=connection_id))
+            case "flow":
+                tools = asyncio.run(import_flow_tool(file=args["file"]))
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")

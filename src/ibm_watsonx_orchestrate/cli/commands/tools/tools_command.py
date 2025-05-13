@@ -15,7 +15,7 @@ def tool_import(
         typer.Option(
             "--file",
             "-f",
-            help="Path to Python or OpenAPI spec YAML file. Required for kind openapi or python",
+            help="Path to Python, OpenAPI spec YAML file or flow JSON or python file. Required for kind openapi, python and flow",
         ),
     ] = None,
     # skillset_id: Annotated[
