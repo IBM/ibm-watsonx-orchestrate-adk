@@ -49,6 +49,15 @@ def get_file_name(path: str):
     # return to_column_name(path.split("/")[-1].split(".")[0]) 
     return path.split("/")[-1]
 
+def get_relative_file_path(path, dir):
+    if path.startswith("/"):
+        return path
+    elif path.startswith("./"):
+        return f"{dir}{path.removeprefix('.')}"
+    else:
+        return f"{dir}/{path}"
+
+
 class KnowledgeBaseController:
     def __init__(self):
         self.client = None
@@ -68,7 +77,7 @@ class KnowledgeBaseController:
                 kb.validate_documents_or_index_exists()
                 if kb.documents:
                     file_dir = "/".join(file.split("/")[:-1])
-                    files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else (file_path if not file_dir else f"{file_dir}/{file_path}"), 'rb'))) for file_path in kb.documents]
+                    files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in kb.documents]
                     
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True);
@@ -129,7 +138,7 @@ class KnowledgeBaseController:
 
         if update_request.documents:
             file_dir = "/".join(file.split("/")[:-1])
-            files = [('files', (get_file_name(file_path), open(file_path if file_path.startswith("/") else f"{file_dir}/{file_path}", 'rb'))) for file_path in update_request.documents]
+            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in update_request.documents]
             
             update_request.prioritize_built_in_index = True
             payload = update_request.model_dump(exclude_none=True);
