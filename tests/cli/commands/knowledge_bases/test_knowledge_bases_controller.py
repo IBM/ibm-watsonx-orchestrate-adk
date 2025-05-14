@@ -1,4 +1,4 @@
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file, get_relative_file_path
 from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseUpdateRequest
@@ -317,3 +317,12 @@ class TestKnowledgeBaseControllerKnowledgeBaseStatus:
 
             mock_instance.add_column.assert_has_calls([ mock.call('Name', {}) ]) 
             mock_instance.add_row.assert_called_once_with("Knowledge Base Name")
+
+
+class TestRelativeFilePath:
+
+    def test_relative_file_path(self):
+        assert get_relative_file_path("./more/my_file.pdf", "current/dir") == "current/dir/more/my_file.pdf"
+        assert get_relative_file_path("more/my_file.pdf", "current/dir") == "current/dir/more/my_file.pdf"
+        assert get_relative_file_path("/more/my_file.pdf", "current/dir") == "/more/my_file.pdf"
+        
