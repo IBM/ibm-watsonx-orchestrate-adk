@@ -12,4 +12,7 @@ for flow_tool in foreach_email.py; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
 done
 
-
+# import customer email agent
+for agent in customer_email_agent.yaml; do
+  orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
+done

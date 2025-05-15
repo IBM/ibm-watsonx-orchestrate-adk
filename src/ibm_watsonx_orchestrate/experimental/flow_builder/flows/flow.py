@@ -49,7 +49,7 @@ EVENT_TYPE_MAP = {
     FlowEventType.ON_FLOW_END: "informational",
     FlowEventType.ON_FLOW_ERROR: "interrupting",
     TaskEventType.ON_TASK_WAIT: "interrupting",
-    TaskEventType.ON_TASK_START: "interrupting",
+    TaskEventType.ON_TASK_START: "informational",
     TaskEventType.ON_TASK_END: "informational",
     TaskEventType.ON_TASK_STREAM: "interrupting",
     TaskEventType.ON_TASK_ERROR: "interrupting",
