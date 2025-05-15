@@ -21,6 +21,10 @@ class ToolClient(BaseAPIClient):
     def upload_tools_artifact(self, tool_id: str, file_path: str) -> dict:
         return self._post(f"/tools/{tool_id}/upload", files={"file": (f"{tool_id}.zip", open(file_path, "rb"), "application/zip", {"Expires": "0"})})
     
+    def download_tools_artifact(self, tool_id: str) -> bytes:
+        response = self._get(f"/tools/{tool_id}/download", return_raw=True)
+        return response.content
+
     def get_draft_by_name(self, tool_name: str) -> List[dict]:
         return self.get_drafts_by_names([tool_name])
 
@@ -39,3 +43,7 @@ class ToolClient(BaseAPIClient):
                 if e.response.status_code == 404 and "not found with the given name" in e.response.text:
                     return ""
                 raise(e)
+    
+    def get_drafts_by_ids(self, tool_ids: List[str]) -> List[dict]:
+        formatted_tool_ids = [f"ids={x}" for x in tool_ids]
+        return self._get(f"/tools?{'&'.join(formatted_tool_ids)}")

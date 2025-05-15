@@ -3,8 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel, model_validator
 
 class SpecVersion(str, Enum):
     V1 = "v1"
@@ -213,6 +212,14 @@ class PatchKnowledgeBase(BaseModel):
     conversational_search_tool: Optional[ConversationalSearchConfig] = None  
     prioritize_built_in_index: Optional[bool] = None
     representation: Optional[KnowledgeBaseRepresentation] = None
+
+    @model_validator(mode="after")
+    def validate_fields(self):
+        if self.documents and self.conversational_search_tool and self.conversational_search_tool.index_config:
+            raise ValueError("Must not provide both \"documents\" or \"conversational_search_tool.index_config\"")
+        if self.conversational_search_tool and self.conversational_search_tool.index_config and len(self.conversational_search_tool.index_config) != 1:
+            raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(self.conversational_search_tool.index_config)}.")
+        return self
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""

@@ -4,9 +4,20 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     create_agent_from_spec,
     parse_file,
     parse_create_native_args,
-    parse_create_external_args
+    parse_create_external_args,
+    parse_create_assistant_args,
+    get_conn_id_from_app_id,
+    get_app_id_from_conn_id,
+    get_agent_details
     )
-from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent
+from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent, AgentProvider, ExternalAgentAuthScheme
+from ibm_watsonx_orchestrate.client.connections.connections_client import GetConnectionResponse
+from ibm_watsonx_orchestrate.agent_builder.agents.types import ExternalAgentConfig, AssistantAgentConfig
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
+from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 import json
 from unittest.mock import patch, mock_open, MagicMock
 import pytest
@@ -94,12 +105,14 @@ class MockSDKResponse:
         return json.dumps(self.response_obj)
 
 class MockAgent:
-    def __init__(self, expected_name=None, expected_agent_spec=None, fake_agent=None, skip_deref=False, already_existing=False):
+    def __init__(self, expected_name=None, expected_agent_spec=None, fake_agent=None, skip_deref=False, already_existing=False, return_get_drafts_by_ids=True, get_draft_by_name_response=None):
         self.expected_name = expected_name
         self.fake_agent = fake_agent
         self.skip_deref = skip_deref
         self.already_existing = already_existing
         self.expected_agent_spec = expected_agent_spec
+        self.return_get_drafts_by_ids = return_get_drafts_by_ids
+        self.get_draft_by_name_response = get_draft_by_name_response
 
     def delete(self, agent_id):
         pass
@@ -117,13 +130,29 @@ class MockAgent:
         ids = []
         if not self.skip_deref:
             for agent in agents:
-                ids.append({"name": agent, "id": uuid.uuid4()})
+                ids.append({"name": agent, "id": str(uuid.uuid4())})
         return ids
 
     def get_draft_by_name(self, agent):
+        if self.get_draft_by_name_response:
+            return self.get_draft_by_name_response
         if self.already_existing:
-            return [{"name": agent, "id": uuid.uuid4()}]
+            return [{"name": agent, "id": str(uuid.uuid4())}]
         return []
+
+    def get_drafts_by_ids(self, agent_ids):
+        response = []
+        if not self.return_get_drafts_by_ids:
+            return response
+        for id in agent_ids:
+            response.append({"id": id, "name": str(uuid.uuid4())})
+        return response
+
+    def get_draft_by_id(self, agent_id):
+        return self.fake_agent
+    
+    def get_by_id(self, knowledge_base_id):
+        return self.fake_agent
         
 class TestImportPythonAgent:
     def test_import_python_agent(self, native_agent_content):
@@ -184,11 +213,11 @@ class TestCreateAgentFromSpec:
 
             mock.assert_called_once_with("test.yaml")
 
-    # def test_create_assistant_agent_from_spec(self):
-    #     with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AssistantAgent.from_spec") as mock:
-    #         create_agent_from_spec("test.yaml", AgentKind.ASSISTANT)
+    def test_create_assistant_agent_from_spec(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AssistantAgent.from_spec") as mock:
+            create_agent_from_spec("test.yaml", AgentKind.ASSISTANT)
 
-            # mock.assert_called_once_with("test.yaml")
+            mock.assert_called_once_with("test.yaml")
 
     def test_create_invalid_agent_from_spec(self):
         with pytest.raises(ValueError) as e:
@@ -316,34 +345,249 @@ class TestParseCreateExternalArgs:
         assert parsed_args["nickname"] == "some_nickname"
         assert parsed_args["app_id"] == "some_app_id"
 
+class TestParseCreateAssistantArgs:
+    def test_parse_create_assistant_args(self):
+        parsed_args = parse_create_assistant_args(
+            name="test_assistant_agent",
+            kind=AgentKind.ASSISTANT,
+            description="Test Assistant Agent Description",
+            title="Test Assistant Agent",
+            tags=["tag1", "tag2"],
+            config='{"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}',
+            nickname="some_nickname",
+        )
 
+        assert parsed_args["name"] == "test_assistant_agent"
+        assert parsed_args["kind"] == AgentKind.ASSISTANT
+        assert parsed_args["description"] == "Test Assistant Agent Description"
+        assert parsed_args["title"] == "Test Assistant Agent"
+        assert parsed_args["tags"] == ["tag1", "tag2"]
+        assert parsed_args["config"] == '{"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}'
+        assert parsed_args["nickname"] == "some_nickname"
+
+class TestGetConnIdFromAppId:
+    mock_app_id = "test_app_id"
+    mock_conn_id = "test_conn_id"
+
+    def test_get_conn_id_from_app_id(self):
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_app_id_reponse=GetConnectionResponse(
+                connection_id=self.mock_conn_id
+            )
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+
+            response = get_conn_id_from_app_id(self.mock_app_id)
+
+            assert response == self.mock_conn_id 
+    
+    def test_get_conn_id_from_app_id_no_connections(self, caplog):
+        mock_connection_client = MockConnectionClient()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+
+            with pytest.raises(SystemExit):
+                get_conn_id_from_app_id(self.mock_app_id)
+
+            
+            captured = caplog.text
+
+            assert f"No connection exists with the app-id '{self.mock_app_id}'" in captured 
+
+class TestGetAppIdFromConnId:
+    mock_app_id = "test_app_id"
+    mock_conn_id = "test_conn_id"
+
+    def test_get_app_id_from_conn_id(self):
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response=self.mock_app_id
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+
+            response = get_app_id_from_conn_id(self.mock_conn_id)
+
+            assert response == self.mock_app_id 
+    
+    def test_get_app_id_from_conn_id_no_connections(self, caplog):
+        mock_connection_client = MockConnectionClient()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+
+            with pytest.raises(SystemExit):
+                get_app_id_from_conn_id(self.mock_conn_id)
+
+            
+            captured = caplog.text
+
+            assert f"No connection exists with the connection id '{self.mock_conn_id}'" in captured 
+
+class TestGetAgentDetails:
+    mock_agent_name = "test_agent"
+
+    def test_get_agent_details(self):
+        mock_agent_client = MockAgent(already_existing=True)
+
+        response = get_agent_details(name=self.mock_agent_name, client = mock_agent_client)
+
+        assert response.get("name") == self.mock_agent_name
+    
+    def test_get_agent_details_no_agent(self, caplog):
+        mock_agent_client = MockAgent(already_existing=False)
+
+        with pytest.raises(SystemExit):
+            get_agent_details(name=self.mock_agent_name, client = mock_agent_client)
+
+        captured = caplog.text
+
+        assert f"No agents with the name '{self.mock_agent_name}' found." in captured
+    
+    def test_get_agent_details_multiple_agents(self, caplog):
+        mock_agent_client = MagicMock(get_draft_by_name=MagicMock(return_value=[{}, {}]))
+
+        with pytest.raises(SystemExit):
+            get_agent_details(name=self.mock_agent_name, client = mock_agent_client)
+
+        captured = caplog.text
+
+        assert f"Multiple agents with the name '{self.mock_agent_name}' found." in captured
+
+class TestAgentsControllerGetClients:
+    def test_get_native_client(self):
+        ac = AgentsController()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
+            mock_instantiate_client.return_value = AgentClient("test")
+            ac.get_native_client()
+        assert isinstance(ac.native_client, AgentClient)
+    
+    def test_get_external_client(self):
+        ac = AgentsController()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
+            mock_instantiate_client.return_value = ExternalAgentClient("test")
+            ac.get_external_client()
+        assert isinstance(ac.external_client, ExternalAgentClient)
+    
+    def test_get_assistant_client(self):
+        ac = AgentsController()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
+            mock_instantiate_client.return_value = AssistantAgentClient("test")
+            ac.get_assistant_client()
+        assert isinstance(ac.assistant_client, AssistantAgentClient)
+    
+    def test_get_tool_client(self):
+        ac = AgentsController()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
+            mock_instantiate_client.return_value = ToolClient("test")
+            ac.get_tool_client()
+        assert isinstance(ac.tool_client, ToolClient)
+    
+    def test_get_knowledge_base_client(self):
+        ac = AgentsController()
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.instantiate_client") as mock_instantiate_client:
+            mock_instantiate_client.return_value = KnowledgeBaseClient("test")
+            ac.get_knowledge_base_client()
+        assert isinstance(ac.knowledge_base_client, KnowledgeBaseClient)
 
 class TestAgentsControllerGenerateAgentSpec:
-    def test_generate_agent_spec(self):
+    mock_agent_name = "test_agent"
+    mock_agent_description = "Test Agent Description"
+    mock_agent_title = "Test Agent Title"
+    mock_agent_tags = ["tag1", "tag2"]
+    mock_nickname = "test_nickname"
+
+    def test_generate_native_agent_spec(self):
+        mock_llm = "test_llm"
+        mock_collaborators = ["agent1", "    "]
+        mock_tools = ["  tool1  ", "tool2"]
+
         agent = AgentsController.generate_agent_spec(
-            name="test_agent",
+            name=self.mock_agent_name,
             kind=AgentKind.NATIVE,
-            description="Test Agent Description",
-            llm="test_llm",
+            description=self.mock_agent_description,
+            llm=mock_llm,
             style=AgentStyle.REACT,
-            collaborators=["agent1", "    "],
-            tools=["  tool1  ", "tool2"]
+            collaborators=mock_collaborators,
+            tools=mock_tools
         )
         
-        assert agent.name == "test_agent"
+        assert agent.name == self.mock_agent_name
         assert agent.kind == AgentKind.NATIVE
-        assert agent.description == "Test Agent Description"
-        assert agent.llm == "test_llm"
+        assert agent.description == self.mock_agent_description
+        assert agent.llm == mock_llm
         assert agent.style == AgentStyle.REACT
         assert agent.collaborators == ["agent1"]
         assert agent.tools == ["tool1", "tool2"]
+    
+    def test_generate_external_agent_spec(self):
+        mock_api_url = "https://someurl.com"
+        mock_chat_params = {"stream": True}
+        mock_config = {"hidden": False, "enable_cot": False}
+        mock_app_id = "mock_app_id"
+        mock_conn_id = "mock_conn_id"
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_app_id_reponse=GetConnectionResponse(
+                connection_id=mock_conn_id
+            )
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+            agent = AgentsController.generate_agent_spec(
+                name=self.mock_agent_name,
+                kind=AgentKind.EXTERNAL,
+                provider = AgentProvider.EXT_CHAT,
+                auth_scheme = ExternalAgentAuthScheme.API_KEY,
+                description=self.mock_agent_description,
+                title=self.mock_agent_title,
+                api_url=mock_api_url,
+                tags=self.mock_agent_tags,
+                chat_params=mock_chat_params,
+                config=mock_config,
+                nickname=self.mock_nickname,
+                app_id=mock_app_id
+            )
+        
+        assert agent.name == self.mock_agent_name
+        assert agent.kind == AgentKind.EXTERNAL
+        assert agent.provider == AgentProvider.EXT_CHAT
+        assert agent.auth_scheme == ExternalAgentAuthScheme.API_KEY
+        assert agent.description == self.mock_agent_description
+        assert agent.title == self.mock_agent_title
+        assert agent.api_url == mock_api_url
+        assert agent.tags == self.mock_agent_tags
+        assert agent.chat_params == mock_chat_params
+        assert agent.config == ExternalAgentConfig(**mock_config)
+        assert agent.nickname == self.mock_nickname
+        assert agent.app_id == mock_app_id
+    
+    def test_generate_assistant_agent_spec(self):
+        mock_config = {"api_version": "2021-11-27", "assistant_id": "test_id", "crn": "test_crn", "instance_url": "test_instance_url", "environment_id": "test_env", "app_id": "test_app_id"}
+
+        agent = AgentsController.generate_agent_spec(
+            name=self.mock_agent_name,
+            kind=AgentKind.ASSISTANT,
+            description=self.mock_agent_description,
+            title=self.mock_agent_title,
+            tags=self.mock_agent_tags,
+            config=mock_config,
+            nickname=self.mock_nickname,
+        )
+        
+        assert agent.name == self.mock_agent_name
+        assert agent.kind == AgentKind.ASSISTANT
+        assert agent.description == self.mock_agent_description
+        assert agent.title == self.mock_agent_title
+        assert agent.tags == self.mock_agent_tags
+        assert agent.config == AssistantAgentConfig(**mock_config)
+        assert agent.nickname == self.mock_nickname
+        
 
     @pytest.mark.parametrize(
             "kind",
             [
-                AgentKind.EXTERNAL,
-                # AgentKind.ASSISTANT,
-                "invalid"
+                "invalid",
+                "fake"
             ]
     )
     def test_generate_agent_spec_invalid_kind(self, kind):
@@ -354,7 +598,21 @@ class TestAgentsControllerGenerateAgentSpec:
                 description="Test Agent Description",
             )
 
-            assert "'kind' must be 'native' for agent creation" in str(e)
+        assert "'kind' must be 'native' or 'external' for agent creation" in str(e)
+
+class TestAgentsControllerGetAllAgents:
+    mock_agent_name = "test_agent"
+    mock_agent_id= "1234"
+
+    def test_get_all_agents(self):
+        mock_client = MockAgent(fake_agent = {
+            "name": self.mock_agent_name,
+            "id": self.mock_agent_id
+        })
+
+        response = agents_controller.get_all_agents(client = mock_client)
+
+        assert response[self.mock_agent_name] == self.mock_agent_id
 
 class TestAgentsControllerPublishOrUpdateAgents:
     def test_publish_or_update_native_agent_publish(self, native_agent_content):
@@ -600,15 +858,19 @@ class TestAgentsControllerUpdateAgent:
             assert f"Assistant Agent '{agent.name}' updated successfully" in captured
 
 class MockConnectionClient:
-    def __init__(self, get_response=[], get_draft_by_id_response=None):
+    def __init__(self, get_response=[], get_draft_by_id_response=None, get_draft_by_app_id_reponse=None):
         self.get_response = get_response
         self.get_draft_by_id_response = get_draft_by_id_response
+        self.get_draft_by_app_id_reponse = get_draft_by_app_id_reponse
     
     def get(self):
         return self.get_response
     
-    def get_draft_by_id(self, connection_id):
+    def get_draft_by_id(self, conn_id):
         return self.get_draft_by_id_response
+    
+    def get_draft_by_app_id(self, app_id):
+        return self.get_draft_by_app_id_reponse
 
 class TestListAgents:
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client')
@@ -727,3 +989,381 @@ class TestRemoveAgent:
                 assert f"Successfully removed agent {name}" not in captured
 
                 assert "Expected Message" in captured
+
+class TestAgentsControllerGetSpecFileContent:
+    def test_get_spec_file_content_native_agent(self, native_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent()
+        ac.external_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.tool_client = MockAgent()
+
+        agent = Agent(**native_agent_content)
+
+        spec_file_content = ac.get_spec_file_content(agent)
+        
+        assert spec_file_content["spec_version"] == native_agent_content["spec_version"]
+        assert spec_file_content["name"] == native_agent_content["name"]
+        assert spec_file_content["kind"] == native_agent_content["kind"]
+        assert spec_file_content["description"] == native_agent_content["description"]
+        assert spec_file_content["llm"] == native_agent_content["llm"]
+        assert spec_file_content["style"] == native_agent_content["style"]
+
+    def test_get_spec_file_content_external_agent(self, external_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent()
+        ac.external_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.tool_client = MockAgent()
+
+        agent = ExternalAgent(**external_agent_content)
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            mock_get_connection_client.return_value = mock_connection_client
+
+            spec_file_content = ac.get_spec_file_content(agent)
+        
+        assert spec_file_content["spec_version"] == external_agent_content["spec_version"]
+        assert spec_file_content["name"] == external_agent_content["name"]
+        assert spec_file_content["kind"] == external_agent_content["kind"]
+        assert spec_file_content["description"] == external_agent_content["description"]
+        assert spec_file_content["title"] == external_agent_content["title"]
+        assert spec_file_content["nickname"] == external_agent_content["nickname"]
+
+
+    def test_get_spec_file_content_assistant_agent(self, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent()
+        ac.external_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(return_get_drafts_by_ids=False)
+        ac.tool_client = MockAgent()
+
+        agent = AssistantAgent(**assistant_agent_content)
+
+        spec_file_content = ac.get_spec_file_content(agent)
+        
+        assert spec_file_content["spec_version"] == assistant_agent_content["spec_version"]
+        assert spec_file_content["name"] == assistant_agent_content["name"]
+        assert spec_file_content["kind"] == assistant_agent_content["kind"]
+        assert spec_file_content["description"] == assistant_agent_content["description"]
+        assert spec_file_content["title"] == assistant_agent_content["title"]
+        assert spec_file_content["nickname"] == assistant_agent_content["nickname"]
+
+class TestAgentsControllerGetAgent:
+    mock_agent_name = "test_agent"
+
+    @pytest.mark.parametrize(
+            ("kind", "expected_agent_type"),
+            [
+                (AgentKind.NATIVE, Agent),
+                (AgentKind.EXTERNAL, ExternalAgent),
+                (AgentKind.ASSISTANT, AssistantAgent),
+            ]
+    )
+    def test_get_agent(self, kind, expected_agent_type, native_agent_content, external_agent_content, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content])
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content])
+
+        agent = ac.get_agent(name=self.mock_agent_name, kind=kind)
+
+        assert isinstance(agent, expected_agent_type)
+
+class TestAgentsControllerGetAgentById:
+    mock_agent_id = "1234"
+
+    def test_get_agent_by_id_native(self, native_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent(fake_agent=native_agent_content)
+        ac.external_client = MockAgent()
+        ac.assistant_client = MockAgent()
+
+        agent = ac.get_agent_by_id(self.mock_agent_id)
+
+        assert isinstance(agent, Agent)
+    
+    def test_get_agent_by_id_external(self, external_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent()
+        ac.external_client = MockAgent(fake_agent=external_agent_content)
+        ac.assistant_client = MockAgent()
+
+        agent = ac.get_agent_by_id(self.mock_agent_id)
+
+        assert isinstance(agent, ExternalAgent)
+    
+    def test_get_agent_by_id_assistant(self, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent()
+        ac.external_client = MockAgent()
+        ac.assistant_client = MockAgent(fake_agent=assistant_agent_content)
+
+        agent = ac.get_agent_by_id(self.mock_agent_id)
+
+        assert isinstance(agent, AssistantAgent)
+
+class TestAgentsControllerExportAgent:
+    mock_agent_name = "test_agent"
+    mock_zip_file_path = "test_mock_zip.zip"
+    mock_yaml_file_path = "test_mock_yaml.yaml"
+    mock_kb_name = "test_kb"
+
+    @pytest.mark.parametrize(
+            "kind",
+            [
+                AgentKind.NATIVE,
+                AgentKind.EXTERNAL,
+                AgentKind.ASSISTANT
+            ]
+    )
+    def test_export_agent(self, caplog, kind, native_agent_content, external_agent_content, assistant_agent_content):
+        native_agent_content["knowledge_base"] = ["kb_1"]
+
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+        ac.knowledge_base_client = MockAgent(fake_agent={"name": self.mock_kb_name})
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+
+            mock_tools_controller.return_value = MagicMock(
+                download_tool=MagicMock(return_value=b"abc")
+                )
+            
+            mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = kind,
+                output_path = self.mock_zip_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
+        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+        assert f"Skipping {self.mock_kb_name}, knowledge_bases are currently unsupported by export"
+
+    @pytest.mark.parametrize(
+            "kind",
+            [
+                AgentKind.NATIVE,
+                AgentKind.EXTERNAL,
+                AgentKind.ASSISTANT
+            ]
+    )
+    def test_export_agent_agent_only(self, caplog, kind, native_agent_content, external_agent_content, assistant_agent_content):
+
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml") as mock_yaml, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
+            patch("builtins.open", mock_open()) as mock_file:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+            mock_yaml.return_value = MagicMock(dump=MagicMock())
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = kind,
+                output_path = self.mock_yaml_file_path,
+                agent_only_flag=True
+            )
+        
+        captured = caplog.text
+        mock_file.assert_called_with(self.mock_yaml_file_path, "w")
+        assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" in captured
+
+    def test_export_agent_existing_agent(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.check_file_in_zip") as mock_zip_check, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+            mock_zip_check.return_value = True
+            mock_tools_controller.return_value = MagicMock(
+                download_tool=MagicMock(return_value=b"abc")
+                )
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_zip_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
+        assert f"Skipping {native_agent_content.get('name')}, agent with that name already exists in the output folder" in captured
+    
+    def test_export_agent_existing_tool(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.check_file_in_zip") as mock_zip_check, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+            mock_zip_check.side_effect = lambda file_path, zip_file : True if "tools" in file_path else False
+            mock_tools_controller.return_value = MagicMock(
+                download_tool=MagicMock(return_value=b"abc")
+                )
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_zip_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
+        assert f"Skipping {native_agent_content.get('name')}, agent with that name already exists in the output folder" not in captured
+        assert f"Exporting tool" not in captured
+        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+    
+    def test_export_agent_no_tool(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+            mock_tools_controller.return_value = MagicMock(
+                download_tool=MagicMock(return_value=None)
+                )
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_zip_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
+        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+ 
+    def test_export_agent_missing_collaborators(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
+        native_agent_content["knowledge_base"] = ["kb_1"]
+
+        ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
+        ac.external_client = MockAgent(get_draft_by_name_response=[external_agent_content], return_get_drafts_by_ids=False)
+        ac.assistant_client = MockAgent(get_draft_by_name_response=[assistant_agent_content], fake_agent=assistant_agent_content)
+        ac.tool_client = MockAgent()
+        ac.knowledge_base_client = MockAgent(fake_agent={"name": self.mock_kb_name})
+
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            
+            mock_get_connection_client.return_value = mock_connection_client
+            mock_get_agent.return_value = None
+
+            mock_tools_controller.return_value = MagicMock(
+                download_tool=MagicMock(return_value=b"abc")
+                )
+            
+            mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
+
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_zip_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
+        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+        assert f"Skipping {self.mock_kb_name}, knowledge_bases are currently unsupported by export"
+        assert f"Skipping {native_agent_content.get('collaborators')[0]}, no agent with id {native_agent_content.get('collaborators')[0]} found" in captured
+
+    def test_export_agent_bad_file_type(self, caplog):
+        ac = AgentsController()
+
+        with pytest.raises(SystemExit):
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_yaml_file_path
+            )
+        
+        captured = caplog.text
+
+        assert f"Output file must end with the extension '.zip'. Provided file '{self.mock_yaml_file_path}' ends with '.yaml'"
+        assert f"Exporting agent definition for '{self.mock_agent_name}'" not in captured
+        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" not in captured
+    
+    def test_export_agent_agent_only_bad_file_type(self, caplog):
+        ac = AgentsController()
+
+        with pytest.raises(SystemExit):
+            ac.export_agent(
+                name = self.mock_agent_name,
+                kind = AgentKind.NATIVE,
+                output_path = self.mock_zip_file_path,
+                agent_only_flag=True
+            )
+        
+        captured = caplog.text
+
+        assert f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{self.mock_zip_file_path}' ends with '.zip'"
+        assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" not in captured

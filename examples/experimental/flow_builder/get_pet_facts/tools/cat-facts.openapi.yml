@@ -1,0 +1,22 @@
+servers:
+ - url: https://meowfacts.herokuapp.com
+paths:
+  /:
+    get:
+      operationId: getCatFact
+      summary: Gets a random fact about cats
+      description: Gets a random fact about cats
+      responses:
+        '200':
+          description: Successfully retrieved cat fact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - data

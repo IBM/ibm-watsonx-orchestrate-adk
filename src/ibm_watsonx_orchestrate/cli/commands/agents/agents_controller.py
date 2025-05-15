@@ -4,13 +4,15 @@ import rich
 import requests
 import importlib
 import inspect
+import zipfile
 import sys
+import io
 import logging
 from pathlib import Path
 from copy import deepcopy
 
 from typing import Iterable, List
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
@@ -28,6 +30,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 
 logger = logging.getLogger(__name__)
 
@@ -142,9 +145,28 @@ def get_conn_id_from_app_id(app_id: str) -> str:
     connections_client = get_connections_client()
     connection = connections_client.get_draft_by_app_id(app_id=app_id)
     if not connection:
-        logger.error(f"No connection exits with the app-id '{app_id}'")
+        logger.error(f"No connection exists with the app-id '{app_id}'")
         exit(1)
     return connection.connection_id
+
+def get_app_id_from_conn_id(conn_id: str) -> str:
+    connections_client = get_connections_client()
+    app_id = connections_client.get_draft_by_id(conn_id=conn_id)
+    if not app_id or app_id == conn_id:
+        logger.error(f"No connection exists with the connection id '{conn_id}'")
+        exit(1)
+    return app_id
+
+def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | AssistantAgentClient) -> dict:
+    agent_specs = client.get_draft_by_name(name)
+    if len(agent_specs) > 1:
+            logger.error(f"Multiple agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+    if len(agent_specs) == 0:
+            logger.error(f"No agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+
+    return agent_specs[0]
 
 class AgentsController:
     def __init__(self):
@@ -227,6 +249,7 @@ class AgentsController:
         matching_external_agents = external_client.get_drafts_by_names(deref_agent.collaborators)
         matching_assistant_agents = assistant_client.get_drafts_by_names(deref_agent.collaborators)
         matching_agents = matching_native_agents + matching_external_agents + matching_assistant_agents
+
         name_id_lookup = {}
         for a in matching_agents:
             if a.get("name") in name_id_lookup:
@@ -245,6 +268,35 @@ class AgentsController:
 
         return deref_agent
     
+    def reference_collaborators(self, agent: Agent) -> Agent:
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        ref_agent = deepcopy(agent)
+        matching_native_agents = native_client.get_drafts_by_ids(ref_agent.collaborators)
+        matching_external_agents = external_client.get_drafts_by_ids(ref_agent.collaborators)
+        matching_assistant_agents = assistant_client.get_drafts_by_ids(ref_agent.collaborators)
+        matching_agents = matching_native_agents + matching_external_agents + matching_assistant_agents
+        
+        id_name_lookup = {}
+        for a in matching_agents:
+            if a.get("id") in id_name_lookup:
+                logger.error(f"Duplicate draft entries for collaborator '{a.get('id')}'")
+                sys.exit(1)
+            id_name_lookup[a.get("id")] = a.get("name")
+
+        ref_collaborators = []
+        for id in agent.collaborators:
+            name = id_name_lookup.get(id)
+            if not name:
+                logger.error(f"Failed to find collaborator. No agents found with the id '{id}'")
+                sys.exit(1)
+            ref_collaborators.append(name)
+        ref_agent.collaborators = ref_collaborators
+
+        return ref_agent
+    
     def dereference_tools(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
 
@@ -254,7 +306,7 @@ class AgentsController:
         name_id_lookup = {}
         for tool in matching_tools:
             if tool.get("name") in name_id_lookup:
-                logger.error(f"Duplicate draft entries for tol '{tool.get('name')}'")
+                logger.error(f"Duplicate draft entries for tool '{tool.get('name')}'")
                 sys.exit(1)
             name_id_lookup[tool.get("name")] = tool.get("id")
         
@@ -268,6 +320,30 @@ class AgentsController:
         deref_agent.tools = deref_tools
 
         return deref_agent
+    
+    def reference_tools(self, agent: Agent) -> Agent:
+        tool_client = self.get_tool_client()
+
+        ref_agent = deepcopy(agent)
+        matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools)
+
+        id_name_lookup = {}
+        for tool in matching_tools:
+            if tool.get("id") in id_name_lookup:
+                logger.error(f"Duplicate draft entries for tool '{tool.get('id')}'")
+                sys.exit(1)
+            id_name_lookup[tool.get("id")] = tool.get("name")
+        
+        ref_tools = []
+        for id in agent.tools:
+            name = id_name_lookup[id]
+            if not name:
+                logger.error(f"Failed to find tool. No tools found with the id '{id}'")
+                sys.exit(1)
+            ref_tools.append(name)
+        ref_agent.tools = ref_tools
+
+        return ref_agent
     
     def dereference_knowledge_bases(self, agent: Agent) -> Agent:
         client = self.get_knowledge_base_client()
@@ -293,12 +369,39 @@ class AgentsController:
 
         return deref_agent
     
+    def reference_knowledge_bases(self, agent: Agent) -> Agent:
+        client = self.get_knowledge_base_client()
+
+        ref_agent = deepcopy(agent)
+        
+        ref_knowledge_bases = []
+        for id in agent.knowledge_base:
+            matching_knowledge_base = client.get_by_id(id)
+            name = matching_knowledge_base.get("name")
+            if not name:
+                logger.error(f"Failed to find knowledge base. No knowledge base found with the id '{id}'")
+                sys.exit(1)
+            ref_knowledge_bases.append(name)
+        ref_agent.knowledge_base = ref_knowledge_bases
+        return ref_agent
+    
     @staticmethod
     def dereference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         if agent.kind == AgentKind.EXTERNAL:
             agent.connection_id = get_conn_id_from_app_id(agent.app_id)
         else:
             agent.config.connection_id = get_conn_id_from_app_id(agent.config.app_id)
+
+        return agent
+    
+    @staticmethod
+    def reference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
+        if agent.kind == AgentKind.EXTERNAL:
+            agent.app_id = get_app_id_from_conn_id(agent.connection_id)
+            agent.connection_id = None
+        else:
+            agent.config.app_id = get_app_id_from_conn_id(agent.config.connection_id)
+            agent.config.connection_id = None
 
         return agent
 
@@ -313,6 +416,16 @@ class AgentsController:
 
         return agent
     
+    def reference_native_agent_dependencies(self, agent: Agent) -> Agent:
+        if agent.collaborators and len(agent.collaborators):
+            agent = self.reference_collaborators(agent)
+        if agent.tools and len(agent.tools):
+            agent = self.reference_tools(agent)
+        if agent.knowledge_base and len(agent.knowledge_base):
+            agent = self.reference_knowledge_bases(agent)
+
+        return agent
+    
     def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
         agent_dict = agent.model_dump()
 
@@ -320,13 +433,28 @@ class AgentsController:
             agent = self.dereference_app_id(agent)
 
         return agent
-                
-    def dereference_agent_dependencies(self, agent: Agent ) -> Agent | ExternalAgent | AssistantAgent:
+
+    def reference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+        agent_dict = agent.model_dump()
+
+        if agent_dict.get("connection_id") or agent.config.model_dump().get("connection_id"):
+            agent = self.reference_app_id(agent)
+
+        return agent
+    
+    # Convert all names used in an agent to the corresponding ids
+    def dereference_agent_dependencies(self, agent: Agent | ExternalAgent | AssistantAgent ) -> Agent | ExternalAgent | AssistantAgent:
         if isinstance(agent, Agent):
             return self.dereference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.dereference_external_or_assistant_agent_dependencies(agent)
-        
+    
+    # Convert all ids used in an agent to the corresponding names
+    def reference_agent_dependencies(self, agent: Agent | ExternalAgent | AssistantAgent ) -> Agent | ExternalAgent | AssistantAgent:
+        if isinstance(agent, Agent):
+            return self.reference_native_agent_dependencies(agent)
+        if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
+            return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
         self, agents: Iterable[Agent]
@@ -659,4 +787,135 @@ class AgentsController:
             except requests.HTTPError as e:
                 logger.error(e.response.text)
                 exit(1)
+    
+    def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent):
+        ref_agent = self.reference_agent_dependencies(agent)
+        agent_spec = ref_agent.model_dump(mode='json', exclude_none=True)
+        return agent_spec
+
+    def get_agent(self, name: str, kind: AgentKind) -> Agent | ExternalAgent | AssistantAgent:
+        match kind:
+            case AgentKind.NATIVE:
+                client = self.get_native_client()
+                agent_details = get_agent_details(name=name, client=client)
+                agent = Agent.model_validate(agent_details)
+            case AgentKind.EXTERNAL:
+                client = self.get_external_client()
+                agent_details = get_agent_details(name=name, client=client)
+                agent = ExternalAgent.model_validate(agent_details)
+            case AgentKind.ASSISTANT:
+                client = self.get_assistant_client()
+                agent_details = get_agent_details(name=name, client=client)
+                agent = AssistantAgent.model_validate(agent_details)
+        
+        return agent
+    
+    def get_agent_by_id(self, id: str) -> Agent | ExternalAgent | AssistantAgent:
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        native_result = native_client.get_draft_by_id(id)
+        external_result = external_client.get_draft_by_id(id)
+        assistant_result = assistant_client.get_draft_by_id(id)
+
+        if native_result:
+            return Agent.model_validate(native_result)
+        if external_result:
+            return ExternalAgent.model_validate(external_result)
+        if assistant_result:
+            return AssistantAgent.model_validate(assistant_result)
+        
+
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None) -> None:
+    
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+        output_file_name = output_file.stem
+        if not agent_only_flag and output_file_extension != ".zip":
+            logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+        elif agent_only_flag and (output_file_extension != ".yaml" and output_file_extension != ".yml"):
+            logger.error(f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+        
+        agent = self.get_agent(name, kind)
+        agent_spec_file_content = self.get_spec_file_content(agent)
+        
+        agent_spec_file_content.pop("hidden", None)
+        agent_spec_file_content.pop("id", None)
+        agent_spec_file_content["spec_version"] = SpecVersion.V1.value
+
+        if agent_only_flag:
+            logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
+            with open(output_path, 'w') as outfile:
+                yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False)
+            return
+        
+        close_file_flag = False
+        if zip_file_out is None:
+            close_file_flag = True
+            zip_file_out = zipfile.ZipFile(output_path, "w")
+
+        logger.info(f"Exporting agent definition for '{name}'")
+        
+        agent_spec_yaml = yaml.dump(agent_spec_file_content, sort_keys=False, default_flow_style=False)
+        agent_spec_yaml_bytes = agent_spec_yaml.encode("utf-8")
+        agent_spec_yaml_file = io.BytesIO(agent_spec_yaml_bytes)
+
+        # Skip processing an agent if its already been saved
+        agent_file_path = f"{output_file_name}/agents/{agent_spec_file_content.get('kind', 'unknown')}/{agent_spec_file_content.get('name')}.yaml"
+        if check_file_in_zip(file_path=agent_file_path, zip_file=zip_file_out):
+            logger.warning(f"Skipping {agent_spec_file_content.get('name')}, agent with that name already exists in the output folder")
+            if close_file_flag:
+                zip_file_out.close()
+            return
+        
+        zip_file_out.writestr(
+            agent_file_path,
+            agent_spec_yaml_file.getvalue()
+        )
+
+        tools_contoller = ToolsController()
+        for tool_name in agent_spec_file_content.get("tools", []):
+
+            base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
+            if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
+                continue
+            
+            logger.info(f"Exporting tool '{tool_name}'")
+            tool_artifact_bytes = tools_contoller.download_tool(tool_name)
+            if not tool_artifact_bytes:
+                continue
+            
+            with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in:
+                for item in zip_file_in.infolist():
+                    buffer = zip_file_in.read(item.filename)
+                    if (item.filename != 'bundle-format'):
+                        zip_file_out.writestr(
+                            f"{base_tool_file_path}{item.filename}",
+                            buffer
+                        )
+        
+        for kb_name in agent_spec_file_content.get("knowledge_base", []):
+            logger.warning(f"Skipping {kb_name}, knowledge_bases are currently unsupported by export")
+        
+        if kind == AgentKind.NATIVE:
+            for collaborator_id in agent.collaborators:
+                collaborator = self.get_agent_by_id(collaborator_id)
+
+                if not collaborator:
+                    logger.warning(f"Skipping {collaborator_id}, no agent with id {collaborator_id} found")
+                    continue
+                
+                self.export_agent(
+                    name=collaborator.name,
+                    kind=collaborator.kind,
+                    output_path=output_path,
+                    agent_only_flag=False,
+                    zip_file_out=zip_file_out)
+        
+        if close_file_flag:
+            logger.info(f"Successfully wrote agents and tools to '{output_path}'")
+            zip_file_out.close()
 

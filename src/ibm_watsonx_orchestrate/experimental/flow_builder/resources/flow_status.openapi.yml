@@ -1,0 +1,98 @@
+openapi: 3.0.3
+info:
+  title: watsonx Orchestrate Flow Status API
+  version: '0.1'
+  description: watsonx Orchestrate Flow Status API
+security:
+  - IBM-WO-JWT: []
+servers:
+  - url: http://wxo-tempus-runtime:9044
+components:
+  securitySchemes:
+    IBM-WO-JWT:
+      type: http
+      scheme: bearer
+      bearerFormat: IBM-Watsonx-Orchestrate-JWT
+  schemas:
+    APIError:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+          additionalProperties: true
+          required:
+            - message
+      required:
+        - data
+paths:
+  /v1/flows:
+    get:
+      description: Get flows status based on flow instance id.
+      tags:
+        - Flow
+      operationId: get_flow_status
+      security:
+        - IBM-WO-JWT: []
+      responses:
+        '200':
+          description: Return the current flow status based on the flow instance id.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Bad input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+      parameters:
+        - in: query
+          name: flow_id
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: version
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: false
+          schema:
+            type: string
+            enum:
+              - completed
+              - in_progress
+              - interrupted
+              - failed
+        - in: query
+          name: instance_id
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: number
+            default: 1
+        - in: query
+          name: page_size
+          required: false
+          schema:
+            type: number
+            default: 20
+tags: []

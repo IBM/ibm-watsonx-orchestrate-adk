@@ -108,3 +108,21 @@ class TestAgentDelete:
                 name="test_native_agent",
                 kind=AgentKind.NATIVE,
             )
+
+class TestAgentExport:
+    def test_agent_export(self):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.export_agent"
+        ) as mock:
+            agents_command.export_agent(
+                name="test_native_agent",
+                kind=AgentKind.NATIVE,
+                output_file="test_output.zip"
+            )
+
+            mock.assert_called_once_with(
+                name="test_native_agent",
+                kind=AgentKind.NATIVE,
+                output_path="test_output.zip",
+                agent_only_flag=False
+            )

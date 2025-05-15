@@ -147,16 +147,10 @@ class ConnectionsClient(BaseAPIClient):
         if conn_id is None:
             return ""
         try:
-            connections = self.list()
+            app_details = self._get(f"/connections/applications/id/{conn_id}")
+            return app_details.get("app_id")
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 logger.warning(f"Connections not found. Returning connection ID: {conn_id}")
                 return conn_id
-            raise
-
-        app_id = next((conn.app_id for conn in connections if conn.connection_id == conn_id), None)
-
-        if app_id is None:
-            logger.warning(f"Connection with ID {conn_id} not found. Returning connection ID.")
-            return conn_id
-        return app_id
+            raise e

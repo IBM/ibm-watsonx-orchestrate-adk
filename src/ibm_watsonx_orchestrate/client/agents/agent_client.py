@@ -42,5 +42,8 @@ class AgentClient(BaseAPIClient):
                 if e.response.status_code == 404 and "not found with the given name" in e.response.text:
                     return ""
                 raise(e)
-
+    
+    def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
+        formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
+        return self._get(f"{self.base_endpoint}?{'&'.join(formatted_agent_ids)}")
     

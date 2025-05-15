@@ -45,12 +45,15 @@ class BaseAPIClient:
             headers["Authorization"] = f"Bearer {self.authenticator.token_manager.get_token()}"
         return headers
 
-    def _get(self, path: str, params: dict = None, data=None) -> dict:
+    def _get(self, path: str, params: dict = None, data=None, return_raw=False) -> dict:
 
         url = f"{self.base_url}{path}"
         response = requests.get(url, headers=self._get_headers(), params=params, data=data)
         self._check_response(response)
-        return response.json()
+        if not return_raw:
+            return response.json()
+        else:
+            return response
 
     def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
         url = f"{self.base_url}{path}"

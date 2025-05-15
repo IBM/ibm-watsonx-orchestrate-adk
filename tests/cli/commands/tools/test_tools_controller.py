@@ -3,7 +3,7 @@ from unittest import mock
 from unittest.mock import call
 
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind, _get_kind_from_spec
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolPermission, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -74,13 +74,15 @@ class MockSDKResponse:
 
 
 class MockToolClient:
-    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False):
+    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False, get_draft_by_name_response=None, download_tools_artifact_response=None):
         self.expected = expected
         self.get_response = get_response
         self.tool_name = tool_name
         self.file_path = file_path
         self.already_existing = already_existing
         self.published_file_path = None
+        self.get_draft_by_name_response = get_draft_by_name_response
+        self.download_tools_artifact_response = download_tools_artifact_response
 
     def create(self, spec):
         for key in self.expected:
@@ -109,9 +111,14 @@ class MockToolClient:
         assert file_path.endswith(self.file_path)
 
     def get_draft_by_name(self, tool_name):
+        if self.get_draft_by_name_response:
+            return self.get_draft_by_name_response
         if self.already_existing:
             return [{"name": tool_name, "id": uuid.uuid4()}]
         return []
+
+    def download_tools_artifact(self, tool_id):
+        return self.download_tools_artifact_response
 
 
 class MockConnectionClient:
@@ -184,6 +191,54 @@ def test_openapi_params_valid():
             )
         ]
 
+# def test_flow_with_python_based_flow():
+#     tools_controller = ToolsController()
+#     tools = list(tools_controller.import_tool(ToolKind.flow,
+#                                               file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.py"))
+    
+#     assert len(tools) == 2
+#     assert tools[0].__tool_spec__.binding.openapi.http_method == "POST"
+#     assert tools[0].__tool_spec__.binding.openapi.http_path == "/run/async"
+#     assert tools[0].__tool_spec__.name == "get_pet_facts"
+#     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+#     assert tools[1].__tool_spec__.binding.openapi.http_method == "GET"
+#     assert tools[1].__tool_spec__.binding.openapi.http_path == "/v1/flows"
+#     assert tools[1].__tool_spec__.name == "get_flow_status"
+#     assert tools[1].__tool_spec__.permission == ToolPermission.READ_ONLY
+   
+# def test_flow_with_json_based_flow():
+#     tools_controller = ToolsController()
+#     tools = list(tools_controller.import_tool(ToolKind.flow,
+#                                               file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.json"))
+    
+#     assert len(tools) == 2
+#     assert tools[0].__tool_spec__.binding.openapi.http_method == "POST"
+#     assert tools[0].__tool_spec__.binding.openapi.http_path == "/run/async"
+#     assert tools[0].__tool_spec__.name == "get_pet_facts"
+#     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
+#     assert tools[1].__tool_spec__.binding.openapi.http_method == "GET"
+#     assert tools[1].__tool_spec__.binding.openapi.http_path == "/v1/flows"
+#     assert tools[1].__tool_spec__.name == "get_flow_status"
+#     assert tools[1].__tool_spec__.permission == ToolPermission.READ_ONLY
+
+# def test_flow_no_file():
+#     with pytest.raises(BadParameter):
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file=None)
+#         list(tools)
+# def test_flow_wrong_file_extension():
+#     with pytest.raises(BadParameter) as e:
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file="tests/cli/resources/flow_samples/get_pet_facts/get_pet_facts.yaml")
+#         list(tools)
+#     assert "Unknown file type.  Only python or json are supported." in str(e)
+
+# def test_flow_file_not_exists():
+#     with pytest.raises(BadParameter) as e:
+#         tools_controller = ToolsController()
+#         tools = tools_controller.import_tool(ToolKind.flow, file="file_not_exists.json")
+#         list(tools)
+#     assert "Failed to load model from file file_not_exists.json: [Errno 2] No such file or directory: 'file_not_exists.json'" in str(e)
 
 def test_openapi_no_app_id():
     calls = []
@@ -1416,3 +1471,188 @@ def test_multifile_publish_python_with_package_root_and_reqs_file2():
             ],
             any_order=True
         )
+
+def test_get_kind_from_spec_python():
+    mock_tool_name = "test_tool"
+    mock_spec = {
+        "name": mock_tool_name,
+        "binding": {
+            "python": {}
+        }
+    }
+    result = _get_kind_from_spec(mock_spec)
+
+    assert result == ToolKind.python
+
+def test_get_kind_from_spec_openapi():
+    mock_tool_name = "test_tool"
+    mock_spec = {
+        "name": mock_tool_name,
+        "binding": {
+            "openapi": {}
+        }
+    }
+    result = _get_kind_from_spec(mock_spec)
+
+    assert result == ToolKind.openapi
+
+def test_get_kind_from_spec_invalid(caplog):
+    mock_tool_name = "test_tool"
+    mock_spec = {
+        "name": mock_tool_name,
+        "binding": {
+            "test": {}
+        }
+    }
+
+    with pytest.raises(SystemExit):
+        result = _get_kind_from_spec(mock_spec)
+
+    captured = caplog.text
+
+    assert f"Could not determine 'kind' of tool '{mock_tool_name}'" in captured
+
+def test_download_tool_python():
+    mock_tool_name = "test_tool"
+    mock_tool_id = "test_tool_id"
+    mock_download_reponse = b"1234"
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[
+        {
+            "name": mock_tool_name,
+            "id": mock_tool_id,
+            "binding": {
+                "python": {}
+            }
+        }
+    ],
+    download_tools_artifact_response=mock_download_reponse
+    )
+
+    response = tc.download_tool(mock_tool_name)
+
+    assert response == mock_download_reponse
+
+def test_download_tool_openapi(caplog):
+    mock_tool_name = "test_tool"
+    mock_tool_id = "test_tool_id"
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[
+        {
+            "name": mock_tool_name,
+            "id": mock_tool_id,
+            "binding": {
+                "openapi": {}
+            }
+        }
+    ],
+    )
+
+    response = tc.download_tool(mock_tool_name)
+
+    captured = caplog.text
+
+    assert response is None
+    assert f"Skipping '{mock_tool_name}', openapi tools are currently unsupported by export" in captured
+
+def test_download_tool_no_tool(caplog):
+    mock_tool_name = "test_tool"
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[]
+    )
+
+    with pytest.raises(SystemExit):
+        response = tc.download_tool(mock_tool_name)
+
+    captured = caplog.text
+    assert f"No tool named '{mock_tool_name}' found" in captured
+
+def test_download_tool_multiple_tools(caplog):
+    mock_tool_name = "test_tool"
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[{},{}]
+    )
+
+    with pytest.raises(SystemExit):
+        response = tc.download_tool(mock_tool_name)
+
+    captured = caplog.text
+    assert f"Multiple existing tools found with name '{mock_tool_name}'. Failed to get tool" in captured
+
+def test_export_tool(caplog):
+    mock_tool_name = "test_tool"
+    mock_output_file = "test_file_out.zip"
+    mock_tool_id = "test_tool_id"
+    mock_download_reponse = b"1234"
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[
+        {
+            "name": mock_tool_name,
+            "id": mock_tool_id,
+            "binding": {
+                "python": {}
+            }
+        }
+    ],
+    download_tools_artifact_response=mock_download_reponse
+    )
+
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+
+        mock_zipfile().__enter__().infolist.return_value = [mock.MagicMock()]
+
+        tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
+
+    captured = caplog.text
+
+    assert f"Exporting tool definition for '{mock_tool_name}' to '{mock_output_file}'" in captured
+    assert f"Successfully exported tool definition for '{mock_tool_name}' to '{mock_output_file}'" in captured
+
+def test_export_tool_no_data(caplog):
+    mock_tool_name = "test_tool"
+    mock_output_file = "test_file_out.zip"
+    mock_tool_id = "test_tool_id"
+    mock_download_reponse = None
+    tc = ToolsController()
+
+    tc.client = MockToolClient(get_draft_by_name_response=[
+        {
+            "name": mock_tool_name,
+            "id": mock_tool_id,
+            "binding": {
+                "python": {}
+            }
+        }
+    ],
+    download_tools_artifact_response=mock_download_reponse
+    )
+
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+        tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
+
+    captured = caplog.text
+
+    assert f"Exporting tool definition for '{mock_tool_name}' to '{mock_output_file}'" in captured
+    assert f"Successfully exported tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
+
+def test_export_tool_invalid_output_file(caplog):
+    mock_tool_name = "test_tool"
+    mock_output_file = "test_file_out.txt"
+    tc = ToolsController()
+
+    tc.client = MockToolClient()
+
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+        with pytest.raises(SystemExit):
+            tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
+
+    captured = caplog.text
+
+    assert f"Exporting tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
+    assert f"Successfully exported tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
+    assert f"Output file must end with the extension '.zip'. Provided file '{mock_output_file}' ends with 'txt'"

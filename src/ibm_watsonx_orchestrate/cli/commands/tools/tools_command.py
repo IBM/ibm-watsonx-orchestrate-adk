@@ -15,7 +15,7 @@ def tool_import(
         typer.Option(
             "--file",
             "-f",
-            help="Path to Python or OpenAPI spec YAML file. Required for kind openapi or python",
+            help="Path to Python, OpenAPI spec YAML file or flow JSON or python file. Required for kind openapi, python and flow",
         ),
     ] = None,
     # skillset_id: Annotated[
@@ -83,3 +83,24 @@ def remove_tool(
 ):  
     tools_controller = ToolsController()
     tools_controller.remove_tool(name=name)
+
+@tools_app.command(name="export", help='Export a tool to a zip file')
+def tool_export(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="The name of the tool you want to export"),
+    ],
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to a where the zip file containing the exported data should be saved",
+        ),
+    ],
+):
+    tools_controller = ToolsController()
+    tools_controller.export_tool(
+        name=name,
+        output_path=output_file
+    )

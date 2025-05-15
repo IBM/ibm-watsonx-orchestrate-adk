@@ -1,0 +1,25 @@
+servers:
+ - url: https://dogapi.dog
+paths:
+  /api/facts:
+    get:
+      operationId: getDogFact
+      summary: Gets a random fact about dogs
+      description: Gets a random fact about dogs
+      responses:
+        '200':
+          description: Successfully retrieved dog fact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  facts:
+                    type: array
+                    items:
+                      type: string
+                  success:
+                    type: boolean
+                required:
+                  - facts
+                  - success
