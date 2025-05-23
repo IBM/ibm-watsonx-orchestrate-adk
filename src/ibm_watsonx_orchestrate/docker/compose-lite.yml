@@ -49,6 +49,17 @@ services:
     ports:
       - 3001:3001
 
+  ai-gateway:
+    image: ${AI_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/ai-gateway:${AI_GATEWAY_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:  
+      WATSONX_API_KEY: ${WATSONX_APIKEY}
+      WATSONX_URL: ${WATSONX_URL}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+
   ui:
     image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
@@ -95,6 +106,7 @@ services:
     environment:
       WXO_DEPLOYMENT_TYPE: 'laptop'
       AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
+      TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
     command: 'npm start'
     ports:
       - '4025:4025'
@@ -211,14 +223,21 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
+    
     command: >
-        bash -c "mkdir -p /tmp/certs && 
-                  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/certs/key.pem -out /tmp/certs/cert.pem -subj '/CN=localhost' && 
-                  uvicorn --host 0.0.0.0 --port 4322 --ssl-keyfile /tmp/certs/key.pem --ssl-certfile /tmp/certs/cert.pem --log-config /app/config/logs/log_conf.yaml --workers 2 --log-level debug wo_archer.api.main:app & 
-                  (for i in {1..20}; do curl --silent --fail -k https://127.0.0.1:4322/health/alive && echo '[INFO] HTTPS Service ready' && break || echo '[INFO] Waiting for HTTPS service...' && sleep 30; done; curl --silent --fail -k https://127.0.0.1:4322/health/alive || (echo '[ERROR] HTTPS service failed to start' && exit 1) ) &&
-                  uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app & 
-                  (for i in {1..20}; do curl --silent --fail -k http://127.0.0.1:4321/health/alive && echo '[INFO] HTTP Service ready' && break || echo '[INFO] Waiting for HTTP service...' && sleep 30; done; curl --silent --fail -k http://127.0.0.1:4321/health/alive || (echo '[ERROR] HTTP service failed to start' && exit 1) ) && 
-                  wait"
+       bash -c '
+          export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
+          mkdir -p /tmp/monkey &&
+
+          echo -e "from uvicorn.supervisors.multiprocess import Process\n_original_is_alive = Process.is_alive\ndef patched_is_alive(self, timeout: float = 30):\n    return _original_is_alive(self, timeout=30)\nProcess.is_alive = patched_is_alive" > /tmp/monkey/sitecustomize.py &&
+
+          uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app &
+
+          for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
+          curl --silent --fail http://127.0.0.1:4321/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
+
+          wait
+        '
     depends_on:
       wxo-server-redis:
           condition: service_started
@@ -295,6 +314,15 @@ services:
       MILVUS_DB_NAME: default
       MILVUS_USERNAME: root
       MILVUS_PASSWORD: ${MILVUS_PASSWORD}
+      WO_API_KEY: ${WO_API_KEY}
+      WO_USERNAME: ${WO_USERNAME}
+      WO_PASSWORD: ${WO_PASSWORD}
+      WO_INSTANCE: ${WO_INSTANCE}
+      USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
+      AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -312,6 +340,8 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
+      AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       IS_WXO_LITE: 'TRUE'
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
@@ -373,6 +403,13 @@ services:
       MILVUS_DB_NAME: default
       MILVUS_USERNAME: root
       MILVUS_PASSWORD: ${MILVUS_PASSWORD}
+      WO_API_KEY: ${WO_API_KEY}
+      WO_USERNAME: ${WO_USERNAME}
+      WO_PASSWORD: ${WO_PASSWORD}
+      WO_INSTANCE: ${WO_INSTANCE}
+      USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -408,6 +445,12 @@ services:
       VOLUME_MOUNT_PATH: "/shared-data"
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       CONNECTION_SERVICE_BASE_URL: http://wxo-server-connection-manager:3001
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  
+      STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -433,6 +476,12 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: postgres
       DB_SSLMODE: ${DB_SSLMODE:-disable}  # Disable SSL if not configured
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  
+      STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
 
 ########################
 # LANGFUSE dependencies
@@ -532,11 +581,8 @@ services:
   wxo-tempus-runtime:
     image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
-    platform: linux/amd64
-    profiles: [with-tempus-runtime]
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
-      COMMON_CONFIG_FILE: "/shared/common-config.yaml"
       SERVER_MODE: production
       SERVER_ENVIRONMENT: SDK
       SERVER_HTTP_PORT: "9044"
@@ -564,10 +610,11 @@ services:
       REDIS_USER:
       REDIS_PASSWORD:
       REDIS_TLS: false
-      LANGFUSE_ENABLED: "false"
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
       LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LOG_LEVEL: info
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
@@ -575,8 +622,6 @@ services:
       retries: 5
     ports:
       - 9044:9044
-    volumes:
-      - ./tempus/common-config.yaml:/shared/common-config.yaml
     depends_on:
       - wxo-server-db
     
@@ -607,7 +652,6 @@ networks:
   default:
     name: wxo-server
     
-
 configs:
   proxy_config:
     content: |

@@ -496,13 +496,13 @@ class AgentsController:
 
     def publish_agent(self, agent: Agent, **kwargs) -> None:
         if isinstance(agent, Agent):
-            self.get_native_client().create(agent.model_dump())
+            self.get_native_client().create(agent.model_dump(exclude_none=True))
             logger.info(f"Agent '{agent.name}' imported successfully")
         if isinstance(agent, ExternalAgent):
-            self.get_external_client().create(agent.model_dump())
+            self.get_external_client().create(agent.model_dump(exclude_none=True))
             logger.info(f"External Agent '{agent.name}' imported successfully")
         if isinstance(agent, AssistantAgent):
-            self.get_assistant_client().create(agent.model_dump(by_alias=True))
+            self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
@@ -510,15 +510,15 @@ class AgentsController:
     ) -> None:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
-            self.get_native_client().update(agent_id, agent.model_dump())
+            self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True))
             logger.info(f"Agent '{agent.name}' updated successfully")
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
-            self.get_external_client().update(agent_id, agent.model_dump())
+            self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True))
             logger.info(f"External Agent '{agent.name}' updated successfully")
         if isinstance(agent, AssistantAgent):
             logger.info(f"Existing Assistant Agent '{agent.name}' found. Updating...")
-            self.get_assistant_client().update(agent_id, agent.model_dump(by_alias=True))
+            self.get_assistant_client().update(agent_id, agent.model_dump(exclude_none=True, by_alias=True))
             logger.info(f"Assistant Agent '{agent.name}' updated successfully")
 
     @staticmethod

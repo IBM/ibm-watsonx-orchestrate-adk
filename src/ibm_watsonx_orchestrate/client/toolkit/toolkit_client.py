@@ -4,6 +4,9 @@ import os
 import json
 
 class ToolKitClient(BaseAPIClient):
+    def get(self) -> dict:
+        return self._get("/orchestrate/toolkits")
+
     # POST /toolkits/prepare/list-tools
     def list_tools(self, zip_file_path: str, command: str, args: List[str]) -> List[str]:
         """

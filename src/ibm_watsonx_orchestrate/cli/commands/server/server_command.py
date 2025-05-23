@@ -7,18 +7,24 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import jwt
 import requests
 import typer
 from dotenv import dotenv_values
 
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
+
+from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
+
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
+
 from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, \
     ENV_ACCEPT_LICENSE
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
-    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER
+    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER, LICENSE_HEADER, \
+    ENV_ACCEPT_LICENSE
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
 logger = logging.getLogger(__name__)
@@ -60,7 +66,9 @@ def docker_login(api_key: str, registry_url: str, username:str = "iamapikey") ->
     logger.info("Successfully logged in to Docker.")
 
 def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
-    registry_url = env_dict["REGISTRY_URL"]
+    if not env_dict.get("REGISTRY_URL"):
+        raise ValueError("REGISTRY_URL is not set.")
+    registry_url = env_dict["REGISTRY_URL"].split("/")[0]
     if source == "internal":
         iam_api_key = env_dict.get("DOCKER_IAM_KEY")
         if not iam_api_key:
@@ -73,8 +81,6 @@ def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
         docker_login(wo_entitlement_key, registry_url, "cp")
     elif source == "orchestrate":
         wo_auth_type = env_dict.get("WO_AUTH_TYPE")
-        if not wo_auth_type:
-            raise ValueError("WO_AUTH_TYPE is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'orchestrate'.")
         api_key, username = get_docker_cred_by_wo_auth_type(env_dict, wo_auth_type)
         docker_login(api_key, registry_url, username)
 
@@ -108,24 +114,39 @@ def merge_env(
 
     return merged
 
-def get_default_registry_env_vars_by_dev_edition_source(env_dict: dict, source: str) -> dict[str,str]:
-    component_registry_var_names = {key for key in env_dict if key.endswith("_REGISTRY")}
+def get_default_registry_env_vars_by_dev_edition_source(default_env: dict, user_env:dict, source: str) -> dict[str,str]:
+    component_registry_var_names = {key for key in default_env if key.endswith("_REGISTRY")} | {'REGISTRY_URL'}
 
-    result = {}
-    if source == "internal":
-        result["REGISTRY_URL"] = "us.icr.io"
-        for name in component_registry_var_names:
-            result[name] = "us.icr.io/watson-orchestrate-private"
-    elif source == "myibm":
-        result["REGISTRY_URL"] = "cp.icr.io"
-        for name in component_registry_var_names:
-            result[name] = "cp.icr.io/cp/wxo-lite"
-    elif source == "orchestrate":
-        raise NotImplementedError("The 'orchestrate' source is not implemented yet.")
-        # TODO: confirm with Tej about the registry url for orchestrate source
+    registry_url = user_env.get("REGISTRY_URL", None)
+    if not registry_url:
+        if source == "internal":
+            registry_url = "us.icr.io/watson-orchestrate-private"
+        elif source == "myibm":
+            registry_url = "cp.icr.io/cp/wxo-lite"
+        elif source == "orchestrate":
+            # extract the hostname from the WO_INSTANCE URL, and replace the "api." prefix with "registry." to construct the registry URL per region
+            wo_url = user_env.get("WO_INSTANCE")
+            
+            if not wo_url:
+                raise ValueError("WO_INSTANCE is required in the environment file if the developer edition source is set to 'orchestrate'.")
+            
+            parsed = urlparse(wo_url)
+            hostname = parsed.hostname
+            
+            if not hostname or not hostname.startswith("api."):
+                raise ValueError(f"Invalid WO_INSTANCE URL: '{wo_url}'. It should starts with 'api.'")
+            
+            registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
+        else:
+            raise ValueError(f"Unknown value for developer edition source: {source}. Must be one of ['internal', 'myibm', 'orchestrate'].")
+    
+    result = {name: registry_url for name in component_registry_var_names}
     return result
 
-def get_dev_edition_source(env_dict: dict) -> str:
+def get_dev_edition_source(env_dict: dict | None) -> str:
+    if not env_dict:
+        return "myibm"
+    
     source = env_dict.get("WO_DEVELOPER_EDITION_SOURCE")
 
     if source:
@@ -134,12 +155,28 @@ def get_dev_edition_source(env_dict: dict) -> str:
         return "orchestrate"
     return "myibm"
 
-def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str) -> tuple[str, str]:
+def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str | None) -> tuple[str, str]:
+    # Try infer the auth type if not provided
+    if not auth_type:
+        instance_url = env_dict.get("WO_INSTANCE")
+        if instance_url:
+            if ".cloud.ibm.com" in instance_url:
+                auth_type = "ibm_iam"
+            elif ".ibm.com" in instance_url:
+                auth_type = "mcsp"
+    
     if auth_type in {"mcsp", "ibm_iam"}:
         wo_api_key = env_dict.get("WO_API_KEY")
         if not wo_api_key:
             raise ValueError("WO_API_KEY is required in the environment file if the WO_AUTH_TYPE is set to 'mcsp' or 'ibm_iam'.")
-        return wo_api_key, "wouser"
+        instance_url = env_dict.get("WO_INSTANCE")
+        if not instance_url:
+            raise ValueError("WO_INSTANCE is required in the environment file if the WO_AUTH_TYPE is set to 'mcsp' or 'ibm_iam'.")
+        path = urlparse(instance_url).path
+        if not path or '/' not in path:
+            raise ValueError(f"Invalid WO_INSTANCE URL: '{instance_url}'. It should contain the instance (tenant) id.")
+        tenant_id = path.split('/')[-1]
+        return wo_api_key, f"wxouser-{tenant_id}"
     elif auth_type == "cpd":
         wo_api_key = env_dict.get("WO_API_KEY")
         wo_password = env_dict.get("WO_PASSWORD")
@@ -150,7 +187,36 @@ def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str) -> tuple[str
             raise ValueError("WO_USERNAME is required in the environment file if the WO_AUTH_TYPE is set to 'cpd'.")
         return wo_api_key or wo_password, wo_username  # type: ignore[return-value]
     else:
-        raise ValueError(f"Unknown value for WO_AUTH_TYPE: {auth_type}. Must be one of ['mcsp', 'ibm_iam', 'cpd'].")
+        raise ValueError(f"Unknown value for WO_AUTH_TYPE: '{auth_type}'. Must be one of ['mcsp', 'ibm_iam', 'cpd'].")
+    
+def apply_server_env_dict_defaults(provided_env_dict: dict) -> dict:
+
+    env_dict = provided_env_dict.copy()
+
+    env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=env_dict)
+
+    model_config = None
+    try:
+        use_model_proxy = env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME")
+        if not use_model_proxy or use_model_proxy.lower() != 'true':
+            model_config = WatsonXAIEnvConfig.model_validate(env_dict)
+    except ValueError:
+        pass
+    
+    # If no watsonx ai detials are found, try build model gateway config
+    if not model_config:
+        try:
+            model_config = ModelGatewayEnvConfig.model_validate(env_dict)
+        except ValueError as e :
+            pass
+    
+    if not model_config:
+        logger.error("Missing required model access environment variables. Please set Watson Orchestrate credentials 'WO_INSTANCE' and 'WO_API_KEY'. For CPD, set 'WO_INSTANCE', 'WO_USERNAME' and either 'WO_API_KEY' or 'WO_PASSWORD'. Alternatively, you can set WatsonX AI credentials directly using 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
+        sys.exit(1)
+
+    env_dict.update(model_config.model_dump(exclude_none=True))
+
+    return env_dict
 
 def apply_llm_api_key_defaults(env_dict: dict) -> None:
     llm_value = env_dict.get("WATSONX_APIKEY")
@@ -197,7 +263,7 @@ NON_SECRET_ENV_ITEMS = {
     "WO_DEVELOPER_EDITION_SOURCE",
     "WO_INSTANCE",
     "USE_SAAS_ML_TOOLS_RUNTIME",
-    "WXO_MCSP_EXCHANGE_URL",
+    "AUTHORIZATION_URL",
     "OPENSOURCE_REGISTRY_PROXY"
 }
 def persist_user_env(env: dict, include_secrets: bool = False) -> None:
@@ -218,7 +284,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_flow_runtime=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -252,10 +318,6 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
         ]
     else:
         command = compose_command
-
-    # Check if we start the server with tempus-runtime.
-    if with_flow_runtime:
-        command += ['--profile', 'with-tempus-runtime']
 
     command += [
         "-f", str(compose_path),
@@ -331,14 +393,19 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
     if not user_env:
-        user_env = get_persisted_user_env()
+        user_env = get_persisted_user_env() or {}
 
     dev_edition_source = get_dev_edition_source(user_env)
-    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
 
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
+
+    # Merge the default environment with the user environment
     merged_env_dict = {
         **default_env,
-        **default_registry_vars,
         **user_env,
     }
 
@@ -554,12 +621,6 @@ def server_start(
         '--with-langfuse', '-l',
         help='Option to enable Langfuse support.'
     ),
-    with_flow_runtime: bool = typer.Option(
-        False,
-        '--with-flow-runtime', '-f',
-        help='Option to enable Flow support.'
-    )
-    ,
     persist_env_secrets: bool = typer.Option(
         False,
         '--persist-env-secrets', '-p',
@@ -582,16 +643,26 @@ def server_start(
     default_env = read_env_file(get_default_env_file())
     user_env = read_env_file(user_env_file) if user_env_file else {}
     persist_user_env(user_env, include_secrets=persist_env_secrets)
+    
     dev_edition_source = get_dev_edition_source(user_env)
-    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, source=dev_edition_source)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
 
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
+
+    # Merge the default environment with the user environment
     merged_env_dict = {
         **default_env,
-        **default_registry_vars,
         **user_env,
     }
 
-    merged_env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=merged_env_dict)
+    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+
+    # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
+    if experimental_with_langfuse:
+        merged_env_dict['LANGFUSE_ENABLED'] = 'true'
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
@@ -603,7 +674,7 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_flow_runtime=with_flow_runtime)
+    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse)
 
     run_db_migration()
 
@@ -631,9 +702,6 @@ def server_start(
 
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
-
-    if with_flow_runtime:
-        logger.info(f"Starting with flow runtime")
 
 @server_app.command(name="stop")
 def server_stop(

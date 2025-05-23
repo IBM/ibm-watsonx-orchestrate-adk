@@ -32,12 +32,8 @@ class AnalyticsLLMClient(BaseAPIClient):
     def create(self):
         raise RuntimeError('unimplemented')
 
-    def get(self, project_id: Optional[str] = None) -> AnalyticsLLMConfig:
-        params = {}
-        if project_id:
-            params['project_id'] = project_id
-
-        response = self._get(f"/analytics/llm", params=params)
+    def get(self) -> AnalyticsLLMConfig:
+        response = self._get(f"/analytics/llm")
 
         return AnalyticsLLMConfig.model_validate(response)
 

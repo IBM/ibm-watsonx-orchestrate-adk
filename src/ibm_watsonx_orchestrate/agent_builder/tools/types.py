@@ -137,7 +137,7 @@ class ClientSideToolBinding(BaseModel):
 class McpToolBinding(BaseModel):
     server_url: Optional[str] = None
     source: str
-    connections: Dict[str, str]
+    connections: Dict[str, str] | None
 
 class ToolBinding(BaseModel):
     openapi: OpenApiToolBinding = None
@@ -166,6 +166,7 @@ class ToolBinding(BaseModel):
 
 class ToolSpec(BaseModel):
     name: str
+    display_name: str | None = None
     description: str
     permission: ToolPermission
     input_schema: ToolRequestBody = None

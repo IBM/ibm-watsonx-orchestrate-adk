@@ -779,7 +779,7 @@ class TestAgentsControllerPublishAgent:
     def test_publish_native_agent(self, native_agent_content, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             agent = Agent(**native_agent_content)
-            native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump())
+            native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
 
             agents_controller.publish_agent(agent)
 
@@ -792,7 +792,7 @@ class TestAgentsControllerPublishAgent:
     def test_publish_external_agent(self, external_agent_content, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock:
             agent = ExternalAgent(**external_agent_content)
-            external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump())
+            external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
 
             agents_controller.publish_agent(agent)
 
@@ -806,7 +806,7 @@ class TestAgentsControllerPublishAgent:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock:
             
             agent = AssistantAgent(**assistant_agent_content)
-            assistant_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(by_alias=True))
+            assistant_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True, by_alias=True))
 
             agents_controller.publish_agent(agent)
 
@@ -820,7 +820,7 @@ class TestAgentsControllerUpdateAgent:
     def test_update_native_agent(self, native_agent_content, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
             agent = Agent(**native_agent_content)
-            native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump())
+            native_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
 
             agents_controller.update_agent(agent=agent, agent_id="test")
 
@@ -833,7 +833,7 @@ class TestAgentsControllerUpdateAgent:
     def test_update_external_agent(self, external_agent_content, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock:
             agent = ExternalAgent(**external_agent_content)
-            external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump())
+            external_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True))
 
             agents_controller.update_agent(agent=agent, agent_id="test")
 
@@ -847,7 +847,7 @@ class TestAgentsControllerUpdateAgent:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock:
             
             agent = AssistantAgent(**assistant_agent_content)
-            assistant_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(by_alias=True))
+            assistant_client_mock.return_value = MockAgent(expected_agent_spec=agent.model_dump(exclude_none=True, by_alias=True))
 
             agents_controller.update_agent(agent=agent, agent_id="test")
 

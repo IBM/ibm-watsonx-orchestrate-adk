@@ -47,7 +47,7 @@ class PythonTool(BaseTool):
         return PythonTool(fn=fn, spec=spec)
 
     def __repr__(self):
-        return f"PythonTool(fn={self.__tool_spec__.binding.python.function}, name='{self.__tool_spec__.name}', description='{self.__tool_spec__.description}')"
+        return f"PythonTool(fn={self.__tool_spec__.binding.python.function}, name='{self.__tool_spec__.name}', display_name='{self.__tool_spec__.display_name or ''}', description='{self.__tool_spec__.description}')"
 
     def __str__(self):
         return self.__repr__()
@@ -99,7 +99,8 @@ def tool(
     input_schema: ToolRequestBody = None,
     output_schema: ToolResponseBody = None,
     permission: ToolPermission = ToolPermission.READ_ONLY,
-    expected_credentials: List[ExpectedCredentials] = None
+    expected_credentials: List[ExpectedCredentials] = None,
+    display_name: str = None
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -125,6 +126,7 @@ def tool(
         
         spec = ToolSpec(
             name=name or fn.__name__,
+            display_name=display_name,
             description=_desc,
             permission=permission
         )

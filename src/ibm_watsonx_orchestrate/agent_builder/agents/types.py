@@ -46,6 +46,7 @@ class BaseAgentSpec(BaseModel):
     kind: AgentKind
     id: Optional[Annotated[str, Field(json_schema_extra={"min_length_str": 1})]] = None
     name: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    display_name: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     description: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
 
     def dump_spec(self, file: str) -> None:
@@ -69,6 +70,7 @@ class BaseAgentSpec(BaseModel):
 class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
+    PLANNER = "planner"
 
 class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)

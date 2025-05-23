@@ -532,8 +532,11 @@ class ToolsController:
                         for conn in tool_binding.python.connections:
                             connection_ids.append(tool_binding.python.connections[conn])
                     elif tool_binding.mcp is not None and hasattr(tool_binding.mcp, "connections"):
-                        for conn in tool_binding.mcp.connections:
-                            connection_ids.append(tool_binding.mcp.connections[conn])
+                        if tool_binding.mcp.connections is None:
+                            connection_ids.append(None)
+                        else:
+                            for conn in tool_binding.mcp.connections:
+                                connection_ids.append(tool_binding.mcp.connections[conn])
 
                 app_ids = []
                 for connection_id in connection_ids:

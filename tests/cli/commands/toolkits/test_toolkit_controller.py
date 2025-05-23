@@ -9,10 +9,6 @@ from ibm_watsonx_orchestrate.cli.config import DEFAULT_CONFIG_FILE_CONTENT
 from utils.matcher import MatchesStringContaining
 
 
-
-
-
-
 def test_remove_toolkit_success():
     mock_client = MagicMock()
     mock_client.get_draft_by_name.return_value = [{"id": "123"}]
@@ -89,8 +85,6 @@ def test_import_toolkit_exits_if_toolkit_exists():
         mock_exit.assert_called_once_with(1)
 
 
-
-
 def test_import_toolkit_successful_path():
     mock_client = MagicMock()
     mock_client.get_draft_by_name.return_value = []
@@ -101,7 +95,7 @@ def test_import_toolkit_successful_path():
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip", return_value="dummy.zip"), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"):
-        
+
         controller = ToolkitController(
             kind=ToolkitKind.MCP,
             name="toolkit-name",
@@ -110,32 +104,10 @@ def test_import_toolkit_successful_path():
             command='["node", "dist/index.js", "--stdio"]'
         )
         controller.import_toolkit(tools=["tool1", "tool2"], app_id=["app1"])
+
         mock_client.create_toolkit.assert_called_once()
-        mock_client.upload.assert_called_once_with(toolkit_id="new-toolkit", zip_file_path=MatchesStringContaining(".zip"))
-
-
-def test_show_error_if_not_local_dev(capsys):
-    mock_client = MagicMock()
-    mock_client.get_draft_by_name.return_value = []
-    mock_client.create_toolkit.return_value = {"id": "new-toolkit"}
-    mock_client._create_zip.return_value = None
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip", return_value="dummy.zip"), \
-            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=False), \
-            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.logger") as mock_logger, \
-            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"):
-
-        controller = ToolkitController(
-            kind=ToolkitKind.MCP,
-            name="toolkit-name",
-            description="desc",
-            package_root="/tmp",
-            command='["node", "dist/index.js", "--stdio"]'
+        mock_client.upload.assert_called_once_with(
+            toolkit_id="new-toolkit",
+            zip_file_path=MatchesStringContaining(".zip")
         )
-        with pytest.raises(SystemExit) as exc:
-            controller.import_toolkit(tools=["tool1", "tool2"], app_id=["app1"])
 
-        assert exc.value.code == 1
-
-        mock_logger.error.assert_called_with("This functionality is only available for Local Environments")
