@@ -6,7 +6,7 @@ source "${WORKSPACE}/${PIPELINE_CONFIG_REPO_PATH}/scripts/_github.sh"
 
 function is_release_branch() {
   local branch=$(get_git_branch)
-  local release_branch_pattern="^$(get_default_branch)-release-[0-9]+\.[0-9]+\.[0-9]+$"
+  local release_branch_pattern="^$(get_default_branch)-release-[0-9]+\.[0-9]+\.[0-9]+(b[0-9])*$"
 
   if [[ $branch =~ $release_branch_pattern ]]; then
       return 0
@@ -66,9 +66,11 @@ set_env wai-artifact-version "${VERSION}"
 echo "TARGET VERSION ${VERSION}"
 if is_prerelease; then
   if is_prebuild_branch ; then
-    docker_run $BUILD_IMAGE "hatch version ${VERSION}.dev${BUILD_NUMBER}"
+    SANITIZED_VERSION=$(echo "${VERSION}" | sed 's/b[0-9]*//')
+    docker_run $BUILD_IMAGE "hatch version ${SANITIZED_VERSION}.dev${BUILD_NUMBER}"
   elif is_staging_branch; then
-    docker_run $BUILD_IMAGE "hatch version ${VERSION}.rc${BUILD_NUMBER}"
+    SANITIZED_VERSION=$(echo "${VERSION}" | sed 's/b[0-9]*//')
+    docker_run $BUILD_IMAGE "hatch version ${SANITIZED_VERSION}.rc${BUILD_NUMBER}"
   fi
   VERSION=$(docker_run $BUILD_IMAGE "hatch version")
 fi
@@ -99,9 +101,9 @@ elif is_release_branch; then
   pypi_api_key=$(get_env "test-pypi-watson-devex")
   docker_run $BUILD_IMAGE "twine upload --repository testpypi -u __token__ -p ${pypi_api_key} dist/*"
 
-#  pypi_repo="pypi"
-#  pypi_api_key=$(get_env "pypi-watson-devex")
-#  docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
+  pypi_repo="pypi"
+  pypi_api_key=$(get_env "pypi-watson-devex")
+  docker_run $BUILD_IMAGE "twine upload --repository pypi -u __token__ -p ${pypi_api_key} dist/*"
 
   github_create_release ${VERSION}
 fi

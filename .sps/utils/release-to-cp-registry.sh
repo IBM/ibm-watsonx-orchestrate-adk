@@ -18,6 +18,7 @@ wxo-server-server:${SERVER_TAG}
 wxo-server-conversation_controller:${WORKER_TAG}
 tools-runtime-manager:${TRM_TAG}
 tools-runtime:${TR_TAG}
+ai-gateway:${AI_GATEWAY_TAG}
 wxo-tempus-runtime:${FLOW_RUNTIME_TAG}
 EOF)
 
