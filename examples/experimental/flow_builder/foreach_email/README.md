@@ -1,6 +1,6 @@
 ### Testing Flow inside an Agent
 
-1. To test this example, make sure the Flow runtime is activated by starting the server with the `--with-flow-runtime` option.
+1. To test this example, make sure the Flow runtime is activated.
 2. Run `import-all.sh` 
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `customer_email_agent`

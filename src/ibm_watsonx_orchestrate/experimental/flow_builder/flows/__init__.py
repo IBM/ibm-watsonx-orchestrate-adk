@@ -3,7 +3,7 @@ from ..types import FlowContext, TaskData, TaskEventType
 from ..node import UserNode, AgentNode, StartNode, EndNode
 from .flow import Flow, CompiledFlow, FlowRun, FlowEvent, FlowEventType, FlowFactory, MatchPolicy, WaitPolicy, ForeachPolicy, Branch, Foreach, Loop
 from .decorators import user, flow_spec, flow
-from .data_map import Assignment, DataMapSpec
+from ..data_map import Assignment, DataMap
 
 
 __all__ = [
@@ -20,7 +20,7 @@ __all__ = [
     "StartNode",
     "EndNode",
     "Assignment",
-    "DataMapSpec",
+    "DataMap",
 
     "Flow",    
     "CompiledFlow",

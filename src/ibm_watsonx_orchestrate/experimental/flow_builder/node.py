@@ -3,13 +3,10 @@ from typing import Any, cast
 import uuid
 
 import yaml
-from pydantic import BaseModel, SerializeAsAny
+from pydantic import BaseModel, Field, SerializeAsAny
 
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolResponseBody
-from .utils import get_valid_name
-
-from .types import EndNodeSpec, JsonSchemaObjectRef, NodeSpec, AgentNodeSpec, StartNodeSpec, ToolNodeSpec
-from .flows.data_map import DataMap
+from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec
+from .data_map import DataMap
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
@@ -42,8 +39,6 @@ class Node(BaseModel):
         model_spec["spec"] = self.spec.to_json()
         if self.input_map is not None:
             model_spec['input_map'] = self.input_map.to_json()
-        if hasattr(self, "output_map") and self.output_map is not None:
-            model_spec["output_map"] = self.output_map.to_json()
 
         return model_spec
 
@@ -52,7 +47,6 @@ class StartNode(Node):
         return f"StartNode(name='{self.spec.name}', description='{self.spec.description}')"
 
     def get_spec(self) -> StartNodeSpec:
-
         return cast(StartNodeSpec, self.spec)
 
 class EndNode(Node):
@@ -60,7 +54,6 @@ class EndNode(Node):
         return f"EndNode(name='{self.spec.name}', description='{self.spec.description}')"
 
     def get_spec(self) -> EndNodeSpec:
-
         return cast(EndNodeSpec, self.spec)
     
 class ToolNode(Node):
@@ -68,24 +61,50 @@ class ToolNode(Node):
         return f"ToolNode(name='{self.spec.name}', description='{self.spec.description}')"
 
     def get_spec(self) -> ToolNodeSpec:
-
         return cast(ToolNodeSpec, self.spec)
 
 class UserNode(Node):
     def __repr__(self):
         return f"UserNode(name='{self.spec.name}', description='{self.spec.description}')"
 
-    def get_spec(self) -> NodeSpec:
-
-        return cast(NodeSpec, self.spec)
+    def get_spec(self) -> UserNodeSpec:
+        return cast(UserNodeSpec, self.spec)
+    
+    def field(self, 
+              name: str,
+              kind: UserFieldKind = UserFieldKind.Text,
+              text: str | None = None,
+              display_name: str | None = None,
+              description: str | None = None,
+              default: Any | None = None,
+              option: UserFieldOption | None = None,
+              is_list: bool = False,
+              custom: dict[str, Any] | None = None,
+              widget: str | None = None):
+        self.get_spec().field(name=name,
+                              kind=kind,
+                              text=text,
+                              display_name=display_name,
+                              description=description,
+                              default=default,
+                              option=option,
+                              is_list=is_list,
+                              custom=custom,
+                              widget=widget)
 
 class AgentNode(Node):
     def __repr__(self):
         return f"AgentNode(name='{self.spec.name}', description='{self.spec.description}')"
 
     def get_spec(self) -> AgentNodeSpec:
-
         return cast(AgentNodeSpec, self.spec)
+
+class PromptNode(Node):
+    def __repr__(self):
+        return f"PromptNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> PromptNodeSpec:
+        return cast(PromptNodeSpec, self.spec)
 
 class NodeInstance(BaseModel):
     node: Node
