@@ -1,18 +1,11 @@
 openapi: 3.0.3
 info:
-  title: watsonx Orchestrate Flow Status API
+  title: Flow status
   version: '0.1'
-  description: watsonx Orchestrate Flow Status API
-security:
-  - IBM-WO-JWT: []
+  description: This tool allows you to check the status of a flow.
 servers:
   - url: http://wxo-tempus-runtime:9044
 components:
-  securitySchemes:
-    IBM-WO-JWT:
-      type: http
-      scheme: bearer
-      bearerFormat: IBM-Watsonx-Orchestrate-JWT
   schemas:
     APIError:
       type: object
@@ -30,15 +23,11 @@ components:
 paths:
   /v1/flows:
     get:
-      description: Get flows status based on flow instance id.
-      tags:
-        - Flow
+      description: Get the status of a flow instance.
       operationId: get_flow_status
-      security:
-        - IBM-WO-JWT: []
       responses:
         '200':
-          description: Return the current flow status based on the flow instance id.
+          description: Return the status of a flow instance.
           content:
             application/json:
               schema:
@@ -59,12 +48,8 @@ paths:
                 $ref: '#/components/schemas/APIError'
       parameters:
         - in: query
-          name: flow_id
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: version
+          name: instance_id
+          description: Identifies the instance of the flow. This was provided when the flow tool was run.
           required: false
           schema:
             type: string
@@ -78,21 +63,4 @@ paths:
               - in_progress
               - interrupted
               - failed
-        - in: query
-          name: instance_id
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: page
-          required: false
-          schema:
-            type: number
-            default: 1
-        - in: query
-          name: page_size
-          required: false
-          schema:
-            type: number
-            default: 20
-tags: []
+

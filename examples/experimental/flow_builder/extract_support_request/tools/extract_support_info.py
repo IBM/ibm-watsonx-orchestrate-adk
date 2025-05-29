@@ -5,8 +5,7 @@ Build a simple hello world flow that will combine the result of two tools.
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
-from ibm_watsonx_orchestrate.experimental.flow_builder.flows import END, Flow, flow, START
-from ibm_watsonx_orchestrate.experimental.flow_builder.node import PromptNode
+from ibm_watsonx_orchestrate.experimental.flow_builder.flows import END, Flow, flow, START, PromptNode
 
 from .email_helpdesk import email_helpdesk
 

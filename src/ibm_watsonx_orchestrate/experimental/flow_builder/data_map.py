@@ -11,7 +11,7 @@ class DataMap(BaseModel):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
-        if self.maps and self.maps.length > 0:
+        if self.maps and len(self.maps) > 0:
             model_spec["maps"] = [assignment.model_dump() for assignment in self.maps]
 
     def add(self, line: Assignment) -> Self:

@@ -1,6 +1,6 @@
 from .constants import START, END, RESERVED
 from ..types import FlowContext, TaskData, TaskEventType
-from ..node import UserNode, AgentNode, StartNode, EndNode
+from ..node import UserNode, AgentNode, StartNode, EndNode, PromptNode
 from .flow import Flow, CompiledFlow, FlowRun, FlowEvent, FlowEventType, FlowFactory, MatchPolicy, WaitPolicy, ForeachPolicy, Branch, Foreach, Loop
 from .decorators import user, flow_spec, flow
 from ..data_map import Assignment, DataMap
@@ -19,6 +19,7 @@ __all__ = [
     "AgentNode",
     "StartNode",
     "EndNode",
+    "PromptNode",
     "Assignment",
     "DataMap",
 
