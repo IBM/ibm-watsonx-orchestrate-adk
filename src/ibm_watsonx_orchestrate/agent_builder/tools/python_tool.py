@@ -2,7 +2,7 @@ import importlib
 import inspect
 import json
 import os
-from typing import Callable, List
+from typing import Any, Callable, Dict, List, get_type_hints
 import logging
 
 import docstring_parser
@@ -13,11 +13,18 @@ from pydantic import TypeAdapter, BaseModel
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
-from .types import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
+from .types import PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
 
 _all_tools = []
 logger = logging.getLogger(__name__)
+
+JOIN_TOOL_PARAMS = {
+    'original_query': str,
+    'task_results': Dict[str, Any],
+    'messages': List[Dict[str, Any]],
+}
+JOIN_TOOL_RETURN = str
 
 class PythonTool(BaseTool):
     def __init__(self, fn, spec: ToolSpec, expected_credentials: List[ExpectedCredentials]=None):
@@ -92,6 +99,37 @@ def _validate_input_schema(input_schema: ToolRequestBody) -> None:
         if not props.get(prop).type:
             logger.warning(f"Missing type hint for tool property '{prop}' defaulting to 'str'. To remove this warning add a type hint to the property in the tools signature. See Python docs for guidance: https://docs.python.org/3/library/typing.html")
 
+def _validate_join_tool_func(fn: Callable, sig: inspect.Signature | None = None, name: str | None = None) -> None:
+    if sig is None:
+        sig = inspect.signature(fn)
+    if name is None:
+        name = fn.__name__
+    
+    params = sig.parameters
+    type_hints = get_type_hints(fn)
+    
+    # Validate parameter order
+    actual_param_names = list(params.keys())
+    expected_param_names = list(JOIN_TOOL_PARAMS.keys())
+    if actual_param_names[:len(expected_param_names)] != expected_param_names:
+        raise ValueError(
+            f"Join tool function '{name}' has incorrect parameter names or order. Expected: {expected_param_names}, got: {actual_param_names}"
+        )
+    
+    # Validate the type hints
+    for param, expected_type in JOIN_TOOL_PARAMS.items():
+        if param not in type_hints:
+            raise ValueError(f"Join tool function '{name}' is missing type for parameter '{param}'")
+        actual_type = type_hints[param]
+        if actual_type != expected_type:
+            raise ValueError(f"Join tool function '{name}' has incorrect type for parameter '{param}'. Expected {expected_type}, got {actual_type}")
+
+    # Validate return type
+    if 'return' not in type_hints:
+        raise ValueError(f"Join tool function '{name}' is missing a return type")
+    if type_hints['return'] != JOIN_TOOL_RETURN:
+        raise ValueError(f"Join tool function '{name}' has incorrect return type. Expected {JOIN_TOOL_RETURN}, got {type_hints['return']}")
+
 def tool(
     *args,
     name: str = None,
@@ -100,7 +138,8 @@ def tool(
     output_schema: ToolResponseBody = None,
     permission: ToolPermission = ToolPermission.READ_ONLY,
     expected_credentials: List[ExpectedCredentials] = None,
-    display_name: str = None
+    display_name: str = None,
+    kind: PythonToolKind = PythonToolKind.TOOL,
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -152,6 +191,11 @@ def tool(
         spec.binding.python.function = function_binding
 
         sig = inspect.signature(fn)
+        
+        # If the function is a join tool, validate its signature matches the expected parameters. If not, raise error with details.
+        if kind == PythonToolKind.JOIN_TOOL:
+            _validate_join_tool_func(fn, sig, spec.name)
+        
         if not input_schema:
             try:
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, fn, parse_docstring=True)
@@ -190,6 +234,12 @@ def tool(
 
         else:
             spec.output_schema = ToolResponseBody()
+        
+        # Validate the generated schema still conforms to the requirement for a join tool
+        if kind == PythonToolKind.JOIN_TOOL:
+            if not spec.is_custom_join_tool():
+                raise ValueError(f"Join tool '{spec.name}' does not conform to the expected join tool schema. Please ensure the input schema has the required fields: {JOIN_TOOL_PARAMS.keys()} and the output schema is a string.")
+            
         _all_tools.append(t)
         return t
 

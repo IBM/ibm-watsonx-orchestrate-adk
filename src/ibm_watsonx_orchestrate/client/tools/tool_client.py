@@ -1,3 +1,4 @@
+from typing import Literal
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from typing_extensions import List
 
@@ -32,7 +33,7 @@ class ToolClient(BaseAPIClient):
         formatted_tool_names = [f"names={x}" for x in tool_names]
         return self._get(f"/tools?{'&'.join(formatted_tool_names)}")
     
-    def get_draft_by_id(self, tool_id: str) -> List[dict]:
+    def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
         if tool_id is None:
             return ""
         else:

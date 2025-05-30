@@ -1,9 +1,10 @@
 import json
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
+from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 
 
 def test_should_allow_naked_decorators(snapshot):
@@ -127,3 +128,46 @@ def test_should_work_with_dicts(snapshot):
     spec = json.loads(sample_tool.dumps_spec())
     spec['binding']['python']['function'] = spec['binding']['python']['function'].split('.')[-1]
     snapshot.assert_match(spec)
+
+def test_should_work_with_custom_join_tool(snapshot):
+    description = "test python description"
+    @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
+    def sample_tool(original_query: str, task_results: Dict[str, Any], messages: List[Dict[str, Any]]) -> str:
+        return ''
+
+    spec = json.loads(sample_tool.dumps_spec())
+    spec['binding']['python']['function'] = spec['binding']['python']['function'].split('.')[-1]
+    snapshot.assert_match(spec)
+    
+def test_should_reject_custom_join_tool_without_required_args():
+    description = "test python description"
+    try:
+        @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
+        def sample_tool():
+            return ''
+    except Exception as e:
+        assert 'incorrect parameter names or order' in str(e)
+    else:
+        assert False, "Expected error was not raised"
+        
+def test_should_reject_custom_join_tool_with_incorrect_param_types():
+    description = "test python description"
+    try:
+        @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
+        def sample_tool(original_query: str, task_results: Dict[str, int], messages: List[Dict[str, Any]]) -> str:
+            return ''
+    except Exception as e:
+        assert "incorrect type for parameter 'task_results'" in str(e)
+    else:
+        assert False, "Expected error was not raised"
+        
+def test_should_reject_custom_join_tool_with_incorrect_return_type():
+    description = "test python description"
+    try:
+        @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
+        def sample_tool(original_query: str, task_results: Dict[str, Any], messages: List[Dict[str, Any]]) -> None:
+            return None
+    except Exception as e:
+        assert "incorrect return type" in str(e)
+    else:
+        assert False, "Expected error was not raised"

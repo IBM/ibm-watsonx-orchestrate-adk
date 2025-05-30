@@ -10,6 +10,9 @@ class ToolPermission(str, Enum):
     READ_WRITE = 'read_write'
     ADMIN = 'admin'
 
+class PythonToolKind(str, Enum):
+    JOIN_TOOL = 'join_tool'
+    TOOL = 'tool'
 
 class JsonSchemaObject(BaseModel):
     model_config = ConfigDict(extra='allow')
@@ -163,7 +166,6 @@ class ToolBinding(BaseModel):
             raise ValueError("Only one binding can be set")
         return self
 
-
 class ToolSpec(BaseModel):
     name: str
     display_name: str | None = None
@@ -174,3 +176,52 @@ class ToolSpec(BaseModel):
     binding: ToolBinding = None
     toolkit_id: str | None = None
 
+    def is_custom_join_tool(self) -> bool:
+        if self.binding.python is None:
+            return False
+
+        # The code below validates the input schema to have the following structure:
+        # {
+        #     "type": "object",
+        #     "properties": {
+        #         "messages": {
+        #             "type": "array",
+        #             "items": {
+        #                 "type": "object",
+        #             },
+        #         },
+        #         "task_results": {
+        #             "type": "object",
+        #         },
+        #         "original_query": {
+        #             "type": "string",
+        #         },
+        #     },
+        #     "required": {"original_query", "task_results", "messages"},
+        # }
+
+        input_schema = self.input_schema
+        if input_schema.type != 'object':
+            return False
+
+        required_fields = {"original_query", "task_results", "messages"}
+        if input_schema.required is None or set(input_schema.required) != required_fields:
+            return False
+        if input_schema.properties is None or set(input_schema.properties.keys()) != required_fields:
+            return False
+
+        if input_schema.properties["messages"].type != "array":
+            return False
+        if not input_schema.properties["messages"].items or input_schema.properties["messages"].items.type != "object":
+            return False
+        if input_schema.properties["task_results"].type != "object":
+            return False
+        if input_schema.properties["original_query"].type != "string":
+            return False
+
+        # Validate the output schema has type "string"
+        output_schema = self.output_schema
+        if output_schema.type != "string":
+            return False
+
+        return True

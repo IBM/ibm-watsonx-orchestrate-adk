@@ -1,3 +1,10 @@
+import json
+from unittest.mock import patch, mock_open, MagicMock
+import pytest
+import uuid
+import requests
+from unittest import mock
+
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     AgentsController,
     import_python_agent,
@@ -18,19 +25,52 @@ from ibm_watsonx_orchestrate.client.agents.external_agent_client import External
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-import json
-from unittest.mock import patch, mock_open, MagicMock
-import pytest
-import uuid
-import requests
-from unittest import mock
-import sys
+
+from cli.commands.tools.test_tools_controller import MockToolClient
 
 agents_controller = AgentsController()
 
 
-@pytest.fixture
-def native_agent_content() -> dict:
+@pytest.fixture(params=['normal', 'planner-join_tool', 'planner-structured_output'])
+def native_agent_content(request) -> dict:
+    param = request.param
+    if param == 'planner-join_tool':
+        return {
+            "spec_version": SpecVersion.V1,
+            "kind": AgentKind.NATIVE,
+            "name": "test_native_agent",
+            "description": "Test Object for planner agent",
+            "llm": "test_llm",
+            "style": AgentStyle.PLANNER,
+            "custom_join_tool":"test_tool_3",
+            "collaborators": [
+                "test_agent_1",
+                "test_agent_2"
+            ],
+            "tools": [
+                "test_tool_1",
+                "test_tool_2"
+            ]
+        }
+    elif param == 'planner-structured_output':
+        return {
+            "spec_version": SpecVersion.V1,
+            "kind": AgentKind.NATIVE,
+            "name": "test_native_agent",
+            "description": "Test Object for planner agent",
+            "llm": "test_llm",
+            "style": AgentStyle.PLANNER,
+            "structured_output": {"type": "object", "additionalProperties": False, "properties": {}},
+            "collaborators": [
+                "test_agent_1",
+                "test_agent_2"
+            ],
+            "tools": [
+                "test_tool_1",
+                "test_tool_2"
+            ]
+        }
+        
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
@@ -96,6 +136,39 @@ def assistant_agent_content() -> dict:
         "app_id": "123"
     }
 
+@pytest.fixture
+def join_tool_spec():
+    return {
+        "name": "test_tool_1",
+        "description": "Test Tool 1",
+        "permission": "read_only",
+        "binding": {
+            "python": {
+                "function": "test_function",
+            }
+        },
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                    },
+                },
+                "task_results": {
+                    "type": "object",
+                },
+                "original_query": {
+                    "type": "string",
+                },
+            },
+            "required": {"original_query", "task_results", "messages"},
+        },
+        "output_schema": {
+            "type": "string",
+        }
+    }
 
 class MockSDKResponse:
     def __init__(self, response_obj):
@@ -153,7 +226,7 @@ class MockAgent:
     
     def get_by_id(self, knowledge_base_id):
         return self.fake_agent
-        
+
 class TestImportPythonAgent:
     def test_import_python_agent(self, native_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.import_python_tool") as python_tool_import_mock, \
@@ -615,17 +688,17 @@ class TestAgentsControllerGetAllAgents:
         assert response[self.mock_agent_name] == self.mock_agent_id
 
 class TestAgentsControllerPublishOrUpdateAgents:
-    def test_publish_or_update_native_agent_publish(self, native_agent_content):
+    def test_publish_or_update_native_agent_publish(self, native_agent_content, join_tool_spec):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_agent") as publish_mock:
-            
+
             native_client_mock.return_value = MockAgent(fake_agent=Agent(**native_agent_content))
             external_client_mock.return_value = MockAgent(skip_deref=True)
             assistant_client_mock.return_value = MockAgent(skip_deref=True)
-            tool_client_mock.return_value = MockAgent()
+            tool_client_mock.return_value = MockToolClient(get_draft_by_id_response=join_tool_spec)
 
             agent = Agent(**native_agent_content)
             agent.collaborators = [agent.name]
@@ -637,24 +710,25 @@ class TestAgentsControllerPublishOrUpdateAgents:
             )
 
             publish_mock.assert_called_once()
-    
-    def test_publish_or_update_native_agent_update(self, native_agent_content):
+
+    def test_publish_or_update_native_agent_update(self, native_agent_content, join_tool_spec):
         with patch("sys.exit") as sys_exit_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.update_agent") as update_mock:
-        
+
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[{
                 "name": "test_native_agent",
                 "id": "62562f01-5046-4e8f-b5b9-e91cdc17b5ce",
                 "description": "Test Object for native agent",
             }]))
-        
+
             external_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
-            assistant_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))  
-            tool_client_mock.return_value = MockAgent()
+            assistant_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
+            
+            tool_client_mock.return_value = MockToolClient(get_draft_by_id_response=join_tool_spec)
 
             agent = Agent(**native_agent_content)
             agent.collaborators = ['test_native_agent'] 
@@ -662,10 +736,8 @@ class TestAgentsControllerPublishOrUpdateAgents:
             agents_controller.publish_or_update_agents([agent])
 
             update_mock.assert_called_once()
-        
 
             sys_exit_mock.assert_called_with(1)  
-
 
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_external_agent_publish(self, mock_get_conn_id, external_agent_content):
@@ -675,7 +747,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_agent") as publish_mock:
-            
+
             # Mock get_conn_id_from_app_id to return a valid connection_id
             mock_get_conn_id.return_value = "mock-connection-id"
 
@@ -699,7 +771,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.update_agent") as update_mock:
-            
+
             # Mock get_conn_id_from_app_id to return a valid connection_id
             mock_get_conn_id.return_value = "mock-connection-id"
 
@@ -722,13 +794,12 @@ class TestAgentsControllerPublishOrUpdateAgents:
             update_mock.assert_called_once()
             sys_exit_mock.assert_not_called()
 
-
     def test_publish_or_update_assistant_agent_publish(self, assistant_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_agent") as publish_mock:
-            
+
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             external_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             assistant_client_mock.return_value = MockAgent()
@@ -740,7 +811,7 @@ class TestAgentsControllerPublishOrUpdateAgents:
             )
 
             publish_mock.assert_called_once()
-    
+
     @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
     def test_publish_or_update_assistant_agent_update(self, mock_get_conn_id, assistant_agent_content):
         with patch("sys.exit") as sys_exit_mock, \
@@ -749,10 +820,10 @@ class TestAgentsControllerPublishOrUpdateAgents:
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.update_agent") as update_mock:
-            
+
             # Mock get_conn_id_from_app_id to return a valid connection_id
             mock_get_conn_id.return_value = "mock-connection-id"
-            
+
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             external_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             assistant_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[{

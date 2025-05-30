@@ -11,7 +11,9 @@ import logging
 from pathlib import Path
 from copy import deepcopy
 
-from typing import Iterable, List
+from typing import Iterable, List, TypeVar
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentStyle
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
 
@@ -33,6 +35,9 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 
 logger = logging.getLogger(__name__)
+
+# Helper generic type for any agent
+AnyAgentT = TypeVar("AnyAgentT", bound=Agent | ExternalAgent | AssistantAgent)
 
 def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     # Import tools
@@ -90,6 +95,8 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "description": description,
         "llm": args.get("llm"),
         "style": args.get("style"),
+        "custom_join_tool": args.get("custom_join_tool"),
+        "structured_output": args.get("structured_output"),
     }
 
     collaborators = args.get("collaborators", [])
@@ -202,7 +209,7 @@ class AgentsController:
         return self.knowledge_base_client
     
     @staticmethod
-    def import_agent(file: str, app_id: str) -> Iterable:
+    def import_agent(file: str, app_id: str) -> List[Agent | ExternalAgent | AssistantAgent]:
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
@@ -216,7 +223,9 @@ class AgentsController:
     ) -> Agent | ExternalAgent | AssistantAgent:
         match kind:
             case AgentKind.NATIVE:
-                agent_details = parse_create_native_args(name, kind=kind, description=description, **kwargs)
+                agent_details = parse_create_native_args(
+                    name, kind=kind, description=description, **kwargs
+                )
                 agent = Agent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
             case AgentKind.EXTERNAL:
@@ -296,12 +305,17 @@ class AgentsController:
         ref_agent.collaborators = ref_collaborators
 
         return ref_agent
-    
+
     def dereference_tools(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
 
         deref_agent = deepcopy(agent)
-        matching_tools = tool_client.get_drafts_by_names(deref_agent.tools)
+
+        # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
+        if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
+            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools + [deref_agent.custom_join_tool])
+        else:
+            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools)
 
         name_id_lookup = {}
         for tool in matching_tools:
@@ -318,6 +332,13 @@ class AgentsController:
                 sys.exit(1)
             deref_tools.append(id)
         deref_agent.tools = deref_tools
+        
+        if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
+            join_tool_id = name_id_lookup.get(agent.custom_join_tool)
+            if not join_tool_id:
+                logger.error(f"Failed to find custom join tool. No tools found with the name '{agent.custom_join_tool}'")
+                sys.exit(1)
+            deref_agent.custom_join_tool = join_tool_id
 
         return deref_agent
     
@@ -325,7 +346,12 @@ class AgentsController:
         tool_client = self.get_tool_client()
 
         ref_agent = deepcopy(agent)
-        matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools)
+        
+        # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
+        if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
+            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools + [ref_agent.custom_join_tool])
+        else:
+            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools)
 
         id_name_lookup = {}
         for tool in matching_tools:
@@ -342,6 +368,13 @@ class AgentsController:
                 sys.exit(1)
             ref_tools.append(name)
         ref_agent.tools = ref_tools
+        
+        if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
+            join_tool_name = id_name_lookup.get(agent.custom_join_tool)
+            if not join_tool_name:
+                logger.error(f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'")
+                sys.exit(1)
+            ref_agent.custom_join_tool = join_tool_name
 
         return ref_agent
     
@@ -409,7 +442,7 @@ class AgentsController:
     def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.dereference_collaborators(agent)
-        if agent.tools and len(agent.tools):
+        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
             agent = self.dereference_tools(agent)
         if agent.knowledge_base and len(agent.knowledge_base):
             agent = self.dereference_knowledge_bases(agent)
@@ -419,7 +452,7 @@ class AgentsController:
     def reference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.reference_collaborators(agent)
-        if agent.tools and len(agent.tools):
+        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
             agent = self.reference_tools(agent)
         if agent.knowledge_base and len(agent.knowledge_base):
             agent = self.reference_knowledge_bases(agent)
@@ -443,21 +476,21 @@ class AgentsController:
         return agent
     
     # Convert all names used in an agent to the corresponding ids
-    def dereference_agent_dependencies(self, agent: Agent | ExternalAgent | AssistantAgent ) -> Agent | ExternalAgent | AssistantAgent:
+    def dereference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
         if isinstance(agent, Agent):
             return self.dereference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.dereference_external_or_assistant_agent_dependencies(agent)
-    
+
     # Convert all ids used in an agent to the corresponding names
-    def reference_agent_dependencies(self, agent: Agent | ExternalAgent | AssistantAgent ) -> Agent | ExternalAgent | AssistantAgent:
+    def reference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
         if isinstance(agent, Agent):
             return self.reference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
-        self, agents: Iterable[Agent]
+        self, agents: Iterable[Agent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
             agent_name = agent.name
@@ -475,6 +508,18 @@ class AgentsController:
 
             all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
             agent = self.dereference_agent_dependencies(agent)
+
+            if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
+                tool_client = self.get_tool_client()
+
+                join_tool_spec = ToolSpec.model_validate(
+                    tool_client.get_draft_by_id(agent.custom_join_tool)
+                )
+                if not join_tool_spec.is_custom_join_tool():
+                    logger.error(
+                        f"Tool '{join_tool_spec.name}' configured as the custom join tool is not a valid join tool. A custom join tool must be a Python tool with specific input and output schema."
+                    )
+                    sys.exit(1)
 
             agent_kind = agent.kind
 
@@ -762,32 +807,32 @@ class AgentsController:
                 rich.print(assistants_table)
 
     def remove_agent(self, name: str, kind: AgentKind):
-            try:
-                if kind == AgentKind.NATIVE:
-                    client = self.get_native_client()
-                elif kind == AgentKind.EXTERNAL:
-                    client = self.get_external_client()
-                elif kind == AgentKind.ASSISTANT:
-                    client = self.get_assistant_client()
-                else:
-                    raise ValueError("'kind' must be 'native'")
+        try:
+            if kind == AgentKind.NATIVE:
+                client = self.get_native_client()
+            elif kind == AgentKind.EXTERNAL:
+                client = self.get_external_client()
+            elif kind == AgentKind.ASSISTANT:
+                client = self.get_assistant_client()
+            else:
+                raise ValueError("'kind' must be 'native'")
 
-                draft_agents = client.get_draft_by_name(name)
-                if len(draft_agents) > 1:
-                    logger.error(f"Multiple '{kind}' agents found with name '{name}'. Failed to delete agent")
-                    sys.exit(1)
-                if len(draft_agents) > 0:
-                    draft_agent = draft_agents[0]
-                    agent_id = draft_agent.get("id")
-                    client.delete(agent_id=agent_id)
-                    
-                    logger.info(f"Successfully removed agent {name}")
-                else:
-                    logger.warning(f"No agent named '{name}' found")
-            except requests.HTTPError as e:
-                logger.error(e.response.text)
-                exit(1)
-    
+            draft_agents = client.get_draft_by_name(name)
+            if len(draft_agents) > 1:
+                logger.error(f"Multiple '{kind}' agents found with name '{name}'. Failed to delete agent")
+                sys.exit(1)
+            if len(draft_agents) > 0:
+                draft_agent = draft_agents[0]
+                agent_id = draft_agent.get("id")
+                client.delete(agent_id=agent_id)
+
+                logger.info(f"Successfully removed agent {name}")
+            else:
+                logger.warning(f"No agent named '{name}' found")
+        except requests.HTTPError as e:
+            logger.error(e.response.text)
+            exit(1)
+
     def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent):
         ref_agent = self.reference_agent_dependencies(agent)
         agent_spec = ref_agent.model_dump(mode='json', exclude_none=True)
@@ -810,7 +855,7 @@ class AgentsController:
         
         return agent
     
-    def get_agent_by_id(self, id: str) -> Agent | ExternalAgent | AssistantAgent:
+    def get_agent_by_id(self, id: str) -> Agent | ExternalAgent | AssistantAgent | None:
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
