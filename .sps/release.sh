@@ -20,7 +20,7 @@ function python_release() {
 
     # If not default branch, exit
     if ! using_default_branch; then
-        if [ "$release_type" = "RELEASE" ]; then
+        if [ "$release_type" = "BETA" ]; then
           local git_token
           git_token=$(get_env git-token)
 
