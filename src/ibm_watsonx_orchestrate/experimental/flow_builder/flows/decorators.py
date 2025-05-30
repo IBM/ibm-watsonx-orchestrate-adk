@@ -27,8 +27,8 @@ class FlowWrapper:
             raise ValueError("Return value must be of type Flow")
         return result
     
-def user(*args, name: str|None=None, description: str|None=None, owners: Sequence[str] = ()):
-    """Decorator to mark a function as a task specification."""
+def user(*args, name: str|None=None, description: str|None=None, owners: Sequence[str]|None = None, message: str | None = None):
+    """Decorator to mark a function as a user node specification."""
 
     def decorator(func: Callable):
         node_spec = extract_node_spec(func, name, description)
@@ -39,6 +39,7 @@ def user(*args, name: str|None=None, description: str|None=None, owners: Sequenc
                                           input_schema = node_spec.input_schema,
                                           output_schema = node_spec.output_schema,
                                           output_schema_object = node_spec.output_schema_object,
+                                          text=message,
                                           owners=owners)
 
         @wraps(func)

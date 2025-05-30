@@ -48,7 +48,9 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | None) 
             schema_type = 'number'
         elif type_def == bool:
             schema_type = 'boolean'
-            # TODO: inspect the list item type and use that as the item type
+        else:
+            schema_type = 'string'
+        # TODO: inspect the list item type and use that as the item type
         return JsonSchemaObject(type=schema_type, properties={}, required=[])
    
     raise ValueError(

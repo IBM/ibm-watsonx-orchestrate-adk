@@ -201,6 +201,7 @@ class ConversationalSearchConfig(BaseModel):
     confidence_thresholds: Optional[ConfidenceThresholds] = None
 
 class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
+    embeddings_model_name: Optional[str] = None
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None

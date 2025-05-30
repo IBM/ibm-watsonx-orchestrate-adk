@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+name: city_founding_date_agent
+description: >
+    You are an agent that will fetch city founding date
+instructions: >
+    You have to execute the tool and get city founding date.
+     Show the output follow this: City:the city which user inputted. {founding_date: output['founding_date']}
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - get_city_founding_date

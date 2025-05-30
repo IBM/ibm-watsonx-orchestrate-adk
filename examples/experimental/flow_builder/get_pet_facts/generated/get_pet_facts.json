@@ -28,11 +28,11 @@
         "tool": "getCatFact"
       }
     },
-    "branch_5abadd2ce74b48928846c9a0cda4ced2": {
+    "branch_1": {
       "spec": {
         "kind": "branch",
-        "name": "branch_5abadd2ce74b48928846c9a0cda4ced2",
-        "display_name": "branch_5abadd2ce74b48928846c9a0cda4ced2",
+        "name": "branch_1",
+        "display_name": "branch_1",
         "evaluator": {
           "expression": "flow.input.kind.strip().lower() == 'dog'"
         },
@@ -67,14 +67,14 @@
   "edges": [
     {
       "start": "__start__",
-      "end": "branch_5abadd2ce74b48928846c9a0cda4ced2"
+      "end": "branch_1"
     },
     {
-      "start": "branch_5abadd2ce74b48928846c9a0cda4ced2",
+      "start": "branch_1",
       "end": "getDogFact"
     },
     {
-      "start": "branch_5abadd2ce74b48928846c9a0cda4ced2",
+      "start": "branch_1",
       "end": "getCatFact"
     },
     {
@@ -121,6 +121,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-05-12T22:37:41.331114+00:00"
+    "compiled_on": "2025-05-21T21:13:29.410442+00:00"
   }
 }

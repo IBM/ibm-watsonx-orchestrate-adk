@@ -6,37 +6,36 @@ the Flow model.
 import asyncio
 from datetime import datetime
 from enum import Enum
+import inspect
 from typing import (
     Any, AsyncIterator, Callable, cast, List, Sequence, Union, Tuple
 )
 import json
 import logging
-import time
 import copy
 import uuid
 import pytz
 
 from typing_extensions import Self
-from pydantic import BaseModel, Field, PrivateAttr, SerializeAsAny
+from pydantic import BaseModel, Field, SerializeAsAny
 import yaml
-from munch import Munch
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, 
-    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, WaitPolicy
+    EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
+    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy
 )
-from .constants import START, END, ANY_USER
+from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, StartNode, UserNode, AgentNode, DataMap, ToolNode
+    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, _to_json_from_json_schema
 )
 
-from .data_map import Assignment, AssignmentDataMap, AssignmentDataMapSpec
+from ..data_map import DataMap
 from ..utils import _get_json_schema_obj, get_valid_name, import_flow_model
 
 from .events import StreamConsumer
@@ -60,7 +59,6 @@ class FlowEdge(BaseModel):
     start: str
     end: str
 
-
 class Flow(Node):
     '''Flow represents a flow that will be run by wxO Flow engine.'''
     output_map: DataMap | None = None
@@ -71,6 +69,7 @@ class Flow(Node):
     validated: bool = False
     metadata: dict[str, str] = {}
     parent: Any = None
+    _sequence_id: int = 0 # internal-id
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -82,6 +81,10 @@ class Flow(Node):
         if self.parent:
             return self.parent._find_topmost_flow()
         return self
+    
+    def _next_sequence_id(self) -> int: 
+        self._sequence_id += 1
+        return self._sequence_id
     
     def _add_schema(self, schema: JsonSchemaObject, title: str = None) -> JsonSchemaObject:
         '''
@@ -107,7 +110,7 @@ class Flow(Node):
         if schema:
             if isinstance(schema, dict):
                 # recast schema to support direct access
-                schema = Munch(schema)
+                schema = JsonSchemaObject.model_validate(schema)
             # we should only add schema when it is a complex object
             if schema.type != "object" and schema.type != "array":
                 return schema
@@ -134,7 +137,7 @@ class Flow(Node):
                                 schema_ref = self._add_schema_ref(value.items, value.items.title)
                                 new_schema.properties[key].items = JsonSchemaObjectRef(title=value.title,
                                                                                     ref = f"{schema_ref.ref}")
-                            elif value.model_extra and value.model_extra["$ref"]:
+                            elif value.model_extra and hasattr(value.model_extra, "$ref"):
                                 # there is already a reference, remove $/defs/ from the initial ref
                                 ref_value = value.model_extra["$ref"]
                                 schema_ref = f"#/schemas/{ref_value[8:]}"
@@ -254,159 +257,18 @@ class Flow(Node):
 
         input_schema: type[BaseModel] | None = None,
         output_schema: type[BaseModel] | None = None,
-        input_map: List[Assignment] = None
-    ) -> Node:
+        input_map: DataMap = None
+    ) -> ToolNode:
         '''create a tool node in the flow'''
         if tool is None:
             raise ValueError("tool must be provided")
         
-        if isinstance(tool, str):
-            return self._node(
-                name=name if name is not None and name != "" else tool,
-                tool=tool,
-                display_name=display_name,
-                description=description,
-                input_schema=input_schema,
-                output_schema=output_schema,
-                input_map=input_map)
-        elif isinstance(tool, PythonTool):
-            return self._node(
-                node=tool,
-                name=name if name is not None and name != "" else tool.fn.__name__,
-                display_name=display_name,
-                description=description,
-                input_schema=input_schema,
-                output_schema=output_schema,
-                input_map=input_map)
-        else:
-            raise ValueError(f"tool is not a string or a callable: {tool}")
-    
-    def agent(
-        self,
-        name: str | None = None,
-        display_name: str | None = None,
-        description: str | None = None,
-        agent: str | None = None,
-        message: str | None = None,
-        guidelines: str | None = None,
-        input_schema: type[BaseModel] | None = None,
-        output_schema: type[BaseModel] | None = None,
-        input_map: List[Assignment] = None
-    ) -> Node:
-        '''create an agent node in the flow'''
-        return self._node(
-            name=name,
-            display_name=display_name,
-            description=description,
-            agent=agent,
-            message=message,
-            guidelines=guidelines,
-            input_schema=input_schema,
-            output_schema=output_schema,
-            input_map=input_map
-        )
-        
-    def _node(
-        self,
-        node: Union[Node, Callable] = None,
-        name: str = None,
-        display_name: str | None = None,
-        description: str | None = None,
-        owners: Sequence[str] | None = None,
-        input_schema: type[BaseModel] | None = None,
-        output_schema: type[BaseModel] | None = None,
-        agent: str | None = None,
-        tool: str | None = None,
-        message: str | None = None,
-        guidelines: str | None = None,
-        input_map: Callable | List[Assignment] = None,
-        output_map: Callable | List[Assignment] = None,
-    ) -> Node:
-     
-        self._check_compiled()
+        if isinstance(tool, str):        
+            name = name if name is not None and name != "" else tool
+            input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
+            output_schema_obj = _get_json_schema_obj("output", output_schema)
 
-        if owners is None:
-            owners = []
-
-        if node is not None:
-            if not isinstance(node, Node):
-                if callable(node):
-                    user_spec = getattr(node, "__user_spec__", None)
-                    # script_spec = getattr(node, "__script_spec__", None)
-                    tool_spec = getattr(node, "__tool_spec__", None)
-                    if user_spec:
-                        node = UserNode(spec = user_spec)
-                    # elif script_spec:
-                    #     node = ScriptNode(spec = script_spec)
-                    elif tool_spec:
-                        node = self._create_node_from_tool_fn(node)
-                    else:
-                        raise ValueError(
-                            "Only functions with @user, @tool or @script decorator can be added.")
-            elif isinstance(node, Node):
-                if node.spec.name in self.nodes:
-                    raise ValueError(f"Node `{id}` already present.")
-
-                if node.spec.name == END or node.spec.name == START:
-                    raise ValueError(f"Node `{id}` is reserved.")
-            else:
-                raise ValueError(
-                    "A valid node or function must be specified for the node parameter.")
-
-            # setup input and output map
-            if input_map:
-                node.input_map = self._get_data_map(input_map)
-            if output_map:
-                node.output_map = self._get_data_map(output_map)
-
-            # add the node to the list of node
-            node = self._add_node(node)
-            return node
-
-        if name is not None:
-            if agent is not None:
-                node = self._create_agent_node(
-                    name, agent, display_name, message, description, input_schema, output_schema, guidelines)
-            elif tool is not None:
-                node = self._create_tool_node(
-                    name, tool, display_name, description, input_schema, output_schema)
-            else:
-                node = self._create_user_node(
-                    name, display_name, description, owners, input_schema, output_schema)
-
-            # setup input and output map
-            if input_map:
-                node.input_map = self._get_data_map(input_map)
-            if output_map:
-                node.output_map = self._get_data_map(output_map)
-
-            # add the node to the list of node
-            node = self._add_node(node)
-            return node
-
-        raise ValueError("Either a node or a name must be specified.")
-
-    def _add_node(self, node: Node) -> Node:
-        # make a copy
-        new_node = copy.copy(node)
-
-        self._refactor_node_to_schemaref(new_node)
-
-        self.nodes[node.spec.name] = new_node
-        return new_node
-
-
-    def _create_tool_node(self, name: str, tool: str,
-                          display_name: str|None=None,
-                          description: str|None=None,
-                          input_schema: type[BaseModel]|None=None,
-                          output_schema: type[BaseModel]|None=None) -> Node:
-
-         # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
-
-        toolnode_spec = ToolNodeSpec(type = "tool",
+            toolnode_spec = ToolNodeSpec(type = "tool",
                                      name = name,
                                      display_name = display_name,
                                      description = description,
@@ -423,50 +285,49 @@ class Flow(Node):
                                      output_schema_object = output_schema_obj,
                                      tool = tool)
 
-        return ToolNode(spec=toolnode_spec)
+            node = ToolNode(spec=toolnode_spec)
+        elif isinstance(tool, PythonTool):
+            if callable(tool):
+                tool_spec = getattr(tool, "__tool_spec__", None)
+                if tool_spec:
+                    node = self._create_node_from_tool_fn(tool)
+                else:
+                    raise ValueError("Only functions with @tool decorator can be added.")
+        else:
+            raise ValueError(f"tool is not a string or Callable: {tool}")
+        
+         # setup input and output map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
 
-    def _create_user_node(self, name: str,
-                          display_name: str|None=None,
-                          description: str|None=None,
-                          owners: Sequence[str]|None=[ANY_USER],
-                          input_schema: type[BaseModel]|None=None,
-                          output_schema: type[BaseModel]|None=None) -> Node:
-        # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
+        node = self._add_node(node)
+        return cast(ToolNode, node)
+ 
 
-        # identify owner
-        if not owners:
-            owners = [ANY_USER]
+    def _add_node(self, node: Node) -> Node:
+        self._check_compiled()
 
-        # Create the tool spec
-        task_spec = NodeSpec(
-            name=name,
-            display_name=display_name,
-            description=description,
-            owners=owners,
-            input_schema=ToolRequestBody(
-                type=input_schema_obj.type,
-                properties=input_schema_obj.properties,
-                required=input_schema_obj.required,
-            ),
-            output_schema=ToolResponseBody(
-                type=output_schema_obj.type,
-                properties=output_schema_obj.properties,
-                required=output_schema_obj.required
-            ),
-            tool=[],
-            output_schema_object = output_schema_obj
-        )
+        if node.spec.name in self.nodes:
+            raise ValueError(f"Node `{id}` already present.")
 
-        return UserNode(spec = task_spec)
+        # make a copy
+        new_node = copy.copy(node)
 
-    def _create_agent_node(self, name: str, agent: str, display_name: str|None=None,
-                           message: str | None = "Follow the agent instructions.",
-                           description: str | None = None,
-                           input_schema: type[BaseModel]|None = None, 
-                           output_schema: type[BaseModel]|None=None,
-                           guidelines: str|None=None) -> Node:
+        self._refactor_node_to_schemaref(new_node)
+
+        self.nodes[node.spec.name] = new_node
+        return new_node
+
+    def agent(self, 
+              name: str, 
+              agent: str, 
+              display_name: str|None=None,
+              message: str | None = "Follow the agent instructions.",
+              description: str | None = None,
+              input_schema: type[BaseModel]|None = None, 
+              output_schema: type[BaseModel]|None=None,
+              guidelines: str|None=None,
+              input_map: DataMap = None) -> AgentNode:
 
          # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
@@ -493,7 +354,64 @@ class Flow(Node):
             output_schema_object = output_schema_obj
         )
 
-        return AgentNode(spec=task_spec)
+        node = AgentNode(spec=task_spec)
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        node = self._add_node(node)
+        return cast(AgentNode, node)
+    
+    def prompt(self, 
+            name: str, 
+            display_name: str|None=None,
+            system_prompt: str | list[str] | None = None,
+            user_prompt: str | list[str] | None = None,
+            llm: str | None = None,
+            llm_parameters: PromptLLMParameters | None = None,
+            description: str | None = None,
+            input_schema: type[BaseModel]|None = None, 
+            output_schema: type[BaseModel]|None=None,
+            input_map: DataMap = None) -> PromptNode:
+
+        if name is None:
+            raise ValueError("name must be provided.")
+        
+         # create input spec
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+
+        # Create the tool spec
+        task_spec = PromptNodeSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            llm=llm,
+            llm_parameters=llm_parameters,
+            input_schema=ToolRequestBody(
+                type=input_schema_obj.type,
+                properties=input_schema_obj.properties,
+                required=input_schema_obj.required,
+            ),
+            output_schema=ToolResponseBody(
+                type=output_schema_obj.type,
+                properties=output_schema_obj.properties,
+                required=output_schema_obj.required
+            ),
+            output_schema_object = output_schema_obj
+        )
+
+        node = PromptNode(spec=task_spec)
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        node = self._add_node(node)
+        return cast(PromptNode, node)
 
     def node_exists(self, node: Union[str, Node]):
      
@@ -587,9 +505,9 @@ class Flow(Node):
         elif isinstance(evaluator, str):
             e = Expression(expression=evaluator)
 
-        spec = BranchNodeSpec(name = "branch_" + uuid.uuid4().hex, evaluator=e)
+        spec = BranchNodeSpec(name = "branch_" + str(self._next_sequence_id()), evaluator=e)
         branch_node = Branch(spec = spec, containing_flow=self)
-        return cast(Branch, self._node(branch_node))
+        return cast(Branch, self._add_node(branch_node))
     
     def wait_for(self, *args) -> "Wait":
         '''Wait for all incoming nodes to complete.'''
@@ -608,7 +526,7 @@ class Flow(Node):
 
     def foreach(self, item_schema: type[BaseModel],
                 input_schema: type[BaseModel] |None=None,
-                output_schema: type[BaseModel] |None=None) -> "Flow": # return an Foreach object
+                output_schema: type[BaseModel] |None=None) -> "Foreach": # return an Foreach object
         '''TODO: Docstrings'''
 
         output_schema_obj = _get_json_schema_obj("output", output_schema)
@@ -625,7 +543,7 @@ class Flow(Node):
                 },
                 required = ["items"])
 
-        spec = ForeachSpec(name = "foreach_" + uuid.uuid4().hex,
+        spec = ForeachSpec(name = "foreach_" + str(self._next_sequence_id()),
                            input_schema=ToolRequestBody(
                                 type=input_schema_obj.type,
                                 properties=input_schema_obj.properties,
@@ -638,15 +556,14 @@ class Flow(Node):
                             ) if output_schema_obj is not None else None,
                            item_schema = foreach_item_schema)
         foreach_obj = Foreach(spec = spec, parent = self)
-        foreach_node = self._node(foreach_obj)
+        foreach_node = self._add_node(foreach_obj)
         self._add_schema(foreach_item_schema)
 
         return cast(Flow, foreach_node)
 
     def loop(self, evaluator: Union[Callable, Expression],
              input_schema: type[BaseModel]|None=None, 
-             output_schema: type[BaseModel]|None=None) -> "Flow": # return a WhileLoop object
-        '''TODO: Docstrings'''
+             output_schema: type[BaseModel]|None=None) -> "Loop": # return a WhileLoop object
         e = evaluator
         input_schema_obj = _get_json_schema_obj("input", input_schema)
         output_schema_obj = _get_json_schema_obj("output", output_schema)
@@ -661,7 +578,7 @@ class Flow(Node):
         elif isinstance(evaluator, str):
             e = Expression(expression=evaluator)
 
-        loop_spec = LoopSpec(name = "loop_" + uuid.uuid4().hex, 
+        loop_spec = LoopSpec(name = "loop_" + str(self._next_sequence_id()), 
                              evaluator = e, 
                              input_schema=ToolRequestBody(
                                 type=input_schema_obj.type,
@@ -674,8 +591,35 @@ class Flow(Node):
                                 required=output_schema_obj.required
                              ) if output_schema_obj is not None else None)
         while_loop = Loop(spec = loop_spec, parent = self)
-        while_node = self._node(while_loop)
-        return while_node
+        while_node = self._add_node(while_loop)
+        return cast(Loop, while_node)
+    
+    def userflow(self, 
+                 owners: Sequence[str] = [],
+                 input_schema: type[BaseModel] |None=None,
+                 output_schema: type[BaseModel] |None=None) -> "UserFlow": # return a UserFlow object
+
+        logger.warning("userflow is NOT working yet.")
+
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+        input_schema_obj = _get_json_schema_obj("input", input_schema)
+
+        spec = UserFlowSpec(name = "userflow_" + str(self._next_sequence_id()),
+                           input_schema=ToolRequestBody(
+                                type=input_schema_obj.type,
+                                properties=input_schema_obj.properties,
+                                required=input_schema_obj.required,
+                            ) if input_schema_obj is not None else None,
+                            output_schema=ToolResponseBody(
+                                type=output_schema_obj.type,
+                                properties=output_schema_obj.properties,
+                                required=output_schema_obj.required
+                            ) if output_schema_obj is not None else None,
+                           owners = owners)
+        userflow_obj = UserFlow(spec = spec, parent = self)
+        userflow_node = self._add_node(userflow_obj)
+
+        return cast(UserFlow, userflow_node)
 
     def validate_model(self) -> bool:
         ''' Validate the model. '''
@@ -787,25 +731,8 @@ class Flow(Node):
             node_id = node
         return node_id
 
-    def _get_data_map(self, map_fn: Callable | List[Assignment]) -> DataMap:
-        if map_fn:
-            if isinstance(map_fn, Callable):
-                raise ValueError("Datamap with function is not supported yet.")
-                # map_spec = getattr(map_fn, "__map_spec__", None)
-                # if not map_spec:
-                #    raise ValueError(
-                #        "Only functions with @map decorator can be used to map between nodes.")
-                # map_spec_copy = copy.deepcopy(map_spec)
-                # self.refactor_datamap_spec_to_schemaref(map_spec_copy)
-                # data_map = FnDataMap(spec=map_spec_copy)
-                # return data_map
-            elif isinstance(map_fn, list):
-                data_map = AssignmentDataMap(spec=AssignmentDataMapSpec(
-                    name="assignment",
-                    maps=map_fn))
-                return data_map
-        return None
-
+    def _get_data_map(self, map: DataMap) -> DataMap:
+        return map
 
 class FlowRunStatus(str, Enum):
     NOT_STARTED = "not_started"
@@ -831,7 +758,6 @@ class FlowRun(BaseModel):
         "arbitrary_types_allowed": True
     }           
 
-    
     async def _arun_events(self, input_data:dict=None, filters: Sequence[Union[FlowEventType, TaskEventType]]=None) -> AsyncIterator[FlowEvent]:
         
         if self.status is not FlowRunStatus.NOT_STARTED:
@@ -1176,10 +1102,6 @@ class Loop(Flow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # refactor item schema
-        if isinstance(self.spec.evaluator, ScriptNodeSpec):
-            self._refactor_spec_to_schemaref(self.spec.evaluator)
-
     def to_json(self) -> dict[str, Any]:
         my_dict = super().to_json()
 
@@ -1286,3 +1208,103 @@ class FlowValidator(BaseModel):
             bool: True if there are no errors, False otherwise.
         '''
         return not any(m.kind == FlowValidationKind.ERROR for m in messages)
+
+class UserFlow(Flow):
+    '''
+    A flow that represents a series of user nodes. 
+    A user flow can include other nodes, but not another User Flows.
+    '''
+
+    def __repr__(self):
+        return f"UserFlow(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> NodeSpec:
+        return cast(UserFlowSpec, self.spec)
+    
+    def to_json(self) -> dict[str, Any]:
+        my_dict = super().to_json()
+
+        return my_dict
+
+    def field(self, 
+              name: str, 
+              kind: UserFieldKind = UserFieldKind.Text,
+              display_name: str | None = None,
+              description: str | None = None,
+              owners: list[str] = [],
+              default: Any | None = None,
+              text: str = None,
+              option: UserFieldOption | None = None,
+              input_map: DataMap = None,
+              custom: dict[str, Any] = {}) -> UserNode:
+        '''create a node in the flow'''
+        # create a json schema object based on the single field
+        if not name:
+            raise AssertionError("name cannot be empty")
+
+        schema_obj = JsonSchemaObject(type="object",
+                                      title=name,
+                                      description=description)
+        
+        schema_obj.properties = {}
+        schema_obj.properties[name] = UserFieldKind.convert_kind_to_schema_property(kind, name, description, default, option, custom)
+
+        return self.user(name, 
+                         display_name=display_name,
+                         description=description,
+                         owners=owners,
+                         text=text,
+                         output_schema=schema_obj,
+                         input_map=input_map)
+
+    def user(
+        self,
+        name: str | None = None,
+        display_name: str | None = None,
+        description: str | None = None,
+        owners: list[str] = [],
+        text: str | None = None,
+        output_schema: type[BaseModel] | JsonSchemaObject| None = None,
+        input_map: DataMap = None,
+    ) -> UserNode:
+        '''create a user node in the flow'''
+
+        output_schema_obj = output_schema
+        if inspect.isclass(output_schema):
+            # create input spec
+            output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = output_schema)
+        # input and output is always the same in an user node
+        output_schema_obj = output_schema_obj
+
+        # identify owner
+        if not owners:
+            owners = [ANY_USER]
+
+        # Create the tool spec
+        task_spec = UserNodeSpec(
+            name=name,
+            display_name=display_name,
+            description=description,
+            owners=owners,
+            input_schema=None,
+            output_schema=ToolResponseBody(
+                type=output_schema_obj.type,
+                properties=output_schema_obj.properties,
+                required=output_schema_obj.required
+            ),
+            text=text,
+            output_schema_object = output_schema_obj
+        )
+
+        task_spec.setup_fields()
+
+        node = UserNode(spec = task_spec)
+    
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+
+        node = self._add_node(node)
+        return cast(UserNode, node)
+        
+        

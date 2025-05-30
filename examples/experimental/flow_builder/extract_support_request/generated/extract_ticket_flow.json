@@ -1,0 +1,235 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "extract_support_info",
+    "display_name": "extract_support_info",
+    "description": "Creates a flow that will use the Prompt node to extract information from a support\nmessage, and forward the summary to the helpdesk.\nThis flow will rely on the Flow engine to perform automatic data mapping at runtime.",
+    "input_schema": {
+      "$ref": "#/schemas/extract_support_info_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/SupportInformation"
+    }
+  },
+  "nodes": {
+    "email_helpdesk": {
+      "spec": {
+        "kind": "tool",
+        "name": "email_helpdesk",
+        "display_name": "email_helpdesk",
+        "description": "Send an email to internal help desk.\nReturns the email body that was sent.",
+        "input_schema": {
+          "$ref": "#/schemas/email_helpdesk_input"
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "tool": "email_helpdesk"
+      }
+    },
+    "extract_support_info": {
+      "spec": {
+        "kind": "prompt",
+        "name": "extract_support_info",
+        "display_name": "Extract information from a support request message.",
+        "description": "Extract information from a support request message.",
+        "input_schema": {
+          "$ref": "#/schemas/extract_support_info_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/SupportInformation"
+        },
+        "system_prompt": [
+          "You are a customer support processing assistant, your job take the supplied support request received from email,",
+          "and extract the information in the output as specified in the schema."
+        ],
+        "user_prompt": [
+          "Here is the {message}"
+        ],
+        "llm": "meta-llama/llama-3-3-70b-instruct",
+        "llm_parameters": {
+          "min_new_tokens": 5,
+          "max_new_tokens": 400,
+          "top_k": 1,
+          "stop_sequences": [
+            "Human:",
+            "AI:"
+          ]
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "extract_support_info"
+    },
+    {
+      "start": "extract_support_info",
+      "end": "email_helpdesk"
+    },
+    {
+      "start": "email_helpdesk",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "extract_support_info_input": {
+      "type": "object",
+      "title": "extract_support_info_input",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message"
+        },
+        "requester_name": {
+          "title": "Requester Name",
+          "description": "Name of the support requestor.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requester_email": {
+          "title": "Requester Email",
+          "description": "Email address of the support requestor.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "received_on": {
+          "title": "Received On",
+          "description": "The date when the support message was received.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SupportInformation": {
+      "type": "object",
+      "title": "SupportInformation",
+      "required": [
+        "requester_name",
+        "requester_email",
+        "summary",
+        "details",
+        "order_number",
+        "received_on"
+      ],
+      "properties": {
+        "requester_name": {
+          "title": "Requester Name",
+          "description": "Name of the support requestor.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requester_email": {
+          "title": "Requester Email",
+          "description": "Email address of the support requestor.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "title": "Summary",
+          "description": "A high level summary of the support issue."
+        },
+        "details": {
+          "type": "string",
+          "title": "Details",
+          "description": "Original text of the support request."
+        },
+        "order_number": {
+          "title": "Order Number",
+          "description": "The order number.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "received_on": {
+          "title": "Received On",
+          "description": "The date when the support message was received.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "email_helpdesk_input": {
+      "type": "object",
+      "title": "email_helpdesk_input",
+      "required": [
+        "email"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "Email"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-05-22T17:33:17.976598+00:00"
+  }
+}

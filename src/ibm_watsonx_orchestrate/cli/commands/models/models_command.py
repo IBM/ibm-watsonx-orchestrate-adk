@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import 
 from ibm_watsonx_orchestrate.client.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
-from ibm_watsonx_orchestrate.client.models.types import CreateVirtualModel, ANTHROPIC_DEFAULT_MAX_TOKENS
+from ibm_watsonx_orchestrate.client.models.types import CreateVirtualModel, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
 logger = logging.getLogger(__name__)
@@ -156,6 +156,10 @@ def models_add(
         str,
         typer.Option('--display-name', help='What name should this llm appear as within the ui'),
     ] = None,
+    type: Annotated[
+        ModelType,
+        typer.Option('--type', help='What type of model is it'),
+    ] = ModelType.CHAT,
 
 ):
     from ibm_watsonx_orchestrate.cli.commands.models.env_file_model_provider_mapper import env_file_to_model_ProviderConfig # lazily import this because the lut building is expensive
@@ -178,7 +182,8 @@ def models_add(
         description=description,
         tags=[],
         provider_config=provider_config,
-        config=config
+        config=config,
+        model_type=type
     )
 
     models_client.create(model)

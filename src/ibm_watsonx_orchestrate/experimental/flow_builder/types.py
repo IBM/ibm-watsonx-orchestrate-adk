@@ -3,7 +3,7 @@ from enum import Enum
 import inspect
 import logging
 from typing import (
-    Any, Callable, cast, Literal, List, NamedTuple, Optional, Sequence, Union
+    Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union
 )
 
 import docstring_parser
@@ -36,7 +36,7 @@ def _assign_attribute(obj, attr_name, schema):
 def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     model_spec = {}
     if isinstance(schema, dict):
-        schema = Munch(schema)
+        schema = JsonSchemaObject.model_validate(schema)
     _assign_attribute(model_spec, "type", schema)
     _assign_attribute(model_spec, "title", schema)
     _assign_attribute(model_spec, "description", schema)
@@ -63,6 +63,11 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
 
     _assign_attribute(model_spec, "in_field", schema)
     _assign_attribute(model_spec, "aliasName", schema)
+
+    if hasattr(schema, 'model_extra') and schema.model_extra:
+        # for each extra fiels, add it to the model spec
+        for key, value in schema.model_extra.items():
+            model_spec[key] = value
 
     if isinstance(schema, JsonSchemaObjectRef):
         model_spec["$ref"] = schema.ref
@@ -109,8 +114,7 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
     return model_spec
 
 class NodeSpec(BaseModel):
- 
-    kind: Literal["node", "tool", "user", "script", "agent", "flow", "start", "decisions", "prompt", "branch", "wait", "foreach", "loop", "end"] = "node"
+    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "branch", "wait", "foreach", "loop", "userflow", "end"] = "node"
     name: str
     display_name: str | None = None
     description: str | None = None
@@ -167,7 +171,6 @@ class EndNodeSpec(NodeSpec):
         self.kind = "end"
 
 class ToolNodeSpec(NodeSpec):
- 
     tool: Union[str, ToolSpec] = Field(default = None, description="the tool to use")
 
     def __init__(self, **data):
@@ -182,23 +185,233 @@ class ToolNodeSpec(NodeSpec):
             else:
                 model_spec["tool"] = self.tool
         return model_spec
+
+
+class UserFieldValue(BaseModel):
+    text: str | None = None
+    value: str | None = None
+
+    def __init__(self, text: str | None = None, value: str | None = None):
+        super().__init__(text=text, value=value)
+        if self.value is None:
+            self.value = self.text
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.text:
+            model_spec["text"] = self.text
+        if self.value:
+            model_spec["value"] = self.value
+
+        return model_spec
+
+class UserFieldOption(BaseModel):
+    label: str
+    values: list[UserFieldValue] | None = None
+
+    # create a constructor that will take a list and create UserFieldValue
+    def __init__(self, label: str, values=list[str]):
+        super().__init__(label=label)
+        self.values = []
+        for value in values:
+            item = UserFieldValue(text=value)
+            self.values.append(item)
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        model_spec["label"] = self.label
+        if self.values and len(self.values) > 0:
+            model_spec["values"] = [value.to_json() for value in self.values]
+        return model_spec
     
+class UserFieldKind(str, Enum):
+    Text: str = "text"
+    Date: str = "date"
+    DateTime: str = "datetime"
+    Time: str = "time"
+    Number: str = "number"
+    Document: str = "document"
+    Boolean: str = "boolean"
+    Object: str = "object"
+
+    def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
+        if inspect.isclass(python_type):
+            raise ValueError("Cannot convert class to kind")
+        
+        if python_type == str:
+            return UserFieldKind.Text
+        elif python_type == int:
+            return UserFieldKind.Number
+        elif python_type == float:
+            return UserFieldKind.Number
+        elif python_type == bool:
+            return UserFieldKind.Boolean
+        elif python_type == list:
+            raise ValueError("Cannot convert list to kind")
+        elif python_type == dict:
+            raise ValueError("Cannot convert dict to kind")
+        
+        return UserFieldKind.Text
+    
+    def convert_kind_to_schema_property(kind: "UserFieldKind", name: str, description: str, 
+                                        default: Any, option: UserFieldOption,
+                                        custom: dict[str, Any]) -> dict[str, Any]:
+        model_spec = {}
+        model_spec["title"] = name
+        model_spec["description"] = description
+        model_spec["default"] = default
+
+        model_spec["type"] = "string"
+        if kind == UserFieldKind.Date:
+            model_spec["format"] = "date"
+        elif kind == UserFieldKind.Time:
+            model_spec["format"] = "time"
+        elif kind == UserFieldKind.DateTime:
+            model_spec["format"] = "datetime"
+        elif kind == UserFieldKind.Number:
+            model_spec["format"] = "number"
+        elif kind == UserFieldKind.Boolean:
+            model_spec["type"] = "boolean"
+        elif kind == UserFieldKind.Document:
+            model_spec["format"] = "uri"
+        elif kind == UserFieldKind.Object:
+            raise ValueError("Object user fields are not supported.")
+        
+        if option:
+            model_spec["enum"] = [value.text for value in option.values]
+
+        if custom:
+            for key, value in custom.items():
+                model_spec[key] = value
+        return model_spec
+
+
+class UserField(BaseModel):
+    name: str
+    kind: UserFieldKind = UserFieldKind.Text
+    text: str | None = Field(default=None, description="A descriptive text that can be used to ask user about this field.")
+    display_name: str | None = None
+    description: str | None = None
+    default: Any | None = None
+    option: UserFieldOption | None = None
+    is_list: bool = False
+    custom: dict[str, Any] | None = None
+    widget: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind.value
+        if self.text:
+            model_spec["text"] = self.text
+        if self.display_name:
+            model_spec["display_name"] = self.display_name
+        if self.description:
+            model_spec["description"] = self.description
+        if self.default:
+            model_spec["default"] = self.default
+        if self.is_list:
+            model_spec["is_list"] = self.is_list
+        if self.option:
+            model_spec["option"] = self.option.to_json()
+        if self.custom:
+            model_spec["custom"] = self.custom
+        if self.widget:
+            model_spec["widget"] = self.widget
+        return model_spec
+
 class UserNodeSpec(NodeSpec):
- 
-    owners: Sequence[str] = ANY_USER
+    owners: Sequence[str] | None = None
+    text: str | None = None
+    fields: list[UserField] | None = None
 
     def __init__(self, **data):
         super().__init__(**data)
+        self.fields = []
         self.kind = "user"
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        # remove input schema
+        # if "input_schema" in model_spec:
+        #    raise ValueError("Input schema is not allowed for user node.")
+        #    del model_spec["input_schema"]
+
         if self.owners:
             model_spec["owners"] = self.owners
+        if self.text:
+            model_spec["text"] = self.text
+        if self.fields and len(self.fields) > 0:
+            model_spec["fields"] = [field.to_json() for field in self.fields]
+
         return model_spec
 
+    def field(self, name: str, 
+              kind: UserFieldKind, 
+              text: str | None = None,
+              display_name: str | None = None, 
+              description: str | None = None, 
+              default: Any | None = None, 
+              option: list[str] | None = None, is_list: bool = False,
+              custom: dict[str, Any] | None = None,
+              widget: str | None = None):
+        userfield = UserField(name=name, 
+                              kind=kind, 
+                              text=text,
+                              display_name=display_name, 
+                              description=description, 
+                              default=default, 
+                              option=option, 
+                              is_list=is_list,
+                              custom=custom,
+                              widget=widget)
+        
+        # find the index of the field
+        i = 0
+        for field in self.fields:
+            if field.name == name:
+                break
+        
+        if (len(self.fields) - 1) >= i:
+            self.fields[i] = userfield # replace
+        else:
+            self.fields.append(userfield) # append
+
+    def setup_fields(self):
+        # make sure fields are not there already
+        if hasattr(self, "fields") and len(self.fields) > 0:
+            raise ValueError("Fields are already defined.")
+        
+        if self.output_schema:
+            if isinstance(self.output_schema, SchemaRef):
+                schema = dereference_refs(schema)
+        schema = self.output_schema
+
+        # get all the fields from JSON schema
+        if self.output_schema and isinstance(self.output_schema, ToolResponseBody):
+            self.fields = []
+            for prop_name, prop_schema in self.output_schema.properties.items():
+                self.fields.append(UserField(name=prop_name,
+                                             kind=UserFieldKind.convert_python_type_to_kind(prop_schema.type),
+                                             display_name=prop_schema.title,
+                                             description=prop_schema.description,
+                                             default=prop_schema.default,
+                                             option=self.setup_field_options(prop_schema.title, prop_schema.enum),
+                                             is_list=prop_schema.type == "array",
+                                             custom=prop_schema.model_extra))
+
+    def setup_field_options(self, name: str, enums: List[str]) -> UserFieldOption:
+        if enums:
+            option = UserFieldOption(label=name, values=enums)
+            return option
+        else:
+            return None
+
+
+
 class AgentNodeSpec(ToolNodeSpec):
- 
     message: str | None = Field(default=None, description="The instructions for the task.")
     guidelines: str | None = Field(default=None, description="The guidelines for the task.")
     agent: str
@@ -215,6 +428,54 @@ class AgentNodeSpec(ToolNodeSpec):
             model_spec["guidelines"] = self.guidelines
         if self.agent:
             model_spec["agent"] = self.agent
+        return model_spec
+
+class PromptLLMParameters(BaseModel):
+    temperature: Optional[float] = None
+    min_new_tokens: Optional[int] = None
+    max_new_tokens: Optional[int] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    stop_sequences: Optional[list[str]] = None
+        
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.temperature:
+            model_spec["temperature"] = self.temperature
+        if self.min_new_tokens:
+            model_spec["min_new_tokens"] = self.min_new_tokens
+        if self.max_new_tokens:
+            model_spec["max_new_tokens"] = self.max_new_tokens
+        if self.top_k:
+            model_spec["top_k"] = self.top_k
+        if self.top_p:
+            model_spec["top_p"] = self.top_p
+        if self.stop_sequences:
+            model_spec["stop_sequences"] = self.stop_sequences
+        return model_spec
+
+
+class PromptNodeSpec(NodeSpec):
+    system_prompt: str | list[str]
+    user_prompt: str | list[str]
+    llm: Optional[str] 
+    llm_parameters: Optional[PromptLLMParameters] 
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.kind = "prompt"
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        if self.system_prompt:
+            model_spec["system_prompt"] = self.system_prompt
+        if self.user_prompt:
+            model_spec["user_prompt"] = self.user_prompt
+        if self.llm:
+            model_spec["llm"] = self.llm
+        if self.llm_parameters:
+            model_spec["llm_parameters"] = self.llm_parameters.to_json()
+
         return model_spec
 
 class Expression(BaseModel):
@@ -293,7 +554,7 @@ class FlowSpec(NodeSpec):
  
 
     # who can initiate the flow
-    initiators: Sequence[str] = ANY_USER
+    initiators: Sequence[str] = [ANY_USER]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -318,6 +579,20 @@ class LoopSpec(FlowSpec):
         model_spec = super().to_json()
         if self.evaluator:
             model_spec["evaluator"] = self.evaluator.to_json()
+
+        return model_spec
+
+class UserFlowSpec(FlowSpec):
+    owners: Sequence[str] = [ANY_USER]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.kind = "userflow"
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        if self.initiators:
+            model_spec["owners"] = self.initiators
 
         return model_spec
 
@@ -365,8 +640,6 @@ class FlowContext(BaseModel):
     name: str | None = None # name of the process or task
     task_id: str | None = None # id of the task, this is at the task definition level
     flow_id: str | None = None # id of the flow, this is at the flow definition level
-    instance_id: str | None = None
-    thread_id: str | None = None
     instance_id: str | None = None
     thread_id: str | None = None
     parent_context: Any | None = None
@@ -452,7 +725,7 @@ def extract_node_spec(
 
     if not return_type or return_type == inspect._empty:
         pass
-    elif isinstance(return_type, type) and issubclass(return_type, BaseModel):
+    elif inspect.isclass(return_type) and issubclass(return_type, BaseModel):
         output_schema_json = return_type.model_json_schema()
         output_schema_obj = JsonSchemaObject(**output_schema_json)
         output_schema = ToolResponseBody(

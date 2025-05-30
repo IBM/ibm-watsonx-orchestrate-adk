@@ -29,6 +29,18 @@ class  ModelProvider(str, Enum):
 
     def __repr__(self):
         return self.value
+
+class  ModelType(str, Enum):
+    CHAT = 'chat'
+    CHAT_VISION = 'chat_vision'
+    COMPLETION = 'completion'
+    EMBEDDING = 'embedding'
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
     
 
 class ProviderConfig(BaseModel):
@@ -158,7 +170,7 @@ class CreateVirtualModel(BaseModel):
     config: Optional[dict] = None
     provider_config: ProviderConfig
     tags: List[str]
-    model_type: str = 'chat'
+    model_type: str = ModelType.CHAT
 
 
 class ListVirtualModel(BaseModel):
