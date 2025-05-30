@@ -32,6 +32,34 @@ function python_release() {
           local new_version
           new_version=$(get_env wai-artifact-version)
 
+          # Create staging branch for new version
+          local branch
+          branch="$(get_default_branch)-release-${new_version}"
+          git_create_branch $branch
+
+          # Add changed files
+          git add "$version_file"
+
+          # Commit and push changed files
+          # Pushing this should trigger another pipeline trigger to start a run that will push the version to artifactory
+          git_commit_push "$branch" "Release version ${new_version}" --exclude-pipeline-run-url
+
+          git push origin "${branch}"
+          sleep 2m
+
+          git_create_pr --open-from "${branch}" --title "chore(beta-release): Release of ${new_version}" --description "Release of ${new_version} created by pipeline run ${BUILD_NUMBER}" --reviewer "Eric-Marcoux"
+        elif [ "$release_type" = "RELEASE" ]; then
+          local git_token
+          git_token=$(get_env git-token)
+
+          install_gh_cli_via_curl
+          authenticate_gh_cli "$git_token"
+          login_docker_registry "$(get_env "wai-registry-development")"
+
+          # Fetch what the new version will be
+          local new_version
+          new_version=$(get_env wai-artifact-version)
+
           # Create staging release for new version
           local branch
           branch="$(get_default_branch)-release-${new_version}"
