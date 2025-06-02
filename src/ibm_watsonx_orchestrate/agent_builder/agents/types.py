@@ -4,7 +4,7 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from pydantic import Field, AliasChoices
 from typing import Annotated
@@ -71,6 +71,15 @@ class BaseAgentSpec(BaseModel):
 #      NATIVE AGENT TYPES
 # ===============================
 
+class ChatWithDocsConfig(BaseModel):
+    enabled: Optional[bool] = None
+    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
+    generation:  Optional[GenerationConfiguration] = None
+    query_rewrite:  Optional[QueryRewriteConfig] = None
+    confidence_thresholds: Optional[ConfidenceThresholds] =None
+    citations:  Optional[CitationsConfig] = None
+    hap_filtering: Optional[HAPFiltering] = None
+    
 class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
@@ -89,6 +98,7 @@ class AgentSpec(BaseAgentSpec):
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
+    chat_with_docs: Optional[ChatWithDocsConfig] = None
 
 
     def __init__(self, *args, **kwargs):
