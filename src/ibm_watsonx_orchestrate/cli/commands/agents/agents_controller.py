@@ -16,6 +16,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentStyle
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -43,6 +44,7 @@ def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgen
     # Import tools
     import_python_tool(file)
     import_python_knowledge_base(file)
+    import_python_model(file)
 
     file_path = Path(file)
     file_directory = file_path.parent

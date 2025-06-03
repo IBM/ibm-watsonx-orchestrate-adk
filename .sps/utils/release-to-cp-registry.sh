@@ -29,10 +29,9 @@ for image in  $images; do
       echo "Copying us.icr.io/watson-orchestrate-private/${image} to icr.io/cp/wxo-lite/${image} repo."
       if [ "$DRY_RUN" == "false" ]; then
         skopeo copy --multi-arch all docker://us.icr.io/watson-orchestrate-private/${image} docker://icr.io/cp/wxo-lite/${image} --preserve-digests
-        else
-          echo "skopeo copy --multi-arch all docker://us.icr.io/watson-orchestrate-private/${image} docker://icr.io/cp/wxo-lite/${image} --preserve-digests"
-        fi
+      else
+        echo "skopeo copy --multi-arch all docker://us.icr.io/watson-orchestrate-private/${image} docker://icr.io/cp/wxo-lite/${image} --preserve-digests"
+      fi
     fi
 done
-
 

@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union
+from typing import List, Union
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 class ModelPolicyStrategyMode(str, Enum):
     LOAD_BALANCED = "loadbalance"
@@ -17,14 +17,13 @@ class ModelPolicyRetry(BaseModel):
     on_status_codes: List[int] = None
 
 class ModelPolicyTarget(BaseModel):
-    model_id: str = None
     weight: int = None
-
+    model_name: str = None
 
 class ModelPolicyInner(BaseModel):
     strategy: ModelPolicyStrategy = None
     retry: ModelPolicyRetry = None
-    targets: List[Union[ModelPolicyTarget, 'ModelPolicyInner']] = None
+    targets: List[Union['ModelPolicyInner', ModelPolicyTarget]] = None
 
 
 class ModelPolicy(BaseModel):
@@ -32,5 +31,5 @@ class ModelPolicy(BaseModel):
 
     name: str
     display_name: str
+    description: str
     policy: ModelPolicyInner
-

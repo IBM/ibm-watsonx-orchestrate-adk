@@ -25,7 +25,7 @@ from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
-from ibm_watsonx_orchestrate.cli.commands.models.models_command import ModelHighlighter
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection
 from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference

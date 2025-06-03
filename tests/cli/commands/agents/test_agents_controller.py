@@ -245,7 +245,7 @@ class TestImportPythonAgent:
             python_tool_import_mock.assert_called_once_with("test.py")
             python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
-            getmembers_mock.assert_called_once()
+            getmembers_mock.assert_called()
 
             assert len(agents) == 1
 
@@ -263,7 +263,7 @@ class TestImportPythonAgent:
             python_tool_import_mock.assert_called_once_with("test.py")
             python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
-            getmembers_mock.assert_called_once()
+            getmembers_mock.assert_called()
 
             assert len(agents) == 1
 
@@ -363,7 +363,7 @@ class TestParseFile:
             python_tool_import_mock.assert_called_once_with("test.py")
             python_knowledge_base_import_mock.assert_called_once_with("test.py")
             import_module_mock.assert_called_with("test")
-            getmembers_mock.assert_called_once()
+            getmembers_mock.assert_called()
 
             assert len(agents) == 0
 

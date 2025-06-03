@@ -324,6 +324,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
 
+
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
     platform: linux/amd64
