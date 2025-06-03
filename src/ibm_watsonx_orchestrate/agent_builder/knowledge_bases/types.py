@@ -184,11 +184,24 @@ class ElasticSearchConnection(BaseModel):
     result_filter: Optional[list] = None 
     field_mapping: Optional[FieldMapping] = None
 
+class CustomSearchConnection(BaseModel):
+    """
+    example:
+    {
+        "url": "https://customsearch.xxxx.us-east.codeengine.appdomain.cloud",
+        "filter": "...",
+        "metadata": {...}
+    }
+    """
+    url: str
+    filter: Optional[str] = None
+    metadata: Optional[dict] = None
 
 class IndexConnection(BaseModel):
     connection_id: Optional[str] = None
     milvus: Optional[MilvusConnection] = None
     elastic_search: Optional[ElasticSearchConnection] = None
+    custom_search: Optional[CustomSearchConnection] = None
 
     
 class ConversationalSearchConfig(BaseModel):
