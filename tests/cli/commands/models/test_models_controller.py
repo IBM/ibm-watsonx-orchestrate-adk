@@ -317,11 +317,11 @@ class TestExtractModelNamesFromPolicyInner:
     test_policy_strategy = ModelPolicyStrategy(mode=ModelPolicyStrategyMode.FALL_BACK, on_status_codes=[500])
     test_policy_retry = ModelPolicyRetry(attempts=1, on_status_codes=[400])
     test_policy_targets = [
-        ModelPolicyTarget(model_name="test_model_name_1", weight=1),
+        ModelPolicyTarget(model_name="test_model_name_1", weight=0.8),
         ModelPolicyInner(
             strategy = test_policy_strategy,
             retry = test_policy_retry,
-            targets=[ModelPolicyTarget(model_name="test_model_name_2", weight=1)]
+            targets=[ModelPolicyTarget(model_name="test_model_name_2", weight=0.2)]
         )
     ]
     test_policy_inner = ModelPolicyInner(
