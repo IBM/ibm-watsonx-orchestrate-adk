@@ -632,7 +632,7 @@ services:
 ######################## 
 
   wxo-doc-processing-service:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_TAG:-20250604-182948-243-111d4b6}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_TAG:-20250604-adk-dev}
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
