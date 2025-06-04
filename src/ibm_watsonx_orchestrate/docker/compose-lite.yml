@@ -624,6 +624,79 @@ services:
       - 9044:9044
     depends_on:
       - wxo-server-db
+
+########################
+# DOCPROC dependencies
+# DPS - 8081
+# WDU - 8082
+######################## 
+
+  wxo-doc-processing-service:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_TAG:-20250604-182948-243-111d4b6}
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-service
+      LOG_LEVEL: info
+      VERIFY_CLIENT_CERT: 0
+      SERVICE_URL: ${SERVICE_URL:-http://localhost:8080}
+      RATE_LIMITING_ENABLED: "false"
+      SHOULD_CACHE_IMAGES: "false"
+      HANDWRITING_ENABLED: "true"
+      WDU_RUNTIME_URL: wdu-runtime:8080
+      WDU_TIMEOUT_SECS: "180"
+      # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
+      # IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
+    depends_on:
+      wdu-runtime:
+        condition: service_healthy
+      # wo-doc-processing-cache:
+        # condition: service_healthy
+    ports:
+      - "8081:8080"
+    # volumes:
+      # - ./conf/wdu/certs:/etc/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wdu-runtime:
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-runtime:${WDU_TAG:-2.4.0}
+    environment:
+      PREFLIGHT_MAX_SIZE: 10Mb
+      PREFLIGHT_MAX_PAGES: 600
+      # CONFIG_FILES: "/app/configs/config.yaml"
+      RUNTIME_LIBRARY: "watson_doc_understanding"
+    ports:
+      - "8082:8080"
+      - "8086:8086"
+    volumes:
+      # - "./wdu-config.yaml:/app/configs/config.yaml"
+      - "wdu-models:/models"
+      - "wdu-prometheus-files:/prometheus/"
+      # - "./docker/wo_doc_processing_service_base/etc/certs:/etc/certs"
+    tmpfs:
+      - "/dev/shm"
+    healthcheck:
+      test: ["CMD-SHELL", "/app/check_heartbeat.sh /tmp/heartbeat.txt 120"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+    depends_on:
+      wdu-model-copy:
+        condition: service_completed_successfully
+
+  wdu-model-copy:
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-models:${WDU_TAG:-2.4.0}
+    user: root
+    environment:
+      DEST_FOLDER: "/app/models"
+    volumes:
+      - "wdu-models:/app/models"
+      - "wdu-prometheus-files:/prometheus/"
+    tmpfs:
+      - "/dev/shm"
     
 volumes:
   tools:
@@ -647,6 +720,14 @@ volumes:
   langfuse_clickhouse_data:
     driver: local
   langfuse_clickhouse_logs:
+    driver: local
+  wdu-prometheus-files:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "uid=1000,gid=1000,mode=1777"
+  wdu-models:
     driver: local
 networks:
   default:
