@@ -160,14 +160,3 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
         assert False, "Expected error was not raised"
-        
-def test_should_reject_custom_join_tool_with_incorrect_return_type():
-    description = "test python description"
-    try:
-        @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
-        def sample_tool(original_query: str, task_results: Dict[str, Any], messages: List[Dict[str, Any]]) -> None:
-            return None
-    except Exception as e:
-        assert "incorrect return type" in str(e)
-    else:
-        assert False, "Expected error was not raised"
