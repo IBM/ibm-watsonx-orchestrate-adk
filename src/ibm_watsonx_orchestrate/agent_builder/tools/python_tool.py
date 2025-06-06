@@ -24,7 +24,6 @@ JOIN_TOOL_PARAMS = {
     'task_results': Dict[str, Any],
     'messages': List[Dict[str, Any]],
 }
-JOIN_TOOL_RETURN = str
 
 class PythonTool(BaseTool):
     def __init__(self, fn, spec: ToolSpec, expected_credentials: List[ExpectedCredentials]=None):
@@ -123,12 +122,6 @@ def _validate_join_tool_func(fn: Callable, sig: inspect.Signature | None = None,
         actual_type = type_hints[param]
         if actual_type != expected_type:
             raise ValueError(f"Join tool function '{name}' has incorrect type for parameter '{param}'. Expected {expected_type}, got {actual_type}")
-
-    # Validate return type
-    if 'return' not in type_hints:
-        raise ValueError(f"Join tool function '{name}' is missing a return type")
-    if type_hints['return'] != JOIN_TOOL_RETURN:
-        raise ValueError(f"Join tool function '{name}' has incorrect return type. Expected {JOIN_TOOL_RETURN}, got {type_hints['return']}")
 
 def tool(
     *args,

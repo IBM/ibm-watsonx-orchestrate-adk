@@ -219,9 +219,4 @@ class ToolSpec(BaseModel):
         if input_schema.properties["original_query"].type != "string":
             return False
 
-        # Validate the output schema has type "string"
-        output_schema = self.output_schema
-        if output_schema.type != "string":
-            return False
-
         return True
