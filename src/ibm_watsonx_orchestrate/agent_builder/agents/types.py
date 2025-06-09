@@ -6,6 +6,7 @@ from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
+from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompt,WelcomeContent
 from pydantic import Field, AliasChoices
 from typing import Annotated
 
@@ -115,6 +116,8 @@ class AgentSpec(BaseAgentSpec):
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
     chat_with_docs: Optional[ChatWithDocsConfig] = None
+    starter_prompts: Optional[StarterPrompt] = None
+    welcome_content: Optional[WelcomeContent] = None
 
 
     def __init__(self, *args, **kwargs):

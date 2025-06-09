@@ -553,7 +553,7 @@ class AgentsController:
 
         return agent
     
-    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         agent_dict = agent.model_dump()
 
         if agent_dict.get("app_id") or agent.config.model_dump().get("app_id"):
@@ -561,7 +561,7 @@ class AgentsController:
 
         return agent
 
-    def reference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+    def reference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         agent_dict = agent.model_dump()
 
         if agent_dict.get("connection_id") or agent.config.model_dump().get("connection_id"):
@@ -969,7 +969,6 @@ class AgentsController:
         
 
     def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None) -> None:
-    
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
