@@ -1,2 +1,2 @@
-from .prompts import AgentPrompt, StarterPrompt
+from .prompts import AgentPrompt, StarterPrompts
 from .welcome_content import WelcomeContent

@@ -28,6 +28,6 @@ def validate_agent_prompt_fields(values: Dict):
             raise ValueError(f"{field} cannot be empty or just whitespace")
     return values
 
-class StarterPrompt(BaseModel):
+class StarterPrompts(BaseModel):
     is_default_prompts: bool = False
     prompts: Annotated[List[AgentPrompt], Len(min_length=1)]

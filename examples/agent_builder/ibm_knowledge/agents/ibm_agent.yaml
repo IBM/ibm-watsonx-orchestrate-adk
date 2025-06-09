@@ -8,17 +8,3 @@ style: react
 knowledge_base:
   - ibm_knowledge_base
 tools: []
-# new args
-hidden: false
-starter_prompts:
-    is_default_prompts: false # optional, default false
-    prompts:
-        - id: "prompt_id_1"
-          title: "Hello1"
-          subtitle: ""
-          prompt: "This is the msg for Hello1 prompt"
-          state: "active"
-welcome_content:
-  welcome_message: "Hello, I'm the IBM Knowledge Agent. Welcome to Watson Orchestrate!"
-  description: "This is not default"
-  is_default_message: false # optional, default false
