@@ -668,6 +668,8 @@ services:
       PREFLIGHT_MAX_PAGES: 600
       # CONFIG_FILES: "/app/configs/config.yaml"
       RUNTIME_LIBRARY: "watson_doc_understanding"
+      # HTTP_SERVER_TLS_SERVER_CERT: "/etc/certs/wdu.crt"
+      # HTTP_SERVER_TLS_SERVER_KEY: "/etc/certs/wdu.key"
     ports:
       - "8082:8080"
       - "8086:8086"
