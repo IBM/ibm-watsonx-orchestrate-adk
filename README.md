@@ -43,6 +43,8 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 - 8 cores
 - 25GB disk space
 
+> **Note:** If you run with WDU enabled, you will need **at least an additional 6GB of memory** (i.e., a total of **22GB RAM**) to ensure stable operation.
+
 **A docker engine**   
   Ensure that you have a docker engine installed capable of running docker compose.
   The watsonx Orchestrate team recommends either [Rancher](https://rancherdesktop.io/) or [Colima](https://github.com/abiosoft/colima).
@@ -96,6 +98,24 @@ $ orchestrate --help
 The Developer Edition of Watsonx Orchestrate can be installed following the
 instructions [here](https://developer.watson-orchestrate.ibm.com/getting_started/wxOde_setup). After which
 you will be able to start, activate, import into and rapidly reset a local server of watsonx Orchestrate.
+
+### Starting the Developer Edition
+
+```
+ orchestrate server start --help                           
+     
+ Usage: orchestrate server start [OPTIONS]                                                                                     
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                          │
+│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                                 │
+│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                                   │
+│ --with-wdu                     -w            Option to enable Watson Document Understanding                                                                                                     │
+│ --help                                       Show this message and exit.                                                                                                                        │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Example:
+
 ```bash
 $ orchestrate server start -e .env
 [INFO] - Logging into Docker registry: us.icr.io ...
@@ -123,6 +143,17 @@ $ orchestrate agents import -f my-agent.yaml
 $ orchestrate chat start
 ```
 ![img.png](./_docs/assets/chat-example.png)
+
+### Starting the Developer Edition
+
+```
+orchestrate server stop --help                                           
+ Usage: orchestrate server stop [OPTIONS]                                                                                                                                                          
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --env-file  -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                                             │
+│ --help                    Show this message and exit.                                                                                                                                           │
+╰──────────────────────────────────────────────────────
+```
 
 ## Reporting issues
 Customers of watsonx Orchestrate can raise issues with the ADK or the Developer Edition server to [IBM Support](https://www.ibm.com/mysupport/s/topic/0TO3p000000A6YLGA0/watsonx-orchestrate?productId=01t3p00000SsRnhAAF&language=en_US).
