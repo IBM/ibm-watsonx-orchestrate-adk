@@ -33,7 +33,7 @@ from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, C
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
-from ibm_watsonx_orchestrate.experimental.flow_builder.flows.decorators import FlowWrapper
+from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
@@ -41,7 +41,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_de
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
-from ibm_watsonx_orchestrate.experimental.flow_builder.utils import import_flow_model
+from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_model
 
 from  ibm_watsonx_orchestrate import __version__
 

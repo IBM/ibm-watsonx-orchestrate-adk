@@ -1,0 +1,408 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "get_tuition_reimbursed",
+    "display_name": "get_tuition_reimbursed",
+    "input_schema": {
+      "$ref": "#/schemas/get_tuition_reimbursed_input"
+    },
+    "output_schema": {
+      "type": "string"
+    }
+  },
+  "nodes": {
+    "foreach_1": {
+      "spec": {
+        "kind": "foreach",
+        "name": "foreach_1",
+        "display_name": "foreach_1",
+        "input_schema": {
+          "$ref": "#/schemas/foreach_1_input"
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "initiators": [
+          "__any_user__"
+        ],
+        "item_schema": {
+          "ref": "#/schemas/RequestInfo"
+        },
+        "foreach_policy": "SEQUENTIAL"
+      },
+      "nodes": {
+        "auto_deny_request": {
+          "spec": {
+            "kind": "tool",
+            "name": "auto_deny_request",
+            "display_name": "auto_deny_request",
+            "description": "Return a message ",
+            "input_schema": {
+              "$ref": "#/schemas/auto_deny_request_input"
+            },
+            "output_schema": {
+              "type": "string",
+              "description": "A message based on request"
+            },
+            "tool": "auto_deny_request"
+          }
+        },
+        "auto_approval": {
+          "spec": {
+            "kind": "tool",
+            "name": "auto_approval",
+            "display_name": "auto_approval",
+            "description": "Return a message",
+            "input_schema": {
+              "$ref": "#/schemas/auto_approval_input"
+            },
+            "output_schema": {
+              "type": "string",
+              "description": "A message based on request"
+            },
+            "tool": "auto_approval"
+          }
+        },
+        "require_manager_approval": {
+          "spec": {
+            "kind": "tool",
+            "name": "require_manager_approval",
+            "display_name": "require_manager_approval",
+            "description": "Return a message ",
+            "input_schema": {
+              "$ref": "#/schemas/require_manager_approval_input"
+            },
+            "output_schema": {
+              "type": "string",
+              "description": "A message based on request"
+            },
+            "tool": "require_manager_approval"
+          }
+        },
+        "branch_1": {
+          "spec": {
+            "kind": "branch",
+            "name": "branch_1",
+            "display_name": "branch_1",
+            "evaluator": {
+              "expression": "parent._current_item.overall_grade.strip().upper()"
+            },
+            "cases": {
+              "A": {
+                "display_name": "auto_approval",
+                "node": "auto_approval"
+              },
+              "B": {
+                "display_name": "require_manager_approval",
+                "node": "require_manager_approval"
+              },
+              "C": {
+                "display_name": "auto_deny_request",
+                "node": "auto_deny_request"
+              },
+              "__default__": {
+                "display_name": "auto_deny_request",
+                "node": "auto_deny_request"
+              }
+            },
+            "match_policy": "FIRST_MATCH"
+          }
+        },
+        "branch_2": {
+          "spec": {
+            "kind": "branch",
+            "name": "branch_2",
+            "display_name": "branch_2",
+            "evaluator": {
+              "expression": "parent._current_item.tuition_amount > 10000"
+            },
+            "cases": {
+              "true": {
+                "display_name": "auto_deny_request",
+                "node": "auto_deny_request"
+              },
+              "false": {
+                "display_name": "branch_1",
+                "node": "branch_1"
+              }
+            },
+            "match_policy": "FIRST_MATCH"
+          }
+        },
+        "branch_3": {
+          "spec": {
+            "kind": "branch",
+            "name": "branch_3",
+            "display_name": "branch_3",
+            "evaluator": {
+              "expression": "parent._current_item.is_fulltime == True"
+            },
+            "cases": {
+              "true": {
+                "display_name": "branch_2",
+                "node": "branch_2"
+              },
+              "false": {
+                "display_name": "auto_deny_request",
+                "node": "auto_deny_request"
+              }
+            },
+            "match_policy": "FIRST_MATCH"
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "branch_1",
+          "end": "auto_approval"
+        },
+        {
+          "start": "branch_1",
+          "end": "require_manager_approval"
+        },
+        {
+          "start": "branch_1",
+          "end": "auto_deny_request"
+        },
+        {
+          "start": "branch_1",
+          "end": "auto_deny_request"
+        },
+        {
+          "start": "branch_2",
+          "end": "auto_deny_request"
+        },
+        {
+          "start": "branch_2",
+          "end": "branch_1"
+        },
+        {
+          "start": "branch_3",
+          "end": "branch_2"
+        },
+        {
+          "start": "branch_3",
+          "end": "auto_deny_request"
+        },
+        {
+          "start": "__start__",
+          "end": "branch_3"
+        },
+        {
+          "start": "auto_deny_request",
+          "end": "__end__"
+        },
+        {
+          "start": "require_manager_approval",
+          "end": "__end__"
+        },
+        {
+          "start": "auto_approval",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "get_requests": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_requests",
+        "display_name": "get_requests",
+        "description": "Returns a list of RequestInfo object that match the request['ids']\n",
+        "input_schema": {
+          "$ref": "#/schemas/get_requests_input"
+        },
+        "output_schema": {
+          "type": "array",
+          "description": "A list of RequestInfo object",
+          "items": {
+            "$ref": "#/schemas/RequestInfo"
+          }
+        },
+        "tool": "get_requests"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "get_requests"
+    },
+    {
+      "start": "get_requests",
+      "end": "foreach_1"
+    },
+    {
+      "start": "foreach_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "get_tuition_reimbursed_input": {
+      "type": "object",
+      "title": "get_tuition_reimbursed_input",
+      "required": [
+        "ids"
+      ],
+      "properties": {
+        "ids": {
+          "type": "string",
+          "title": "Ids",
+          "description": "a series of id seperated by comma"
+        }
+      }
+    },
+    "RequestInfo": {
+      "type": "object",
+      "title": "RequestInfo",
+      "required": [
+        "tuition_amount",
+        "overall_grade",
+        "is_fulltime",
+        "first_name",
+        "last_name"
+      ],
+      "properties": {
+        "tuition_amount": {
+          "type": "integer",
+          "title": "Tuition Amount",
+          "description": "Tuition amount"
+        },
+        "overall_grade": {
+          "type": "string",
+          "title": "Overall Grade",
+          "description": "OverAll Grade"
+        },
+        "is_fulltime": {
+          "type": "boolean",
+          "title": "Is Fulltime",
+          "description": "Employee's employment status"
+        },
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "Employee's first name"
+        },
+        "last_name": {
+          "type": "string",
+          "title": "Last Name",
+          "description": "Employee's first name"
+        }
+      }
+    },
+    "foreach_1_input": {
+      "type": "object",
+      "title": "foreach_1_input",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/RequestInfo"
+          }
+        }
+      }
+    },
+    "auto_deny_request_input": {
+      "type": "object",
+      "title": "auto_deny_request_input",
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "title": "RequestInfo",
+          "$ref": "#/schemas/RequestInfo"
+        }
+      }
+    },
+    "auto_approval_input": {
+      "type": "object",
+      "title": "auto_approval_input",
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "title": "RequestInfo",
+          "$ref": "#/schemas/RequestInfo"
+        }
+      }
+    },
+    "require_manager_approval_input": {
+      "type": "object",
+      "title": "require_manager_approval_input",
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "title": "RequestInfo",
+          "$ref": "#/schemas/RequestInfo"
+        }
+      }
+    },
+    "RequestID": {
+      "type": "object",
+      "title": "RequestID",
+      "required": [
+        "ids"
+      ],
+      "properties": {
+        "ids": {
+          "type": "string",
+          "title": "Ids",
+          "description": "a series of id seperated by comma"
+        }
+      }
+    },
+    "get_requests_input": {
+      "type": "object",
+      "title": "get_requests_input",
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "title": "RequestID",
+          "$ref": "#/schemas/RequestID"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-09T13:15:56.892074+00:00"
+  }
+}
