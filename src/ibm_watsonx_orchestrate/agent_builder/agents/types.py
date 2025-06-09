@@ -3,11 +3,13 @@ import yaml
 from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
-from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from pydantic import Field, AliasChoices
 from typing import Annotated
+
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
 DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
@@ -78,6 +80,8 @@ class AgentSpec(BaseAgentSpec):
     kind: AgentKind = AgentKind.NATIVE
     llm: str = DEFAULT_LLM
     style: AgentStyle = AgentStyle.DEFAULT
+    custom_join_tool: str | PythonTool | None = None
+    structured_output: Optional[JsonSchemaObject] = None
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
@@ -117,6 +121,11 @@ def validate_agent_fields(values: dict) -> dict:
         if collaborator == name:
             raise ValueError(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
 
+    if values.get("style") == AgentStyle.PLANNER:
+        if not values.get("custom_join_tool") and not values.get("structured_output"):
+            raise ValueError("Either 'custom_join_tool' or 'structured_output' must be provided for planner style agents.")
+        if values.get("custom_join_tool") and values.get("structured_output"):
+            raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
 
     return values
 

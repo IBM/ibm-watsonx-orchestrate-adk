@@ -34,16 +34,18 @@ class TestAgentCreate:
                 title="test",
                 api_url=None,
                 auth_scheme=ExternalAgentAuthScheme.API_KEY,
-                auth_config={},
+                auth_config='{}',
                 provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.DEFAULT,
+                custom_join_tool=None,
+                structured_output=None,
                 collaborators=[],
                 tools=[],
                 knowledge_base=[],
                 tags=None, 
-                chat_params={}, 
-                config={}, 
+                chat_params='{}', 
+                config='{}', 
                 nickname=None, 
                 app_id=None,
                 output_file="test.yaml",
@@ -59,6 +61,8 @@ class TestAgentCreate:
                 provider=AgentProvider.EXT_CHAT,
                 llm="test_llm",
                 style=AgentStyle.DEFAULT,
+                custom_join_tool=None,
+                structured_output=None,
                 collaborators=[],
                 tools=[],
                 knowledge_base=[],
@@ -70,6 +74,58 @@ class TestAgentCreate:
                 output_file="test.yaml",
             )
             publish_mock.assert_called_once()
+
+    def test_create_native_agent_planner(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.generate_agent_spec") as generate_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock:
+            agents_command.agent_create(
+                name="test",
+                kind=AgentKind.NATIVE,
+                description="test_agent",
+                title="test",
+                api_url=None,
+                auth_scheme=ExternalAgentAuthScheme.API_KEY,
+                auth_config='{}',
+                provider=AgentProvider.EXT_CHAT,
+                llm="test_llm",
+                style=AgentStyle.PLANNER,
+                custom_join_tool='test_join_tool',
+                structured_output='{"type": "object", "additionalProperties": false, "properties": {}}',
+                collaborators=[],
+                tools=[],
+                knowledge_base=[],
+                tags=None, 
+                chat_params='{}', 
+                config='{}', 
+                nickname=None, 
+                app_id=None,
+                output_file="test.yaml",
+                )
+            generate_mock.assert_called_once_with(
+                name="test",
+                kind=AgentKind.NATIVE,
+                description="test_agent",
+                title="test",
+                api_url=None,
+                auth_scheme=ExternalAgentAuthScheme.API_KEY,
+                auth_config={},
+                provider=AgentProvider.EXT_CHAT,
+                llm="test_llm",
+                style=AgentStyle.PLANNER,
+                custom_join_tool='test_join_tool',
+                structured_output={"type": "object", "additionalProperties": False, "properties": {}},
+                collaborators=[],
+                tools=[],
+                knowledge_base=[],
+                tags=None, 
+                chat_params={}, 
+                config={}, 
+                nickname=None, 
+                app_id=None,
+                output_file="test.yaml",
+            )
+            publish_mock.assert_called_once()
+
 
 class TestAgentList:
     def test_agent_list_agents_non_verbose(self):

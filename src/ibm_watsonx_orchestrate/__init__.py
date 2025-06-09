@@ -9,7 +9,6 @@ __version__ = "1.6.0"
 
 
 
-
 from ibm_watsonx_orchestrate.utils.logging.logger import setup_logging
 
 setup_logging()
