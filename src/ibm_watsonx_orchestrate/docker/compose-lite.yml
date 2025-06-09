@@ -646,6 +646,8 @@ services:
       WDU_TIMEOUT_SECS: "180"
       # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
       # IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
+    profiles:
+      - wdu
     depends_on:
       wdu-runtime:
         condition: service_healthy
@@ -670,6 +672,8 @@ services:
       RUNTIME_LIBRARY: "watson_doc_understanding"
       # HTTP_SERVER_TLS_SERVER_CERT: "/etc/certs/wdu.crt"
       # HTTP_SERVER_TLS_SERVER_KEY: "/etc/certs/wdu.key"
+    profiles:
+      - wdu
     ports:
       - "8082:8080"
       - "8086:8086"
@@ -692,6 +696,8 @@ services:
   wdu-model-copy:
     image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-models:${WDU_TAG:-2.4.0}
     user: root
+    profiles:
+      - wdu
     environment:
       DEST_FOLDER: "/app/models"
     volumes:
