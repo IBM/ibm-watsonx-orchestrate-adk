@@ -18,6 +18,7 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     get_agent_details
     )
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent, AgentProvider, ExternalAgentAuthScheme
+from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import AgentPrompt,StarterPrompts,WelcomeContent
 from ibm_watsonx_orchestrate.client.connections.connections_client import GetConnectionResponse
 from ibm_watsonx_orchestrate.agent_builder.agents.types import ExternalAgentConfig, AssistantAgentConfig
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
@@ -177,6 +178,133 @@ def join_tool_spec():
         }
     }
 
+@pytest.fixture
+def agent_spec_with_starter_prompt():
+    return {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "style": "react",
+        "name": "webchat_customization_test_agent",
+        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "description":  '',
+        "instructions": '',
+        "collaborators": [],
+        "tools": [],
+        "hidden": False,
+        "starter_prompts": {
+            "is_default_prompts": False,
+            "prompts": [
+                {
+                    "id": "prompt_id_1",
+                    "title": "Hello1",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello1 prompt",
+                    "state": "active"
+                }
+            ]
+        }
+    }
+
+@pytest.fixture
+def agent_spec_with_starter_prompts():
+    return {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "style": AgentStyle.REACT,
+        "name": "webchat_customization_test_agent",
+        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "description":  '',
+        "instructions": '',
+        "collaborators": [],
+        "tools": [],
+        "hidden": False,
+        "starter_prompts": {
+            "is_default_prompts": False,
+            "prompts": [
+                {
+                    "id": "prompt_id_1",
+                    "title": "Hello1",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello1 prompt",
+                    "state": "active"
+                },
+                {
+                    "id": "prompt_id_2",
+                    "title": "Hello2",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello2 prompt",
+                    "state": "inactive"
+                },
+                {
+                    "id": "prompt_id_3",
+                    "title": "Hello3",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello3 prompt",
+                    "state": "active"
+                },
+                {
+                    "id": "prompt_id_4",
+                    "title": "Hello4",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello4 prompt",
+                    "state": "active"
+                }
+            ]
+        }
+    }
+
+@pytest.fixture
+def agent_spec_with_welcome_content():
+    return {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "style": AgentStyle.REACT,
+        "name": "webchat_customization_test_agent",
+        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "description":  '',
+        "instructions": '',
+        "collaborators": [],
+        "tools": [],
+        "hidden": False,
+        "welcome_content":{
+            "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
+            "description" : "This is not default",
+            "is_default_message" : False
+        }
+    }
+
+@pytest.fixture
+def agent_spec_with_webchat_customizations():
+    return {
+        "spec_version": SpecVersion.V1,
+        "kind": AgentKind.NATIVE,
+        "style": AgentStyle.REACT,
+        "name": "webchat_customization_test_agent",
+        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "description":  '',
+        "instructions": '',
+        "collaborators": [],
+        "tools": [],
+        "hidden": False,
+        "starter_prompts": {
+            "is_default_prompts": False,
+            "prompts": [
+                {
+                    "id": "prompt_id_1",
+                    "title": "Hello1",
+                    "subtitle": "",
+                    "prompt": "This is the msg for Hello1 prompt",
+                    "state": "active"
+                }
+            ]
+        },
+        "welcome_content":{
+            "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
+            "description" : "This is not default",
+            "is_default_message" : False
+        }
+    }
+
 class MockSDKResponse:
     def __init__(self, response_obj):
         self.response_obj = response_obj
@@ -308,6 +436,8 @@ class TestCreateAgentFromSpec:
 
             assert "'kind' must be either 'native'" in str(e)
 
+
+
 class TestParseFile:
     def test_parse_file_yaml(self, native_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as from_spec_mock, \
@@ -401,6 +531,29 @@ class TestParseCreateNativeArgs:
         assert parsed_args["style"] == AgentStyle.REACT
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
+    
+    def test_parse_create_native_args_with_webchat_customizations(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="Test Agent Description",
+            llm="test_llm",
+            style=AgentStyle.REACT,
+            collaborators=["agent1", "    "],
+            tools=["  tool1  ", "tool2"],
+            starter_prompts={
+                "is_default_propmts": False,
+                "prompts":[
+                    {"testprompt":"present"}
+                ]
+            },
+            welcome_content={"key":"welcome_content"}
+        )
+        assert parsed_args["name"] == "test_agent"
+        assert type(parsed_args["starter_prompts"]) is dict
+        assert type(parsed_args["starter_prompts"]["prompts"]) is list
+        assert type(parsed_args["welcome_content"]) is dict
+
 
 class TestParseCreateExternalArgs:
     def test_parse_create_external_args(self):
@@ -1448,3 +1601,31 @@ class TestAgentsControllerExportAgent:
 
         assert f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{self.mock_zip_file_path}' ends with '.zip'"
         assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" not in captured
+
+class TestAgentWebchatCustomizations:
+    def test_create_agent_with_welcome_content(self,agent_spec_with_welcome_content):
+        test_agent=Agent(**agent_spec_with_welcome_content)
+        assert type(test_agent.welcome_content) is WelcomeContent
+
+    def test_create_agent_with_starter_prompt(self,agent_spec_with_starter_prompt):
+        test_agent=Agent(**agent_spec_with_starter_prompt)
+        assert type(test_agent.starter_prompts) is StarterPrompts
+        assert len(test_agent.starter_prompts.prompts) == 1
+        for p in test_agent.starter_prompts.prompts:
+            assert type(p) is AgentPrompt
+
+    def test_create_agent_with_many_starter_prompts(self,agent_spec_with_starter_prompts):
+        test_agent=Agent(**agent_spec_with_starter_prompts)
+        assert type(test_agent.starter_prompts) is StarterPrompts
+        assert len(test_agent.starter_prompts.prompts) == len(agent_spec_with_starter_prompts["starter_prompts"]["prompts"])
+        for p in test_agent.starter_prompts.prompts:
+            assert type(p) is AgentPrompt
+
+    def test_create_Agent_with_all_webchat_customizations(self,agent_spec_with_webchat_customizations):
+        test_agent=Agent(**agent_spec_with_webchat_customizations)
+        assert type(test_agent.welcome_content) is WelcomeContent
+        assert type(test_agent.starter_prompts) is StarterPrompts
+        assert len(test_agent.starter_prompts.prompts) == len(agent_spec_with_webchat_customizations["starter_prompts"]["prompts"])
+        for p in test_agent.starter_prompts.prompts:
+            assert type(p) is AgentPrompt
+    
