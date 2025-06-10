@@ -55,7 +55,7 @@ class ConnectionsClient(BaseAPIClient):
     # GET /api/v1/connections/applications/{app_id}
     def get(self, app_id: str) -> GetConnectionResponse:
         try:
-            return GetConnectionResponse.model_validate(self._get(f"/connections/applications/{app_id}"))
+            return GetConnectionResponse.model_validate(self._get(f"/connections/applications?app_id={app_id}"))
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -65,7 +65,7 @@ class ConnectionsClient(BaseAPIClient):
     # GET api/v1/connections/applications
     def list(self) -> List[ListConfigsResponse]:
         try:
-            res = self._get(f"/connections/applications")
+            res = self._get(f"/connections/applications?include_details=true")
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
@@ -115,9 +115,9 @@ class ConnectionsClient(BaseAPIClient):
     def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> dict:
         try:
             if use_sso:
-                return self._get(f"/connections/applications/{app_id}/credentials?env={env}")
+                return self._get(f"/connections/applications/{app_id}/credentials/{env}")
             else:
-                return self._get(f"/connections/applications/{app_id}/configs/runtime_credentials?env={env}")
+                return self._get(f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}")
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -147,7 +147,7 @@ class ConnectionsClient(BaseAPIClient):
         if conn_id is None:
             return ""
         try:
-            app_details = self._get(f"/connections/applications/id/{conn_id}")
+            app_details = self._get(f"/connections/applications?connection_id={conn_id}")
             return app_details.get("app_id")
         except ClientAPIException as e:
             if e.response.status_code == 404:

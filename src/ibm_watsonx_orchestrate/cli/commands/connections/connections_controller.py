@@ -80,7 +80,6 @@ def _create_connection_from_spec(content: dict) -> None:
         config = environments.get(environment)
         config["environment"] = environment
         config["app_id"] = app_id
-        config["environment"] = environment
         config = ConnectionConfiguration.model_validate(config)
         add_configuration(config)
     
@@ -437,6 +436,7 @@ def configure_connection(**kwargs) -> None:
         logger.error(f"Cannot create configuration for environment '{kwargs.get('environment')}'. Local development does not support any environments other than 'draft'.")
         sys.exit(1)
 
+    
     idp_config_body = None
     if kwargs.get("idp_token_type") or kwargs.get("idp_token_use"):
         idp_config_body = IdpConfigDataBody(
