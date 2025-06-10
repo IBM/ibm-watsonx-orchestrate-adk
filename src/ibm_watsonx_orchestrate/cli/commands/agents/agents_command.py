@@ -137,7 +137,7 @@ def agent_create(
         List[str],
         typer.Option(
             "--knowledge-bases",
-            help="A list of knowlege bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
+            help="A list of knowledge bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
         ),
     ] = None,
     output_file: Annotated[

@@ -985,7 +985,7 @@ class TestListAgents:
         # Mock tool client response
         mock_get_tool_client.return_value.get_draft_by_id.return_value = {'name': 'Test Tool'}
 
-        # Mock knowlege base client
+        # Mock knowledge base client
         mock_get_knowledge_base_client.return_value.get_by_id.return_value = {'name': 'Test Knowledge Base'}
         
         # Test for Native agents

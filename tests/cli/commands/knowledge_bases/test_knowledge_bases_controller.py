@@ -163,10 +163,10 @@ class TestImportKnowledgeBase:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
-            knowlege_Base = KnowledgeBase(**built_in_knowledge_base_content)
-            from_spec_mock.return_value = knowlege_Base
+            knowledge_Base = KnowledgeBase(**built_in_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_Base
 
-            knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
+            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
             knowledge_base_payload["prioritize_built_in_index"] = True
             knowledge_base_payload.pop("documents")
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
@@ -189,11 +189,11 @@ class TestImportKnowledgeBase:
             mock_response = MockListConnectionResponse(connection_id="12345")
             conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
                         
-            knowlege_Base = KnowledgeBase(**external_knowledge_base_content)
-            from_spec_mock.return_value = knowlege_Base
+            knowledge_Base = KnowledgeBase(**external_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_Base
 
-            knowlege_Base.conversational_search_tool.index_config[0].connection_id = "12345"
-            knowledge_base_payload = knowlege_Base.model_dump(exclude_none=True)
+            knowledge_Base.conversational_search_tool.index_config[0].connection_id = "12345"
+            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
             knowledge_base_payload["prioritize_built_in_index"] = False
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
 
