@@ -17,11 +17,11 @@ class ModelPoliciesClient(BaseAPIClient):
     """
     # POST api/v1/model_policy
     def create(self, model: ModelPolicy) -> None:
-        self._post("/model_policy", data=model.model_dump())
+        self._post("/model_policy", data=model.model_dump(exclude_none=True))
     
     # PUT api/v1/model_policy/{model_policy_id}
     def update(self, model_policy_id: str, model: ModelPolicy) -> None:
-        self._put(f"/model_policy/{model_policy_id}", data=model.model_dump())
+        self._put(f"/model_policy/{model_policy_id}", data=model.model_dump(exclude_none=True))
 
     # DELETE api/v1/model_policy/{model_policy_id}
     def delete(self, model_policy_id: str) -> dict:

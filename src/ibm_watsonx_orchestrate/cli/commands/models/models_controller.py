@@ -85,6 +85,11 @@ def import_python_policy(file: str) -> List[ModelPolicy]:
             models.append(obj)
     return models
 
+def validate_spec_content(content: dict) -> None:
+    if not content.get("spec_version"):
+        logger.error(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
+        sys.exit(1)
+
 def parse_model_file(file: str) -> List[VirtualModel]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
         with open(file, 'r') as f:
@@ -92,6 +97,7 @@ def parse_model_file(file: str) -> List[VirtualModel]:
                 content = json.load(f)
             else:
                 content = yaml.load(f, Loader=yaml.SafeLoader)
+        validate_spec_content(content)
         model = create_model_from_spec(spec=content)
         return [model]
     elif file.endswith('.py'):
@@ -107,6 +113,7 @@ def parse_policy_file(file: str) -> List[ModelPolicy]:
                 content = json.load(f)
             else:
                 content = yaml.load(f, Loader=yaml.SafeLoader)
+        validate_spec_content(content)
         policy = create_policy_from_spec(spec=content)
         return [policy]
     elif file.endswith('.py'):
@@ -382,7 +389,7 @@ class ModelsController:
             mode=strategy,
             on_status_codes=strategy_on_code
         )
-        inner.targets = [ModelPolicyTarget(weight=1, model_name=m) for m in models]
+        inner.targets = [ModelPolicyTarget(model_name=m) for m in models]
         if retry_on_code:
             inner.retry = ModelPolicyRetry(
                 on_status_codes=retry_on_code,
