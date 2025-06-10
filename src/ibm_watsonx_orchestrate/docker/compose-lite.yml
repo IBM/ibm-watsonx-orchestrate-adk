@@ -60,6 +60,16 @@ services:
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
 
+  wxo-agent-gateway:
+    image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DEPLOYMENT_PLATFORM: laptop-lite
+
   ui:
     image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
