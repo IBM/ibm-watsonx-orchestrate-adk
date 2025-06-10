@@ -14,7 +14,7 @@ from .types import ToolSpec
 from .base_tool import BaseTool
 from .types import HTTP_METHOD, ToolPermission, ToolRequestBody, ToolResponseBody, \
     OpenApiToolBinding, \
-    JsonSchemaObject, ToolBinding, OpenApiSecurityScheme
+    JsonSchemaObject, ToolBinding, OpenApiSecurityScheme, CallbackBinding
 
 import json
 
@@ -134,6 +134,7 @@ def create_openapi_json_tool(
         description=spec_description,
         permission=spec_permission
     )
+    spec.is_async = 'callbacks' in route_spec
 
     spec.input_schema = input_schema or ToolRequestBody(
         type='object',
@@ -203,13 +204,49 @@ def create_openapi_json_tool(
 
         security.append(security_schemes_map[name])
 
-    spec.binding = ToolBinding(openapi=OpenApiToolBinding(
+    # If it's an async tool, add callback binding
+    if spec.is_async:
+
+
+        callbacks = route_spec.get('callbacks', {})
+        callback_name = next(iter(callbacks.keys()))
+        callback_spec = callbacks[callback_name]
+        callback_path = next(iter(callback_spec.keys()))
+        callback_method = next(iter(callback_spec[callback_path].keys()))
+        
+        # Phase 1: Create a separate input schema for callback that excludes callbackUrl
+        # Note: Currently assuming the callback URL parameter will be named 'callbackUrl' in the OpenAPI spec
+        # Future phases will handle other naming conventions
+        callback_input_schema = ToolRequestBody(
+            type='object',
+            properties={k: v for k, v in spec.input_schema.properties.items() if not k.endswith('_callbackUrl')},
+            required=[r for r in spec.input_schema.required if not r.endswith('_callbackUrl')]
+        )
+        
+        callback_binding = CallbackBinding(
+            callback_url=callback_path,
+            method=callback_method.upper(),
+            input_schema=callback_input_schema,
+            output_schema=spec.output_schema
+        )
+
+    else:
+        callback_binding = None
+
+    openapi_binding = OpenApiToolBinding(
         http_path=http_path,
         http_method=http_method,
         security=security,
         servers=servers,
         connection_id=connection_id
-    ))
+    )
+    
+    if callback_binding is not None:
+        openapi_binding.callback = callback_binding
+
+    spec.binding = ToolBinding(openapi=openapi_binding)
+
+
 
     return OpenAPITool(spec=spec)
 

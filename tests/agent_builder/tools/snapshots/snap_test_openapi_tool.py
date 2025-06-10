@@ -33,6 +33,7 @@ snapshots['test_all_supported_http_methods[DELETE] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -74,6 +75,7 @@ snapshots['test_all_supported_http_methods[GET] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -115,6 +117,7 @@ snapshots['test_all_supported_http_methods[POST] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -156,6 +159,7 @@ snapshots['test_all_supported_http_methods[PUT] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -197,6 +201,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[cookie] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -238,6 +243,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[header] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -279,6 +285,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[path] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -320,11 +327,108 @@ snapshots['test_all_supported_parameter_in_methods_except_body[query] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
         'properties': {
             'param': {
+                'type': 'string'
+            }
+        },
+        'required': [
+        ],
+        'type': 'object'
+    },
+    'permission': 'read_only'
+}
+
+snapshots['test_async_spec_with_callback 1'] = {
+    'binding': {
+        'openapi': {
+            'callback': {
+                'callback_url': '{$request.header.callbackUrl}',
+                'input_schema': {
+                    'properties': {
+                        '__requestBody__': {
+                            'description': 'The html request body used to satisfy this user utterance.',
+                            'in': 'body',
+                            'properties': {
+                                'param': {
+                                    'type': 'string'
+                                }
+                            },
+                            'required': [
+                                'param'
+                            ],
+                            'title': 'RequestBody',
+                            'type': 'object'
+                        }
+                    },
+                    'required': [
+                        '__requestBody__'
+                    ],
+                    'type': 'object'
+                },
+                'method': 'POST',
+                'output_schema': {
+                    'description': 'Success response',
+                    'properties': {
+                        'status': {
+                            'type': 'string'
+                        }
+                    },
+                    'required': [
+                    ],
+                    'type': 'object'
+                }
+            },
+            'http_method': 'POST',
+            'http_path': '/test',
+            'security': [
+            ],
+            'servers': [
+                'https://{host}:{port}'
+            ]
+        }
+    },
+    'description': 'Test async with callback',
+    'input_schema': {
+        'properties': {
+            '__requestBody__': {
+                'description': 'The html request body used to satisfy this user utterance.',
+                'in': 'body',
+                'properties': {
+                    'param': {
+                        'type': 'string'
+                    }
+                },
+                'required': [
+                    'param'
+                ],
+                'title': 'RequestBody',
+                'type': 'object'
+            },
+            'header_callbackUrl': {
+                'aliasName': 'callbackUrl',
+                'description': 'The callback url for sending the response',
+                'in': 'header',
+                'title': 'callbackUrl',
+                'type': 'string'
+            }
+        },
+        'required': [
+            'header_callbackUrl',
+            '__requestBody__'
+        ],
+        'type': 'object'
+    },
+    'is_async': True,
+    'name': 'testAsyncCallback',
+    'output_schema': {
+        'description': 'Success response',
+        'properties': {
+            'status': {
                 'type': 'string'
             }
         },
@@ -371,6 +475,7 @@ snapshots['test_body_parameters 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -406,6 +511,7 @@ snapshots['test_global_authentication[openapi_global_authentication0] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -445,6 +551,7 @@ snapshots['test_global_authentication[openapi_global_authentication1] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -485,6 +592,7 @@ snapshots['test_global_authentication[openapi_global_authentication2] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -525,6 +633,7 @@ snapshots['test_global_authentication[openapi_global_authentication3] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -565,6 +674,7 @@ snapshots['test_global_authentication[openapi_global_authentication4] 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -655,6 +765,7 @@ snapshots['test_http_get_with_api_key_auth 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testGet',
     'output_schema': {
         'description': 'GET response',
@@ -745,6 +856,7 @@ snapshots['test_http_get_with_basic_auth 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testGet',
     'output_schema': {
         'description': 'GET response',
@@ -855,6 +967,7 @@ snapshots['test_http_post_with_header_query_and_path_params 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testParams',
     'output_schema': {
         'description': 'echoes back the params values',
@@ -964,6 +1077,7 @@ snapshots['test_http_put_with_json_request_body 1'] = {
         ],
         'type': 'object'
     },
+    'is_async': False,
     'name': 'testPut',
     'output_schema': {
         'description': 'PUT response',
