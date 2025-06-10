@@ -438,6 +438,10 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         return ToolKind.python
     elif ToolKind.openapi in tool_binding:
         return ToolKind.openapi
+    elif ToolKind.mcp in tool_binding:
+        return ToolKind.mcp
+    elif 'wxflows' in tool_binding:
+        return ToolKind.flow
     else:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
         sys.exit(1) 
