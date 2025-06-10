@@ -564,14 +564,13 @@ class ToolsController:
                 
                 toolkit_name = ""
 
-                if is_local_dev():
+                if tool.__tool_spec__.toolkit_id:
                     toolkit_client = instantiate_client(ToolKitClient)
-                    if tool.__tool_spec__.toolkit_id:
-                        toolkit = toolkit_client.get_draft_by_id(tool.__tool_spec__.toolkit_id)
-                        if isinstance(toolkit, dict) and "name" in toolkit:
-                            toolkit_name = toolkit["name"]
-                        elif toolkit:
-                            toolkit_name = str(toolkit)
+                    toolkit = toolkit_client.get_draft_by_id(tool.__tool_spec__.toolkit_id)
+                    if isinstance(toolkit, dict) and "name" in toolkit:
+                        toolkit_name = toolkit["name"]
+                    elif toolkit:
+                        toolkit_name = str(toolkit)
 
                 
                 table.add_row(

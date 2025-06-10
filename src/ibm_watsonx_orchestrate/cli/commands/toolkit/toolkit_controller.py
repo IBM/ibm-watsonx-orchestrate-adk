@@ -213,9 +213,6 @@ class ToolkitController:
 
     
     def remove_toolkit(self, name: str):
-        if not is_local_dev():
-            logger.error("This functionality is only available for Local Environments")
-            sys.exit(1)
         try:
             client = self.get_client()
             draft_toolkits = client.get_draft_by_name(toolkit_name=name)
