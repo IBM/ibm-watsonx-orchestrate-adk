@@ -632,7 +632,8 @@ services:
 # DPS - 18081
 # WDU - 18082
 # WDU (Prometheus) - 18086
-# LLM Service (Prometheus) - 18084
+# DPS Cache - 18083
+# LLM Service - 18084
 ######################## 
 
   wxo-doc-processing-service:
@@ -642,19 +643,19 @@ services:
       SERVICE_NAME: wxo-doc-processing-service
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
-      SERVICE_URL: ${SERVICE_URL:-http://localhost:8080}
+      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cahce:18083}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
       HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
-      # IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
+      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:18083'
     profiles:
       - docproc
-    # depends_on:
-      # wo-doc-processing-cache:
-        # condition: service_healthy
+    depends_on:
+      wxo-doc-processing-cache:
+        condition: service_healthy
     ports:
       - "18081:8080"
     # volumes:
@@ -667,6 +668,7 @@ services:
 
   wdu-runtime:
     image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-runtime:${WDU_TAG:-2.4.0}
+    restart: unless-stopped
     environment:
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
@@ -708,21 +710,97 @@ services:
     tmpfs:
       - "/dev/shm"
 
+  wxo-doc-processing-cache:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_cache:${DOCPROC_CACHE_TAG:-20250610-214940-68-f3258f4}
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-cache
+      LOG_LEVEL: info
+      RATE_LIMITING_ENABLED: "false"
+      USE_DUMMY_CACHE: "false"
+      # TODO: do we need Strict JWT validation here?
+      CACHE_ENFORCE_STRICT_JWT: "false" 
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-cache
+      PG_DB_SCHEMA: dpschema
+      # PG_USE_SSL: false
+      S3_ENDPOINT_URL: http://wxo-server-minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_REGION: us-east-1
+      S3_BUCKET_NAME: wxo-document-processing-cache
+      # S3_USE_SSL: false
+      # S3_VERIFY_CERT: false
+    profiles:
+      - docproc
+    depends_on:
+      wxo-doc-processing-pg-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "18083:8080"
+    # volumes:
+      # - ./docker/wo_doc_processing_rag_base/etc/certs:/etc/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+  
+  wxo-doc-processing-pg-init:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_cache_rds_init:${DOCPROC_PG_INIT_TAG:-20250610-214940-68-f3258f4}
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-cache
+      PG_DB_SCHEMA: dpschema
+      # PG_USE_SSL: false
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
+      interval: 1s
+      timeout: 5s
+      retries: 50
+
+  wxo-doc-processing-minio-init:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
+      exit 0;
+      "
+
   wxo-doc-processing-llm-service:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG:-20250604-192056-107-e1d4d66}
+    restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-llm-service
       LOG_LEVEL: info
-      WATSONX_API_ENDPOINT: https://us-south.ml.cloud.ibm.com
-      WATSONX_API_KEY: REPLACE_API_KEY
-      WATSONX_PROJECT_ID: REPLACE_PROJECT_ID
-      IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
+      WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
+      WATSONX_API_KEY: ${WATSONX_APIKEY}
+      WATSONX_PROJECT_ID: ${WATSONX_SPACE_ID}
+      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:18083'
     profiles:
       - docproc
-    # depends_on:
-      # TODO
-      # wo-doc-processing-cache: 
-      #   condition: service_healthy
+    depends_on:
+      wxo-doc-processing-cache: 
+        condition: service_healthy
     ports:
       - "18084:8083"
     # volumes:
