@@ -627,8 +627,9 @@ services:
 
 ########################
 # DOCPROC dependencies
-# DPS - 8081
-# WDU - 8082
+# DPS - 18081
+# WDU - 18082
+# WDU (Prometheus) - 18086
 ######################## 
 
   wxo-doc-processing-service:
@@ -654,7 +655,7 @@ services:
       # wo-doc-processing-cache:
         # condition: service_healthy
     ports:
-      - "8081:8080"
+      - "18081:8080"
     # volumes:
       # - ./conf/wdu/certs:/etc/certs
     healthcheck:
@@ -675,8 +676,8 @@ services:
     profiles:
       - wdu
     ports:
-      - "8082:8080"
-      - "8086:8086"
+      - "18082:8080"
+      - "18086:8086"
     volumes:
       # - "./wdu-config.yaml:/app/configs/config.yaml"
       - "wdu-models:/models"

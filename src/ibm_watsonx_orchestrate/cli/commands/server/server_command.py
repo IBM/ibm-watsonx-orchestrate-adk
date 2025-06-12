@@ -637,7 +637,7 @@ def server_start(
     with_wdu: bool = typer.Option(
         False,
         '--with-wdu', '-w',
-        help='Option to enable Watson Document Understanding'
+        help='Enable Watson Document Understanding service for document conversion. Allows the agent to process and extract text from files such as PDF, Word, and PowerPoint, converting them into readable textual formats like plain text or markdown.'
     ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
