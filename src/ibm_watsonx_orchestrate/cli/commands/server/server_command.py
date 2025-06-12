@@ -285,7 +285,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_wdu=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_wdu=False, with_docproc=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -317,6 +317,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
         profiles.append("langfuse")
     if with_wdu:
         profiles.append("wdu")
+    if with_docproc:
+        profiles.append("doproc")
 
     command = compose_command[:]
     for profile in profiles:
@@ -640,6 +642,11 @@ def server_start(
         '--with-wdu', '-w',
         help='Enable Watson Document Understanding service for document conversion. Allows the agent to process and extract text from files such as PDF, Word, and PowerPoint, converting them into readable textual formats like plain text or markdown.'
     ),
+    with_docproc: bool = typer.Option(
+        False,
+        '--with-docproc', '-w',
+        help='Option to enable IBM Document Processing'
+    ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
@@ -682,7 +689,7 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_wdu=with_wdu)
+    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_wdu=with_wdu, with_docproc=with_docproc)
 
     run_db_migration()
 
