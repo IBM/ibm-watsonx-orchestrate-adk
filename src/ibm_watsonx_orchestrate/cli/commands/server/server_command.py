@@ -645,7 +645,7 @@ def server_start(
     with_docproc: bool = typer.Option(
         False,
         '--with-docproc', '-d',
-        help='Option to enable IBM Document Processing'
+        help='Enable IBM Document Processing to classify and extract information from your business documents more quickly, easily and accurately.'
     ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)

@@ -44,6 +44,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 - 25GB disk space
 
 > **Note:** If you run with WDU enabled, you will need **at least an additional 6GB of memory** (i.e., a total of **22GB RAM**) to ensure stable operation.
+> **Note:** [TBD] If you run with Document Processing enabled, you will need **at least an additional 2GB of memory** (i.e., a total of **24GB RAM**) to ensure stable operation.
 
 **A docker engine**   
   Ensure that you have a docker engine installed capable of running docker compose.
@@ -104,14 +105,17 @@ you will be able to start, activate, import into and rapidly reset a local serve
 ```
  orchestrate server start --help                           
      
- Usage: orchestrate server start [OPTIONS]                                                                                     
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                          │
-│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                                 │
-│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                                   │
-│ --with-wdu                     -w            Option to enable Watson Document Understanding                                                                                                     │
-│ --help                                       Show this message and exit.                                                                                                                        │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Usage: orchestrate server start [OPTIONS]                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                   
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                                                                                          │
+│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                                                                                                 │
+│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                                                                                                   │
+│ --with-wdu                     -w            Enable Watson Document Understanding service for document conversion. Allows the agent to process and extract text from files such as PDF, Word, and PowerPoint, converting them into readable textual formats     │
+│                                              like plain text or markdown.                                                                                                                                                                                       │
+│ --with-docproc                 -d            Enable IBM Document Processing to classify and extract information from your business documents more quickly, easily and accurately.                                                                               │
+│ --help                                       Show this message and exit.                                                                                                                                                                                        │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Example:
