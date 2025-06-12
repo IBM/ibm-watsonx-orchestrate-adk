@@ -67,23 +67,28 @@ def docker_login(api_key: str, registry_url: str, username:str = "iamapikey") ->
     logger.info("Successfully logged in to Docker.")
 
 def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
-    if not env_dict.get("REGISTRY_URL"):
-        raise ValueError("REGISTRY_URL is not set.")
-    registry_url = env_dict["REGISTRY_URL"].split("/")[0]
-    if source == "internal":
-        iam_api_key = env_dict.get("DOCKER_IAM_KEY")
-        if not iam_api_key:
-            raise ValueError("DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
-        docker_login(iam_api_key, registry_url, "iamapikey")
-    elif source == "myibm":
-        wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
-        if not wo_entitlement_key:
-            raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
-        docker_login(wo_entitlement_key, registry_url, "cp")
-    elif source == "orchestrate":
-        wo_auth_type = env_dict.get("WO_AUTH_TYPE")
-        api_key, username = get_docker_cred_by_wo_auth_type(env_dict, wo_auth_type)
-        docker_login(api_key, registry_url, username)
+    if env_dict.get('WO_DEVELOPER_EDITION_SKIP_LOGIN', None) == 'true':
+        logger.info('WO_DEVELOPER_EDITION_SKIP_LOGIN is set to true, skipping login.')
+        logger.warning('If the developer edition images are not already pulled this call will fail without first setting WO_DEVELOPER_EDITION_SKIP_LOGIN=false')
+    else:
+        if not env_dict.get("REGISTRY_URL"):
+            raise ValueError("REGISTRY_URL is not set.")
+        registry_url = env_dict["REGISTRY_URL"].split("/")[0]
+        if source == "internal":
+            iam_api_key = env_dict.get("DOCKER_IAM_KEY")
+            if not iam_api_key:
+                raise ValueError("DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
+            docker_login(iam_api_key, registry_url, "iamapikey")
+        elif source == "myibm":
+            wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
+            if not wo_entitlement_key:
+                raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
+            docker_login(wo_entitlement_key, registry_url, "cp")
+        elif source == "orchestrate":
+            wo_auth_type = env_dict.get("WO_AUTH_TYPE")
+            api_key, username = get_docker_cred_by_wo_auth_type(env_dict, wo_auth_type)
+            docker_login(api_key, registry_url, username)
+
 
 def get_compose_file() -> Path:
     with resources.as_file(
@@ -664,6 +669,7 @@ def server_start(
     # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
+
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
