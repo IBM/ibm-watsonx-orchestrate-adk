@@ -632,10 +632,11 @@ services:
 # DPS - 18081
 # WDU - 18082
 # WDU (Prometheus) - 18086
+# LLM Service (Prometheus) - 18084
 ######################## 
 
   wxo-doc-processing-service:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_TAG:-20250606-172035-246-4191121}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
@@ -650,10 +651,8 @@ services:
       # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
       # IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
     profiles:
-      - wdu
-    depends_on:
-      wdu-runtime:
-        condition: service_healthy
+      - docproc
+    # depends_on:
       # wo-doc-processing-cache:
         # condition: service_healthy
     ports:
@@ -708,7 +707,32 @@ services:
       - "wdu-prometheus-files:/prometheus/"
     tmpfs:
       - "/dev/shm"
-    
+
+  wxo-doc-processing-llm-service:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG:-20250604-192056-107-e1d4d66}
+    environment:
+      SERVICE_NAME: wxo-doc-processing-llm-service
+      LOG_LEVEL: info
+      WATSONX_API_ENDPOINT: https://us-south.ml.cloud.ibm.com
+      WATSONX_API_KEY: REPLACE_API_KEY
+      WATSONX_PROJECT_ID: REPLACE_PROJECT_ID
+      IBM_DPS_CACHE_SERVICE: 'host.docker.internal:8081'
+    profiles:
+      - docproc
+    # depends_on:
+      # TODO
+      # wo-doc-processing-cache: 
+      #   condition: service_healthy
+    ports:
+      - "18084:8083"
+    # volumes:
+      # - ./conf/rag/certs:/etc/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8083/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
 volumes:
   tools:
     driver: local

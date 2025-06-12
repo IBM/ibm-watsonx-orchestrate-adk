@@ -318,7 +318,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
     if with_wdu:
         profiles.append("wdu")
     if with_docproc:
-        profiles.append("doproc")
+        profiles.append("docproc")
 
     command = compose_command[:]
     for profile in profiles:
@@ -644,7 +644,7 @@ def server_start(
     ),
     with_docproc: bool = typer.Option(
         False,
-        '--with-docproc', '-w',
+        '--with-docproc', '-d',
         help='Option to enable IBM Document Processing'
     ),
 ):
