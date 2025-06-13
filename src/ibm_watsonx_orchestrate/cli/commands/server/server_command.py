@@ -318,6 +318,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
     if with_wdu:
         profiles.append("wdu")
     if with_docproc:
+        profiles.append("wdu")
         profiles.append("docproc")
 
     command = compose_command[:]
