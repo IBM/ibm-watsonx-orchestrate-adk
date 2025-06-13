@@ -324,6 +324,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
 
+
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
     platform: linux/amd64
@@ -451,6 +452,7 @@ services:
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

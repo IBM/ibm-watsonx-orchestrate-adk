@@ -22,6 +22,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller imp
 
 from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, \
     ENV_ACCEPT_LICENSE
+
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
     AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER, LICENSE_HEADER, \
     ENV_ACCEPT_LICENSE
