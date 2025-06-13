@@ -421,6 +421,7 @@ services:
       USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
