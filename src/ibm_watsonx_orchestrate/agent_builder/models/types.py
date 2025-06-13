@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any, Union
 from enum import Enum
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import Field, BaseModel, ConfigDict, model_validator
 
 class  ModelProvider(str, Enum):
     OPENAI = 'openai'
@@ -29,6 +29,10 @@ class  ModelProvider(str, Enum):
 
     def __repr__(self):
         return self.value
+    
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_ 
 
 class  ModelType(str, Enum):
     CHAT = 'chat'
@@ -42,13 +46,24 @@ class  ModelType(str, Enum):
     def __repr__(self):
         return self.value
     
+class  ModelType(str, Enum):
+    CHAT = 'chat'
+    CHAT_VISION = 'chat_vision'
+    COMPLETION = 'completion'
+    EMBEDDING = 'embedding'
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 class ProviderConfig(BaseModel):
     # Required fields
     provider: Optional[str]=''
 
 
-    api_key: Optional[str] = '' # this is not optional
+    api_key: Optional[str] = None
     url_to_fetch: Optional[str] = Field(None, alias="urlToFetch")
 
     # Misc
@@ -135,7 +150,7 @@ class ProviderConfig(BaseModel):
     azure_extra_params: Optional[str] = Field(None, alias="azureExtraParams")
     azure_foundry_url: Optional[str] = Field(None, alias="azureFoundryUrl")
 
-    strict_open_ai_compliance: Optional[bool] = Field(False, alias="strictOpenAiCompliance")
+    strict_open_ai_compliance: Optional[bool] = Field(None, alias="strictOpenAiCompliance")
     mistral_fim_completion: Optional[str] = Field(None, alias="mistralFimCompletion")
 
     # Anthropic
@@ -152,6 +167,10 @@ class ProviderConfig(BaseModel):
     watsonx_version: Optional[str] = Field(None, alias="watsonxVersion")
     watsonx_space_id: Optional[str] = Field(None, alias="watsonxSpaceId")
     watsonx_project_id: Optional[str] = Field(None, alias="watsonxProjectId")
+    watsonx_deployment_id: Optional[str] = Field(None, alias="watsonxDeploymentId")
+    watsonx_cpd_url:Optional[str] = Field(None, alias="watsonxCpdUrl")
+    watsonx_cpd_username:Optional[str] = Field(None, alias="watsonxCpdUsername")
+    watsonx_cpd_password:Optional[str] = Field(None, alias="watsonxCpdPassword")
 
     model_config = {
         "populate_by_name": True,  # Replaces allow_population_by_field_name
@@ -159,19 +178,36 @@ class ProviderConfig(BaseModel):
         "json_schema_extra": lambda schema: schema.get("properties", {}).pop("provider", None)
     }
 
+    def update(self, new_config: "ProviderConfig") -> "ProviderConfig":
+        old_config_dict = dict(self)
+        new_config_dict = dict(new_config)
+
+        new_config_dict = {k:v for k, v in new_config_dict.items() if v is not None}
+        old_config_dict.update(new_config_dict)
+
+        return ProviderConfig.model_validate(old_config_dict)
 
 
-class CreateVirtualModel(BaseModel):
+class VirtualModel(BaseModel):
     model_config = ConfigDict(extra='allow')
 
     name: str
     display_name: Optional[str]
     description: Optional[str]
     config: Optional[dict] = None
-    provider_config: ProviderConfig
-    tags: List[str]
+    provider_config: Optional[ProviderConfig] = None
+    tags: List[str] = []
     model_type: str = ModelType.CHAT
+    connection_id: Optional[str] = None
 
+    @model_validator(mode="before")
+    def validate_fields(cls, values):
+        if not values.get("display_name"):
+            values["display_name"] = values.get("name")
+        if not values.get("description"):
+            values["description"] = values.get("name")
+        
+        return values
 
 class ListVirtualModel(BaseModel):
     model_config = ConfigDict(extra='allow')

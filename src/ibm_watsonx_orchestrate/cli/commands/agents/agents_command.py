@@ -105,6 +105,20 @@ def agent_create(
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
     ] = AgentStyle.DEFAULT,
+    custom_join_tool: Annotated[
+        str | None,
+        typer.Option(
+            "--custom-join-tool",
+            help='The name of the python tool to be used by the agent to format and generate the final output. Only needed for "planner" style agents.',
+        ),
+    ] = None,
+    structured_output: Annotated[
+        str | None,
+        typer.Option(
+            "--structured-output",
+            help='A JSON Schema object that defines the desired structure of the agent\'s final output. Only needed for "planner" style agents.',
+        ),
+    ] = None,
     collaborators: Annotated[
         List[str],
         typer.Option(
@@ -138,6 +152,7 @@ def agent_create(
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
     auth_config_dict = json.loads(auth_config) if auth_config else {}
+    structured_output_dict = json.loads(structured_output) if structured_output else None
 
     agents_controller = AgentsController()
     agent = agents_controller.generate_agent_spec(
@@ -151,6 +166,8 @@ def agent_create(
         provider=provider,
         llm=llm,
         style=style,
+        custom_join_tool=custom_join_tool,
+        structured_output=structured_output_dict,
         collaborators=collaborators,
         tools=tools,
         knowledge_base=knowledge_base,

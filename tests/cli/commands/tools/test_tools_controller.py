@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 from unittest import mock
 from unittest.mock import call
 
@@ -74,7 +75,7 @@ class MockSDKResponse:
 
 
 class MockToolClient:
-    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False, get_draft_by_name_response=None, download_tools_artifact_response=None):
+    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False, get_draft_by_name_response=None, download_tools_artifact_response=None, get_draft_by_id_response=None):
         self.expected = expected
         self.get_response = get_response
         self.tool_name = tool_name
@@ -83,6 +84,7 @@ class MockToolClient:
         self.published_file_path = None
         self.get_draft_by_name_response = get_draft_by_name_response
         self.download_tools_artifact_response = download_tools_artifact_response
+        self.get_draft_by_id_response = get_draft_by_id_response
 
     def create(self, spec):
         for key in self.expected:
@@ -116,7 +118,20 @@ class MockToolClient:
         if self.already_existing:
             return [{"name": tool_name, "id": uuid.uuid4()}]
         return []
-
+    
+    def get_drafts_by_names(self, agents):
+        ids = []
+        for agent in agents:
+            ids.append({"name": agent, "id": str(uuid.uuid4())})
+        return ids
+    
+    def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
+        if tool_id is None:
+            return ""
+        if self.get_draft_by_id_response:
+            return self.get_draft_by_id_response
+        return ""
+    
     def download_tools_artifact(self, tool_id):
         return self.download_tools_artifact_response
 
