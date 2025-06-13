@@ -644,7 +644,7 @@ services:
       SERVICE_NAME: wxo-doc-processing-service
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
-      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cahce:18083}
+      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:18083}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
       HANDWRITING_ENABLED: "true"
