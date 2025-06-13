@@ -630,6 +630,7 @@ services:
 ########################
 # DOCPROC dependencies
 # DPS - 18081
+# DPI - 19080 / 19443
 # WDU - 18082
 # WDU (Prometheus) - 18086
 # DPS Cache - 18083
@@ -739,7 +740,7 @@ services:
     depends_on:
       wxo-doc-processing-pg-init:
         condition: service_completed_successfully
-      wxo-doc-processing-minio-init:
+      wxo-doc-processing-cache-minio-init:
         condition: service_completed_successfully
     ports:
       - "18083:8080"
@@ -751,41 +752,6 @@ services:
       timeout: 30s
       retries: 10
   
-  wxo-doc-processing-pg-init:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_cache_rds_init:${DOCPROC_PG_INIT_TAG:-20250610-214940-68-f3258f4}
-    environment:
-      PGHOST: wxo-server-db
-      PGPORT: "5432"
-      PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: wxo-document-processing-cache
-      PG_DB_SCHEMA: dpschema
-      # PG_USE_SSL: false
-    profiles:
-      - docproc
-    depends_on:
-      wxo-server-db:
-        condition: service_started
-    healthcheck:
-      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
-      interval: 1s
-      timeout: 5s
-      retries: 50
-
-  wxo-doc-processing-minio-init:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
-    profiles:
-      - docproc
-    depends_on:
-      wxo-server-minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
-      exit 0;
-      "
-
   wxo-doc-processing-llm-service:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG:-20250604-192056-107-e1d4d66}
     restart: unless-stopped
@@ -810,6 +776,124 @@ services:
       interval: 30s
       timeout: 30s
       retries: 10
+
+  wxo-doc-processing-infra-standalone:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    profiles:
+      - docproc
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-dpi
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
+      USE_PGBOUNCER: "false"
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_ENDPOINT_URL: http://wxo-server-minio:9000
+      BUCKET_NAME_DEFAULT: wxo-document-processing-dpi-common
+      S3_FILERESOURCE_BUCKET: ${BUCKET_NAME_DEFAULT:-wxo-document-processing-dpi}
+      # S3_TLS_ENABLED: "true"
+      ENRICHMENT_BATCH_SIZE: "1000"
+      CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
+      SIDECAR_METERED_ENABLED: "false"
+      DPI_DEBUG: true
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:18081
+      DPI_RAG_SERVER_ENDPOINT: http://wxo-doc-processing-llm-service:18084
+      # DPI_ENRICHMENT_SERVICE_ENDPOINT: https://wo_doc_processing_service:18080
+    depends_on:
+      wxo-doc-processing-dpi-minio-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-infra-pg-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-service:
+        condition: service_healthy
+      wxo-doc-processing-llm-service:
+        condition: service_healthy
+    # volumes:
+      # - ./conf/dpi/tls:/opt/tls
+      # - ./conf/dpi/fyre/tls:/opt/fyre/tls
+    ports:
+      - 19080:9080
+      - 19443:9443
+    healthcheck:
+      test: ["CMD-SHELL", "HEALTHCHECK_URL=http://localhost:9080/dps/v1/health /healthcheck-all.sh all"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wxo-doc-processing-infra-pg-init:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    environment: 
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-dpi
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
+      USE_PGBOUNCER: "false"
+    entrypoint: /liquibase-init.sh
+      - pgbouncer
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
+      interval: 1s
+      timeout: 5s
+      retries: 50
+
+  wxo-doc-processing-pg-init:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_cache_rds_init:${DOCPROC_CACHE_TAG:-20250610-214940-68-f3258f4}
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-cache
+      PG_DB_SCHEMA: dpschema
+      # PG_USE_SSL: false
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
+      interval: 1s
+      timeout: 5s
+      retries: 50
+
+  wxo-doc-processing-dpi-minio-init:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-dpi;
+      exit 0;
+      "
+
+  wxo-doc-processing-cache-minio-init:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
+      exit 0;
+      "
 
 volumes:
   tools:
