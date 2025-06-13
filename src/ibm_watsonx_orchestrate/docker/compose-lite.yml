@@ -644,14 +644,14 @@ services:
       SERVICE_NAME: wxo-doc-processing-service
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
-      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:18083}
+      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
       HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
-      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:18083'
+      IBM_DPS_CACHE_SERVICE: wxo-doc-processing-cache:8080
     profiles:
       - docproc
     depends_on:
@@ -799,8 +799,8 @@ services:
       CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
       SIDECAR_METERED_ENABLED: "false"
       DPI_DEBUG: true
-      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:18081
-      DPI_RAG_SERVER_ENDPOINT: http://wxo-doc-processing-llm-service:18084
+      DPI_WO_WDU_SERVER_ENDPOINT: http://wxo-doc-processing-service:8080
+      DPI_RAG_SERVER_ENDPOINT: http://wxo-doc-processing-llm-service:8083
       # DPI_ENRICHMENT_SERVICE_ENDPOINT: https://wo_doc_processing_service:18080
     depends_on:
       wxo-doc-processing-dpi-minio-init:
