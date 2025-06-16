@@ -801,7 +801,7 @@ services:
       DPI_DEBUG: true
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
-      JVM_OPTS: "-Dcom.ibm.ssl.ignoreCertValidation=true"
+      DISABLE_TLS: true
       # DPI_ENRICHMENT_SERVICE_ENDPOINT: https://wo_doc_processing_service:18080
     depends_on:
       wxo-doc-processing-dpi-minio-init:
