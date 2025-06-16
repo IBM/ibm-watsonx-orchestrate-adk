@@ -20,7 +20,7 @@ def activate_env(
         apikey: Annotated[
             str,
             typer.Option(
-                "--apikey", "-a", help="WXO API Key. Leave Blank if developing locally"
+                "--api-key", "-a", help="WXO API Key. Leave Blank if developing locally"
             ),
         ] = None,
         registry: Annotated[

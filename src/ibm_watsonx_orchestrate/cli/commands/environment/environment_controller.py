@@ -2,6 +2,7 @@ import logging
 import rich
 import jwt
 import getpass
+import sys
 
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.config import (
@@ -22,6 +23,7 @@ from ibm_watsonx_orchestrate.cli.config import (
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity
@@ -41,6 +43,28 @@ def _decode_token(token: str, is_local: bool = False) -> dict:
     except jwt.DecodeError as e:
         logger.error("Invalid token format")
         raise e
+
+
+def _validate_token_functionality(token: str, url: str) -> None:
+    '''
+    Validates a token by making a request to GET /agents
+
+    Args: 
+        token: A JWT token
+        url: WXO instance URL
+    '''
+    agent_client = AgentClient(base_url=url, api_key=token, is_local=is_local_dev(url))
+    agent_client.api_key = token
+
+    try:
+        agent_client.get()
+    except ClientAPIException as e:
+        if e.response.status_code >= 400:
+            reason = e.response.reason
+            logger.error(f"Failed to authenticate to provided instance '{url}'. Reason: '{reason}'. Please ensure provider URL and API key are valid.")
+            sys.exit(1)
+        raise e
+
 
 def _login(name: str, apikey: str = None) -> None:
     cfg = Config()
@@ -63,6 +87,7 @@ def _login(name: str, apikey: str = None) -> None:
         creds = Credentials(url=url, api_key=apikey, iam_url=iam_url, auth_type=auth_type)
         client = Client(creds)
         token = _decode_token(client.token, is_local)
+        _validate_token_functionality(token=token.get(AUTH_MCSP_TOKEN_OPT), url=url)
         with lock:
             auth_cfg.save(
                 {
