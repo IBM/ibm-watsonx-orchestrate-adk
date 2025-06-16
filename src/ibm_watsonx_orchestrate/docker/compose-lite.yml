@@ -629,6 +629,7 @@ services:
       LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
       LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
       LOG_LEVEL: info
+      DISABLE_FLOW_BINDING: true
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
