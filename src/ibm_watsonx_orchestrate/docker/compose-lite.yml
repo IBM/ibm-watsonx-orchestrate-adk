@@ -265,6 +265,7 @@ services:
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
+      AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       FLOWER_URL: http://wxo-server-flower:5555
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
@@ -356,6 +357,7 @@ services:
       IS_WXO_LITE: 'TRUE'
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
