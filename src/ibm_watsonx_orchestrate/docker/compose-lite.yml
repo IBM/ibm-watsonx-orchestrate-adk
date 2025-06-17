@@ -201,19 +201,8 @@ services:
       retries: 3
   
   socket-handler:
-    container_name: socket-handler
-    profiles:
-      - webhooks
-      - ui
-    build:
-      context: .
-      dockerfile: ./socket_handler/Dockerfile
-      target: socket-handler
-      args:
-        GIT_BRANCH: "main"
-      ssh:
-        - default
-    image: docker.io/library/socket-handler:latest
+    image: ${SOCKET_HANDLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-socket-handler:${SOCKET_HANDLER_TAG:-latest}
+    platform: linux/amd64
     command: "npm start"
     ports:
       - 4001:4001
