@@ -248,6 +248,7 @@ services:
           condition: service_started
           required: False
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       TRM_BASE_URL: http://tools-runtime-manager:8080
@@ -341,6 +342,7 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       IS_WXO_LITE: 'TRUE'
@@ -427,6 +429,7 @@ services:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       KUBECONFIG: /root/.kube/config
       K8S_SERVER: "https://lima-rancher-desktop:6443"  # Kubernetes API on host
       DB_HOST: wxo-server-db
@@ -442,7 +445,6 @@ services:
       SERVER_HOST: ${SERVER_HOST}
       SCHEMA_FILE_PATH: ${SCHEMA_FILE_PATH}
       WXO_BASE_URL: ${WXO_BASE_URL}
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       NAMESPACE: ${NAMESPACE}
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
@@ -472,7 +474,7 @@ services:
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       DB_HOST: wxo-server-db
       DB_PORT: ${DB_PORT:-5432}  # Ensure default port
