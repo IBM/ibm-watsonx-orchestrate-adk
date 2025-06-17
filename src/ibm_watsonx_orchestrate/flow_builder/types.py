@@ -635,6 +635,11 @@ class TaskEventType(Enum):
     ON_TASK_STREAM = "on_task_stream"
     ON_TASK_ERROR = "on_task_error"
 
+class FlowData(BaseModel):
+    '''This class represents the data that is passed between tasks in a flow.'''
+    input: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] = Field(default_factory=dict)
+
 class FlowContext(BaseModel):
  
     name: str | None = None # name of the process or task
@@ -642,10 +647,12 @@ class FlowContext(BaseModel):
     flow_id: str | None = None # id of the flow, this is at the flow definition level
     instance_id: str | None = None
     thread_id: str | None = None
+    correlation_id: str | None = None
+    tenant_id: str | None = None
     parent_context: Any | None = None
     child_context: List["FlowContext"] | None = None
     metadata: dict = Field(default_factory=dict[str, Any])
-    data: dict = Field(default_factory=dict[str, Any])
+    data: Optional[FlowData] = None
 
     def get(self, key: str) -> Any:
      
@@ -655,7 +662,7 @@ class FlowContext(BaseModel):
         if self.parent_context:
             pc = cast(FlowContext, self.parent_conetxt)
             return pc.get(key)
-
+    
 class FlowEventType(Enum):
  
     ON_FLOW_START = "on_flow_start"

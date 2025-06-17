@@ -47,8 +47,13 @@ class StreamConsumer:
 def deserialize_flow_event(byte_data: bytes) -> FlowEvent:
     """Deserialize byte data into a FlowEvent object."""
     # Decode the byte data
-    decoded_data = byte_data[b'message'].decode('utf-8')
+    decoded_data = byte_data[b'data'].decode('utf-8') if b'data' in byte_data else None
+    if not decoded_data:
+        decoded_data = byte_data[b'message'].decode('utf-8') if b'message' in byte_data else None
     
+    if not decoded_data:
+        raise ValueError("No data in received event.")
+
     # Parse the JSON string into a dictionary
     parsed_data = json.loads(decoded_data)
     

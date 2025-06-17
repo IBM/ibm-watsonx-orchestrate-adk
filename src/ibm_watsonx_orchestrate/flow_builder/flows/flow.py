@@ -794,7 +794,7 @@ class FlowRun(BaseModel):
     def _on_flow_end(self, event:FlowEvent):
 
         self.status = FlowRunStatus.COMPLETED
-        self.output = event.context.data["output"] if "output" in event.context.data else None
+        self.output = event.context.data.output
 
         if self.debug:
             logger.debug(f"Flow run `{self.name}`: on_complete handler called. Output: {self.output}")
