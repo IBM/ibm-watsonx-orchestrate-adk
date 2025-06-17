@@ -50,6 +50,8 @@ class BaseAgentSpec(BaseModel):
     name: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     display_name: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     description: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    context_access_enabled: bool = True
+    context_variables: Optional[List[str]] = []
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
@@ -127,6 +129,14 @@ def validate_agent_fields(values: dict) -> dict:
         if values.get("custom_join_tool") and values.get("structured_output"):
             raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
 
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
+
     return values
 
 # ===============================
@@ -169,6 +179,14 @@ def validate_external_agent_fields(values: dict) -> dict:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
+
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
 
     return values
 
@@ -214,5 +232,14 @@ def validate_assistant_agent_fields(values: dict) -> dict:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
+
+    # Validate context_variables if provided
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
 
     return values

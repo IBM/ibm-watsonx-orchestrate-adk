@@ -99,6 +99,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "style": args.get("style"),
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
+        "context_access_enabled": args.get("context_access_enabled", True),
     }
 
     collaborators = args.get("collaborators", [])
@@ -115,6 +116,11 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     knowledge_base = knowledge_base if knowledge_base else []
     knowledge_base = [x.strip() for x in knowledge_base if x.strip() != ""]
     agent_details["knowledge_base"] = knowledge_base
+
+    context_variables = args.get("context_variables", [])
+    context_variables = context_variables if context_variables else []
+    context_variables = [x.strip() for x in context_variables if x.strip() != ""]
+    agent_details["context_variables"] = context_variables
 
     return agent_details
 
@@ -133,7 +139,13 @@ def parse_create_external_args(name: str, kind: AgentKind, description: str | No
         "config": args.get("config", {}),
         "nickname": args.get("nickname"),
         "app_id": args.get("app_id"),
+        "context_access_enabled": args.get("context_access_enabled", True),
     }
+
+    context_variables = args.get("context_variables", [])
+    context_variables = context_variables if context_variables else []
+    context_variables = [x.strip() for x in context_variables if x.strip() != ""]
+    agent_details["context_variables"] = context_variables
 
     return agent_details
 
@@ -146,7 +158,13 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
         "tags": args.get("tags", []),
         "config": args.get("config", {}),
         "nickname": args.get("nickname"),
+        "context_access_enabled": args.get("context_access_enabled", True),
     }
+
+    context_variables = args.get("context_variables", [])
+    context_variables = context_variables if context_variables else []
+    context_variables = [x.strip() for x in context_variables if x.strip() != ""]
+    agent_details["context_variables"] = context_variables
 
     return agent_details
 
