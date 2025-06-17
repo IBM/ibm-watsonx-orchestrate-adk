@@ -109,7 +109,27 @@ class Flow(Node):
         # if there is already a schema with the same name, return it
         if title:
             if title in top_flow.schemas:
-                return top_flow.schemas[title]
+                existing_schema = top_flow.schemas[title]
+                # we need a deep compare if the incoming schema and existing_schema is the same
+                # pydantic suppport nested comparison by default
+
+                schema.title = title
+                
+                if schema == existing_schema:
+                    return existing_schema
+                # we need to do a deep compare
+                incoming_model = schema.model_dump(exclude_none=True, exclude_unset=True)
+                existing_model = existing_schema.model_dump(exclude_none=True, exclude_unset=True)
+
+                # log the model
+                # logger.info(f"incoming_model: {incoming_model}")
+                # logger.info(f"existing_model: {existing_model}")
+
+                if incoming_model == existing_model:
+                    return existing_schema
+                
+                # else we need a new name, and create a new schema
+                title = title + "_" + str(self._next_sequence_id())
 
         # otherwise, create a deep copy of the schema, add it to the dictionary and return it
         if schema:
@@ -198,7 +218,7 @@ class Flow(Node):
                             required= spec.output_schema.required)
                     spec.output_schema = self._add_schema_ref(json_obj, f"{spec.name}_output")
                 elif spec.output_schema.type == "array":
-                    if spec.output_schema.items.type == "object":
+                    if hasattr(spec.output_schema, "items") and hasattr(spec.output_schema.items, "type") and spec.output_schema.items.type == "object":
                         schema_ref = self._add_schema_ref(spec.output_schema.items)
                         spec.output_schema.items = JsonSchemaObjectRef(ref=f"{schema_ref.ref}")
 
@@ -281,7 +301,7 @@ class Flow(Node):
                 tool_spec: ToolSpec = ToolSpec.model_validate(tool_specs[0])
                 # just pick the first one that is found
                 if hasattr(tool_spec, "input_schema"):
-                    input_schema_obj = _get_json_schema_obj("input", tool_spec.input_schema)
+                    input_schema_obj = _get_json_schema_obj("input", tool_spec.input_schema, True)
                 if hasattr(tool_spec, "output_schema"):
                     output_schema_obj = _get_json_schema_obj("output", tool_spec.output_schema)
             else: 
@@ -539,13 +559,13 @@ class Flow(Node):
                 },
                 required = ["items"])
 
+        new_foreach_item_schema = self._add_schema(foreach_item_schema)
         spec = ForeachSpec(name = "foreach_" + str(self._next_sequence_id()),
                            input_schema=_get_tool_request_body(input_schema_obj),
                            output_schema=_get_tool_response_body(output_schema_obj),
-                           item_schema = foreach_item_schema)
+                           item_schema = new_foreach_item_schema)
         foreach_obj = Foreach(spec = spec, parent = self)
         foreach_node = self._add_node(foreach_obj)
-        self._add_schema(foreach_item_schema)
 
         return cast(Flow, foreach_node)
 

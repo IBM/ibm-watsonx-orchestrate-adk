@@ -55,7 +55,7 @@
               "$ref": "#/schemas/get_request_status_input"
             },
             "output_schema": {
-              "$ref": "#/schemas/Attempt"
+              "$ref": "#/schemas/Attempt_1"
             },
             "tool": "get_request_status"
           }
@@ -212,10 +212,22 @@
           "$ref": "#/schemas/Attempt"
         }
       }
+    },
+    "Attempt_1": {
+      "type": "object",
+      "title": "Attempt_1",
+      "properties": {
+        "atmp": {
+          "type": "integer",
+          "title": "Atmp",
+          "description": "Represent each attemp to check if the request is finish.",
+          "default": 0
+        }
+      }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-09T13:30:56.270288+00:00"
+    "compiled_on": "2025-06-17T19:44:14.617102+00:00"
   }
 }

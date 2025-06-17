@@ -29,9 +29,9 @@ class SchemaRef(BaseModel):
  
     ref: str = Field(description="The id of the schema to be used.", serialization_alias="$ref")
 
-def _assign_attribute(obj, attr_name, schema):
+def _assign_attribute(model_spec, attr_name, schema):
     if hasattr(schema, attr_name) and (getattr(schema, attr_name) is not None):
-        obj[attr_name] = getattr(schema, attr_name)
+        model_spec[attr_name] = getattr(schema, attr_name)
 
 def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     model_spec = {}
@@ -62,12 +62,14 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
         model_spec["anyOf"] = [_to_json_from_json_schema(schema) for schema in schema.anyOf]
 
     _assign_attribute(model_spec, "in_field", schema)
+    _assign_attribute(model_spec, "in", schema)
     _assign_attribute(model_spec, "aliasName", schema)
 
     if hasattr(schema, 'model_extra') and schema.model_extra:
         # for each extra fiels, add it to the model spec
         for key, value in schema.model_extra.items():
-            model_spec[key] = value
+            if value is not None:
+                model_spec[key] = value
 
     if isinstance(schema, JsonSchemaObjectRef):
         model_spec["$ref"] = schema.ref

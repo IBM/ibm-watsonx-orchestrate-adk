@@ -152,7 +152,6 @@
     "CustomerRecord": {
       "type": "object",
       "title": "CustomerRecord",
-      "description": "TODO: Docstring",
       "required": [
         "name",
         "email"
@@ -205,6 +204,24 @@
         }
       }
     },
+    "CustomerRecord_1": {
+      "type": "object",
+      "title": "CustomerRecord_1",
+      "description": "TODO: Docstring",
+      "required": [],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email",
+          "description": "The email address of the customer"
+        }
+      }
+    },
     "send_invitation_email_input": {
       "type": "object",
       "title": "send_invitation_email_input",
@@ -214,13 +231,13 @@
       "properties": {
         "record": {
           "title": "CustomerRecord",
-          "$ref": "#/schemas/CustomerRecord"
+          "$ref": "#/schemas/CustomerRecord_1"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-05-21T21:18:25.836321+00:00"
+    "compiled_on": "2025-06-10T20:50:45.356246+00:00"
   }
 }

@@ -145,14 +145,11 @@
         "facts": {
           "type": "array",
           "items": {
-            "type": "string",
-            "in_field": null
-          },
-          "in_field": null
+            "type": "string"
+          }
         },
         "success": {
-          "type": "boolean",
-          "in_field": null
+          "type": "boolean"
         }
       }
     },
@@ -171,16 +168,14 @@
         "data": {
           "type": "array",
           "items": {
-            "type": "string",
-            "in_field": null
-          },
-          "in_field": null
+            "type": "string"
+          }
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-09T13:10:31.393990+00:00"
+    "compiled_on": "2025-06-17T18:53:24.281018+00:00"
   }
 }

@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 
 class CustomerRecord(BaseModel):
-    '''TODO: Docstring'''
     name: str = Field(description="The name of the customer")
     email: str = Field(description="The email address of the customer")
 

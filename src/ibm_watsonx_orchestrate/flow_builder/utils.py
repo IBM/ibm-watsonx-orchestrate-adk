@@ -26,7 +26,7 @@ def get_valid_name(name: str) -> str:
  
     return re.sub('\\W|^(?=\\d)','_', name)
 
-def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRequestBody | ToolResponseBody | None) -> JsonSchemaObject:
+def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRequestBody | ToolResponseBody | None, openapi_decode: bool = False) -> JsonSchemaObject:
     if not type_def or type_def is None or type_def == inspect._empty:
         return None
 
@@ -41,6 +41,40 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRe
     if isinstance(type_def, ToolRequestBody) or isinstance(type_def, ToolResponseBody):
         schema_json = type_def.model_dump()
         schema_obj = JsonSchemaObject.model_validate(schema_json)
+
+        if openapi_decode:
+            # during tool import for openapi - we convert header, path and query parameter
+            # with a prefix "header_", "path_" and "query_".  We need to remove it.
+            if schema_obj.type == 'object':
+                # for each element in properties, we need to check the key and if it is
+                # prefixed with "header_", "path_" and "query_", we need to remove the prefix.
+                if hasattr(schema_obj, "properties"):
+                    new_properties = {}
+                    for key, value in schema_obj.properties.items():
+                        if key.startswith('header_'):
+                            new_properties[key[7:]] = value
+                        elif key.startswith('path_'):
+                            new_properties[key[5:]] = value
+                        elif key.startswith('query_'):
+                            new_properties[key[6:]] = value
+                        else:
+                            new_properties[key] = value
+                        
+                    schema_obj.properties = new_properties     
+
+                # we also need to go thru required and replace it
+                if hasattr(schema_obj, "required"):
+                    new_required = []
+                    for item in schema_obj.required:
+                        if item.startswith('header_'):
+                            new_required.append(item[7:])
+                        elif item.startswith('path_'):
+                            new_required.append(item[5:])
+                        elif item.startswith('query_'):
+                            new_required.append(item[6:])
+                        else:
+                            new_required.append(item)
+                    schema_obj.required = new_required
 
         return schema_obj
 

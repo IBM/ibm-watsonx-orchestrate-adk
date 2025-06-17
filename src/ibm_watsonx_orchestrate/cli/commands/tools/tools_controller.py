@@ -339,14 +339,13 @@ async def import_flow_tool(file: str) -> None:
     theme = rich.theme.Theme({"model.name": "bold cyan"})
     console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
     
-    message = f"""[bold cyan]Flow Tools: Experimental Feature[/bold cyan]
+    message = f"""[bold cyan]Flow Tools[/bold cyan]
    
 The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].  
     
 [bold cyan]Additional information:[/bold cyan]
 
-- Ensure the flow engine is running by issuing the [bold cyan]orchestrate server start[/bold cyan] command with the [bold cyan]--with-flow-runtime[/bold cyan] option
-- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. Ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
+- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. To get a flow's current status, ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
 - Include additional instructions in your agent to call the [bold green]get_flow_status[/bold green] tool to retrieve the flow output. For example: [green]"If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow."[/green]
 
     """
