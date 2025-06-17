@@ -408,17 +408,9 @@ snapshots['test_async_spec_with_callback 1'] = {
                 ],
                 'title': 'RequestBody',
                 'type': 'object'
-            },
-            'header_callbackUrl': {
-                'aliasName': 'callbackUrl',
-                'description': 'The callback url for sending the response',
-                'in': 'header',
-                'title': 'callbackUrl',
-                'type': 'string'
             }
         },
         'required': [
-            'header_callbackUrl',
             '__requestBody__'
         ],
         'type': 'object'

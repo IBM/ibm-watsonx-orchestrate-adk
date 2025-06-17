@@ -222,7 +222,10 @@ def create_openapi_json_tool(
             properties={k: v for k, v in spec.input_schema.properties.items() if not k.endswith('_callbackUrl')},
             required=[r for r in spec.input_schema.required if not r.endswith('_callbackUrl')]
         )
-        
+
+        if callback_input_schema:
+            spec.input_schema = callback_input_schema
+
         callback_binding = CallbackBinding(
             callback_url=callback_path,
             method=callback_method.upper(),
@@ -245,8 +248,6 @@ def create_openapi_json_tool(
         openapi_binding.callback = callback_binding
 
     spec.binding = ToolBinding(openapi=openapi_binding)
-
-
 
     return OpenAPITool(spec=spec)
 
