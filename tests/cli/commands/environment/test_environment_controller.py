@@ -14,6 +14,11 @@ tokens = {
     "invalid_token": "not a real token",
 }
 
+@pytest.fixture(autouse=True)
+def patch_getpass():
+    with patch("getpass.getpass", return_value="mock-api-key"):
+        yield
+
 class MockConfig():
     def __init__(self, read_value=None, expected_write=None, expected_save=None):
         self.read_value = read_value
@@ -67,7 +72,7 @@ class MockClient:
         self.token = tokens["valid_token_w_expiry"]
 
 class MockCredentials:
-    def __init__(self, url, api_key, iam_url, auth_type):
+    def __init__(self, url, api_key, iam_url, auth_type, username, password):
         pass
 
 @pytest.fixture

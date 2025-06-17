@@ -26,6 +26,8 @@ ENV_WXO_URL_OPT = "wxo_url"
 ENV_IAM_URL_OPT = "iam_url"
 PROTECTED_ENV_NAME = "local"
 ENV_AUTH_TYPE = "auth_type"
+BYPASS_SSL = "bypass_ssl"
+VERIFY = "verify"
 ENV_ACCEPT_LICENSE = 'accepts_license_agreements'
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"

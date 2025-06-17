@@ -170,6 +170,8 @@ def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str | None) -> tu
                 auth_type = "ibm_iam"
             elif ".ibm.com" in instance_url:
                 auth_type = "mcsp"
+            elif "https://cpd" in instance_url:
+                auth_type = "cpd"
     
     if auth_type in {"mcsp", "ibm_iam"}:
         wo_api_key = env_dict.get("WO_API_KEY")

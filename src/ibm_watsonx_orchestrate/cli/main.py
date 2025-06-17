@@ -14,6 +14,10 @@ from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_comman
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
 app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_enable=False,

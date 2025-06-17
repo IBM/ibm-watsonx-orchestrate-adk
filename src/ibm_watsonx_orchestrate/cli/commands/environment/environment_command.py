@@ -5,6 +5,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment import environment_control
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,19 @@ def activate_env(
         apikey: Annotated[
             str,
             typer.Option(
-                "--api-key", "-a", help="WXO API Key. Leave Blank if developing locally"
+                "--api-key", "-a", help="WXO or CPD API Key. Leave Blank if developing locally. For CPD, either a Passoword or Apikey is accepted for CPD, but not both."
+            ),
+        ] = None,
+        username: Annotated[
+            str,
+            typer.Option(
+                "--username", "-u", help="Username specifically for CPD Environments."
+            ),
+        ] = None,
+        password: Annotated[
+            str,
+            typer.Option(
+                "--password", "-p", help="Password specifically for CPD Environments. Either a Passoword or Apikey is accepted for CPD, but not both."
             ),
         ] = None,
         registry: Annotated[
@@ -32,7 +45,7 @@ def activate_env(
             typer.Option("--test-package-version-override", help="Which prereleased package version to reference when using --registry testpypi", hidden=True),
         ] = None
 ):
-    environment_controller.activate(name=name, apikey=apikey, registry=registry, test_package_version_override=test_package_version_override)
+    environment_controller.activate(name=name, apikey=apikey,username=username, password=password, registry=registry, test_package_version_override=test_package_version_override)
 
 
 @environment_app.command(name="add")
@@ -58,9 +71,21 @@ def add_env(
         type: Annotated[
             EnvironmentAuthType,
             typer.Option("--type", "-t", help="The type of auth you wish to use"),
-        ] = None
+        ] = None,
+        insecure: Annotated[
+            bool,
+            typer.Option("--insecure", help="Ignore SSL validation errors. Used for CPD Environments only"),
+        ] = False,
+        verify: Annotated[
+            str,
+            typer.Option("--verify", help="Path to SSL Cert. Used for CPD Environments only"),
+        ] = None,
 ):
-    environment_controller.add(name=name, url=url, should_activate=activate, iam_url=iam_url, type=type)
+    if insecure and verify:
+        logger.error("Please choose either '--insecure' or '--verify' but not both.")
+        sys.exit(1)
+
+    environment_controller.add(name=name, url=url, should_activate=activate, iam_url=iam_url, type=type, insecure=insecure, verify=verify)
 
 
 @environment_app.command(name="remove")

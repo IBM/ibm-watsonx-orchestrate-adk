@@ -26,7 +26,8 @@ def _infer_auth_type_from_instance_url(instance_url: str) -> WoAuthType:
           return WoAuthType.IBM_IAM
      if ".ibm.com" in instance_url:
           return WoAuthType.MCSP
-     return WoAuthType.CPD
+     if "https://cpd" in instance_url:
+          return WoAuthType.CPD
 
 
 class WatsonXAIEnvConfig(BaseModel):

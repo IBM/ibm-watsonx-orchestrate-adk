@@ -17,6 +17,7 @@ class MockModelsClient():
     def __init__(self, list_response=[], get_draft_by_name_response=[]):
         self.list_response = list_response
         self.get_draft_by_name_response = get_draft_by_name_response
+        self.base_url = 'http://localhost:4321'
 
     def list(self):
         return self.list_response

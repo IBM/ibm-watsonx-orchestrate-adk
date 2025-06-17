@@ -5,6 +5,7 @@ from typing import Optional
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env
 
 import logging
 logger = logging.getLogger(__name__)
@@ -53,9 +54,14 @@ class ConnectionsClient(BaseAPIClient):
         return self._delete(f"/connections/applications/{app_id}")
 
     # GET /api/v1/connections/applications/{app_id}
-    def get(self, app_id: str) -> GetConnectionResponse:
+    def get(self, app_id: str) -> GetConnectionResponse | None:
         try:
-            return GetConnectionResponse.model_validate(self._get(f"/connections/applications?app_id={app_id}"))
+            path = (
+                f"/connections/applications/{app_id}"
+                if is_cpd_env(self.base_url)
+                else f"/connections/applications?app_id={app_id}"
+            )
+            return GetConnectionResponse.model_validate(self._get(path))
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -65,7 +71,12 @@ class ConnectionsClient(BaseAPIClient):
     # GET api/v1/connections/applications
     def list(self) -> List[ListConfigsResponse]:
         try:
-            res = self._get(f"/connections/applications?include_details=true")
+            path = (
+                f"/connections/applications"
+                if is_cpd_env(self.base_url)
+                else f"/connections/applications?include_details=true"
+            )
+            res = self._get(path)
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
@@ -115,9 +126,19 @@ class ConnectionsClient(BaseAPIClient):
     def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> dict:
         try:
             if use_sso:
-                return self._get(f"/connections/applications/{app_id}/credentials/{env}")
+                path = (
+                    f"/connections/applications/{app_id}/credentials?env={env}"
+                    if is_cpd_env(self.base_url)
+                    else f"/connections/applications/{app_id}/credentials/{env}"
+                )
+                return self._get(path)
             else:
-                return self._get(f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}")
+                path = (
+                    f"/connections/applications/{app_id}/configs/runtime_credentials?env={env}"
+                    if is_cpd_env(self.base_url)
+                    else f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}"
+                )
+                return self._get(path)
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -147,7 +168,12 @@ class ConnectionsClient(BaseAPIClient):
         if conn_id is None:
             return ""
         try:
-            app_details = self._get(f"/connections/applications?connection_id={conn_id}")
+            path = (
+                f"/connections/applications/id/{conn_id}"
+                if is_cpd_env(self.base_url)
+                else f"/connections/applications?connection_id={conn_id}"
+            )
+            app_details = self._get(path)
             return app_details.get("app_id")
         except ClientAPIException as e:
             if e.response.status_code == 404:
