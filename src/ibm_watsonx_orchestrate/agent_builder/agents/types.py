@@ -149,8 +149,6 @@ def validate_agent_fields(values: dict) -> dict:
             raise ValueError(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
 
     if values.get("style") == AgentStyle.PLANNER:
-        if not values.get("custom_join_tool") and not values.get("structured_output"):
-            raise ValueError("Either 'custom_join_tool' or 'structured_output' must be provided for planner style agents.")
         if values.get("custom_join_tool") and values.get("structured_output"):
             raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
 
