@@ -85,6 +85,20 @@ class AgentStyle(str, Enum):
     REACT = "react"
     PLANNER = "planner"
 
+class AgentGuideline(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    display_name: Optional[str] = None
+    condition: str
+    action: str
+    tool: Optional[BaseTool] | Optional[str] = None
+
+    def __init__(self, *args, **kwargs):
+        if "tool" in kwargs and kwargs["tool"]:
+            kwargs["tool"] = kwargs['tool'].__tool_spec__.name if isinstance(kwargs['tool'], BaseTool) else kwargs["tool"]
+
+        super().__init__(*args, **kwargs)
+
 class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -94,6 +108,7 @@ class AgentSpec(BaseAgentSpec):
     custom_join_tool: str | PythonTool | None = None
     structured_output: Optional[JsonSchemaObject] = None
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
+    guidelines: Optional[List[AgentGuideline]] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     hidden: bool = False

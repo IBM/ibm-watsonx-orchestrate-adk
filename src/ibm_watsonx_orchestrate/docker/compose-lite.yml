@@ -325,6 +325,7 @@ services:
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
 
 
   wxo-server-worker:
@@ -416,6 +417,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       WXO_DEPLOYMENT_PLATFORM: saas
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}

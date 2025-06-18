@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentKind,
     SpecVersion
 )
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -194,6 +194,10 @@ def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | Ass
             sys.exit(1)
 
     return agent_specs[0]
+
+def _raise_guidelines_warning(response: AgentUpsertResponse) -> None:
+    if response.warning:
+        logger.warning(f"Agent Configuration Issue: {response.warning}")
 
 class AgentsController:
     def __init__(self):
@@ -438,6 +442,72 @@ class AgentsController:
         ref_agent.knowledge_base = ref_knowledge_bases
         return ref_agent
     
+    def dereference_guidelines(self, agent: Agent) -> Agent:
+        tool_client = self.get_tool_client()
+        
+        guideline_tool_names = set()
+
+        for guideline in agent.guidelines:
+            if guideline.tool:
+                guideline_tool_names.add(guideline.tool)
+        
+        if len(guideline_tool_names) == 0:
+            return agent
+
+        deref_agent = deepcopy(agent)
+
+        matching_tools = tool_client.get_drafts_by_names(list(guideline_tool_names))
+
+        name_id_lookup = {}
+        for tool in matching_tools:
+            if tool.get("name") in name_id_lookup:
+                logger.error(f"Duplicate draft entries for tool '{tool.get('name')}'")
+                sys.exit(1)
+            name_id_lookup[tool.get("name")] = tool.get("id")
+        
+        for guideline in deref_agent.guidelines:
+            if guideline.tool:
+                id = name_id_lookup.get(guideline.tool)
+                if not id:
+                    logger.error(f"Failed to find guideline tool. No tools found with the name '{guideline.tool}'")
+                    sys.exit(1)
+                guideline.tool = id
+
+        return deref_agent
+    
+    def reference_guidelines(self, agent: Agent) -> Agent:
+        tool_client = self.get_tool_client()
+        
+        guideline_tool_ids = set()
+
+        for guideline in agent.guidelines:
+            if guideline.tool:
+                guideline_tool_ids.add(guideline.tool)
+        
+        if len(guideline_tool_ids) == 0:
+            return agent
+
+        ref_agent = deepcopy(agent)
+
+        matching_tools = tool_client.get_drafts_by_ids(list(guideline_tool_ids))
+
+        id_name_lookup = {}
+        for tool in matching_tools:
+            if tool.get("id") in id_name_lookup:
+                logger.error(f"Duplicate draft entries for tool '{tool.get('id')}'")
+                sys.exit(1)
+            id_name_lookup[tool.get("id")] = tool.get("name")
+        
+        for guideline in ref_agent.guidelines:
+            if guideline.tool:
+                name = id_name_lookup.get(guideline.tool)
+                if not name:
+                    logger.error(f"Failed to find guideline tool. No tools found with the id '{guideline.tool}'")
+                    sys.exit(1)
+                guideline.tool = name
+
+        return ref_agent
+
     @staticmethod
     def dereference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         if agent.kind == AgentKind.EXTERNAL:
@@ -466,6 +536,8 @@ class AgentsController:
             agent = self.dereference_tools(agent)
         if agent.knowledge_base and len(agent.knowledge_base):
             agent = self.dereference_knowledge_bases(agent)
+        if agent.guidelines and len(agent.guidelines):
+            agent = self.dereference_guidelines(agent)
 
         return agent
     
@@ -476,6 +548,8 @@ class AgentsController:
             agent = self.reference_tools(agent)
         if agent.knowledge_base and len(agent.knowledge_base):
             agent = self.reference_knowledge_bases(agent)
+        if agent.guidelines and len(agent.guidelines):
+            agent = self.reference_guidelines(agent)
 
         return agent
     
@@ -561,7 +635,8 @@ class AgentsController:
 
     def publish_agent(self, agent: Agent, **kwargs) -> None:
         if isinstance(agent, Agent):
-            self.get_native_client().create(agent.model_dump(exclude_none=True))
+            response = self.get_native_client().create(agent.model_dump(exclude_none=True))
+            _raise_guidelines_warning(response)
             logger.info(f"Agent '{agent.name}' imported successfully")
         if isinstance(agent, ExternalAgent):
             self.get_external_client().create(agent.model_dump(exclude_none=True))
@@ -575,7 +650,8 @@ class AgentsController:
     ) -> None:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
-            self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True))
+            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True))
+            _raise_guidelines_warning(response)
             logger.info(f"Agent '{agent.name}' updated successfully")
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
