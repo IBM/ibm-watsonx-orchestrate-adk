@@ -10,7 +10,7 @@ class Plan(str, Enum):
 
 
 @tool
-def get_healthcare_benefits(plan: Plan, in_network: bool = None):
+def get_healthcare_benefits(plan: Plan, in_network: bool | None = None):
     """
     Retrieve a comprehensive list of health benefits data, organized by coverage type and plan variant.
     This data outlines details such as annual deductibles, out-of-pocket maximums, and various co-pays
