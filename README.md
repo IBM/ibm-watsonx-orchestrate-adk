@@ -102,7 +102,7 @@ you will be able to start, activate, import into and rapidly reset a local serve
 
 ### Starting the Developer Edition
 
-```
+```bash
  orchestrate server start --help                           
      
  Usage: orchestrate server start [OPTIONS]                                                                                                                                                                                                                         

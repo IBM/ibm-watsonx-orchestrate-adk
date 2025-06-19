@@ -668,9 +668,10 @@ services:
       retries: 10
 
   wdu-runtime:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-runtime:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-runtime:${WDU_TAG:-2.4.0}
     restart: unless-stopped
     environment:
+      MINIMAL_MEMORY: true
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
       # CONFIG_FILES: "/app/configs/config.yaml"
@@ -699,7 +700,7 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-models:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-models:${WDU_TAG:-2.4.0}
     user: root
     profiles:
       - wdu
