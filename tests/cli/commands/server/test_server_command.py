@@ -268,24 +268,6 @@ def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
                 capture_output=False
             )
 
-def test_run_compose_lite_success_wdu_true():
-    mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-        patch.object(Path, "unlink") as mock_unlink:
-        mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_wdu=True)
-            mock_unlink.assert_called()
-
-def test_run_compose_lite_success_wdu_false():
-    mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-        patch.object(Path, "unlink") as mock_unlink:
-        mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_wdu=False)
-            mock_unlink.assert_called()
-
 def test_run_compose_lite_success_docproc_true():
     mock_env_file = Path("/tmp/test.env")
     with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \

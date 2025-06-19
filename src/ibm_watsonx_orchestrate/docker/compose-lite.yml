@@ -654,9 +654,9 @@ services:
       IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
     profiles:
       - docproc
-    depends_on:
-      wxo-doc-processing-cache:
-        condition: service_healthy
+    # depends_on:
+      # wxo-doc-processing-cache:
+        # condition: service_healthy
     ports:
       - "18081:8080"
     # volumes:
@@ -671,7 +671,7 @@ services:
     image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-runtime:${WDU_TAG:-2.4.0}
     restart: unless-stopped
     environment:
-      MINIMAL_MEMORY: true
+      MINIMAL_MEMORY: "true"
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
       # CONFIG_FILES: "/app/configs/config.yaml"
@@ -737,7 +737,7 @@ services:
       # S3_USE_SSL: false
       # S3_VERIFY_CERT: false
     profiles:
-      - docproc
+      - docproc-experimental
     depends_on:
       wxo-doc-processing-pg-init:
         condition: service_completed_successfully
@@ -764,7 +764,7 @@ services:
       WATSONX_PROJECT_ID: ${WATSONX_SPACE_ID}
       IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:18083'
     profiles:
-      - docproc
+      - docproc-experimental
     depends_on:
       wxo-doc-processing-cache: 
         condition: service_healthy
@@ -811,8 +811,8 @@ services:
         condition: service_completed_successfully
       wxo-doc-processing-service:
         condition: service_healthy
-      wxo-doc-processing-llm-service:
-        condition: service_healthy
+      # wxo-doc-processing-llm-service:
+      #   condition: service_healthy
     # volumes:
       # - ./conf/dpi/tls:/opt/tls
       # - ./conf/dpi/fyre/tls:/opt/fyre/tls
@@ -859,7 +859,7 @@ services:
       PG_DB_SCHEMA: dpschema
       # PG_USE_SSL: false
     profiles:
-      - docproc
+      - docproc-experimental
     depends_on:
       wxo-server-db:
         condition: service_started
@@ -886,7 +886,7 @@ services:
   wxo-doc-processing-cache-minio-init:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
     profiles:
-      - docproc
+      - docproc-experimental
     depends_on:
       wxo-server-minio:
         condition: service_healthy
