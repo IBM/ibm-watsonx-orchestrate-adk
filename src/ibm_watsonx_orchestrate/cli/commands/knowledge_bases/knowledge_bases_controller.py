@@ -197,10 +197,10 @@ class KnowledgeBaseController:
             )
 
             column_args = {
-                "Name": {},
+                "Name": {"overflow": "fold"},
                 "Description": {},
                 "App ID": {},
-                "ID": {}
+                "ID": {"overflow": "fold"}
             }
             
             for column in column_args:
