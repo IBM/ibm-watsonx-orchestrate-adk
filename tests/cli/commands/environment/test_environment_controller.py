@@ -1,7 +1,9 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import re
 import pytest
+from requests import Response
 from ibm_watsonx_orchestrate.cli.commands.environment import environment_controller
+from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.cli.config import PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, \
     PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT
 
@@ -11,6 +13,11 @@ tokens = {
     "invalid_token_expired": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjEwMDAwMDAwMDB9.9oF3tWEwFMK-0ut1pNLF0tOfZ-onpT5upqOCX58xlko",
     "invalid_token": "not a real token",
 }
+
+@pytest.fixture(autouse=True)
+def patch_getpass():
+    with patch("getpass.getpass", return_value="mock-api-key"):
+        yield
 
 class MockConfig():
     def __init__(self, read_value=None, expected_write=None, expected_save=None):
@@ -65,7 +72,7 @@ class MockClient:
         self.token = tokens["valid_token_w_expiry"]
 
 class MockCredentials:
-    def __init__(self, url, api_key, iam_url, auth_type):
+    def __init__(self, url, api_key, iam_url, auth_type, username, password):
         pass
 
 @pytest.fixture
@@ -106,7 +113,8 @@ class TestActivate:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
-            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
             
             mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write="testing", expected_save={
                 "auth": {
@@ -136,7 +144,8 @@ class TestActivate:
     def test_change_registry(self, mock_read_value, caplog, registry, test_package_version_override):
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
                 patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
-                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
+                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
 
             cfg = MockConfig2()
             cfg.save(mock_read_value)
@@ -170,7 +179,8 @@ class TestActivate:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
-            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials:
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
             
             expected_save = {
                 "auth": {
@@ -189,6 +199,49 @@ class TestActivate:
 
             captured = caplog.text
             assert "Environment 'testing' is now active" in captured
+
+    @pytest.mark.parametrize(
+            ("url", "token", "token_expiry", "auth_type"),
+            [
+                ("https://www.testing.com", tokens["invalid_token_expired"], 0, None)
+            ]
+    )
+    def test_activate_token_rejected(self,  mock_read_value, url, token, token_expiry, caplog, auth_type):
+        read_value = mock_read_value.copy()
+        read_value['environments']['testing']['wxo_url'] = url
+        read_value['environments']['testing']['auth_type'] = auth_type
+        read_value['auth']['testing']['wxo_mcsp_token'] = token
+        read_value['auth']['testing']['wxo_mcsp_token_expiry'] = token
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock) as mock_agent_client:
+            
+            mock_http_error_response = Response()
+            mock_http_error_response.status_code = 401
+            mock_agent_client.get = MagicMock()
+            mock_agent_client.get.side_effect = ClientAPIException(response=mock_http_error_response)
+
+            expected_save = {
+                "auth": {
+                    "testing":{
+                        "wxo_mcsp_token": tokens["valid_token_w_expiry"],
+                    }
+                }
+            }
+
+            if token_expiry:
+                expected_save["auth"]["testing"]["wxo_mcsp_token_expiry"] = token_expiry
+
+            mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write="testing", expected_save=expected_save)
+
+            with pytest.raises(SystemExit):
+                environment_controller.activate(name="testing", apikey="123")
+
+            captured = caplog.text
+            assert "Environment 'testing' is now active" not in captured
+            assert f"Failed to authenticate to provided instance '{url}'. Reason: 'None'. Please ensure provider URL and API key are valid."
     
 class TestAdd:
     def test_add(self, mock_read_value, caplog):

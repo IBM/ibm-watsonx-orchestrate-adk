@@ -10,7 +10,7 @@ class ExternalAgentClient(BaseAPIClient):
         return self._post("/agents/external-chat", data=payload)
 
     def get(self) -> dict:
-        return self._get("/agents/external-chat")
+        return self._get("/agents/external-chat?include_hidden=true")
 
     def update(self, agent_id: str, data: dict) -> dict:
         return self._patch(f"/agents/external-chat/{agent_id}", data=data)
@@ -39,4 +39,4 @@ class ExternalAgentClient(BaseAPIClient):
 
     def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
-        return self._get(f"/agents/external-chat?{'&'.join(formatted_agent_ids)}")
+        return self._get(f"/agents/external-chat?{'&'.join(formatted_agent_ids)}&include_hidden=true")

@@ -146,7 +146,6 @@ class ProviderConfig(BaseModel):
 
     # Azure Inference
     azure_deployment_name: Optional[str] = Field(None, alias="azureDeploymentName")
-    azure_api_version: Optional[str] = Field(None, alias="azureApiVersion")
     azure_extra_params: Optional[str] = Field(None, alias="azureExtraParams")
     azure_foundry_url: Optional[str] = Field(None, alias="azureFoundryUrl")
 

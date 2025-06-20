@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: customer_email_agent
+description: >
+    You are an agent that can manage mailing for customers.
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - send_invitation_to_customer
+  - get_flow_status

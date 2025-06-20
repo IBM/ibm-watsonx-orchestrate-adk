@@ -17,11 +17,7 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     write_merged_env_file,
     run_compose_lite,
     get_dbtag_from_architecture,
-    run_db_migration,
-    run_compose_lite_down,
-    run_compose_lite_logs,
-    get_default_env_file,
-    get_compose_file
+    run_db_migration
 )
 from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, ENV_ACCEPT_LICENSE
 from utils.matcher import MatchesStringContaining

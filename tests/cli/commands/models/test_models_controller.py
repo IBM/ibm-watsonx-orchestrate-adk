@@ -17,6 +17,7 @@ class MockModelsClient():
     def __init__(self, list_response=[], get_draft_by_name_response=[]):
         self.list_response = list_response
         self.get_draft_by_name_response = get_draft_by_name_response
+        self.base_url = 'http://localhost:4321'
 
     def list(self):
         return self.list_response
@@ -99,6 +100,7 @@ def empty_dummy_requests_get(url):
 
 class TestCreateModelFromSpec:
     mock_model_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -122,6 +124,7 @@ class TestCreateModelFromSpec:
 
 class TestCreatePolicyFromSpec:
     mock_policy_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -147,6 +150,7 @@ class TestCreatePolicyFromSpec:
 
 class TestImportPythonModel:
     mock_model_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -175,6 +179,7 @@ class TestImportPythonModel:
 
 class TestImportPythonPolicy:
     mock_policy_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -209,6 +214,7 @@ class TestImportPythonPolicy:
 
 class TestParseModelFile:
     mock_model_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -259,6 +265,7 @@ class TestParseModelFile:
 
 class TestParsePolicyFile:
     mock_policy_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -479,6 +486,7 @@ class TestImportModel:
     mock_app_id = "mock_app_id"
     mock_connection_id = "mock_conn_id"
     mock_model_spec = {
+        "spec_version": "v1",
         "name": "test_name",
         "display_name": "test_display_name",
         "description": "test_description",
@@ -789,6 +797,7 @@ class TestImportModelPolicy:
     mock_model_name = "test_model"
     mock_policy_name = "test_name"
     mock_policy_spec = {
+        "spec_version": "v1",
         "name": mock_policy_name,
         "display_name": "test_display_name",
         "description": "test_description",

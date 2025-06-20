@@ -3,8 +3,8 @@ import logging
 from pathlib import Path
 
 from tests.integration_tests.flow_builder.hello_message_flow.tools.hello_message_flow import build_hello_message_flow
-from ibm_watsonx_orchestrate.experimental.flow_builder.flows.flow import FlowRunStatus
-from ibm_watsonx_orchestrate.experimental.flow_builder.types import FlowEventType
+from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowRunStatus
+from ibm_watsonx_orchestrate.flow_builder.types import FlowEventType
 
 logger = logging.getLogger(__name__)
 

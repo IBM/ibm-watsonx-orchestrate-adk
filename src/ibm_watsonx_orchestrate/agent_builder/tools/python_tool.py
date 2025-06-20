@@ -95,7 +95,8 @@ def _fix_optional(schema):
 def _validate_input_schema(input_schema: ToolRequestBody) -> None:
     props = input_schema.properties
     for prop in props:
-        if not props.get(prop).type:
+        property_schema = props.get(prop)
+        if not (property_schema.type or property_schema.anyOf):
             logger.warning(f"Missing type hint for tool property '{prop}' defaulting to 'str'. To remove this warning add a type hint to the property in the tools signature. See Python docs for guidance: https://docs.python.org/3/library/typing.html")
 
 def _validate_join_tool_func(fn: Callable, sig: inspect.Signature | None = None, name: str | None = None) -> None:

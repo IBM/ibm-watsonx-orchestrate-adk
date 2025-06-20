@@ -1,0 +1,243 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "send_invitation_to_customer",
+    "display_name": "send_invitation_to_customer",
+    "description": "Given a list of customers, we will iterate through the list and send email to each ",
+    "input_schema": {
+      "$ref": "#/schemas/send_invitation_to_customer_input"
+    }
+  },
+  "nodes": {
+    "get_emails_from_customer": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_emails_from_customer",
+        "display_name": "get_emails_from_customer",
+        "description": "Returns a list of email addresses based on the provided search string.\n",
+        "input_schema": {
+          "$ref": "#/schemas/get_emails_from_customer_input"
+        },
+        "output_schema": {
+          "type": "array",
+          "description": "A list of email addresses that match the search string.",
+          "items": {
+            "$ref": "#/schemas/CustomerRecord"
+          }
+        },
+        "tool": "get_emails_from_customer"
+      }
+    },
+    "foreach_1": {
+      "spec": {
+        "kind": "foreach",
+        "name": "foreach_1",
+        "display_name": "foreach_1",
+        "input_schema": {
+          "$ref": "#/schemas/foreach_1_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/foreach_1_output"
+        },
+        "initiators": [
+          "__any_user__"
+        ],
+        "item_schema": {
+          "ref": "#/schemas/CustomerRecord"
+        },
+        "foreach_policy": "SEQUENTIAL"
+      },
+      "nodes": {
+        "send_invitation_email": {
+          "spec": {
+            "kind": "tool",
+            "name": "send_invitation_email",
+            "display_name": "send_invitation_email",
+            "description": "Send an invitation email to a given email address. \nReturns the email body that was sent.",
+            "input_schema": {
+              "$ref": "#/schemas/send_invitation_email_input"
+            },
+            "output_schema": {
+              "type": "string"
+            },
+            "tool": "send_invitation_email"
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "send_invitation_email"
+        },
+        {
+          "start": "send_invitation_email",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "get_emails_from_customer"
+    },
+    {
+      "start": "get_emails_from_customer",
+      "end": "foreach_1"
+    },
+    {
+      "start": "foreach_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "send_invitation_to_customer_input": {
+      "type": "object",
+      "title": "send_invitation_to_customer_input",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        }
+      }
+    },
+    "get_emails_from_customer_input": {
+      "type": "object",
+      "title": "get_emails_from_customer_input",
+      "required": [
+        "customer_name"
+      ],
+      "properties": {
+        "customer_name": {
+          "type": "string",
+          "title": "Customer Name",
+          "description": "The string to search for in email addresses."
+        }
+      }
+    },
+    "CustomerRecord": {
+      "type": "object",
+      "title": "CustomerRecord",
+      "required": [
+        "name",
+        "email"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email",
+          "description": "The email address of the customer"
+        }
+      }
+    },
+    "foreach_1_input": {
+      "type": "object",
+      "title": "foreach_1_input",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/schemas/CustomerRecord"
+          }
+        }
+      }
+    },
+    "foreach_1_output": {
+      "type": "object",
+      "title": "foreach_1_output",
+      "required": [
+        "name",
+        "email"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email",
+          "description": "The email address of the customer"
+        }
+      }
+    },
+    "CustomerRecord_1": {
+      "type": "object",
+      "title": "CustomerRecord_1",
+      "description": "TODO: Docstring",
+      "required": [],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email",
+          "description": "The email address of the customer"
+        }
+      }
+    },
+    "send_invitation_email_input": {
+      "type": "object",
+      "title": "send_invitation_email_input",
+      "required": [
+        "record"
+      ],
+      "properties": {
+        "record": {
+          "title": "CustomerRecord",
+          "$ref": "#/schemas/CustomerRecord_1"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-10T20:50:45.356246+00:00"
+  }
+}

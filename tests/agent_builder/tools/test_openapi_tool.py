@@ -710,3 +710,137 @@ async def test_http_put_with_json_request_body(mocker, snapshot, testitall):
         assert False, 'should have thrown'
     except RuntimeError as e:
         assert 'only available when deployed' in str(e), 'should show runtime message if called'
+
+
+@pytest.fixture
+def openapi_async_callback_spec():
+    return {
+        'openapi': '3.0.3',
+        'info': {},
+        "servers": [
+            {
+            "url": "https://{host}:{port}",
+            "description": "Your API server (with https enabled)",
+            "variables": {
+                "host": {
+                "default": "",
+                "description": "Hostname of the API server"
+                },
+                "port": {
+                "default": "443",
+                "description": "Port of the API server"
+                }
+            }
+            }
+        ],
+        'paths': {
+            '/test': {
+                'POST': {
+                    "summary": "Test async with callback",
+                    "description": "Test async with callback",
+                    "operationId": "testAsyncCallback",
+                    "parameters": [
+                        {
+                            "in": "header",
+                            "name": "callbackUrl",
+                            "description": "The callback url for sending the response",
+                            "required": True,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "param": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "param"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "callbacks": {
+                        "callback": {
+                            "{$request.header.callbackUrl}": {
+                                "POST": {
+                                    "requestBody": {
+                                        "content": {
+                                            "application/json": {
+                                                "schema": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "result": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "responses": {
+                                        "200": {
+                                            "description": "Callback response"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Success response",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "status": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_spec_with_callback(mocker, snapshot, openapi_async_callback_spec):
+    expected_response = {'status': 'got it'}
+    AsyncClient, requests = get_mock_async_client(respond_with=MockResponse(json=expected_response))
+    mocker.patch('httpx.AsyncClient', AsyncClient)
+
+    tool = create_openapi_json_tool(
+        openapi_async_callback_spec,
+        http_path='/test',
+        http_method='POST'
+    )
+
+    spec = json.loads(tool.dumps_spec())
+    snapshot.assert_match(spec)
+    
+    assert spec['binding']['openapi']['callback'] is not None
+    assert spec['binding']['openapi']['callback']['callback_url'] == '{$request.header.callbackUrl}'
+
+    callback_input_schema = spec['binding']['openapi']['callback']['input_schema']
+    assert 'header_callbackUrl' not in callback_input_schema['properties']
+    assert 'header_callbackUrl' not in callback_input_schema['required']
+    
+    try:
+        await tool()
+        assert False, 'should have thrown'
+    except RuntimeError as e:
+        assert 'only available when deployed' in str(e), 'should show runtime message if called'

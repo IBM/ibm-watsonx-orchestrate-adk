@@ -137,7 +137,7 @@ def agent_create(
         List[str],
         typer.Option(
             "--knowledge-bases",
-            help="A list of knowlege bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
+            help="A list of knowledge bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
         ),
     ] = None,
     output_file: Annotated[
@@ -146,6 +146,21 @@ def agent_create(
             "--output",
             "-o",
             help="Write the agent definition out to a YAML (.yaml/.yml) file or a JSON (.json) file.",
+        ),
+    ] = None,
+    context_access_enabled: Annotated[
+        bool,
+        typer.Option(
+            "--context-access-enabled",
+            help="Whether the agent has access to context variables (default: True)",
+        ),
+    ] = True,
+    context_variables: Annotated[
+        List[str],
+        typer.Option(
+            "--context-variable",
+            "-v",
+            help="A list of context variable names the agent can access. Format: --context-variable var1 --context-variable var2 ... or -v var1 -v var2 ...",
         ),
     ] = None,
 ):
@@ -177,6 +192,8 @@ def agent_create(
         nickname=nickname,
         app_id=app_id,
         output_file=output_file,
+        context_access_enabled=context_access_enabled,
+        context_variables=context_variables,
     )
     agents_controller.publish_or_update_agents([agent])
 

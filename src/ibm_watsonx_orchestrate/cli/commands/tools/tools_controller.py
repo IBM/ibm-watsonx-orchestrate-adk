@@ -33,7 +33,7 @@ from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, C
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
-from ibm_watsonx_orchestrate.experimental.flow_builder.flows.decorators import FlowWrapper
+from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
@@ -41,7 +41,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_de
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
-from ibm_watsonx_orchestrate.experimental.flow_builder.utils import import_flow_model
+from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_model
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -339,14 +339,13 @@ async def import_flow_tool(file: str) -> None:
     theme = rich.theme.Theme({"model.name": "bold cyan"})
     console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
     
-    message = f"""[bold cyan]Flow Tools: Experimental Feature[/bold cyan]
+    message = f"""[bold cyan]Flow Tools[/bold cyan]
    
 The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].  
     
 [bold cyan]Additional information:[/bold cyan]
 
-- Ensure the flow engine is running by issuing the [bold cyan]orchestrate server start[/bold cyan] command with the [bold cyan]--with-flow-runtime[/bold cyan] option
-- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. Ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
+- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. To get a flow's current status, ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
 - Include additional instructions in your agent to call the [bold green]get_flow_status[/bold green] tool to retrieve the flow output. For example: [green]"If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow."[/green]
 
     """
@@ -438,6 +437,10 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         return ToolKind.python
     elif ToolKind.openapi in tool_binding:
         return ToolKind.openapi
+    elif ToolKind.mcp in tool_binding:
+        return ToolKind.mcp
+    elif 'wxflows' in tool_binding:
+        return ToolKind.flow
     else:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
         sys.exit(1) 
@@ -560,14 +563,13 @@ class ToolsController:
                 
                 toolkit_name = ""
 
-                if is_local_dev():
+                if tool.__tool_spec__.toolkit_id:
                     toolkit_client = instantiate_client(ToolKitClient)
-                    if tool.__tool_spec__.toolkit_id:
-                        toolkit = toolkit_client.get_draft_by_id(tool.__tool_spec__.toolkit_id)
-                        if isinstance(toolkit, dict) and "name" in toolkit:
-                            toolkit_name = toolkit["name"]
-                        elif toolkit:
-                            toolkit_name = str(toolkit)
+                    toolkit = toolkit_client.get_draft_by_id(tool.__tool_spec__.toolkit_id)
+                    if isinstance(toolkit, dict) and "name" in toolkit:
+                        toolkit_name = toolkit["name"]
+                    elif toolkit:
+                        toolkit_name = str(toolkit)
 
                 
                 table.add_row(

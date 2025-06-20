@@ -9,7 +9,9 @@ from ibm_watsonx_orchestrate.cli.config import (
     CONTEXT_SECTION_HEADER,
     CONTEXT_ACTIVE_ENV_OPT,
     ENVIRONMENTS_SECTION_HEADER,
-    ENV_WXO_URL_OPT
+    ENV_WXO_URL_OPT,
+    BYPASS_SSL,
+    VERIFY
 )
 from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
@@ -45,6 +47,11 @@ def is_local_dev(url: str | None = None) -> bool:
 
     return False
 
+def is_cpd_env(url: str) -> bool:
+    if url.lower().startswith("https://cpd"):
+        return True
+    return False
+
 def check_token_validity(token: str) -> bool:
     try:
         token_claimset = jwt.decode(token, options={"verify_signature": False})
@@ -65,6 +72,17 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
             with open(os.path.join(DEFAULT_CONFIG_FILE_FOLDER, DEFAULT_CONFIG_FILE), "r") as f:
                 config = yaml_safe_load(f)
             active_env = config.get(CONTEXT_SECTION_HEADER, {}).get(CONTEXT_ACTIVE_ENV_OPT)
+            bypass_ssl = (
+                config.get(ENVIRONMENTS_SECTION_HEADER, {})
+                    .get(active_env, {})
+                    .get(BYPASS_SSL, None)
+            )
+
+            verify = (
+                config.get(ENVIRONMENTS_SECTION_HEADER, {})
+                    .get(active_env, {})
+                    .get(VERIFY, None)
+            )
 
             if not url:
                 url = config.get(ENVIRONMENTS_SECTION_HEADER, {}).get(active_env, {}).get(ENV_WXO_URL_OPT)
@@ -86,7 +104,14 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
             if not check_token_validity(token):
                 logger.error(f"The token found for environment '{active_env}' is missing or expired. Use `orchestrate env activate {active_env}` to fetch a new one")
                 exit(1)
-            client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
+            is_cpd = is_cpd_env(url)
+            if is_cpd:
+                if bypass_ssl is True:
+                    client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
+                elif verify is not None:
+                    client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=verify)
+            else:
+                client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
 
         return client_instance
     except FileNotFoundError as e:

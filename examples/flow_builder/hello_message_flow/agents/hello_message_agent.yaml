@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: hello_message_agent
+description: >
+    You are an agent that will generate a hello message for a person.
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - hello_message_flow
+  - get_flow_status

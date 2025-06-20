@@ -50,7 +50,7 @@ def list_knowledge_bases(
     controller = KnowledgeBaseController()
     controller.list_knowledge_bases(verbose=verbose)
 
-@knowledge_bases_app.command(name="remove", help="Delete a knowlege base and all ingested documents")
+@knowledge_bases_app.command(name="remove", help="Remove a knowledge base. Note that if your knowledge base was created by uploading documents (for built-in Milvus), the ingested information from your documents will also be deleted. If your knowledge base uses an external knowledge source through an index_config definition, your index will not be deleted.")
 def remove_knowledge_base(
     name: Annotated[
         str,
@@ -64,7 +64,7 @@ def remove_knowledge_base(
     controller = KnowledgeBaseController()
     controller.remove_knowledge_base(id=id, name=name)
 
-@knowledge_bases_app.command(name="status", help="Get the status of a knowlege base")
+@knowledge_bases_app.command(name="status", help="Get the status of a knowledge base")
 def knowledge_base_status(
     name: Annotated[
         str,

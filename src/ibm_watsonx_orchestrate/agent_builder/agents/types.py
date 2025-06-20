@@ -4,7 +4,7 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from pydantic import Field, AliasChoices
 from typing import Annotated
@@ -50,6 +50,8 @@ class BaseAgentSpec(BaseModel):
     name: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     display_name: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
     description: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    context_access_enabled: bool = True
+    context_variables: Optional[List[str]] = []
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
@@ -69,10 +71,33 @@ class BaseAgentSpec(BaseModel):
 #      NATIVE AGENT TYPES
 # ===============================
 
+class ChatWithDocsConfig(BaseModel):
+    enabled: Optional[bool] = None
+    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
+    generation:  Optional[GenerationConfiguration] = None
+    query_rewrite:  Optional[QueryRewriteConfig] = None
+    confidence_thresholds: Optional[ConfidenceThresholds] =None
+    citations:  Optional[CitationsConfig] = None
+    hap_filtering: Optional[HAPFiltering] = None
+    
 class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
     PLANNER = "planner"
+
+class AgentGuideline(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    display_name: Optional[str] = None
+    condition: str
+    action: str
+    tool: Optional[BaseTool] | Optional[str] = None
+
+    def __init__(self, *args, **kwargs):
+        if "tool" in kwargs and kwargs["tool"]:
+            kwargs["tool"] = kwargs['tool'].__tool_spec__.name if isinstance(kwargs['tool'], BaseTool) else kwargs["tool"]
+
+        super().__init__(*args, **kwargs)
 
 class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -83,10 +108,12 @@ class AgentSpec(BaseAgentSpec):
     custom_join_tool: str | PythonTool | None = None
     structured_output: Optional[JsonSchemaObject] = None
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
+    guidelines: Optional[List[AgentGuideline]] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
+    chat_with_docs: Optional[ChatWithDocsConfig] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -122,10 +149,16 @@ def validate_agent_fields(values: dict) -> dict:
             raise ValueError(f"Circular reference detected. The agent '{name}' cannot contain itself as a collaborator")
 
     if values.get("style") == AgentStyle.PLANNER:
-        if not values.get("custom_join_tool") and not values.get("structured_output"):
-            raise ValueError("Either 'custom_join_tool' or 'structured_output' must be provided for planner style agents.")
         if values.get("custom_join_tool") and values.get("structured_output"):
             raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
+
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
 
     return values
 
@@ -169,6 +202,14 @@ def validate_external_agent_fields(values: dict) -> dict:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
+
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
 
     return values
 
@@ -214,5 +255,14 @@ def validate_assistant_agent_fields(values: dict) -> dict:
         value = values.get(field)
         if value and not str(value).strip():
             raise ValueError(f"{field} cannot be empty or just whitespace")
+
+    # Validate context_variables if provided
+    context_variables = values.get("context_variables")
+    if context_variables is not None:
+        if not isinstance(context_variables, list):
+            raise ValueError("context_variables must be a list")
+        for var in context_variables:
+            if not isinstance(var, str) or not var.strip():
+                raise ValueError("All context_variables must be non-empty strings")
 
     return values

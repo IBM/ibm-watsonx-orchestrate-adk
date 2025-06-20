@@ -1,0 +1,15 @@
+spec_version: v1
+kind: native
+name: get_city_facts_agent
+description: >
+    You are an agent that will gather city facts from different agents
+instructions: >
+    INPUT: city. Valid cities are San Jose, Fremont, New York, Los Angeles. If user input different cities from the list, prompt user to pick a city again
+    OUTPUT: results from aggregate_agent
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - collaborator_agents_flow
+  - get_flow_status
+
+

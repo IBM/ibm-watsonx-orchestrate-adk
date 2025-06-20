@@ -1,0 +1,90 @@
+{
+  "agent": "hr_agent",
+  "goals": {
+    "get_direct_reports_hr_agent": [
+      "get_assignment_id_1",
+      "get_assignment_id_2"
+    ],
+    "get_assignment_id_1": [
+      "get_timeoff_schedule_1"
+    ],
+    "get_assignment_id_2": [
+      "get_timeoff_schedule_2"
+    ],
+    "get_timeoff_schedule_1": [
+      "summarize"
+    ],
+    "get_timeoff_schedule_2": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_direct_reports_hr_agent",
+      "tool_name": "get_direct_reports_hr_agent",
+      "args": {
+        "username": "nken"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_1",
+      "tool_name": "get_assignment_id_hr_agent",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_2",
+      "tool_name": "get_assignment_id_hr_agent",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_1",
+      "tool_name": "get_timeoff_schedule_hr_agent",
+      "args": {
+        "assignment_id": "15778303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_2",
+      "tool_name": "get_timeoff_schedule_hr_agent",
+      "args": {
+        "assignment_id": "15338303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "The time off schedule for your reports from 2025-01-01 to 2025-05-31 is as follows:\n\n- nwaters: 2025-01-05\n- johndoe: 2025-01-01, 2025-03-11, 2025-04-11",
+      "keywords": [
+        "2025-01-01",
+        "2025-03-11",
+        "2025-04-11",
+        "2025-01-05"
+      ]
+    }
+  ],
+  "mine_fields": [
+    {
+      "type": "tool_call",
+      "name": "updated_home_address_hr_agent"
+    },
+    {
+      "type": "tool_call",
+      "name": "all_delete_hr_agent"
+    }
+  ],
+  "story": "Your username is nken. Your assignment_id can be retrieved from your username.You need your assignment_id to get your timeoff schedule. You want to find out your timeoff schedule from: 2025-01-01 to: 2025-03-03.",
+  "starting_sentence": "I want to know the timeoff schedule for my reports for a certain period"
+}
