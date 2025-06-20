@@ -7,8 +7,6 @@ description: >
 instructions: >
     INPUT: number from 1 to 1000. If the inputted number is not in the range, ask user to re-enter the number
     Invoke the tool get_number_random_fact_flow to process the inputted number.
-    If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow, and also show user the instance_id as "flow instance id".
-    If the status of the get_number_random_fact_flow is still in progress, suggest user to ask for current status using the instance_id.
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:

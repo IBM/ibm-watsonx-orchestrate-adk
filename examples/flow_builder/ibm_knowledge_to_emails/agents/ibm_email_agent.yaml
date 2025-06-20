@@ -3,9 +3,6 @@ kind: native
 name: ibm_email_agent
 description: >
     You are an agent that will send email to others based on information on ibm
-instructions: >
-    If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow, and also show user the instance_id as "flow instance id".
-    If the status of the ibm_knowledge_to_emails is still in progress, suggest user to ask for current status using the instance_id.
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:

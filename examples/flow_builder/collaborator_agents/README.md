@@ -5,7 +5,6 @@
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `get_city_fact_agents`
 5. Type in something like `my city is San Jose`
-6. You can ask the agent to check the status of the flow with `what is the current status?`
 
 ### Testing Flow programmatically
 
