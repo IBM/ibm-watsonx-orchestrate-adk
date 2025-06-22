@@ -1,0 +1,32 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N801" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="services.chat_service.log_service" />
+          <option value="agents.agent.agentic_serivce" />
+          <option value="notebooks.prompts.chat_agent.Agent" />
+          <option value="notebooks.tools.postgres_query.Tool" />
+          <option value="react_agent_chat.agents.sample_typed_agent.Agent" />
+          <option value="react_agent_chat.chat_models.team.Agent" />
+          <option value="react_agent_chat.agents.team_generator_agent.Team" />
+          <option value="react_agent_chat.agents.chat_agent.Agent" />
+          <option value="react_agent_chat.agents.base_agent.Agent" />
+          <option value="services.react_chat_service.agents.base_agent.Agent" />
+          <option value="services.cot_lang_service.agents.base_agent.Agent" />
+          <option value="services.cot_lang_service.chat_models.team.Agent" />
+          <option value="services.cot_lang_service.cot_lang_service.Agent" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

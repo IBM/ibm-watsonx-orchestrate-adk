@@ -1,0 +1,10 @@
+spec_version: v1
+kind: connection
+app_id: google-maps
+environments:
+  draft:
+    kind: key_value
+    type: team
+  live:
+    kind: key_value
+    type: team

@@ -1,0 +1,12 @@
+spec_version: v1
+kind: connection
+app_id: service-now
+environments:
+  draft:
+    kind: basic
+    type: team
+    server_url: https://dev295896.service-now.com # update me with your own service instance url
+  live:
+    kind: basic
+    type: team
+    server_url: https://dev295896.service-now.com # update me with your own service instance url
