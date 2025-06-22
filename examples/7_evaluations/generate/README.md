@@ -6,5 +6,5 @@
 story,agent
 "I want to know my assignment ID for nwaters.",hr_agent
 ```
-3. run generation `orchestrate evaluations generate -s examples/evaluations/generate/stories.csv -t examples/evaluations/generate/tools.py -e .env_file`
+3. run generation `orchestrate evaluations generate -s stories.csv -t generate/tools.py -e ../../env`
 Note: we expect `WATSONX_APIKEY` `WATSONX_SPACE_ID` be part of the environment variables or specified in .env_file. 

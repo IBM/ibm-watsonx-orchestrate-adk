@@ -1,0 +1,17 @@
+auth_config:
+  tenant_name: local
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYiLCJ1c2VybmFtZSI6Ind4by5hcmNoZXJAaWJtLmNvbSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJ0ZW5hbnRfaWQiOiIxYWYyYzU5NC1lMWNlLTQ3NmMtYWM2MS1hOTVmZTgyMzVlMDYiLCJ3b1RlbmFudElkIjoiMWFmMmM1OTQtZTFjZS00NzZjLWFjNjEtYTk1ZmU4MjM1ZTA2Iiwid29Vc2VySWQiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYifQ.H6Pog3kYakhtC4N5NUdnH8qTpQK5sPyqmCFmRpapvgE
+  url: http://localhost:4321
+data_annotation_run: false
+enable_manual_user_input: false
+enable_verbose_logging: true
+llm_user_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  prompt_config: /Users/emarcoux/anaconda3/envs/techday/lib/python3.13/site-packages/wxo_agentic_evaluation/prompt/llama_user_prompt.jinja2
+  user_response_style: []
+num_workers: 2
+output_dir: ./debug
+skip_available_results: false
+test_paths:
+- hr_sample/
+wxo_lite_version: 1.6.0b0

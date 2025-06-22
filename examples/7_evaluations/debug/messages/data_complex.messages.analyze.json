@@ -1,0 +1,220 @@
+[
+    {
+        "message": {
+            "role": "user",
+            "content": "I want to know the timeoff schedule for my reports for a certain period",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "What is the username?",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "nken",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_direct_reports_hr_agent\", \"args\": {\"username\": \"nken\"}, \"id\": \"chatcmpl-tool-bd60f1bd309241a3a15cea4c27\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"nwaters\\\", \\\"johndoe\\\"]\", \"name\": \"get_direct_reports_hr_agent\", \"tool_call_id\": \"chatcmpl-tool-bd60f1bd309241a3a15cea4c27\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_agent\", \"args\": {\"username\": \"nwaters\"}, \"id\": \"chatcmpl-tool-14f6009fb3944622bf972ea3c0\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"15778303\", \"name\": \"get_assignment_id_hr_agent\", \"tool_call_id\": \"chatcmpl-tool-14f6009fb3944622bf972ea3c0\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_agent\", \"args\": {\"username\": \"johndoe\"}, \"id\": \"chatcmpl-tool-ce12eb82d6ba45bd9dc3778a18\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"15338303\", \"name\": \"get_assignment_id_hr_agent\", \"tool_call_id\": \"chatcmpl-tool-ce12eb82d6ba45bd9dc3778a18\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "What is the start date?",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "2025-01-01",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "What is the end date?",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "2025-03-03",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_agent\", \"args\": {\"start_date\": \"2025-01-01\", \"end_date\": \"2025-03-03\", \"assignment_id\": \"15778303\"}, \"id\": \"chatcmpl-tool-64c36c08c08241479ad67bb21f\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "start_date": "2025-01-01",
+                "end_date": "2025-03-03",
+                "assignment_id": "15778303"
+            },
+            "expected": [
+                {
+                    "assignment_id": "15778303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                },
+                {
+                    "assignment_id": "15338303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_agent\", \"tool_call_id\": \"chatcmpl-tool-64c36c08c08241479ad67bb21f\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_agent\", \"args\": {\"start_date\": \"2025-01-01\", \"end_date\": \"2025-03-03\", \"assignment_id\": \"15338303\"}, \"id\": \"chatcmpl-tool-887343afd10d400a9130489410\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "start_date": "2025-01-01",
+                "end_date": "2025-03-03",
+                "assignment_id": "15338303"
+            },
+            "expected": [
+                {
+                    "assignment_id": "15778303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                },
+                {
+                    "assignment_id": "15338303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250411\\\", \\\"20250311\\\", \\\"20250101\\\"]\", \"name\": \"get_timeoff_schedule_hr_agent\", \"tool_call_id\": \"chatcmpl-tool-887343afd10d400a9130489410\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "The timeoff schedule for nwaters is 20250105 and for johndoe is 20250411, 20250311, 20250101.",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    }
+]
