@@ -1,0 +1,174 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "ibm_knowledge_to_emails",
+    "display_name": "ibm_knowledge_to_emails",
+    "description": "This flow will send a random fact about IBM to a group of people",
+    "input_schema": {
+      "$ref": "#/schemas/ibm_knowledge_to_emails_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/FlowOutput"
+    }
+  },
+  "nodes": {
+    "ask_agent_for_ibm_knowledge": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_agent_for_ibm_knowledge",
+        "display_name": "ask_agent_for_ibm_knowledge",
+        "description": "Ask the IBM agent to get a fact based on the provided question.",
+        "input_schema": {
+          "$ref": "#/schemas/ask_agent_for_ibm_knowledge_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/IBMAgentOutput"
+        },
+        "message": "Give an answer about IBM based on the provided question.  If you don't know the answer, just say 'I do not know'",
+        "agent": "ibm_agent"
+      }
+    },
+    "send_emails": {
+      "spec": {
+        "kind": "tool",
+        "name": "send_emails",
+        "display_name": "send_emails",
+        "description": "Send email to a list of email addresses with a content",
+        "input_schema": {
+          "$ref": "#/schemas/send_emails_input"
+        },
+        "output_schema": {
+          "type": "string",
+          "description": "The status of the send"
+        },
+        "tool": "send_emails"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "ask_agent_for_ibm_knowledge"
+    },
+    {
+      "start": "ask_agent_for_ibm_knowledge",
+      "end": "send_emails"
+    },
+    {
+      "start": "send_emails",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "ibm_knowledge_to_emails_input": {
+      "type": "object",
+      "title": "ibm_knowledge_to_emails_input",
+      "required": [
+        "question",
+        "emails"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for about IBM"
+        },
+        "emails": {
+          "type": "string",
+          "title": "Emails",
+          "description": "a list of comman separated email address"
+        }
+      }
+    },
+    "FlowOutput": {
+      "type": "object",
+      "title": "FlowOutput",
+      "required": [
+        "question",
+        "answer",
+        "emails"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for about IBM"
+        },
+        "answer": {
+          "type": "string",
+          "title": "Answer",
+          "description": "A fact about IBM"
+        },
+        "emails": {
+          "type": "string",
+          "title": "Emails",
+          "description": "The email addresse the we sent. comma separated."
+        }
+      }
+    },
+    "ask_agent_for_ibm_knowledge_input": {
+      "type": "object",
+      "title": "ask_agent_for_ibm_knowledge_input",
+      "required": [
+        "question"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "title": "Question",
+          "description": "A topic to search for"
+        }
+      }
+    },
+    "IBMAgentOutput": {
+      "type": "object",
+      "title": "IBMAgentOutput",
+      "required": [
+        "answer"
+      ],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "title": "Answer",
+          "description": "A fact about IBM"
+        }
+      }
+    },
+    "send_emails_input": {
+      "type": "object",
+      "title": "send_emails_input",
+      "required": [
+        "email_addresses",
+        "content"
+      ],
+      "properties": {
+        "email_addresses": {
+          "type": "string",
+          "title": "Email Addresses"
+        },
+        "content": {
+          "type": "string",
+          "title": "Content"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-09T13:12:20.487809+00:00"
+  }
+}

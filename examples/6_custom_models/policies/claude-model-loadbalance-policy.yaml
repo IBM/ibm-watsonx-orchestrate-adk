@@ -1,0 +1,16 @@
+spec_version: v1
+kind: model
+name: sonnet-3.5-load-balance
+display_name: sonnet-3.5-load-balance
+description: Claude Sonnet 3.5 load balancing
+policy:
+  strategy:
+    mode: loadbalance
+  retry:
+    attempts: 1
+    on_status_codes: [503]
+  targets:
+    - model_name: virtual-model/anthropic/claude-3-5-sonnet-20241022
+      weight: 0.75   # Weights must be greater than 0 and less than or equal to 1
+    - model_name: virtual-model/anthropic/claude-3-5-sonnet-20240620
+      weight: 0.25

@@ -1,0 +1,14 @@
+spec_version: v1
+kind: model
+name: sonnet-3.5-fallback
+display_name: sonnet-3.5-fallback
+description: Claude Sonnet 3.5 with fallback
+policy:
+  strategy:
+    mode: fallback
+  retry:
+    attempts: 1
+    on_status_codes: [503]
+  targets:
+    - model_name: virtual-model/anthropic/claude-3-5-sonnet-20241022 # Sonnet 3.5 v2
+    - model_name: virtual-model/anthropic/claude-3-5-sonnet-20240620 # Sonnet 3.5

@@ -1,0 +1,13 @@
+spec_version: v1
+style: react
+name: internet_searcher
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+description: >
+  You are an agent that specializes in helping users search the internet.
+instructions: >
+  Assume your knowledge is not up to date and always call tavily:tavily-search to lookup data from the internet
+  before answering your question. Only include the query and topic parameters.
+
+collaborators: []
+tools:
+  - tavily:tavily-search

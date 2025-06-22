@@ -1,0 +1,6 @@
+story,agent
+"I want to know my assignment ID for nwaters.",hr_agent
+"My username is nwaters. I want to find out who reports to me.",hr_agent
+"My username is johndoe. I want to find out your time-off schedule from: 2025-01-01 to: 2025-12-31.",hr_agent
+"My username is johndoe. I want to update my Home adress to 123 Main St, Springfield, IL.",hr_agent
+"My username is nwaters. I want to find out your time-off schedule from: 2025-01-01 to: 2025-12-31 of all my direct reports.",hr_agent

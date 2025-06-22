@@ -1,0 +1,12 @@
+{
+    "total_tool_calls": 5,
+    "expected_tool_calls": 3,
+    "relevant_tool_calls": 4,
+    "correct_tool_calls": 2,
+    "total_routing_calls": 1,
+    "expected_routing_calls": 0,
+    "non_transfer_tool_calls": 4,
+    "tool_call_accuracy": 0.5,
+    "tool_call_relevancy": 1.0,
+    "agent_routing_accuracy": 0.0
+}

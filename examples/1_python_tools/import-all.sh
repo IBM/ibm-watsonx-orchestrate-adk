@@ -4,6 +4,12 @@ set -x
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 orchestrate connections import -f ${SCRIPT_DIR}/connections/service-now.yaml
+set +x
+. ../../.env
+orchestrate connections set-credentials -a service-now --env draft -u "$SERVICE_NOW_USERNAME" -p "$SERVICE_NOW_PASSWORD"
+orchestrate connections set-credentials -a service-now --env live -u "$SERVICE_NOW_USERNAME" -p "$SERVICE_NOW_PASSWORD"
+set -x
+
 
 for python_tool in customer_care/get_healthcare_benefits.py customer_care/get_my_claims.py customer_care/search_healthcare_providers.py; do
   orchestrate tools import -k python -f ${SCRIPT_DIR}/tools/${python_tool} -r ${SCRIPT_DIR}/tools/requirements.txt

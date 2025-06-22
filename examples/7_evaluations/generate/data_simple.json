@@ -1,0 +1,93 @@
+{
+  "agent": "hr_agent",
+  "story": "My username is nwaters. I want to find out your time-off schedule from: 2025-01-01 to: 2025-12-31 of all my direct reports.",
+  "starting_sentence": "I'd like to check my direct reports' time-off schedule.",
+  "goals": {
+    "fetch_assignment_id-1": [
+      "list_direct_reports-1"
+    ],
+    "list_direct_reports-1": [
+      "fetch_assignment_id-2",
+      "fetch_assignment_id-3"
+    ],
+    "fetch_assignment_id-2": [
+      "retrieve_timeoff_schedule-1"
+    ],
+    "fetch_assignment_id-3": [
+      "retrieve_timeoff_schedule-2"
+    ],
+    "retrieve_timeoff_schedule-1": [
+      "summarize"
+    ],
+    "retrieve_timeoff_schedule-2": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-1",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "list_direct_reports-1",
+      "tool_name": "list_direct_reports",
+      "args": {
+        "manager_assignment_id": "15778303"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-2",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-3",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "nken"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "retrieve_timeoff_schedule-1",
+      "tool_name": "retrieve_timeoff_schedule",
+      "args": {
+        "assignment_id": "15338303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "retrieve_timeoff_schedule-2",
+      "tool_name": "retrieve_timeoff_schedule",
+      "args": {
+        "assignment_id": "15338304",
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Your direct reports' time-off schedules for 2025-01-01 to 2025-12-31 are: johndoe - 2025-04-11, 2025-03-11, 2025-01-01; nken - 2025-01-15, 2025-02-20",
+      "keywords": [
+        "2025-04-11",
+        "2025-03-11",
+        "2025-01-01",
+        "2025-01-15",
+        "2025-02-20"
+      ]
+    }
+  ],
+  "mine_fields": []
+}

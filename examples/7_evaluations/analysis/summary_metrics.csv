@@ -1,0 +1,3 @@
+test_case,Total Step,Agent Step,Ground Truth Calls,Wrong Function Calls,Wrong Parameters,Wrong Routing Calls,Text Match,Journey Success,Avg Resp Time (Secs)
+data3,19,10,3,0,2,0,Summary Matched,False,1.49
+Summary (Average),19.0,10.0,3.0,0.0,0.67,0.0,1.0,0.0,1.49
