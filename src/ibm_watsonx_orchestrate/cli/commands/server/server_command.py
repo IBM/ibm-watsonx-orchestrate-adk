@@ -639,7 +639,7 @@ def server_start(
     with_docproc: bool = typer.Option(
         False,
         '--with-docproc', '-d',
-        help='Enable IBM Document Processing to classify and extract information from your business documents more quickly, easily and accurately. Note: Enabling this also activates Watson Document Understanding'
+        help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
     ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)

@@ -107,14 +107,14 @@ you will be able to start, activate, import into and rapidly reset a local serve
      
  Usage: orchestrate server start [OPTIONS]                                                                                                                                                                                                                         
                                                                                                                                                                                                                                                                    
-╭─ Options ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                                                                 │
-│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                                                                        │
-│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                                                                          │
-│ --with-docproc                 -d            Enable IBM Document Processing to classify and extract information from your business documents more quickly, easily and accurately. Note: Enabling this also activates Watson Document   │
-│                                              Understanding                                                                                                                                                                             │
-│ --help                                       Show this message and exit.                                                                                                                                                               │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                    │
+│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                           │
+│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                             │
+│ --with-docproc                 -d            Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document              │
+│                                              Understanding service.                                                                                                                       │
+│ --help                                       Show this message and exit.                                                                                                                  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
