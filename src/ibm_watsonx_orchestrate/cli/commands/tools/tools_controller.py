@@ -24,6 +24,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -40,8 +41,6 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client, g
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
-from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
-from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_model
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -345,17 +344,13 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     
 [bold cyan]Additional information:[/bold cyan]
 
-- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. To get a flow's current status, ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
+- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. Ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
 - Include additional instructions in your agent to call the [bold green]get_flow_status[/bold green] tool to retrieve the flow output. For example: [green]"If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow."[/green]
 
     """
 
     console.print(Panel(message,  title="[bold blue]Flow tool support information[/bold blue]", border_style="bright_blue"))
    
-
-    if not is_local_dev():
-        raise typer.BadParameter(f"Flow tools are only supported in local environment.")
-
     model = None
     
     # Load the Flow JSON model from the file
@@ -422,7 +417,13 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     except Exception as e:
         raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
     
-    return await import_flow_model(model)
+    tool = create_flow_json_tool(name=model["spec"]["name"],
+                                 description=model["spec"]["description"], 
+                                 permission="read_only", 
+                                 flow_model=model)   
+    
+    
+    return [tool]
 
 
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
@@ -565,6 +566,8 @@ class ToolsController:
                         tool_type=ToolKind.openapi
                 elif tool_binding.mcp is not None:
                         tool_type=ToolKind.mcp
+                elif tool_binding.flow is not None:
+                        tool_type=ToolKind.flow        
                 else:
                         tool_type="Unknown"
                 

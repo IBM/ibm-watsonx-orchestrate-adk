@@ -129,7 +129,7 @@ def _get_tool_response_body(schema_obj: JsonSchemaObject) -> ToolResponseBody:
 async def import_flow_model(model):
 
     if not is_local_dev():
-        raise typer.BadParameter(f"Flow tools are only supported in local environment.")
+        raise typer.BadParameter(f"Executing flows is only supported in local environment.")
 
     if model is None:
         raise typer.BadParameter(f"No model provided.")
