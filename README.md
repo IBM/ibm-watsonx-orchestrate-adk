@@ -43,7 +43,6 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 - 8 cores
 - 25GB disk space
 
-> **Note:** If you run with WDU enabled, you will need **at least an additional 6GB of memory** (i.e., a total of **22GB RAM**) to ensure stable operation.
 > **Note:** [TBD] If you run with Document Processing enabled, you will need **at least an additional 2GB of memory** (i.e., a total of **24GB RAM**) to ensure stable operation.
 
 **A docker engine**   

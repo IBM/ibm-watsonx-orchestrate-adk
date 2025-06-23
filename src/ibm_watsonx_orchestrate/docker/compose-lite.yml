@@ -689,7 +689,7 @@ services:
       # HTTP_SERVER_TLS_SERVER_CERT: "/etc/certs/wdu.crt"
       # HTTP_SERVER_TLS_SERVER_KEY: "/etc/certs/wdu.key"
     profiles:
-      - wdu
+      - docproc
     ports:
       - "18082:8080"
       - "18086:8086"
@@ -713,7 +713,7 @@ services:
     image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-models:${WDU_TAG:-2.4.0}
     user: root
     profiles:
-      - wdu
+      - docproc
     environment:
       DEST_FOLDER: "/app/models"
     volumes:
