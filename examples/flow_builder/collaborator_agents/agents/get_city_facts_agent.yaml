@@ -6,8 +6,6 @@ description: >
 instructions: >
     INPUT: city. Valid cities are San Jose, Fremont, New York, Los Angeles. If user input different cities from the list, prompt user to pick a city again
     OUTPUT: results from aggregate_agent
-    If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow, and also show user the instance_id as "flow instance id".
-    If the status of the collaborator_agents_flow is still in progress, suggest user to ask for current status using the instance_id and show the status only when eveything is completed
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:

@@ -5,7 +5,6 @@
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `customer_email_agent`
 5. Type in something like `I'd to send email to all my contact in ABC Inc.`
-6. You can ask the agent to check the status of the flow with `what is the current status?`
 
 ### Testing Flow programmatically
 

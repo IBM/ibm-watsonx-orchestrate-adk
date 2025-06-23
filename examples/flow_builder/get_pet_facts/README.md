@@ -5,7 +5,6 @@
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `pet_agent`
 5. Type in something like `tell me something about dog` or `tell me something about cat`.
-6. You can ask the agent to check the status of the flow with `what is the current status?`
 
 ### Testing Flow programmatically
 
