@@ -292,7 +292,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_docproc=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -319,13 +319,16 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> 
 
 
     # Step 2: Start all remaining services (except DB)
+    profiles = []
     if experimental_with_langfuse:
-        command = compose_command + [
-            '--profile',
-            'langfuse'
-        ]
-    else:
-        command = compose_command
+        profiles.append("langfuse")
+    if with_docproc:
+        profiles.append("wdu")
+        profiles.append("docproc")
+
+    command = compose_command[:]
+    for profile in profiles:
+        command += ["--profile", profile]
 
     command += [
         "-f", str(compose_path),
@@ -640,6 +643,11 @@ def server_start(
         "--accept-terms-and-conditions",
         help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
     ),
+    with_docproc: bool = typer.Option(
+        False,
+        '--with-docproc', '-d',
+        help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
+    ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
@@ -683,7 +691,7 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse)
+    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_docproc=with_docproc)
 
     run_db_migration()
 
