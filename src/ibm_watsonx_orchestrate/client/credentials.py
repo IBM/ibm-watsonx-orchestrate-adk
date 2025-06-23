@@ -31,6 +31,8 @@ class Credentials:
             url: str | None = None,
             iam_url: str | None = None,
             api_key: str | None = None,
+            username: str | None = None,
+            password: str | None = None,
             token: str | None = None,
             verify: str | bool | None = None,
             auth_type: str | None = None,
@@ -39,6 +41,8 @@ class Credentials:
         self.url = url
         self.iam_url = iam_url
         self.api_key = api_key
+        self.username = username
+        self.password = password
         self.token = token
         self.local_global_token = None
         self.verify = verify

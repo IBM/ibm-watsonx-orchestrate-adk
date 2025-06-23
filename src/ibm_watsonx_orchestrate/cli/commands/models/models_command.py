@@ -146,18 +146,18 @@ def models_policy_add(
             ModelPolicyStrategyMode,
             typer.Option('--strategy', '-s', help='How to spread traffic across models'),
         ],
-        strategy_on_code: Annotated[
-            List[int],
-            typer.Option('--strategy-on-code', help='The http status to consider invoking the strategy'),
-        ],
-        retry_on_code: Annotated[
-            List[int],
-            typer.Option('--retry-on-code', help='The http status to consider retrying the llm call'),
-        ],
         retry_attempts: Annotated[
             int,
             typer.Option('--retry-attempts', help='The number of attempts to retry'),
         ],
+        strategy_on_code: Annotated[
+            List[int],
+            typer.Option('--strategy-on-code', help='The http status to consider invoking the strategy'),
+        ] = None,
+        retry_on_code: Annotated[
+            List[int],
+            typer.Option('--retry-on-code', help='The http status to consider retrying the llm call'),
+        ] = None,
         display_name: Annotated[
             str,
             typer.Option('--display-name', help='What name should this llm appear as within the ui'),

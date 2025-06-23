@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: pet_agent
+description: >
+    You are an agent that can retrieve random facts about pet. 
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - get_pet_facts
+  - get_flow_status

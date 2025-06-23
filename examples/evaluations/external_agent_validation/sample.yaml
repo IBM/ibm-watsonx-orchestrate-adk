@@ -1,0 +1,11 @@
+name: "test_agent"
+display_name: "test_agent"
+category: "agent"
+kind: "external"
+description: "An agent to manage files comments"
+tags:
+  - "productivity"
+api_url: "https://1c94-174-168-61-148.ngrok-free.app/chat/completions/stream"
+auth_scheme: "API_KEY"
+config: {}
+provider: "external_agent"

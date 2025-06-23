@@ -18,7 +18,7 @@ from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPoli
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_cpd_env
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
 
 logger = logging.getLogger(__name__)
@@ -85,6 +85,11 @@ def import_python_policy(file: str) -> List[ModelPolicy]:
             models.append(obj)
     return models
 
+def validate_spec_content(content: dict) -> None:
+    if not content.get("spec_version"):
+        logger.error(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
+        sys.exit(1)
+
 def parse_model_file(file: str) -> List[VirtualModel]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
         with open(file, 'r') as f:
@@ -92,6 +97,7 @@ def parse_model_file(file: str) -> List[VirtualModel]:
                 content = json.load(f)
             else:
                 content = yaml.load(f, Loader=yaml.SafeLoader)
+        validate_spec_content(content)
         model = create_model_from_spec(spec=content)
         return [model]
     elif file.endswith('.py'):
@@ -107,6 +113,7 @@ def parse_policy_file(file: str) -> List[ModelPolicy]:
                 content = json.load(f)
             else:
                 content = yaml.load(f, Loader=yaml.SafeLoader)
+        validate_spec_content(content)
         policy = create_policy_from_spec(spec=content)
         return [policy]
     elif file.endswith('.py'):
@@ -160,13 +167,15 @@ class ModelsController:
             logger.error("Error: WATSONX_URL is required in the environment.")
             sys.exit(1)
 
-        logger.info("Retrieving virtual-model models list...")
-        virtual_models = models_client.list()
+        if is_cpd_env(models_client.base_url):
+            virtual_models = []
+            virtual_model_policies = []
+        else:
+            logger.info("Retrieving virtual-model models list...")
+            virtual_models = models_client.list()
 
-
-
-        logger.info("Retrieving virtual-policies models list...")
-        virtual_model_policies = model_policies_client.list()
+            logger.info("Retrieving virtual-policies models list...")
+            virtual_model_policies = model_policies_client.list()
 
         logger.info("Retrieving watsonx.ai models list...")
         found_models = _get_wxai_foundational_models()
@@ -382,7 +391,7 @@ class ModelsController:
             mode=strategy,
             on_status_codes=strategy_on_code
         )
-        inner.targets = [ModelPolicyTarget(weight=1, model_name=m) for m in models]
+        inner.targets = [ModelPolicyTarget(model_name=m) for m in models]
         if retry_on_code:
             inner.retry = ModelPolicyRetry(
                 on_status_codes=retry_on_code,

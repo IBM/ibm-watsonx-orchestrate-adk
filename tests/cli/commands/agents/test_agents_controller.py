@@ -20,7 +20,7 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent, AgentProvider, ExternalAgentAuthScheme
 from ibm_watsonx_orchestrate.client.connections.connections_client import GetConnectionResponse
 from ibm_watsonx_orchestrate.agent_builder.agents.types import ExternalAgentConfig, AssistantAgentConfig
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -85,6 +85,13 @@ def native_agent_content(request) -> dict:
         "tools": [
             "test_tool_1",
             "test_tool_2"
+        ],
+        "guidelines": [
+            {
+                "action": "test_action_1",
+                "condition": "test_condition_1",
+                "tool": "test_tool_1"
+            }
         ]
     }
 
@@ -178,7 +185,7 @@ class MockSDKResponse:
         return json.dumps(self.response_obj)
 
 class MockAgent:
-    def __init__(self, expected_name=None, expected_agent_spec=None, fake_agent=None, skip_deref=False, already_existing=False, return_get_drafts_by_ids=True, get_draft_by_name_response=None):
+    def __init__(self, expected_name=None, expected_agent_spec=None, fake_agent=None, skip_deref=False, already_existing=False, return_get_drafts_by_ids=True, get_draft_by_name_response=None, creation_warning=None):
         self.expected_name = expected_name
         self.fake_agent = fake_agent
         self.skip_deref = skip_deref
@@ -186,15 +193,18 @@ class MockAgent:
         self.expected_agent_spec = expected_agent_spec
         self.return_get_drafts_by_ids = return_get_drafts_by_ids
         self.get_draft_by_name_response = get_draft_by_name_response
+        self.creation_warning = creation_warning
 
     def delete(self, agent_id):
         pass
     
     def create(self, agent_spec):
         assert agent_spec == self.expected_agent_spec
+        return AgentUpsertResponse(warning=self.creation_warning)
 
     def update(self, agent_id, agent_spec):
         assert agent_spec == self.expected_agent_spec
+        return AgentUpsertResponse(warning=self.creation_warning)
     
     def get(self):
         return [self.fake_agent]
@@ -985,7 +995,7 @@ class TestListAgents:
         # Mock tool client response
         mock_get_tool_client.return_value.get_draft_by_id.return_value = {'name': 'Test Tool'}
 
-        # Mock knowlege base client
+        # Mock knowledge base client
         mock_get_knowledge_base_client.return_value.get_by_id.return_value = {'name': 'Test Knowledge Base'}
         
         # Test for Native agents

@@ -1,0 +1,134 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "hello_message_flow",
+    "display_name": "hello_message_flow",
+    "description": "Creates a flow with two tools: get_hello_message and combine_names.\nThis flow will rely on the Flow engine to perform automatic data mapping at runtime.",
+    "input_schema": {
+      "$ref": "#/schemas/hello_message_flow_input"
+    },
+    "output_schema": {
+      "type": "string"
+    }
+  },
+  "nodes": {
+    "combine_names": {
+      "spec": {
+        "kind": "tool",
+        "name": "combine_names",
+        "display_name": "combine_names",
+        "description": "Combine first and last name to create a full name.\n",
+        "input_schema": {
+          "$ref": "#/schemas/combine_names_input"
+        },
+        "output_schema": {
+          "type": "string",
+          "description": "The combined first and last name."
+        },
+        "tool": "combine_names"
+      }
+    },
+    "get_hello_message": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_hello_message",
+        "display_name": "get_hello_message",
+        "description": "Returns a greeting message with the provided name.\n",
+        "input_schema": {
+          "$ref": "#/schemas/get_hello_message_input"
+        },
+        "output_schema": {
+          "type": "string",
+          "description": "The greeting message with the provided name."
+        },
+        "tool": "get_hello_message"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "combine_names"
+    },
+    {
+      "start": "combine_names",
+      "end": "get_hello_message"
+    },
+    {
+      "start": "get_hello_message",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "hello_message_flow_input": {
+      "type": "object",
+      "title": "hello_message_flow_input",
+      "required": [
+        "first_name",
+        "last_name"
+      ],
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "title": "First Name"
+        },
+        "last_name": {
+          "type": "string",
+          "title": "Last Name"
+        }
+      }
+    },
+    "combine_names_input": {
+      "type": "object",
+      "title": "combine_names_input",
+      "required": [
+        "first_name",
+        "last_name"
+      ],
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "The first name."
+        },
+        "last_name": {
+          "type": "string",
+          "title": "Last Name",
+          "description": "The last name."
+        }
+      }
+    },
+    "get_hello_message_input": {
+      "type": "object",
+      "title": "get_hello_message_input",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name to be greeted."
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-09T13:08:32.814693+00:00"
+  }
+}

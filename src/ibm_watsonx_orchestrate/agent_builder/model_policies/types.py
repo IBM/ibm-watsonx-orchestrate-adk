@@ -17,7 +17,7 @@ class ModelPolicyRetry(BaseModel):
     on_status_codes: List[int] = None
 
 class ModelPolicyTarget(BaseModel):
-    weight: float = None
+    weight: float | None = None
     model_name: str = None
 
 class ModelPolicyInner(BaseModel):

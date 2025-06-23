@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+name: get_tuition_reimbursed_agent
+description: >
+    You are an agent that can determine how a tutiton request process
+instructions: >
+    Only allow user to input any 2 numbers seperated from 1 to 5. If users does not follow this rule, ask them to enter correct input
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - get_tuition_reimbursed
+  - get_flow_status

@@ -46,6 +46,7 @@ services:
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
+      SUFFIXLIST: '["global_05d7ba72", "ibm_184bdbd3"]'
     ports:
       - 3001:3001
 
@@ -59,6 +60,16 @@ services:
       WATSONX_API_KEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+
+  wxo-agent-gateway:
+    image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DEPLOYMENT_PLATFORM: laptop-lite
 
   ui:
     image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
@@ -107,6 +118,7 @@ services:
       WXO_DEPLOYMENT_TYPE: 'laptop'
       AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
       TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
+      CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
     command: 'npm start'
     ports:
       - '4025:4025'
@@ -191,19 +203,8 @@ services:
       retries: 3
   
   socket-handler:
-    container_name: socket-handler
-    profiles:
-      - webhooks
-      - ui
-    build:
-      context: .
-      dockerfile: ./socket_handler/Dockerfile
-      target: socket-handler
-      args:
-        GIT_BRANCH: "main"
-      ssh:
-        - default
-    image: docker.io/library/socket-handler:latest
+    image: ${SOCKET_HANDLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-socket-handler:${SOCKET_HANDLER_TAG:-latest}
+    platform: linux/amd64
     command: "npm start"
     ports:
       - 4001:4001
@@ -249,12 +250,14 @@ services:
           condition: service_started
           required: False
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       TRM_BASE_URL: http://tools-runtime-manager:8080
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
+      AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       FLOWER_URL: http://wxo-server-flower:5555
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
@@ -341,11 +344,13 @@ services:
       - ./sdk:/packages
       - tools:/tools
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       IS_WXO_LITE: 'TRUE'
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
@@ -411,6 +416,8 @@ services:
       USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      WXO_DEPLOYMENT_PLATFORM: saas
+      CALLBACK_HOST_URL: http://wxo-server:4321
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -425,6 +432,7 @@ services:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
     environment:
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       KUBECONFIG: /root/.kube/config
       K8S_SERVER: "https://lima-rancher-desktop:6443"  # Kubernetes API on host
       DB_HOST: wxo-server-db
@@ -440,7 +448,6 @@ services:
       SERVER_HOST: ${SERVER_HOST}
       SCHEMA_FILE_PATH: ${SCHEMA_FILE_PATH}
       WXO_BASE_URL: ${WXO_BASE_URL}
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       NAMESPACE: ${NAMESPACE}
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
@@ -470,7 +477,7 @@ services:
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       DB_HOST: wxo-server-db
       DB_PORT: ${DB_PORT:-5432}  # Ensure default port
@@ -590,7 +597,8 @@ services:
       SERVER_HTTP_PORT: "9044"
       SERVER_CONTEXT_PATH:
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
-      SERVER_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
+      SERVER_STANDALONE_TASK_CALLBACK_URL: http://localhost:9044/task/callback/{thread_id}/{requestId}
+      SERVER_FLOW_CALLBACK_URL: http://localhost:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
@@ -599,6 +607,7 @@ services:
       WATSONX_AI_PROJECT_ID: ""
       WATSONX_AI_SPACE_ID: ${WATSONX_SPACE_ID}
       WATSONX_AI_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_AI_SERVICE_URL: ${WATSONX_URL}
       PG_HOST: wxo-server-db
       PG_PORT: "5432"
       PG_USER: ${POSTGRES_USER:-postgres}
@@ -617,6 +626,7 @@ services:
       LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
       LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
       LOG_LEVEL: info
+      DISABLE_FLOW_BINDING: true
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s

@@ -2,6 +2,7 @@ import logging
 import rich
 import jwt
 import getpass
+import sys
 
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.config import (
@@ -17,14 +18,15 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENV_IAM_URL_OPT,
     ENVIRONMENTS_SECTION_HEADER,
     PROTECTED_ENV_NAME,
-    ENV_AUTH_TYPE, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT,
+    ENV_AUTH_TYPE, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, BYPASS_SSL, VERIFY,
     DEFAULT_CONFIG_FILE_CONTENT
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,33 @@ def _decode_token(token: str, is_local: bool = False) -> dict:
         logger.error("Invalid token format")
         raise e
 
-def _login(name: str, apikey: str = None) -> None:
+
+def _validate_token_functionality(token: str, url: str) -> None:
+    '''
+    Validates a token by making a request to GET /agents
+
+    Args: 
+        token: A JWT token
+        url: WXO instance URL
+    '''
+    is_cpd = is_cpd_env(url)
+    if is_cpd is True:
+        agent_client = AgentClient(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
+    else:
+        agent_client = AgentClient(base_url=url, api_key=token, is_local=is_local_dev(url))
+    agent_client.api_key = token
+
+    try:
+        agent_client.get()
+    except ClientAPIException as e:
+        if e.response.status_code >= 400:
+            reason = e.response.reason
+            logger.error(f"Failed to authenticate to provided instance '{url}'. Reason: '{reason}'. Please ensure provider URL and API key are valid.")
+            sys.exit(1)
+        raise e
+
+
+def _login(name: str, apikey: str = None, username: str = None, password: str = None) -> None:
     cfg = Config()
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
 
@@ -55,14 +83,43 @@ def _login(name: str, apikey: str = None) -> None:
     except (KeyError, AttributeError):
         auth_type = None
 
+    username = username
+    apikey = apikey
+    password = password
 
-    if apikey is None and not is_local:
+    if is_cpd_env(url):
+        if username is None:
+            username = getpass.getpass("Please enter CPD Username: ")
+
+        if not apikey and not password:
+            apikey = getpass.getpass("Enter CPD API key (or leave blank to use password): ")
+        if not apikey and not password:
+            password = getpass.getpass("Enter CPD password (or leave blank if you used API key): ")
+
+        if apikey and password:
+            logger.error("For CPD, please use either an Apikey or a Password but not both.")
+            sys.exit(1)
+
+        if not apikey and not password:
+            logger.error("For CPD, you must provide either an API key or a password.")
+            sys.exit(1)
+    
+
+    if not apikey and not password and not is_local and auth_type != "cpd":
         apikey = getpass.getpass("Please enter WXO API key: ")
 
     try:
-        creds = Credentials(url=url, api_key=apikey, iam_url=iam_url, auth_type=auth_type)
+        creds = Credentials(
+            url=url, 
+            api_key=apikey, 
+            username=username, 
+            password=password, 
+            iam_url=iam_url, 
+            auth_type=auth_type
+        )
         client = Client(creds)
         token = _decode_token(client.token, is_local)
+        _validate_token_functionality(token=token.get(AUTH_MCSP_TOKEN_OPT), url=url)
         with lock:
             auth_cfg.save(
                 {
@@ -74,7 +131,7 @@ def _login(name: str, apikey: str = None) -> None:
     except ClientError as e:
         raise ClientError(e)
 
-def activate(name: str, apikey: str=None, registry: RegistryType=None, test_package_version_override=None) -> None:
+def activate(name: str, apikey: str=None, username: str=None, password: str=None, registry: RegistryType=None, test_package_version_override=None) -> None:
     cfg = Config()
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
     env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
@@ -92,7 +149,7 @@ def activate(name: str, apikey: str=None, registry: RegistryType=None, test_pack
     existing_token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
 
     if not check_token_validity(existing_token) or is_local:
-        _login(name=name, apikey=apikey)
+        _login(name=name, apikey=apikey, username=username, password=password)
 
     with lock:
         cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, name)
@@ -104,8 +161,11 @@ def activate(name: str, apikey: str=None, registry: RegistryType=None, test_pack
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, test_package_version_override)
 
     logger.info(f"Environment '{name}' is now active")
+    is_cpd = is_cpd_env(url)
+    if is_cpd:
+        logger.warning("Support for CPD clusters is currently an early access preview")
 
-def add(name: str, url: str, should_activate: bool=False, iam_url: str=None, type: EnvironmentAuthType=None) -> None:
+def add(name: str, url: str, should_activate: bool=False, iam_url: str=None, type: EnvironmentAuthType=None, insecure: bool=None, verify: str=None) -> None:
     if name == PROTECTED_ENV_NAME:
         logger.error(f"The name '{PROTECTED_ENV_NAME}' is a reserved environment name. Please select a diffrent name or use `orchestrate env activate {PROTECTED_ENV_NAME}` to swap to '{PROTECTED_ENV_NAME}'")
         return
@@ -124,6 +184,12 @@ def add(name: str, url: str, should_activate: bool=False, iam_url: str=None, typ
             cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_IAM_URL_OPT: iam_url})
         if type:
             cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {ENV_AUTH_TYPE: str(type)})
+        if insecure:
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {BYPASS_SSL: insecure})
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {VERIFY: 'None'})
+        if verify:
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {VERIFY: verify})
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, name, {BYPASS_SSL: False})
         
 
     logger.info(f"Environment '{name}' has been created")

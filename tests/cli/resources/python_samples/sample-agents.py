@@ -13,7 +13,7 @@ def sample_tool():
 
 calculus_knowledge_base = KnowledgeBase(
     name="calculus_knowledge_base",
-    description="Knowlege base with documentation about how to do calculus",
+    description="Knowledge base with documentation about how to do calculus",
     conversational_search_tool=ConversationalSearchConfig(
         index_config=[
             IndexConnection(milvus=MilvusConnection(
@@ -76,10 +76,10 @@ agent1 = Agent(
     ],
     # tools can take a mix of Tool objects or string with tool names
     knowledge_base=[
-        "algebra_knowlege_base",
+        "algebra_knowledge_base",
         calculus_knowledge_base
     ]
-    # knowlege_base can take a mix of KnowlegeBase objects or string with knowlege_base names
+    # knowledge_base can take a mix of KnowledgeBase objects or string with knowledge_base names
 )
 
 agent5 = AssistantAgent(

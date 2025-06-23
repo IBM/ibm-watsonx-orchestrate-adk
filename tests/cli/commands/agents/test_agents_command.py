@@ -49,6 +49,8 @@ class TestAgentCreate:
                 nickname=None, 
                 app_id=None,
                 output_file="test.yaml",
+                context_access_enabled=True,
+                context_variables=None,
                 )
             generate_mock.assert_called_once_with(
                 name="test",
@@ -72,6 +74,8 @@ class TestAgentCreate:
                 nickname=None, 
                 app_id=None,
                 output_file="test.yaml",
+                context_access_enabled=True,
+                context_variables=None,
             )
             publish_mock.assert_called_once()
 
@@ -100,6 +104,8 @@ class TestAgentCreate:
                 nickname=None, 
                 app_id=None,
                 output_file="test.yaml",
+                context_access_enabled=True,
+                context_variables=None,
                 )
             generate_mock.assert_called_once_with(
                 name="test",
@@ -123,6 +129,8 @@ class TestAgentCreate:
                 nickname=None, 
                 app_id=None,
                 output_file="test.yaml",
+                context_access_enabled=True,
+                context_variables=None,
             )
             publish_mock.assert_called_once()
 

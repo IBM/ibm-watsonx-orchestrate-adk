@@ -23,28 +23,34 @@ PROVIDER_EXTRA_PROPERTIES_LUT = {
     #     'azure_ad_token',
     #     'azure_model_name'
     # },
-    # ModelProvider.BEDROCK: {
-    #     'aws_secret_access_key',
-    #     'aws_access_key_id',
-    #     'aws_session_token',
-    #     'aws_region',
-    #     'aws_auth_type',
-    #     'aws_role_arn',
-    #     'aws_external_id',
-    #     'aws_s3_bucket',
-    #     'aws_s3_object_key',
-    #     'aws_bedrock_model',
-    #     'aws_server_side_encryption',
-    #     'aws_server_side_encryption_kms_key_id'
-    # },
-    # ModelProvider.VERTEX_AI: {
-    #     'vertex_region',
-    #     'vertex_project_id',
-    #     'vertex_service_account_json',
-    #     'vertex_storage_bucket_name',
-    #     'vertex_model_name',
-    #     'filename'
-    # },
+    ModelProvider.AZURE_OPENAI: {
+        'azure_resource_name',
+        'azure_deployment_id',
+        'azure_api_version',
+        'azure_model_name'
+    },
+    ModelProvider.BEDROCK: {
+        'aws_secret_access_key',
+        'aws_access_key_id',
+        'aws_session_token',
+        'aws_region',
+        'aws_auth_type',
+        'aws_role_arn',
+        'aws_external_id',
+        'aws_s3_bucket',
+        'aws_s3_object_key',
+        'aws_bedrock_model',
+        'aws_server_side_encryption',
+        'aws_server_side_encryption_kms_key_id'
+    },
+    ModelProvider.VERTEX_AI: {
+        'vertex_region',
+        'vertex_project_id',
+        'vertex_service_account_json',
+        'vertex_storage_bucket_name',
+        'vertex_model_name',
+        'filename'
+    },
     # ModelProvider.HUGGINGFACE: {'huggingfaceBaseUrl'},
     ModelProvider.MISTRAL_AI: {'mistral_fim_completion'},
     # ModelProvider.STABILITY_AI: {'stability_client_id', 'stability_client_user_id', 'stability_client_version'},
@@ -93,7 +99,8 @@ PROVIDER_REQUIRED_FIELDS = {k:['api_key'] for k in ModelProvider}
 # Use sets to denote when a requirement is 'or'
 PROVIDER_REQUIRED_FIELDS.update({
     ModelProvider.WATSONX: PROVIDER_REQUIRED_FIELDS[ModelProvider.WATSONX] + [{'watsonx_space_id', 'watsonx_project_id', 'watsonx_deployment_id'}],
-    ModelProvider.OLLAMA: PROVIDER_REQUIRED_FIELDS[ModelProvider.OLLAMA] + ['custom_host']
+    ModelProvider.OLLAMA: PROVIDER_REQUIRED_FIELDS[ModelProvider.OLLAMA] + ['custom_host'],
+    ModelProvider.BEDROCK: [],
 })
 
 # def env_file_to_model_ProviderConfig(model_name: str, env_file_path: str) -> ProviderConfig | None:
@@ -163,7 +170,7 @@ def _validate_requirements(provider: ModelProvider, cfg: ProviderConfig, app_id:
         if not app_id:
             missing_credentials_string = f"Missing configuration variable(s) required for the provider {provider}:"
         else:
-            missing_credentials_string = f"The following configuration variable(s) for the provider {provider} are not in the spec provider_config:"
+            missing_credentials_string = f"Be sure to include the following required fields for provider '{provider}' in the connection '{app_id}':"
         for cred in missing_credentials:
             if isinstance(cred, set):
                 cred_str = ' or '.join(list(cred))
@@ -177,7 +184,6 @@ def _validate_requirements(provider: ModelProvider, cfg: ProviderConfig, app_id:
             sys.exit(1)
         else:
             logger.info(missing_credentials_string)
-            logger.info(f"Please ensure these values are set in the connection '{app_id}'.")
 
 
 def validate_ProviderConfig(cfg: ProviderConfig, app_id: str)-> None:
