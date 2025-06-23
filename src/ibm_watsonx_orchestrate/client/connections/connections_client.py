@@ -1,11 +1,12 @@
 from typing import List
 
+from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 from pydantic import BaseModel, ValidationError
 from typing import Optional
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
-from ibm_watsonx_orchestrate.client.utils import is_cpd_env
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
 logger = logging.getLogger(__name__)
@@ -42,6 +43,12 @@ class GetConnectionResponse(BaseModel):
 
 
 class ConnectionsClient(BaseAPIClient):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
+        super(ConnectionsClient, self).__init__(base_url, api_key, is_local, verify, authenticator)
+        if is_local_dev(base_url):
+            self.base_url = f"{base_url.rstrip('/')}/api/v1/orchestrate"
+        else:
+            self.base_url = f"{base_url.rstrip('/')}/v1/orchestrate"
     """
     Client to handle CRUD operations for Connections endpoint
     """

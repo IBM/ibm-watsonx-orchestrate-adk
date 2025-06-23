@@ -17,7 +17,6 @@ def _get_connections_manager_url() -> str:
         url_parts = url.split(":")
         url_parts[-1] = str(LOCAL_CONNECTION_MANAGER_PORT)
         url = ":".join(url_parts)
-        url = url + "/api/v1/orchestrate"
         return url
     return None
 
