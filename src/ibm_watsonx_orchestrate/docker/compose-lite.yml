@@ -627,6 +627,7 @@ services:
       LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
       LOG_LEVEL: info
       DISABLE_FLOW_BINDING: true
+      DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
