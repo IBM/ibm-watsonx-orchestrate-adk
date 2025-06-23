@@ -676,10 +676,11 @@ def server_start(
 
     merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
 
-    # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
+    # Add LANGFUSE_ENABLED and DOCPROC_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-
+    if with_docproc:
+        merged_env_dict['DOCPROC_ENABLED'] = 'true'
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
@@ -719,6 +720,8 @@ def server_start(
 
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+    if with_docproc:
+        logger.info(f"Document processing capabilities have been enabled for use in Flows (ADK and runtime). Note: These are only available on the developer edition.")
 
 @server_app.command(name="stop")
 def server_stop(
