@@ -84,6 +84,8 @@ class ConnectionsClient(BaseAPIClient):
                 else f"/connections/applications?include_details=true"
             )
             res = self._get(path)
+            import json
+            json.dumps(res)
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
@@ -114,25 +116,25 @@ class ConnectionsClient(BaseAPIClient):
 
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def create_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
-        if use_sso:
+    def create_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._post(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._post(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
 
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def update_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
-        if use_sso:
+    def update_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._patch(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._patch(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
 
     # GET /api/v1/connections/applications/{app_id}/configs/credentials?env={env}
     # GET /api/v1/connections/applications/{app_id}/configs/runtime_credentials?env={env}
-    def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> dict:
+    def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_app_credentials: bool) -> dict:
         try:
-            if use_sso:
+            if use_app_credentials:
                 path = (
                     f"/connections/applications/{app_id}/credentials?env={env}"
                     if is_cpd_env(self.base_url)
@@ -153,8 +155,8 @@ class ConnectionsClient(BaseAPIClient):
 
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def delete_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> None:
-        if use_sso:
+    def delete_credentials(self, app_id: str, env: ConnectionEnvironment, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._delete(f"/connections/applications/{app_id}/configs/{env}/credentials")
         else:
             self._delete(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials")
