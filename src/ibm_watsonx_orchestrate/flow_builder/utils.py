@@ -1,23 +1,15 @@
 import inspect
-import json
-from pathlib import Path
 import re
 import logging
-import importlib.resources
-import yaml
 
 from pydantic import BaseModel, TypeAdapter
-from typing import types
 
 from langchain_core.utils.json_schema import dereference_refs
 import typer
 
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionSecurityScheme
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolRequestBody, ToolResponseBody
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import add_connection, configure_connection, set_credentials_connection
-from ibm_watsonx_orchestrate.client.connections.utils import get_connections_client
-from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 
 logger = logging.getLogger(__name__)
@@ -129,57 +121,32 @@ def _get_tool_response_body(schema_obj: JsonSchemaObject) -> ToolResponseBody:
 async def import_flow_model(model):
 
     if not is_local_dev():
-        raise typer.BadParameter(f"Executing flows is only supported in local environment.")
+        raise typer.BadParameter(f"Flow tools are only supported in local environment.")
 
     if model is None:
         raise typer.BadParameter(f"No model provided.")
     
-    tools = []
+    tool = create_flow_json_tool(name=model["spec"]["name"],
+                                description=model["spec"]["description"], 
+                                permission="read_only", 
+                                flow_model=model) 
+
+    client = instantiate_client(ToolClient)
+
+    tool_id = None
+    exist = False
+    existing_tools = client.get_draft_by_name(tool.__tool_spec__.name)
+    if len(existing_tools) > 1:
+        raise ValueError(f"Multiple existing tools found with name '{tool.__tool_spec__.name}'. Failed to update tool")
+
+    if len(existing_tools) > 0:
+        existing_tool = existing_tools[0]
+        exist = True
+        tool_id = existing_tool.get("id")
+
+    tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
     
-    flow_id = model["spec"]["name"]
-
-    tempus_client: TempusClient =  instantiate_client(TempusClient)
-
-    flow_open_api = tempus_client.create_update_flow_model(flow_id=flow_id, model=model)
-
-    logger.info(f"Flow model `{flow_id}` deployed successfully.")
-
-    connections_client = get_connections_client()
-    
-    app_id = "flow_tools_app"
-    logger.info(f"Creating connection for flow model...")
-    existing_app = connections_client.get(app_id=app_id)
-    if not existing_app:
-        # logger.info(f"Creating app `{app_id}`.")
-        add_connection(app_id=app_id)
-    # else:
-    #     logger.info(f"App `{app_id}` already exists.")
-    
-    # logger.info(f"Creating connection for app...")
-    configure_connection(
-        type=ConnectionPreference.MEMBER,
-        app_id=app_id,
-        token=connections_client.api_key,
-        environment=ConnectionEnvironment.DRAFT,
-        security_scheme=ConnectionSecurityScheme.BEARER_TOKEN,
-        shared=False
-    )
-
-    set_credentials_connection(app_id=app_id, environment=ConnectionEnvironment.DRAFT, token=connections_client.api_key)
-
-    connections = connections_client.get_draft_by_app_id(app_id=app_id)
-
-    # logger.info(f"Connection `{connections.connection_id}` created successfully.")
-    
-    tools = await create_openapi_json_tools_from_content(flow_open_api, connections.connection_id)
-
-    logger.info(f"Generating 'get_flow_status' tool spec...")    
-    # Temporary code to deploy a status tool until we have full async support
-    with importlib.resources.open_text('ibm_watsonx_orchestrate.flow_builder.resources', 'flow_status.openapi.yml', encoding='utf-8') as f:
-        get_status_openapi = f.read()
-
-    get_flow_status_spec = yaml.safe_load(get_status_openapi)
-    tools.extend(await create_openapi_json_tools_from_content(get_flow_status_spec, connections.connection_id))
-
-
-    return tools
+    if exist:
+        client.update(tool_id, tool_spec)
+    else:
+        client.create(tool_spec)

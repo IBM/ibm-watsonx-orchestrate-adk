@@ -30,11 +30,11 @@ class TempusClient(BaseAPIClient):
         )
         
     def create_update_flow_model(self, flow_id: str, model: dict) -> dict:
-        return self._post(f"/v1/flow-models/{flow_id}", data=model)
+        return self._post(f"/flow-models/{flow_id}", data=model)
     
     def run_flow(self, flow_id: str, input: dict) -> dict:
-        return self._post(f"/v1/flows/{flow_id}/versions/TIP/run", data=input)
+        return self._post(f"/flows/{flow_id}/versions/TIP/run", data=input)
     
     def arun_flow(self, flow_id: str, input: dict) -> dict:
-        return self._post(f"/v1/flows/{flow_id}/versions/TIP/run/async", data=input)
+        return self._post(f"/flows/{flow_id}/versions/TIP/run/async", data=input)
 
