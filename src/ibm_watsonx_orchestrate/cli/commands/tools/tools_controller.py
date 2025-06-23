@@ -514,9 +514,16 @@ class ToolsController:
             rich.print(JSON(json.dumps(tools_list, indent=4)))
         else:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
-            columns = ["Name", "Description", "Permission", "Type", "Toolkit", "App ID"]
-            for column in columns:
-                table.add_column(column)
+            column_args = {
+                "Name": {"overflow": "fold"},
+                "Description": {},
+                "Permission": {}, 
+                "Type": {}, 
+                "Toolkit": {}, 
+                "App ID": {"overflow": "fold"}
+            }
+            for column in column_args:
+                table.add_column(column,**column_args[column])
 
             connections_client = get_connections_client()
             connections = connections_client.list()

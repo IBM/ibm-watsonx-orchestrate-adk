@@ -387,11 +387,17 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
         non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
         draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
         live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
-        columns = ["App ID", "Auth Type", "Type", "Credentials Set"]
-        for column in columns:
-            draft_table.add_column(column, justify='center', no_wrap=True)
-            live_table.add_column(column, justify='center', no_wrap=True)
-            non_configured_table.add_column(column, justify='center', no_wrap=True)
+        default_args = {"justify": "center", "no_wrap": True}
+        column_args = {
+            "App ID": {"overflow": "fold"}, 
+            "Auth Type": {}, 
+            "Type": {}, 
+            "Credentials Set": {}
+        }
+        for column in column_args:
+            draft_table.add_column(column,**default_args, **column_args[column])
+            live_table.add_column(column,**default_args, **column_args[column])
+            non_configured_table.add_column(column,**default_args, **column_args[column])
         
         for conn in connections:
             if conn.environment is None:
