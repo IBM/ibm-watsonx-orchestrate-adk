@@ -43,6 +43,8 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 - 8 cores
 - 25GB disk space
 
+> **Note:** If you run with Document Processing enabled, you will need **at least an additional 2GB of memory** (i.e., a total of **18GB RAM**) to ensure stable operation.
+
 **A docker engine**   
   Ensure that you have a docker engine installed capable of running docker compose.
   The watsonx Orchestrate team recommends either [Rancher](https://rancherdesktop.io/) or [Colima](https://github.com/abiosoft/colima).
@@ -96,6 +98,27 @@ $ orchestrate --help
 The Developer Edition of Watsonx Orchestrate can be installed following the
 instructions [here](https://developer.watson-orchestrate.ibm.com/getting_started/wxOde_setup). After which
 you will be able to start, activate, import into and rapidly reset a local server of watsonx Orchestrate.
+
+### Starting the Developer Edition
+
+```bash
+ orchestrate server start --help                           
+     
+ Usage: orchestrate server start [OPTIONS]                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                   
+╭─ Options ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                    │
+│ --with-langfuse                -l            Option to enable Langfuse support.                                                                                                           │
+│ --accept-terms-and-conditions                By providing this flag you accept the terms and conditions outlined in the logs on server start.                                             │
+│ --with-docproc                 -d            Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document              │
+│                                              Understanding service.                                                                                                                       │
+│ --help                                       Show this message and exit.                                                                                                                  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+Example:
+
 ```bash
 $ orchestrate server start -e .env
 [INFO] - Logging into Docker registry: us.icr.io ...

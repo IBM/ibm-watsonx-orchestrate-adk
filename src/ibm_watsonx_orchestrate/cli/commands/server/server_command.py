@@ -292,8 +292,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_docproc=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -320,19 +319,17 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
 
 
     # Step 2: Start all remaining services (except DB)
+    profiles = []
     if experimental_with_langfuse:
-        command = compose_command + [
-            '--profile',
-            'langfuse'
-        ]
-    elif experimental_with_ibm_telemetry:
-        command = compose_command + [
-            '--profile',
-            'ibm-telemetry'
-        ]
-    else:
-        command = compose_command
+        profiles.append("langfuse")
+    if experimental_with_ibm_telemetry:
+        profiles.append("ibm-telemetry")
+    if with_docproc:
+        profiles.append("docproc")
 
+    command = compose_command[:]
+    for profile in profiles:
+        command += ["--profile", profile]
 
     command += [
         "-f", str(compose_path),
@@ -652,6 +649,11 @@ def server_start(
         "--accept-terms-and-conditions",
         help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
     ),
+    with_docproc: bool = typer.Option(
+        False,
+        '--with-docproc', '-d',
+        help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
+    ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
@@ -680,10 +682,13 @@ def server_start(
 
     merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
 
-    # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
+    # Add LANGFUSE_ENABLED and DOCPROC_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-        
+
+    if with_docproc:
+        merged_env_dict['DOCPROC_ENABLED'] = 'true'
+
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
@@ -697,9 +702,11 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
+
     run_compose_lite(final_env_file=final_env_file, 
                      experimental_with_langfuse=experimental_with_langfuse,
-                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry)
+                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
+                     with_docproc=with_docproc)
 
     run_db_migration()
 
@@ -727,6 +734,8 @@ def server_start(
 
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+    if with_docproc:
+        logger.info(f"Document processing capabilities are now available for use in Flows (both ADK and runtime). Note: This option is currently available only in the Developer edition.")
 
 @server_app.command(name="stop")
 def server_stop(
