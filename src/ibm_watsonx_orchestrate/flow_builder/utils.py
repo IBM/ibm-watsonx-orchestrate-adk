@@ -1,23 +1,21 @@
+import importlib
 import inspect
-import json
-from pathlib import Path
 import re
 import logging
-import importlib.resources
-import yaml
 
 from pydantic import BaseModel, TypeAdapter
-from typing import types
 
 from langchain_core.utils.json_schema import dereference_refs
+from rpds import List
 import typer
+import yaml
 
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionSecurityScheme
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_content
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolRequestBody, ToolResponseBody
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import add_connection, configure_connection, set_credentials_connection
-from ibm_watsonx_orchestrate.client.connections.utils import get_connections_client
+from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
+from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool, create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, OpenApiToolBinding, ToolBinding, ToolRequestBody, ToolResponseBody, ToolSpec
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 
 logger = logging.getLogger(__name__)
@@ -133,53 +131,85 @@ async def import_flow_model(model):
 
     if model is None:
         raise typer.BadParameter(f"No model provided.")
-    
-    tools = []
-    
-    flow_id = model["spec"]["name"]
 
-    tempus_client: TempusClient =  instantiate_client(TempusClient)
+    tool = create_flow_json_tool(name=model["spec"]["name"],
+                                description=model["spec"]["description"], 
+                                permission="read_only", 
+                                flow_model=model) 
 
-    flow_open_api = tempus_client.create_update_flow_model(flow_id=flow_id, model=model)
+    client = instantiate_client(ToolClient)
 
-    logger.info(f"Flow model `{flow_id}` deployed successfully.")
+    tool_id = None
+    exist = False
+    existing_tools = client.get_draft_by_name(tool.__tool_spec__.name)
+    if len(existing_tools) > 1:
+        raise ValueError(f"Multiple existing tools found with name '{tool.__tool_spec__.name}'. Failed to update tool")
 
-    connections_client = get_connections_client()
-    
-    app_id = "flow_tools_app"
-    logger.info(f"Creating connection for flow model...")
-    existing_app = connections_client.get(app_id=app_id)
-    if not existing_app:
-        # logger.info(f"Creating app `{app_id}`.")
-        add_connection(app_id=app_id)
-    # else:
-    #     logger.info(f"App `{app_id}` already exists.")
-    
-    # logger.info(f"Creating connection for app...")
-    configure_connection(
-        type=ConnectionPreference.MEMBER,
-        app_id=app_id,
-        token=connections_client.api_key,
-        environment=ConnectionEnvironment.DRAFT,
-        security_scheme=ConnectionSecurityScheme.BEARER_TOKEN,
-        shared=False
-    )
+    if len(existing_tools) > 0:
+        existing_tool = existing_tools[0]
+        exist = True
+        tool_id = existing_tool.get("id")
 
-    set_credentials_connection(app_id=app_id, environment=ConnectionEnvironment.DRAFT, token=connections_client.api_key)
+    tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
+    name = tool_spec['name']
+    if exist:
+        logger.info(f"Updating flow '{name}'")
+        client.update(tool_id, tool_spec)
+    else:
+        logger.info(f"Deploying flow '{name}'")
+        response = client.create(tool_spec)
+        tool_id = response["id"]
 
-    connections = connections_client.get_draft_by_app_id(app_id=app_id)
+    return tool_id
 
-    # logger.info(f"Connection `{connections.connection_id}` created successfully.")
-    
-    tools = await create_openapi_json_tools_from_content(flow_open_api, connections.connection_id)
+def import_flow_support_tools():
 
-    logger.info(f"Generating 'get_flow_status' tool spec...")    
-    # Temporary code to deploy a status tool until we have full async support
-    with importlib.resources.open_text('ibm_watsonx_orchestrate.flow_builder.resources', 'flow_status.openapi.yml', encoding='utf-8') as f:
-        get_status_openapi = f.read()
+    if not is_local_dev():
+        # we can't import support tools into non-local environments yet
+        return
 
-    get_flow_status_spec = yaml.safe_load(get_status_openapi)
-    tools.extend(await create_openapi_json_tools_from_content(get_flow_status_spec, connections.connection_id))
+    client = instantiate_client(TempusClient)
 
+    logger.info(f"Import 'get_flow_status' tool spec...")
+    tools = [create_flow_status_tool("i__get_flow_status_intrinsic_tool__")]
 
     return tools
+
+# Assisted by watsonx Code Assistant
+
+def create_flow_status_tool(flow_status_tool: str, TEMPUS_ENDPOINT: str="http://wxo-tempus-runtime:9044") -> dict:
+
+    spec = ToolSpec(
+        name=flow_status_tool,
+        description="We can use the flow instance id to get the status of a flow. Only call this on explicit request by the user.",
+        permission='read_only',
+        display_name= "Get flow status"
+    )
+
+    openapi_binding = OpenApiToolBinding(
+        http_path="/flows",
+        http_method="GET",
+        security=[],
+        servers=[TEMPUS_ENDPOINT]
+    )
+    
+    spec.binding = ToolBinding(openapi=openapi_binding)
+    # Input Schema
+    properties = {
+        "query_instance_id": {
+            "type": "string",
+            "title": "instance_id",
+            "description": "Identifies the instance ID of the flow.",
+            "in": "query"
+        }
+    }
+    
+    spec.input_schema = ToolRequestBody(
+        type='object',
+        properties=properties,
+        required=[]
+    )
+    spec.output_schema = ToolResponseBody(type='array', description='Return the status of a flow instance.')
+
+    return OpenAPITool(spec=spec)
+

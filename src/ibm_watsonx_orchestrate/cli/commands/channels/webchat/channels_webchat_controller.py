@@ -1,9 +1,10 @@
 import logging
 import rich
 import jwt
+import sys
 
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
@@ -19,7 +20,41 @@ class ChannelsWebchatController:
     def get_native_client(self):
         self.native_client = instantiate_client(AgentClient)
         return self.native_client
+    
+    def extract_tenant_id_from_crn(self, crn: str) -> str:
+        is_ibm_cloud_env = is_ibm_cloud()
+        if is_ibm_cloud_env:
+            try:
+                parts = crn.split("a/")[1].split(":")
+                account_part = parts[0]
+                instance_part = parts[1]
+                tenant_id = f"{account_part}_{instance_part}"
+                return tenant_id
+            except (IndexError, AttributeError):
+                raise ValueError(f"Invalid CRN format: {crn}")
+        else:
+            try:
+                parts = crn.split("sub/")[1].split(":")
+                account_part = parts[0]
+                instance_part = parts[1]
+                tenant_id = f"{account_part}_{instance_part}"
+                return tenant_id
+            except (IndexError, AttributeError):
+                raise ValueError(f"Invalid CRN format: {crn}")
 
+        
+            
+    def check_crn_is_correct(self, crn: str):
+        parts = crn.split("a/")[1].split(":")
+        instance_part_crn = parts[1]
+        cfg = Config()
+        active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+        url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
+        instance_part_url = url.rstrip("/").split("/")[-1]
+        if instance_part_crn == instance_part_url:
+            return True
+        else:
+            return False
 
     def get_agent_id(self, agent_name: str):
         native_client = self.get_native_client()
@@ -39,7 +74,7 @@ class ChannelsWebchatController:
             raise ValueError(f"No agent found with the name '{agent_name}'")
 
         agent = existing_native_agents[0]
-        agent_environments = agent.get("environments", [])
+        agent_environments = agent.get("environments", [])        
 
         is_local = is_local_dev()
         target_env = env or 'draft'
@@ -56,15 +91,37 @@ class ChannelsWebchatController:
                 logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
             exit(1)
 
-        return filtered_environments[0].get("id")
+        if target_env == 'draft' and is_local == False:
+            logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
+            exit(1)
+             
 
+
+        return filtered_environments[0].get("id")
 
     def get_tennent_id(self):
         auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
 
         cfg = Config()
         active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
-        is_local = is_local_dev()
+
+        existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(active_env, {})
+
+        existing_token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
+        token = jwt.decode(existing_token, options={"verify_signature": False})
+        crn = ""
+        crn = token.get('aud', None)
+
+        tenant_id = self.extract_tenant_id_from_crn(crn)
+        return tenant_id
+
+
+
+    def get_tenant_id_local(self):
+        auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+
+        cfg = Config()
+        active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
 
         existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(active_env, {})
 
@@ -72,10 +129,7 @@ class ChannelsWebchatController:
 
         token = jwt.decode(existing_token, options={"verify_signature": False})
         tenant_id = ""
-        if is_local:
-            tenant_id = token.get('woTenantId', None)
-        else:
-            tenant_id = token.get('tenantId', None)
+        tenant_id = token.get('woTenantId', None)
 
         return tenant_id
 
@@ -99,41 +153,70 @@ class ChannelsWebchatController:
 
             
     def create_webchat_embed_code(self):
-        tenant_id = self.get_tennent_id()
+        crn = None
+        is_ibm_cloud_env = is_ibm_cloud()
+        is_local = is_local_dev()
+        if is_ibm_cloud_env is True:
+            crn = input("Please enter your CRN which can be gotten from the IBM Cloud UI: ")
+            if crn == "":
+                logger.error("You must enter your CRN for IBM Cloud instances")
+                sys.exit(1)
+            is_crn_correct = self.check_crn_is_correct(crn)
+            if is_crn_correct == False:
+                logger.error("Invalid CRN format provided.")
+
+        if is_ibm_cloud_env and crn is not None:
+            tenant_id = self.extract_tenant_id_from_crn(crn)
+        elif is_ibm_cloud_env is False and is_local is False:
+            tenant_id = self.get_tennent_id()
+        elif is_local:
+            tenant_id = self.get_tenant_id_local()
         host_url = self.get_host_url()
         agent_id = self.get_agent_id(self.agent_name)
         agent_env_id = self.get_environment_id(self.agent_name, self.env)
 
-        is_local = is_local_dev()
         script_path = (
             "/wxoLoader.js?embed=true"
             if is_local
             else "/wxochat/wxoLoader.js?embed=true"
         )
 
+        config_lines = [
+            f'orchestrationID: "{tenant_id}"',
+            f'hostURL: "{host_url}"',
+            'rootElementID: "root"',
+            'showLauncher: true',
+        ]
+
+        # Conditional fields for IBM Cloud
+        if is_ibm_cloud_env:
+            config_lines.append(f'crn: "{crn}"')
+        if is_ibm_cloud_env:
+            config_lines.append(f'deploymentPlatform: "ibmcloud"')
+
+        config_lines.append(f"""chatOptions: {{
+            agentId: "{agent_id}",
+            agentEnvironmentId: "{agent_env_id}"
+        }}""")
+
+        config_body = ",\n                    ".join(config_lines)
+
         script = f"""
             <script>
                 window.wxOConfiguration = {{
-                    orchestrationID: "{tenant_id}",
-                    hostURL: "{host_url}",
-                    rootElementID: "root",
-                    showLauncher: true,
-                    chatOptions: {{
-                        agentId: "{agent_id}",
-                        agentEnvironmentId: "{agent_env_id}"
-                    }},
+                    {config_body}
                 }};
 
                 setTimeout(function () {{
                     const script = document.createElement('script');
                     script.src = `${{window.wxOConfiguration.hostURL}}{script_path}`;
                     script.addEventListener('load', function () {{
-                    wxoLoader.init();
+                        wxoLoader.init();
                     }});
                     document.head.appendChild(script);
                 }}, 0);
             </script>
-        """ 
+            """
 
         rich.print(script)
         return script

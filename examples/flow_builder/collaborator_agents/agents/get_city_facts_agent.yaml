@@ -10,6 +10,6 @@ llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
   - collaborator_agents_flow
-  - get_flow_status
+  - i__get_flow_status_intrinsic_tool__
 
 

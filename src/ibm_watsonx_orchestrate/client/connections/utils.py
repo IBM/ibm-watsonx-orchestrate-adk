@@ -17,14 +17,16 @@ def _get_connections_manager_url() -> str:
         url_parts = url.split(":")
         url_parts[-1] = str(LOCAL_CONNECTION_MANAGER_PORT)
         url = ":".join(url_parts)
-        url = url + "/api/v1/orchestrate"
         return url
     return None
 
 def get_connections_client() -> ConnectionsClient:
     return instantiate_client(client=ConnectionsClient, url=_get_connections_manager_url())
 
-def get_connection_type(security_scheme: ConnectionSecurityScheme, auth_type: ConnectionAuthType) -> ConnectionType:
+def get_connection_type(security_scheme: ConnectionSecurityScheme, auth_type: ConnectionAuthType) -> ConnectionType | None:
+    if security_scheme is None and auth_type is None:
+        return None
+
     if security_scheme != ConnectionSecurityScheme.OAUTH2:
         return ConnectionType(security_scheme)
     return ConnectionType(auth_type)

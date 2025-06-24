@@ -754,14 +754,14 @@ class AgentsController:
                     show_lines=True
                 )
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Description": {},
                     "LLM": {"overflow": "fold"},
                     "Style": {},
                     "Collaborators": {},
                     "Tools": {},
                     "Knowledge Base": {},
-                    "ID": {},
+                    "ID": {"overflow": "fold"},
                 }
                 for column in column_args:
                     native_table.add_column(column, **column_args[column])
@@ -811,7 +811,7 @@ class AgentsController:
                     show_lines=True
                 )
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Title": {},
                     "Description": {},
                     "Tags": {},
@@ -819,9 +819,9 @@ class AgentsController:
                     "Chat Params": {},
                     "Config": {},
                     "Nickname": {},
-                    "App ID": {},
-                    "ID": {}
-                    }
+                    "App ID": {"overflow": "fold"},
+                    "ID": {"overflow": "fold"}
+                }
                 
                 for column in column_args:
                     external_table.add_column(column, **column_args[column])
@@ -872,17 +872,17 @@ class AgentsController:
                     title="Assistant Agents",
                     show_lines=True)
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Title": {},
                     "Description": {},
                     "Tags": {},
                     "Nickname": {},
                     "CRN": {},
                     "Instance URL": {},
-                    "Assistant ID": {},
-                    "Environment ID": {},
-                    "ID": {}
-                    }
+                    "Assistant ID": {"overflow": "fold"},
+                    "Environment ID": {"overflow": "fold"},
+                    "ID": {"overflow": "fold"}
+                }
                 
                 for column in column_args:
                     assistants_table.add_column(column, **column_args[column])

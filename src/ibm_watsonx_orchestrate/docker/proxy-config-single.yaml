@@ -1,0 +1,12 @@
+# Default tenant to use when tenant_id is not found
+default_tenant: "default"
+
+# Tenant configurations
+tenants:
+  # Default tenant on ES instance 1
+  default:
+    store_type: elasticsearch
+    hostname: "http://elasticsearch:9200"
+    username: "elastic"
+    password: "changeme"
+    index_prefix: "default"

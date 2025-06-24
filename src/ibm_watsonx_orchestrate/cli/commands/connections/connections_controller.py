@@ -15,19 +15,19 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionType,
     IdpConfigData,
     IdpConfigDataBody,
-    AppConfigData, 
+    AppConfigData,
     BasicAuthCredentials,
     BearerTokenAuthCredentials,
     APIKeyAuthCredentials,
     # OAuth2AuthCodeCredentials,
-    # OAuth2ClientCredentials,
+    OAuth2ClientCredentials,
     # OAuth2ImplicitCredentials,
     # OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
-    OAUTH_CONNECTION_TYPES
+    OAUTH_CONNECTION_TYPES, OAuth2AuthCodeCredentials
 
 )
 
@@ -136,39 +136,30 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --api-key is required for type {type}"
         )
 
-    # if type in OAUTH_CONNECTION_TYPES and args.get('client_id') is None:
-    #     raise typer.BadParameter(
-    #         f"Missing flags --client-id is required for type {type}"
-    #     )
-
-    # if type in (OAUTH_CONNECTION_TYPES.difference({ConnectionType.OAUTH2_IMPLICIT, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW})) and args.get('client_secret') is None:
-    #     raise typer.BadParameter(
-    #         f"Missing flags --client-secret is required for type {type}"
-    #     )
+    if type in {ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and args.get('client_secret') is None:
+        raise typer.BadParameter(
+            f"Missing flags --client-secret is required for type {type}"
+        )
     
-    # if type in (OAUTH_CONNECTION_TYPES.difference({ConnectionType.OAUTH2_IMPLICIT})) and args.get('token_url') is None:
-    #     raise typer.BadParameter(
-    #         f"Missing flags --token-url is required for type {type}"
-    #     )
-    
-    # if type in (OAUTH_CONNECTION_TYPES.difference({ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW})) and args.get('auth_url') is None:
-    #     raise typer.BadParameter(
-    #         f"Missing flags --auth-url is required for type {type}"
-    #     )
+    if type in {ConnectionType.OAUTH2_AUTH_CODE} and args.get('auth_url') is None:
+        raise typer.BadParameter(
+            f"Missing flags --auth-url is required for type {type}"
+        )
 
-    if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and (
             args.get('client_id') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --client-id is required for type {type}"
         )
     
-    if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and (
             args.get('token_url') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --token-url is required for type {type}"
         )
+
 
     if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
             args.get('grant_type') is None
@@ -200,19 +191,21 @@ def _get_credentials(type: ConnectionType, **kwargs):
             return APIKeyAuthCredentials(
                 api_key=kwargs.get("api_key")
             )
-        # case ConnectionType.OAUTH2_AUTH_CODE:
-        #     return OAuth2AuthCodeCredentials(
-        #         authorization_url=kwargs.get("auth_url"),
-        #         client_id=kwargs.get("client_id"),
-        #         client_secret=kwargs.get("client_secret"),
-        #         token_url=kwargs.get("token_url")
-        #     )
-        # case ConnectionType.OAUTH2_CLIENT_CREDS:
-        #     return OAuth2ClientCredentials(
-        #         client_id=kwargs.get("client_id"),
-        #         client_secret=kwargs.get("client_secret"),
-        #         token_url=kwargs.get("token_url")
-        #     )
+        case ConnectionType.OAUTH2_AUTH_CODE:
+            return OAuth2AuthCodeCredentials(
+                authorization_url=kwargs.get("auth_url"),
+                client_id=kwargs.get("client_id"),
+                client_secret=kwargs.get("client_secret"),
+                token_url=kwargs.get("token_url"),
+                scopes=kwargs.get("scopes")
+            )
+        case ConnectionType.OAUTH2_CLIENT_CREDS:
+            return OAuth2ClientCredentials(
+                client_id=kwargs.get("client_id"),
+                client_secret=kwargs.get("client_secret"),
+                token_url=kwargs.get("token_url"),
+                scopes=kwargs.get("scopes")
+            )
         # case ConnectionType.OAUTH2_IMPLICIT:
         #     return OAuth2ImplicitCredentials(
         #         authorization_url=kwargs.get("auth_url"),
@@ -267,11 +260,14 @@ def add_configuration(config: ConnectionConfiguration) -> None:
                 logger.warning(f"Detected a change in sso from '{existing_configuration.sso}' to '{config.sso}'. The associated credentials will be removed.")
                 should_delete_credentials = True
 
+            existing_conn_type = get_connection_type(security_scheme=existing_configuration.security_scheme, auth_type=existing_configuration.auth_type)
+            use_app_credentials = existing_conn_type in OAUTH_CONNECTION_TYPES
+
             if should_delete_credentials:
                 try:
-                    existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_sso=existing_configuration.sso)
+                    existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials)
                     if existing_credentials:
-                        client.delete_credentials(app_id=app_id, env=environment, use_sso=existing_configuration.sso)
+                        client.delete_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials)
                 except:
                     logger.error(f"Error removing credentials for connection '{app_id}' in environment '{environment}'. No changes have been made to the configuration.")
                     sys.exit(1)
@@ -289,11 +285,11 @@ def add_configuration(config: ConnectionConfiguration) -> None:
         logger.error(response_text)
         exit(1)
 
-def add_credentials(app_id: str, environment: ConnectionEnvironment, use_sso: bool, credentials: CREDENTIALS) -> None:
+def add_credentials(app_id: str, environment: ConnectionEnvironment, use_app_credentials: bool, credentials: CREDENTIALS) -> None:
     client = get_connections_client()
     try:
-        existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_sso=use_sso)
-        if use_sso:
+        existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials)
+        if use_app_credentials:
             payload = {
                 "app_credentials": credentials.model_dump(exclude_none=True)
             }
@@ -304,9 +300,9 @@ def add_credentials(app_id: str, environment: ConnectionEnvironment, use_sso: bo
         
         logger.info(f"Setting credentials for environment '{environment}' on connection '{app_id}'")
         if existing_credentials:
-            client.update_credentials(app_id=app_id, env=environment, use_sso=use_sso, payload=payload)
+            client.update_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials, payload=payload)
         else:
-            client.create_credentials(app_id=app_id,env=environment, use_sso=use_sso, payload=payload)
+            client.create_credentials(app_id=app_id,env=environment, use_app_credentials=use_app_credentials, payload=payload)
         logger.info(f"Credentials successfully set for '{environment}' environment of connection '{app_id}'")
     except requests.HTTPError as e:
         response = e.response
@@ -318,7 +314,7 @@ def add_identity_provider(app_id: str, environment: ConnectionEnvironment, idp: 
     client = get_connections_client()
 
     try:
-        existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_sso=True)
+        existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_app_credentials=True)
         
         payload = {
             "idp_credentials": idp.model_dump()
@@ -326,9 +322,9 @@ def add_identity_provider(app_id: str, environment: ConnectionEnvironment, idp: 
 
         logger.info(f"Setting identity provider for environment '{environment}' on connection '{app_id}'")
         if existing_credentials:
-            client.update_credentials(app_id=app_id, env=environment, use_sso=True, payload=payload)
+            client.update_credentials(app_id=app_id, env=environment, use_app_credentials=True, payload=payload)
         else:
-            client.create_credentials(app_id=app_id,env=environment, use_sso=True, payload=payload)
+            client.create_credentials(app_id=app_id,env=environment, use_app_credentials=True, payload=payload)
         logger.info(f"Identity provider successfully set for '{environment}' environment of connection '{app_id}'")
     except requests.HTTPError as e:
         response = e.response
@@ -387,11 +383,17 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
         non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
         draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
         live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
-        columns = ["App ID", "Auth Type", "Type", "Credentials Set"]
-        for column in columns:
-            draft_table.add_column(column, justify='center', no_wrap=True)
-            live_table.add_column(column, justify='center', no_wrap=True)
-            non_configured_table.add_column(column, justify='center', no_wrap=True)
+        default_args = {"justify": "center", "no_wrap": True}
+        column_args = {
+            "App ID": {"overflow": "fold"}, 
+            "Auth Type": {}, 
+            "Type": {}, 
+            "Credentials Set/ Connected": {}
+        }
+        for column in column_args:
+            draft_table.add_column(column,**default_args, **column_args[column])
+            live_table.add_column(column,**default_args, **column_args[column])
+            non_configured_table.add_column(column,**default_args, **column_args[column])
         
         for conn in connections:
             if conn.environment is None:
@@ -463,11 +465,6 @@ def configure_connection(**kwargs) -> None:
 
     config = ConnectionConfiguration.model_validate(kwargs)
 
-    # TODO: Remove once Oauth is supported on local
-    if config.security_scheme == ConnectionSecurityScheme.OAUTH2 and is_local_dev():
-        logger.error("Use of OAuth connections unsupported for local development at this time.")
-        sys.exit(1)
-
     add_configuration(config)
 
 def set_credentials_connection(
@@ -484,11 +481,12 @@ def set_credentials_connection(
 
     sso_enabled = config.sso
     conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)
+    use_app_credentials = conn_type in OAUTH_CONNECTION_TYPES
 
     _validate_connection_params(type=conn_type, **kwargs)
     credentials = _get_credentials(type=conn_type, **kwargs)
 
-    add_credentials(app_id=app_id, environment=environment, use_sso=sso_enabled, credentials=credentials)
+    add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
 
 def set_identity_provider_connection(
     app_id: str,

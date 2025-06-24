@@ -1,10 +1,10 @@
 ### Testing Flow inside an Agent
 
-1. To test this example, make sure the Flow runtime is activated by starting the server with the `--with-flow-runtime` option.
-2. Run `import-all.sh` 
-3. Launch the Chat UI with `orchestrate chat start`
-4. Pick the `get_city_fact_agents`
-5. Type in something like `my city is San Jose`
+1. Run `import-all.sh` 
+2. Launch the Chat UI with `orchestrate chat start`
+3. Pick the `get_city_fact_agents`
+4. Type in something like `my city is San Jose`
+5. You can ask the agent to check the status of the flow with `what is the current status?`
 
 ### Testing Flow programmatically
 
