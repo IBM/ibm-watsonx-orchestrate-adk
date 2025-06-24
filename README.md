@@ -147,16 +147,5 @@ $ orchestrate chat start
 ```
 ![img.png](./_docs/assets/chat-example.png)
 
-### Starting the Developer Edition
-
-```
-orchestrate server stop --help                                           
- Usage: orchestrate server stop [OPTIONS]                                                                                                                                                          
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --env-file  -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both. [default: None]                                                             │
-│ --help                    Show this message and exit.                                                                                                                                           │
-╰──────────────────────────────────────────────────────
-```
-
 ## Reporting issues
 Customers of watsonx Orchestrate can raise issues with the ADK or the Developer Edition server to [IBM Support](https://www.ibm.com/mysupport/s/topic/0TO3p000000A6YLGA0/watsonx-orchestrate?productId=01t3p00000SsRnhAAF&language=en_US).
