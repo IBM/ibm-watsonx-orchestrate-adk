@@ -650,6 +650,7 @@ services:
 
   wxo-doc-processing-service:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       SERVICE_NAME: wxo-doc-processing-service
@@ -661,7 +662,6 @@ services:
       HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
-      # WDU_CLIENT_CERTIFICATE_PATH: /etc/certs/wdu.crt
       IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
     profiles:
       - docproc
@@ -670,8 +670,6 @@ services:
         # condition: service_healthy
     ports:
       - "18081:8080"
-    # volumes:
-      # - ./conf/wdu/certs:/etc/certs
     healthcheck:
       test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
       interval: 30s
@@ -679,26 +677,22 @@ services:
       retries: 10
 
   wdu-runtime:
-    image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-runtime:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-runtime:${WDU_TAG:-2.4.0}
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       MEMORY_MINIMAL: "true"
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
-      # CONFIG_FILES: "/app/configs/config.yaml"
       RUNTIME_LIBRARY: "watson_doc_understanding"
-      # HTTP_SERVER_TLS_SERVER_CERT: "/etc/certs/wdu.crt"
-      # HTTP_SERVER_TLS_SERVER_KEY: "/etc/certs/wdu.key"
     profiles:
       - docproc
     ports:
       - "18082:8080"
       - "18086:8086"
     volumes:
-      # - "./wdu-config.yaml:/app/configs/config.yaml"
       - "wdu-models:/models"
       - "wdu-prometheus-files:/prometheus/"
-      # - "./docker/wo_doc_processing_service_base/etc/certs:/etc/certs"
     tmpfs:
       - "/dev/shm"
     healthcheck:
@@ -711,7 +705,8 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/redsonja_hyboria/ai-foundation}/wdu-models:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-models:${WDU_TAG:-2.4.0}
+    platform: linux/amd64
     user: root
     profiles:
       - docproc
@@ -725,6 +720,7 @@ services:
 
   wxo-doc-processing-infra-standalone:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    platform: linux/amd64
     profiles:
       - docproc
     environment:
@@ -748,7 +744,6 @@ services:
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
-      # DPI_ENRICHMENT_SERVICE_ENDPOINT: https://wo_doc_processing_service:18080
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
@@ -758,9 +753,6 @@ services:
         condition: service_healthy
       # wxo-doc-processing-llm-service:
       #   condition: service_healthy
-    # volumes:
-      # - ./conf/dpi/tls:/opt/tls
-      # - ./conf/dpi/fyre/tls:/opt/fyre/tls
     ports:
       - 19080:9080
       - 19443:9443
@@ -772,6 +764,7 @@ services:
 
   wxo-doc-processing-infra-pg-init:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    platform: linux/amd64
     environment: 
       PGHOST: wxo-server-db
       PGPORT: "5432"
@@ -795,6 +788,7 @@ services:
 
   wxo-doc-processing-dpi-minio-init:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    platform: linux/amd64
     profiles:
       - docproc
     depends_on:
