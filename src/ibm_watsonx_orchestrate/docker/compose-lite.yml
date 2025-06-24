@@ -87,7 +87,7 @@ services:
       NODE_LOG_LEVEL: debug
       RABBITMQ_EXCHANGE: verdi_events_affinity
       SOCKET_PING_TIMEOUT: 20000
-      WXO_DOMAIN_URL: http://localhost:4321
+      WXO_DOMAIN_URL: http://localhost:4321/api/v1
       IS_WXA_WEBCHAT: "true"
       NODE_OPTIONS: --max-http-header-size 32768
       PATH: /opt/app-root/src/node_modules/.bin/:/opt/app-root/src/.npm-global/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
