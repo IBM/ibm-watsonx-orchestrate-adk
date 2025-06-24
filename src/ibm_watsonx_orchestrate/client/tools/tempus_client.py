@@ -29,6 +29,11 @@ class TempusClient(BaseAPIClient):
             authenticator=authenticator
         )
         
+    def get_tempus_endpoint(self) -> str:
+        """
+        Returns the Tempus endpoint URL
+        """
+        return self.base_url
     def create_update_flow_model(self, flow_id: str, model: dict) -> dict:
         return self._post(f"/flow-models/{flow_id}", data=model)
     

@@ -1,3 +1,4 @@
+import importlib
 import inspect
 import re
 import logging
@@ -5,10 +6,15 @@ import logging
 from pydantic import BaseModel, TypeAdapter
 
 from langchain_core.utils.json_schema import dereference_refs
+from rpds import List
 import typer
+import yaml
 
+from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolRequestBody, ToolResponseBody
+from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool, create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, OpenApiToolBinding, ToolBinding, ToolRequestBody, ToolResponseBody, ToolSpec
+from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 
@@ -125,7 +131,7 @@ async def import_flow_model(model):
 
     if model is None:
         raise typer.BadParameter(f"No model provided.")
-    
+
     tool = create_flow_json_tool(name=model["spec"]["name"],
                                 description=model["spec"]["description"], 
                                 permission="read_only", 
@@ -145,8 +151,65 @@ async def import_flow_model(model):
         tool_id = existing_tool.get("id")
 
     tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
-    
+    name = tool_spec['name']
     if exist:
+        logger.info(f"Updating flow '{name}'")
         client.update(tool_id, tool_spec)
     else:
-        client.create(tool_spec)
+        logger.info(f"Deploying flow '{name}'")
+        response = client.create(tool_spec)
+        tool_id = response["id"]
+
+    return tool_id
+
+def import_flow_support_tools():
+
+    if not is_local_dev():
+        # we can't import support tools into non-local environments yet
+        return
+
+    client = instantiate_client(TempusClient)
+
+    logger.info(f"Import 'get_flow_status' tool spec...")
+    tools = [create_flow_status_tool("i__get_flow_status_intrinsic_tool__")]
+
+    return tools
+
+# Assisted by watsonx Code Assistant
+
+def create_flow_status_tool(flow_status_tool: str, TEMPUS_ENDPOINT: str="http://wxo-tempus-runtime:9044") -> dict:
+
+    spec = ToolSpec(
+        name=flow_status_tool,
+        description="We can use the flow instance id to get the status of a flow. Only call this on explicit request by the user.",
+        permission='read_only',
+        display_name= "Get flow status"
+    )
+
+    openapi_binding = OpenApiToolBinding(
+        http_path="/flows",
+        http_method="GET",
+        security=[],
+        servers=[TEMPUS_ENDPOINT]
+    )
+    
+    spec.binding = ToolBinding(openapi=openapi_binding)
+    # Input Schema
+    properties = {
+        "query_instance_id": {
+            "type": "string",
+            "title": "instance_id",
+            "description": "Identifies the instance ID of the flow.",
+            "in": "query"
+        }
+    }
+    
+    spec.input_schema = ToolRequestBody(
+        type='object',
+        properties=properties,
+        required=[]
+    )
+    spec.output_schema = ToolResponseBody(type='array', description='Return the status of a flow instance.')
+
+    return OpenAPITool(spec=spec)
+

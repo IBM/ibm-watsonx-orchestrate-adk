@@ -39,6 +39,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
@@ -344,8 +345,7 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     
 [bold cyan]Additional information:[/bold cyan]
 
-- The [bold green]get_flow_status[/bold green] tool is being imported to support flow tools. Ensure [bold]both this tools and the one you are importing are added to your agent[/bold] to retrieve the flow output. 
-- Include additional instructions in your agent to call the [bold green]get_flow_status[/bold green] tool to retrieve the flow output. For example: [green]"If you get an instance_id, use the tool get_flow_status to retrieve the current status of a flow."[/green]
+- The [bold green]Get flow status[/bold green] tool is being imported to support flow tools. This tool can query the status of a flow tool instance.  You can add it to your agent using the UI or including the following tool name in your agent definition: [green]i__get_flow_status_intrinsic_tool__[/green]. 
 
     """
 
@@ -422,8 +422,11 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                                  permission="read_only", 
                                  flow_model=model)   
     
+    tools = import_flow_support_tools()
     
-    return [tool]
+    tools.append(tool)
+
+    return tools
 
 
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
