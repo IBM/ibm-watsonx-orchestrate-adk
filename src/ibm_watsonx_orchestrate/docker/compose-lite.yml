@@ -649,7 +649,7 @@ services:
 ######################## 
 
   wxo-doc-processing-service:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -677,7 +677,7 @@ services:
       retries: 10
 
   wdu-runtime:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-runtime:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -705,7 +705,7 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wdu-models:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
     platform: linux/amd64
     user: root
     profiles:
@@ -719,7 +719,7 @@ services:
       - "/dev/shm"
 
   wxo-doc-processing-infra-standalone:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
     platform: linux/amd64
     profiles:
       - docproc
@@ -763,7 +763,7 @@ services:
       retries: 10
 
   wxo-doc-processing-infra-pg-init:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-uab/document-processing}/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
     platform: linux/amd64
     environment: 
       PGHOST: wxo-server-db
