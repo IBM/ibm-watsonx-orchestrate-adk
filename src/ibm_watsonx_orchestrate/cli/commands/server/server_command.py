@@ -322,8 +322,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
     profiles = []
     if experimental_with_langfuse:
         profiles.append("langfuse")
-            if experimental_with_ibm_telemetry:
-                profiles.append("ibm-telemetry")
+    if experimental_with_ibm_telemetry:
+        profiles.append("ibm-telemetry")
     if with_docproc:
         profiles.append("docproc")
 
