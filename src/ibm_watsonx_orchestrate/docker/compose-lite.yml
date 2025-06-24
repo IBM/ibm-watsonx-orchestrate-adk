@@ -1,7 +1,7 @@
 services:
-########################
-# Orchestrate Lite dependencies
-########################
+  ########################
+  # Orchestrate Lite dependencies
+  ########################
   wxo-server-redis:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/redis:7.2
     platform: linux/amd64
@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
     ports:
       - "8787:8787"
-    environment:  
+    environment:
       WATSONX_API_KEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
@@ -87,7 +87,7 @@ services:
       NODE_LOG_LEVEL: debug
       RABBITMQ_EXCHANGE: verdi_events_affinity
       SOCKET_PING_TIMEOUT: 20000
-      WXO_DOMAIN_URL: http://localhost:4321
+      WXO_DOMAIN_URL: http://localhost:4321/api/v1
       IS_WXA_WEBCHAT: "true"
       NODE_OPTIONS: --max-http-header-size 32768
       PATH: /opt/app-root/src/node_modules/.bin/:/opt/app-root/src/.npm-global/bin/:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -115,13 +115,13 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     environment:
-      WXO_DEPLOYMENT_TYPE: 'laptop'
+      WXO_DEPLOYMENT_TYPE: "laptop"
       AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
       TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
     command: 'npm start'
     ports:
-      - '4025:4025'
+      - "4025:4025"
     healthcheck:
       test: curl -k http://localhost:4025/api/health --fail
       interval: 5s
@@ -130,10 +130,9 @@ services:
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
-    platform: linux/amd64
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: timeout 5s bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1
       interval: 5s
@@ -148,7 +147,6 @@ services:
 
   wxo-server-minio-setup:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
-    platform: linux/amd64
     depends_on:
       wxo-server-minio:
         condition: service_healthy
@@ -159,12 +157,12 @@ services:
       /usr/bin/mc mb wxo-server-minio/langfuse;
       exit 0;
       "
-      
+
   wxo-milvus-standalone:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.6
     command: ["milvus", "run", "standalone"]
     security_opt:
-    - seccomp:unconfined
+      - seccomp:unconfined
     environment:
       ETCD_ENDPOINTS: wxo-milvus-etcd:2379
       MINIO_ADDRESS: wxo-server-minio:9000
@@ -201,7 +199,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-  
+
   socket-handler:
     image: ${SOCKET_HANDLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-socket-handler:${SOCKET_HANDLER_TAG:-latest}
     platform: linux/amd64
@@ -224,31 +222,33 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
-    
     command: >
-       bash -c '
-          export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
-          mkdir -p /tmp/monkey &&
+      bash -c '
+         export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
+         mkdir -p /tmp/monkey &&
 
-          echo -e "from uvicorn.supervisors.multiprocess import Process\n_original_is_alive = Process.is_alive\ndef patched_is_alive(self, timeout: float = 30):\n    return _original_is_alive(self, timeout=30)\nProcess.is_alive = patched_is_alive" > /tmp/monkey/sitecustomize.py &&
+         echo -e "from uvicorn.supervisors.multiprocess import Process\n_original_is_alive = Process.is_alive\ndef patched_is_alive(self, timeout: float = 30):\n    return _original_is_alive(self, timeout=30)\nProcess.is_alive = patched_is_alive" > /tmp/monkey/sitecustomize.py &&
 
-          uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app &
+         uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app &
 
-          for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
-          curl --silent --fail http://127.0.0.1:4321/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
+         for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
+         curl --silent --fail http://127.0.0.1:4321/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
 
-          wait
-        '
+         wait
+       '
     depends_on:
       wxo-server-redis:
-          condition: service_started
+        condition: service_started
       wxo-server-db:
-          condition: service_started
+        condition: service_started
       wxo-server-worker:
-          condition: service_started
+        condition: service_started
       langfuse-worker:
-          condition: service_started
-          required: False
+        condition: service_started
+        required: False
+    networks:
+      - default
+      - jaeger-network
     environment:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
@@ -261,9 +261,9 @@ services:
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       FLOWER_URL: http://wxo-server-flower:5555
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
-      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  # name of s3 bucket where you want to store objects
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
-      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
@@ -271,13 +271,13 @@ services:
       ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
       ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
       ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
-      ASSISTANT_LLM_SPACE_ID : ${ASSISTANT_LLM_SPACE_ID}
+      ASSISTANT_LLM_SPACE_ID: ${ASSISTANT_LLM_SPACE_ID}
       BAM_API_KEY: ${BAM_API_KEY}
       WXAI_API_KEY: ${WXAI_API_KEY}
       ROUTING_LLM_MODEL_ID: ${ROUTING_LLM_MODEL_ID:-watsonx/ibm/granite-8b-unified-api-model-v2}
       ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
       ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
-      ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
+      ROUTING_LLM_SPACE_ID: ${ROUTING_LLM_SPACE_ID}
       ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr-v2}
       ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
       ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
@@ -306,7 +306,7 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
-      IS_WXO_LITE: 'TRUE'
+      IS_WXO_LITE: "TRUE"
       OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
@@ -325,8 +325,13 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
-      AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
-
+      AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
+      IBM_TELEMETRY_EXPORTER_TYPE: http
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
+      AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
+      ES_HOST: http://elasticsearch:9200
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -334,20 +339,23 @@ services:
     restart: unless-stopped
     depends_on:
       wxo-server-redis:
-          condition: service_started
+        condition: service_started
       wxo-server-db:
-          condition: service_started
+        condition: service_started
       langfuse-worker:
-          condition: service_started
-          required: False
+        condition: service_started
+        required: False
     volumes:
       - ./sdk:/packages
       - tools:/tools
+    networks:
+      - default
+      - jaeger-network
     environment:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
-      IS_WXO_LITE: 'TRUE'
+      IS_WXO_LITE: "TRUE"
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
@@ -355,9 +363,9 @@ services:
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
-      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  # name of s3 bucket where you want to store objects
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
-      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
@@ -366,11 +374,11 @@ services:
       ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
       ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
       ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
-      ASSISTANT_LLM_SPACE_ID : ${ASSISTANT_LLM_SPACE_ID}
+      ASSISTANT_LLM_SPACE_ID: ${ASSISTANT_LLM_SPACE_ID}
       ROUTING_LLM_MODEL_ID: ${ROUTING_LLM_MODEL_ID:-watsonx/ibm/granite-8b-unified-api-model-v2}
       ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
       ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
-      ROUTING_LLM_SPACE_ID : ${ROUTING_LLM_SPACE_ID}
+      ROUTING_LLM_SPACE_ID: ${ROUTING_LLM_SPACE_ID}
       ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr-v2}
       ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
       ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
@@ -416,6 +424,9 @@ services:
       USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      IBM_TELEMETRY_EXPORTER_TYPE: http
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
       CALLBACK_HOST_URL: http://wxo-server:4321
   
@@ -427,20 +438,20 @@ services:
       - "8080:8080"
     depends_on:
       wxo-server-db:
-        condition: service_healthy  # Ensures DB is ready before starting
+        condition: service_healthy # Ensures DB is ready before starting
     volumes:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
     environment:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       KUBECONFIG: /root/.kube/config
-      K8S_SERVER: "https://lima-rancher-desktop:6443"  # Kubernetes API on host
+      K8S_SERVER: "https://lima-rancher-desktop:6443" # Kubernetes API on host
       DB_HOST: wxo-server-db
-      DB_PORT: ${DB_PORT:-5432}  # Ensure default port
+      DB_PORT: ${DB_PORT:-5432} # Ensure default port
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: postgres
-      DB_SSLMODE: ${DB_SSLMODE:-disable}  # Disable SSL if not configured
+      DB_SSLMODE: ${DB_SSLMODE:-disable} # Disable SSL if not configured
       DB_CONN_LIFE: ${DB_CONN_LIFE}
       DB_MAX_IDLE_CONN: ${DB_MAX_IDLE_CONN}
       DB_MAX_CONN: ${DB_MAX_CONN}
@@ -453,9 +464,9 @@ services:
       VOLUME_MOUNT_PATH: "/shared-data"
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       CONNECTION_SERVICE_BASE_URL: http://wxo-server-connection-manager:3001
-      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
-      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
@@ -480,21 +491,164 @@ services:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       DB_HOST: wxo-server-db
-      DB_PORT: ${DB_PORT:-5432}  # Ensure default port
+      DB_PORT: ${DB_PORT:-5432} # Ensure default port
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: postgres
-      DB_SSLMODE: ${DB_SSLMODE:-disable}  # Disable SSL if not configured
-      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}  
+      DB_SSLMODE: ${DB_SSLMODE:-disable} # Disable SSL if not configured
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
-      STORAGE_S3_FORCE_PATH_STYLE: 'true'
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
 
-########################
-# LANGFUSE dependencies
-########################
+  ########################
+  # IBM AGENT-OPS
+  ########################
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.5
+    profiles: [ibm-telemetry]
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - ELASTIC_USERNAME=elastic
+      - ELASTIC_PASSWORD=${ES_PASSWORD}
+      # Turn off disk threshold warnings
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - jaeger-network
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -u \"elastic:$ES_PASSWORD\" http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 40s
+
+  jaeger-proxy:
+    image: ${JAEGER_PROXY_REGISTRY:-us.icr.io/watson-orchestrate-private}/jaeger-proxy:${JAEGER_PROXY_TAG:-latest} # temporay registry
+    profiles: [ibm-telemetry]
+    environment:
+      - TENANT_API_KEY=${AGENTOPS_API_KEY}
+      - TENANT_CONFIG_URL=http://wxo-server:4321
+      - TENANT_DEFAULT_USERNAME=elastic
+      - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
+      - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
+      - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
+    ports:
+      - "9202:9201" # Expose proxy on host port 9202
+    networks:
+      - jaeger-network
+      - default
+    configs:
+      - source: proxy_config
+        target: /app/config/proxy-config.yaml
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:9201/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  jaeger:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/jaegertracing/all-in-one:1.69.0
+    profiles: [ibm-telemetry]
+    command:
+      - "--es.max-span-age=720h"
+      - "--log-level=debug"
+      # - "--sampling.default-sampling-probability=1.0" # Changed from default 0.001
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://jaeger-proxy:9201
+      - ES_USERNAME=elastic
+      - ES_PASSWORD=${ES_PASSWORD}
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    ports:
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "14250:14250"
+      - "14268:14268"
+      - "14269:14269"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      jaeger-proxy:
+        condition: service_healthy
+    networks:
+      - jaeger-network
+
+  frontend-server:
+    image: ${AGENT_ANALYTICS_REGISTRY:-us.icr.io/watson-orchestrate-private}/agentops-backend:${AGENT_ANALYTICS_TAG:-latest}
+    profiles: [ibm-telemetry]
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request, ssl; context = ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443', context=context)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      jaeger:
+        condition: service_healthy
+    environment:
+      - TEST=true
+      - ES_USERNAME=elastic
+      - ES_PASSWORD=${ES_PASSWORD}
+      - ES_HOST=http://elasticsearch:9200
+      - JWT_SECRET_KEY=${JWT_SECRET}
+      - JAEGER_URL=http://jaeger:16686
+      - JAEGER_COLLECT_URL=http://jaeger
+      - WATSONX_APIKEY=${WATSONX_APIKEY}
+      - WATSONX_SPACE_ID=${WATSONX_SPACE_ID}
+      - WATSONX_URL=${WATSONX_URL}
+      - PROXY_SERVER_URL=http://jaeger-proxy:9201
+      - WXO_DEPLOYMENT_PLATFORM=saas
+      - TENANT_API_KEY=${AGENTOPS_API_KEY}
+      - TENANT_CONFIG_URL=http://wxo-server:4321
+      - TENANT_DEFAULT_USERNAME=elastic
+      - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
+      - API_KEY_AUTH_ENABLED=${AGENTOPS_API_KEY_AUTH_ENABLED}
+      - INBOUND_API_KEY=${AGENTOPS_API_KEY}
+      - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
+      - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
+    ports:
+      - "8765:443"
+    networks:
+      - jaeger-network
+      - default
+
+  ########################
+  # LANGFUSE dependencies
+  ########################
   langfuse-worker:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse-worker:3
     restart: unless-stopped
@@ -584,9 +738,6 @@ services:
       retries: 10
       start_period: 1s
 
-
-
-
   wxo-tempus-runtime:
     image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
@@ -623,11 +774,15 @@ services:
       REDIS_TLS: false
       LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
-      LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_SECRET_KEY:  ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       LOG_LEVEL: info
       DISABLE_FLOW_BINDING: true
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
+      WO_API_KEY: ${WO_API_KEY}
+      WO_INSTANCE: ${WO_INSTANCE}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 5s
@@ -832,10 +987,13 @@ volumes:
       o: "uid=1000,gid=1000,mode=1777"
   wdu-models:
     driver: local
+  es_data:
+
 networks:
   default:
     name: wxo-server
-    
+  jaeger-network:
+    driver: bridge
 
 configs:
   proxy_config:

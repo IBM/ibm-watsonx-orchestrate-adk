@@ -1,11 +1,12 @@
 from typing import List
 
+from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 from pydantic import BaseModel, ValidationError
 from typing import Optional
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
-from ibm_watsonx_orchestrate.client.utils import is_cpd_env
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
 logger = logging.getLogger(__name__)
@@ -42,6 +43,12 @@ class GetConnectionResponse(BaseModel):
 
 
 class ConnectionsClient(BaseAPIClient):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
+        super(ConnectionsClient, self).__init__(base_url, api_key, is_local, verify, authenticator)
+        if is_local_dev(base_url):
+            self.base_url = f"{base_url.rstrip('/')}/api/v1/orchestrate"
+        else:
+            self.base_url = f"{base_url.rstrip('/')}/v1/orchestrate"
     """
     Client to handle CRUD operations for Connections endpoint
     """
@@ -77,6 +84,8 @@ class ConnectionsClient(BaseAPIClient):
                 else f"/connections/applications?include_details=true"
             )
             res = self._get(path)
+            import json
+            json.dumps(res)
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
@@ -107,25 +116,25 @@ class ConnectionsClient(BaseAPIClient):
 
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # POST /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def create_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
-        if use_sso:
+    def create_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._post(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._post(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
 
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # PATCH /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def update_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_sso: bool) -> None:
-        if use_sso:
+    def update_credentials(self, app_id: str, env: ConnectionEnvironment, payload: dict, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._patch(f"/connections/applications/{app_id}/configs/{env}/credentials", data=payload)
         else:
             self._patch(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials", data=payload)
 
     # GET /api/v1/connections/applications/{app_id}/configs/credentials?env={env}
     # GET /api/v1/connections/applications/{app_id}/configs/runtime_credentials?env={env}
-    def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> dict:
+    def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_app_credentials: bool) -> dict:
         try:
-            if use_sso:
+            if use_app_credentials:
                 path = (
                     f"/connections/applications/{app_id}/credentials?env={env}"
                     if is_cpd_env(self.base_url)
@@ -146,8 +155,8 @@ class ConnectionsClient(BaseAPIClient):
 
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/credentials
     # DELETE /api/v1/connections/applications/{app_id}/configs/{env}/runtime_credentials
-    def delete_credentials(self, app_id: str, env: ConnectionEnvironment, use_sso: bool) -> None:
-        if use_sso:
+    def delete_credentials(self, app_id: str, env: ConnectionEnvironment, use_app_credentials: bool) -> None:
+        if use_app_credentials:
             self._delete(f"/connections/applications/{app_id}/configs/{env}/credentials")
         else:
             self._delete(f"/connections/applications/{app_id}/configs/{env}/runtime_credentials")

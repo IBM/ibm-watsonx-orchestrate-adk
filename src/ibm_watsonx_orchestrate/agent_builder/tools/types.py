@@ -148,6 +148,10 @@ class McpToolBinding(BaseModel):
     source: str
     connections: Dict[str, str] | None
 
+class FlowToolBinding(BaseModel):
+    flow_id: str
+    model: Optional[dict] = None
+
 class ToolBinding(BaseModel):
     openapi: OpenApiToolBinding = None
     python: PythonToolBinding = None
@@ -155,6 +159,7 @@ class ToolBinding(BaseModel):
     skill: SkillToolBinding = None
     client_side: ClientSideToolBinding = None
     mcp: McpToolBinding = None
+    flow: FlowToolBinding = None
 
     @model_validator(mode='after')
     def validate_binding_type(self) -> 'ToolBinding':
@@ -164,7 +169,8 @@ class ToolBinding(BaseModel):
             self.wxflows is not None,
             self.skill is not None,
             self.client_side is not None,
-            self.mcp is not None
+            self.mcp is not None,
+            self.flow is not None
         ]
         if sum(bindings) == 0:
             raise ValueError("One binding must be set")

@@ -14,7 +14,7 @@ DEFAULT_TENANT = {
 DEFAULT_USER = {"username": "wxo.archer@ibm.com", "password": "watsonx"}
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 DEFAULT_LOCAL_AUTH_ENDPOINT = f"{DEFAULT_LOCAL_SERVICE_URL}/api/v1/auth/token"
-DEFAULT_LOCAL_TENANT_URL = f"{DEFAULT_LOCAL_SERVICE_URL}/tenants"
+DEFAULT_LOCAL_TENANT_URL = f"{DEFAULT_LOCAL_SERVICE_URL}/api/v1/tenants"
 DEFAULT_LOCAL_TENANT_AUTH_ENDPOINT = "{}/api/v1/auth/token?tenant_id={}"
 
 

@@ -292,7 +292,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_docproc=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_docproc=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -322,6 +322,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
     profiles = []
     if experimental_with_langfuse:
         profiles.append("langfuse")
+            if experimental_with_ibm_telemetry:
+                profiles.append("ibm-telemetry")
     if with_docproc:
         profiles.append("docproc")
 
@@ -631,6 +633,11 @@ def server_start(
         '--with-langfuse', '-l',
         help='Option to enable Langfuse support.'
     ),
+    experimental_with_ibm_telemetry: bool = typer.Option(
+        False,
+        '--with-ibm-telemetry', '-i',
+        help=''
+    ),
     persist_env_secrets: bool = typer.Option(
         False,
         '--persist-env-secrets', '-p',
@@ -678,8 +685,12 @@ def server_start(
     # Add LANGFUSE_ENABLED and DOCPROC_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
+
     if with_docproc:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
+
+    if experimental_with_ibm_telemetry:
+        merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
@@ -691,7 +702,11 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_docproc=with_docproc)
+
+    run_compose_lite(final_env_file=final_env_file, 
+                     experimental_with_langfuse=experimental_with_langfuse,
+                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
+                     with_docproc=with_docproc)
 
     run_db_migration()
 

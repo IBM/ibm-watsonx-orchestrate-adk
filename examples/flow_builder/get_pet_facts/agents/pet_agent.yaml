@@ -7,4 +7,4 @@ llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
   - get_pet_facts
-  - get_flow_status
+  - i__get_flow_status_intrinsic_tool__

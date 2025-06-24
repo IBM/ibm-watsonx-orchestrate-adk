@@ -7,4 +7,4 @@ llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
   - send_invitation_to_customer
-  - get_flow_status
+  - i__get_flow_status_intrinsic_tool__

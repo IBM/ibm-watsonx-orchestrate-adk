@@ -76,7 +76,7 @@ class MockConnectionClient:
     def get_config(self, app_id, env):
         return self.get_config_response
     
-    def get_credentials(self, app_id, env, use_sso):
+    def get_credentials(self, app_id, env, use_app_credentials):
         return self.get_credentials_response
 
     def create(self, payload):
@@ -89,7 +89,7 @@ class MockConnectionClient:
             for key in self.expected_config_write:
                 assert payload.get(key) == self.expected_config_write.get(key)
     
-    def create_credentials(self, app_id, env, use_sso, payload):
+    def create_credentials(self, app_id, env, use_app_credentials, payload):
         if self.expected_credentials_write:
             for key in self.expected_credentials_write:
                 assert payload.get(key) == self.expected_credentials_write.get(key)
@@ -99,7 +99,7 @@ class MockConnectionClient:
             for key in self.expected_config_write:
                 assert payload.get(key) == self.expected_config_write.get(key)
     
-    def update_credentials(self, app_id, env, use_sso, payload):
+    def update_credentials(self, app_id, env, use_app_credentials, payload):
         if self.expected_credentials_write:
             for key in self.expected_credentials_write:
                 assert payload.get(key) == self.expected_credentials_write.get(key)
@@ -107,7 +107,7 @@ class MockConnectionClient:
     def delete(self, app_id):
         pass
 
-    def delete_credentials(self, app_id, env, use_sso):
+    def delete_credentials(self, app_id, env, use_app_credentials):
         pass
 
     def list(self):
@@ -576,7 +576,7 @@ class TestAddConfiguration:
         with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
             mock_error = requests.HTTPError()
 
-            mock_connection_client.delete_credentials = lambda app_id,env,use_sso : _throw_mock_reponse(mock_error)
+            mock_connection_client.delete_credentials = lambda app_id,env,use_app_credentials : _throw_mock_reponse(mock_error)
             mock_client.return_value = mock_connection_client
 
             with pytest.raises(SystemExit) as e:
@@ -608,7 +608,7 @@ class TestAddCredentials:
 
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
-            add_credentials(app_id=app_id, environment=environment, use_sso=True, credentials=self.mock_oauth_credentials)
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=self.mock_oauth_credentials)
 
             captured = caplog.text
 
@@ -625,7 +625,7 @@ class TestAddCredentials:
 
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
-            add_credentials(app_id=app_id, environment=environment, use_sso=True, credentials=self.mock_oauth_credentials)
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=self.mock_oauth_credentials)
 
             captured = caplog.text
 
@@ -642,7 +642,7 @@ class TestAddCredentials:
 
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
-            add_credentials(app_id=app_id, environment=environment, use_sso=False, credentials=self.mock_bearer_credentials)
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=self.mock_bearer_credentials)
 
             captured = caplog.text
 
@@ -659,7 +659,7 @@ class TestAddCredentials:
 
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
-            add_credentials(app_id=app_id, environment=environment, use_sso=False, credentials=self.mock_bearer_credentials)
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=self.mock_bearer_credentials)
 
             captured = caplog.text
 
@@ -674,13 +674,13 @@ class TestAddCredentials:
             mock_repsonse._content = str.encode("Expected Message")
             mock_error = requests.HTTPError(response=mock_repsonse)
 
-            mock_connection_client.create_credentials = lambda app_id,env,use_sso,payload : _throw_mock_reponse(mock_error)
+            mock_connection_client.create_credentials = lambda app_id,env,use_app_credentials,payload : _throw_mock_reponse(mock_error)
             mock_client.return_value = mock_connection_client
 
             with pytest.raises(SystemExit) as e:
                 app_id = connections_spec_content.get("app_id")
                 environment = ConnectionEnvironment.DRAFT
-                add_credentials(app_id=app_id, environment=environment, use_sso=False, credentials=self.mock_bearer_credentials)
+                add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=self.mock_bearer_credentials)
 
             captured = caplog.text
             assert "Expected Message" in captured
@@ -735,7 +735,7 @@ class TestAddIdentityProvider:
             mock_repsonse._content = str.encode("Expected Message")
             mock_error = requests.HTTPError(response=mock_repsonse)
 
-            mock_connection_client.create_credentials = lambda app_id,env,use_sso,payload : _throw_mock_reponse(mock_error)
+            mock_connection_client.create_credentials = lambda app_id,env,use_app_credentials,payload : _throw_mock_reponse(mock_error)
             mock_client.return_value = mock_connection_client
 
             with pytest.raises(SystemExit) as e:

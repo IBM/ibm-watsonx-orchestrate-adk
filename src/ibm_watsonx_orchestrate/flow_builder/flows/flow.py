@@ -671,8 +671,9 @@ class Flow(Node):
         
         # Deploy flow to the engine
         model = self.to_json()
-        await import_flow_model(model)
+        tool_id = await import_flow_model(model)
 
+        compiled_flow.flow_id = tool_id
         compiled_flow.deployed = True
 
         return compiled_flow
@@ -738,6 +739,7 @@ class FlowRun(BaseModel):
     name: str | None = None
     id: str = None
     flow: Flow
+    deployed_flow_id: str
     status: FlowRunStatus = FlowRunStatus.NOT_STARTED
     output: Any = None
     error: Any = None
@@ -757,10 +759,12 @@ class FlowRun(BaseModel):
 
         # Start the flow
         client:TempusClient = instantiate_client(client=TempusClient)
-        ack = client.arun_flow(self.flow.spec.name,input_data)
+        logger.info(f"Launching flow instance...")
+        ack = client.arun_flow(self.deployed_flow_id,input_data)
         self.id=ack["instance_id"]
         self.name = f"{self.flow.spec.name}:{self.id}"
         self.status = FlowRunStatus.IN_PROGRESS
+        logger.info(f"Flow instance `{self.name}` started.")
 
         # Listen for events
         consumer = StreamConsumer(self.id)
@@ -772,6 +776,11 @@ class FlowRun(BaseModel):
                 logger.debug(f"Flow instance `{self.name}` event: `{event.kind}`")
             
             self._update_status(event)
+
+            if event.kind == FlowEventType.ON_FLOW_END:
+                logger.info(f"Flow instance `{self.name}` completed.")
+            elif event.kind == FlowEventType.ON_FLOW_ERROR:
+                logger.error(f"Flow instance `{self.name}` failed with error: {event.error}")
 
             yield event
     
@@ -786,7 +795,7 @@ class FlowRun(BaseModel):
 
 
         if self.debug:
-            logger.debug(f"Flow instance `{self.name}` status change: `{self.status}`")
+            logger.debug(f"Flow instance `{self.name}` status change: `{self.status}`.  \nEvent: {event}")
 
     async def _arun(self, input_data: dict=None, **kwargs):
         
@@ -838,6 +847,7 @@ class FlowRun(BaseModel):
 class CompiledFlow(BaseModel):
     '''A compiled version of the flow'''
     flow: Flow
+    flow_id: str | None = None
     deployed: bool = False
     
     async def invoke(self, input_data:dict=None, on_flow_end_handler: Callable=None, on_flow_error_handler: Callable=None, debug:bool=False, **kwargs) -> FlowRun:
@@ -860,7 +870,7 @@ class CompiledFlow(BaseModel):
         if self.deployed is False:
             raise ValueError("Flow has not been deployed yet. Please deploy the flow before invoking it by using the Flow.compile_deploy() function.")
 
-        flow_run = FlowRun(flow=self.flow, on_flow_end_handler=on_flow_end_handler, on_flow_error_handler=on_flow_error_handler, debug=debug, **kwargs)
+        flow_run = FlowRun(flow=self.flow,  deployed_flow_id=self.flow_id, on_flow_end_handler=on_flow_end_handler, on_flow_error_handler=on_flow_error_handler, debug=debug, **kwargs)
         asyncio.create_task(flow_run._arun(input_data=input_data, **kwargs))
         return flow_run
     
@@ -882,7 +892,7 @@ class CompiledFlow(BaseModel):
         if self.deployed is False:
             raise ValueError("Flow has not been deployed yet. Please deploy the flow before invoking it by using the Flow.compile_deploy() function.")
         
-        flow_run = FlowRun(flow=self.flow, debug=debug)
+        flow_run = FlowRun(flow=self.flow, deployed_flow_id=self.flow_id, debug=debug)
         async for event in flow_run._arun_events(input_data=input_data, filters=filters):
             yield (event, flow_run)
     
