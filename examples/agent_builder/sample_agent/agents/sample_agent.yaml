@@ -1,0 +1,33 @@
+spec_version: v1
+kind: native
+name: sample_agent
+title: Sample Agent
+description: >
+   This agent is used to test import functionality in the SDK
+tags:
+  - wx.ai
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: react
+tools: []
+hidden: false
+starter_prompts:
+  is_default_prompts: false
+  prompts:
+      - id: "prompt_id_1"
+        title: "Hello1"
+        subtitle: ""
+        prompt: "This is the msg for Hello1 prompt"
+        state: "active"
+welcome_content:
+  welcome_message: "Hello, I'm Agent Test. Welcome to Watson Orchestrate!"
+  description: "This is not default"
+  is_default_message: false
+api_url: "EXAMPLE_URL"
+auth_scheme: API_KEY
+auth_config: 
+  token: "EXAMPLE_API_KEY"
+chat_params:
+  stream: true
+config:
+    hidden: false
+    enable_cot: true

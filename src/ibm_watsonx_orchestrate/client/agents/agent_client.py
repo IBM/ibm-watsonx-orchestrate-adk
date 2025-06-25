@@ -5,11 +5,6 @@ from pydantic import BaseModel
 import json
 
 def transform_agents_from_flat_agent_spec(agents):
-    as_str = False
-    if isinstance(agents,str):
-        as_str = True
-        agents = json.loads(agents)
-
     if isinstance(agents,list):
         new_agents = []
         for agent in agents:
@@ -18,8 +13,6 @@ def transform_agents_from_flat_agent_spec(agents):
     else:
         agents = _transform_agent_from_flat_agent_spec(agents)
     
-    if as_str:
-        agents = json.dumps(agents)
     return agents
 
 
@@ -43,11 +36,6 @@ def _transform_agent_from_flat_agent_spec(agent_spec):
     return transformed
 
 def transform_agents_to_flat_agent_spec(agents):
-    as_str = False
-    if isinstance(agents,str):
-        as_str = True
-        agents = json.loads(agents)
-
     if isinstance(agents,list):
         new_agents = []
         for agent in agents:
@@ -55,9 +43,7 @@ def transform_agents_to_flat_agent_spec(agents):
         agents = new_agents
     else:
         agents = _transform_agent_to_flat_agent_spec(agents)
-    
-    if as_str:
-        agents = json.dumps(agents)
+
     return agents
 
 def _transform_agent_to_flat_agent_spec(agent_spec):
