@@ -2,9 +2,10 @@
 set -x
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+set +x
 . ../../.env
 orchestrate connections import -f ${SCRIPT_DIR}/connections/tavily.yaml
-set +x
 orchestrate connections set-credentials -a tavily --env draft -e "TAVILY_API_KEY=$TAVILY_API_KEY"
 orchestrate connections set-credentials -a tavily --env live -e "TAVILY_API_KEY=$TAVILY_API_KEY"
 set -x
