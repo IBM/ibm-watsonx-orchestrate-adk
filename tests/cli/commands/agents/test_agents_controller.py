@@ -18,7 +18,7 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     get_agent_details
     )
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent, AgentProvider, ExternalAgentAuthScheme
-from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import AgentPrompt,StarterPrompts,WelcomeContent
+from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import AgentPrompt, StarterPrompts, WelcomeContent
 from ibm_watsonx_orchestrate.client.connections.connections_client import GetConnectionResponse
 from ibm_watsonx_orchestrate.agent_builder.agents.types import ExternalAgentConfig, AssistantAgentConfig
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
@@ -1603,25 +1603,25 @@ class TestAgentsControllerExportAgent:
         assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" not in captured
 
 class TestAgentWebchatCustomizations:
-    def test_create_agent_with_welcome_content(self,agent_spec_with_welcome_content):
+    def test_create_agent_with_welcome_content(self, agent_spec_with_welcome_content):
         test_agent=Agent(**agent_spec_with_welcome_content)
         assert type(test_agent.welcome_content) is WelcomeContent
 
-    def test_create_agent_with_starter_prompt(self,agent_spec_with_starter_prompt):
+    def test_create_agent_with_starter_prompt(self, agent_spec_with_starter_prompt):
         test_agent=Agent(**agent_spec_with_starter_prompt)
         assert type(test_agent.starter_prompts) is StarterPrompts
         assert len(test_agent.starter_prompts.prompts) == 1
         for p in test_agent.starter_prompts.prompts:
             assert type(p) is AgentPrompt
 
-    def test_create_agent_with_many_starter_prompts(self,agent_spec_with_starter_prompts):
+    def test_create_agent_with_many_starter_prompts(self, agent_spec_with_starter_prompts):
         test_agent=Agent(**agent_spec_with_starter_prompts)
         assert type(test_agent.starter_prompts) is StarterPrompts
         assert len(test_agent.starter_prompts.prompts) == len(agent_spec_with_starter_prompts["starter_prompts"]["prompts"])
         for p in test_agent.starter_prompts.prompts:
             assert type(p) is AgentPrompt
 
-    def test_create_Agent_with_all_webchat_customizations(self,agent_spec_with_webchat_customizations):
+    def test_create_Agent_with_all_webchat_customizations(self, agent_spec_with_webchat_customizations):
         test_agent=Agent(**agent_spec_with_webchat_customizations)
         assert type(test_agent.welcome_content) is WelcomeContent
         assert type(test_agent.starter_prompts) is StarterPrompts

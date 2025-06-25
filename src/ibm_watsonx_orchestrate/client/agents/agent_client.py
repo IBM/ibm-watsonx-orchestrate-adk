@@ -2,9 +2,8 @@ from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, Client
 from typing_extensions import List, Optional
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from pydantic import BaseModel
-import json
 
-def transform_agents_from_flat_agent_spec(agents):
+def transform_agents_from_flat_agent_spec(agents: dict | list[dict] ) -> dict | list[dict]:
     if isinstance(agents,list):
         new_agents = []
         for agent in agents:
@@ -16,7 +15,7 @@ def transform_agents_from_flat_agent_spec(agents):
     return agents
 
 
-def _transform_agent_from_flat_agent_spec(agent_spec):
+def _transform_agent_from_flat_agent_spec(agent_spec: dict ) -> dict:
     transformed = {"additional_properties": {}}
     for key,value in agent_spec.items():
         if key == "starter_prompts":
@@ -35,7 +34,7 @@ def _transform_agent_from_flat_agent_spec(agent_spec):
 
     return transformed
 
-def transform_agents_to_flat_agent_spec(agents):
+def transform_agents_to_flat_agent_spec(agents: dict | list[dict] ) -> dict | list[dict]:
     if isinstance(agents,list):
         new_agents = []
         for agent in agents:
@@ -46,7 +45,7 @@ def transform_agents_to_flat_agent_spec(agents):
 
     return agents
 
-def _transform_agent_to_flat_agent_spec(agent_spec):
+def _transform_agent_to_flat_agent_spec(agent_spec: dict ) -> dict:
     transformed = agent_spec
     for key,value in agent_spec.get("additional_properties").items():
         if key == "starter_prompts":

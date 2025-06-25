@@ -122,17 +122,17 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     context_variables = [x.strip() for x in context_variables if x.strip() != ""]
     agent_details["context_variables"] = context_variables
 
-    hidden = args.get("hidden")
-    if hidden:
-        agent_details["hidden"] = hidden 
+    # hidden = args.get("hidden")
+    # if hidden:
+    #     agent_details["hidden"] = hidden 
 
-    starter_prompts = args.get("starter_prompts")
-    if starter_prompts:
-        agent_details["starter_prompts"] = starter_prompts 
+    # starter_prompts = args.get("starter_prompts")
+    # if starter_prompts:
+    #     agent_details["starter_prompts"] = starter_prompts 
 
-    welcome_content = args.get("welcome_content")
-    if welcome_content:
-        agent_details["welcome_content"] = welcome_content 
+    # welcome_content = args.get("welcome_content")
+    # if welcome_content:
+    #     agent_details["welcome_content"] = welcome_content 
 
     return agent_details
 
