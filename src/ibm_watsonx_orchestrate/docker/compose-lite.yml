@@ -159,6 +159,7 @@ services:
       /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-server-storage-bucket;
       /usr/bin/mc mb wxo-server-minio/langfuse;
+      /usr/bin/mc anonymous set download wxo-server-minio/wxo-server-storage-bucket;
       exit 0;
       "
 
