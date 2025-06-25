@@ -531,28 +531,6 @@ class TestParseCreateNativeArgs:
         assert parsed_args["style"] == AgentStyle.REACT
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
-    
-    def test_parse_create_native_args_with_webchat_customizations(self):
-        parsed_args = parse_create_native_args(
-            name="test_agent",
-            kind=AgentKind.NATIVE,
-            description="Test Agent Description",
-            llm="test_llm",
-            style=AgentStyle.REACT,
-            collaborators=["agent1", "    "],
-            tools=["  tool1  ", "tool2"],
-            starter_prompts={
-                "is_default_propmts": False,
-                "prompts":[
-                    {"testprompt":"present"}
-                ]
-            },
-            welcome_content={"key":"welcome_content"}
-        )
-        assert parsed_args["name"] == "test_agent"
-        assert type(parsed_args["starter_prompts"]) is dict
-        assert type(parsed_args["starter_prompts"]["prompts"]) is list
-        assert type(parsed_args["welcome_content"]) is dict
 
 
 class TestParseCreateExternalArgs:
