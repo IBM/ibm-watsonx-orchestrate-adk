@@ -433,7 +433,7 @@ services:
       IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
-      CALLBACK_HOST_URL: http://wxo-server:4321
+      CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}

@@ -465,6 +465,9 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
         # do nothing, as the docker login here is not mandatory
         pass
 
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
+
     #These are to removed warning and not used in UI component
     if not 'WATSONX_SPACE_ID' in merged_env_dict:
         merged_env_dict['WATSONX_SPACE_ID']='X'
@@ -642,8 +645,80 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool):
             logger.error('The terms and conditions were not accepted, exiting.')
             exit(1)
 
-
-
+def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
+    """
+    Automatically detect and configure CALLBACK_HOST_URL if it's empty.
+    
+    Args:
+        merged_env_dict: The merged environment dictionary
+        
+    Returns:
+        Updated environment dictionary with CALLBACK_HOST_URL set
+    """
+    callback_url = merged_env_dict.get('CALLBACK_HOST_URL', '').strip()
+    
+    # Only auto-configure if CALLBACK_HOST_URL is empty
+    if not callback_url:
+        logger.info("Auto-detecting local IP address for async tool callbacks...")
+        
+        system = platform.system()
+        ip = None
+        
+        try:
+            if system in ("Linux", "Darwin"):
+                result = subprocess.run(["ifconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Unix ifconfig output format: "inet 192.168.1.100 netmask 0xffffff00 broadcast 192.168.1.255"
+                    if line.startswith("inet ") and "127.0.0.1" not in line:
+                        candidate_ip = line.split()[1]
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            elif system == "Windows":
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Windows ipconfig output format: "   IPv4 Address. . . . . . . . . . . : 192.168.1.100"
+                    if "IPv4 Address" in line and ":" in line:
+                        candidate_ip = line.split(":")[-1].strip()
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            else:
+                logger.warning(f"Unsupported platform: {system}")
+                ip = None
+                
+        except Exception as e:
+            logger.debug(f"IP detection failed on {system}: {e}")
+            ip = None
+        
+        if ip:
+            callback_url = f"http://{ip}:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Auto-configured CALLBACK_HOST_URL to: {callback_url}")
+        else:
+            # Fallback for localhost
+            callback_url = "http://host.docker.internal:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Using Docker internal URL: {callback_url}")
+            logger.info("For external tools, consider using ngrok or similar tunneling service.")
+    else:
+        logger.info(f"Using existing CALLBACK_HOST_URL: {callback_url}")
+    
+    return merged_env_dict
 
 @server_app.command(name="start")
 def server_start(
@@ -701,6 +776,8 @@ def server_start(
 
     merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
 
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
     if not _check_exclusive_observibility(experimental_with_langfuse, experimental_with_ibm_telemetry):
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
         sys.exit(1)
