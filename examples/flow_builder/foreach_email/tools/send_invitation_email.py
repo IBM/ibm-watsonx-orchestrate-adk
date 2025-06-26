@@ -16,8 +16,12 @@ class CustomerRecord(BaseModel):
 )
 def send_invitation_email(record: CustomerRecord) -> str:
     """
-    Send an invitation email to a given email address. 
-    Returns the email body that was sent.
+    Send an invitation email to a given email address.
+
+    Args:
+        record: The customer record containing the name and email of the user
+    Returns:
+        The email body that was sent.
     """
     return f"Sending invitation email to {record['email']} with the message: Hello {record['name']}! Please join us!"
 
