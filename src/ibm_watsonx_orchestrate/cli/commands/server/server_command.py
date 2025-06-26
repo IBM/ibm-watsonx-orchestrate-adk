@@ -240,6 +240,27 @@ def apply_llm_api_key_defaults(env_dict: dict) -> None:
         env_dict.setdefault("ASSISTANT_EMBEDDINGS_SPACE_ID", space_value)
         env_dict.setdefault("ROUTING_LLM_SPACE_ID", space_value)
 
+def _is_docker_container_running(container_name):
+    ensure_docker_installed()
+    command = [ "docker",
+                "ps",
+                "-f",
+                f"name={container_name}"
+            ]
+    result = subprocess.run(command, env=os.environ, capture_output=True)
+    if container_name in str(result.stdout):
+        return True
+    return False
+
+def _check_exclusive_observibility(langfuse_enabled: bool, ibm_tele_enabled: bool):
+    if langfuse_enabled and ibm_tele_enabled:
+        return False
+    if langfuse_enabled and _is_docker_container_running("docker-frontend-server-1"):
+        return False
+    if ibm_tele_enabled and _is_docker_container_running("docker-langfuse-web-1"):
+        return False
+    return True
+
 def write_merged_env_file(merged_env: dict) -> Path:
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
     with tmp:
@@ -679,6 +700,10 @@ def server_start(
     }
 
     merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+
+    if not _check_exclusive_observibility(experimental_with_langfuse, experimental_with_ibm_telemetry):
+        logger.error("Please select either langfuse or ibm telemetry for observability not both")
+        sys.exit(1)
 
     # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
