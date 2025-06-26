@@ -16,9 +16,12 @@ def _is_valid_date(date_str: str) -> bool:
 def fetch_assignment_id(username: str) -> str:
     """
     Return the assignment ID for a given employee username.
-    
-    :param username: Employee's username
-    :return: Assignment ID as a string or 'not found'
+
+    Args:
+        username: Employee's username
+
+    Returns:
+        Assignment ID as a string or 'not found'
     """
     assignment_ids = {
         "nwaters": "15778303",
@@ -32,11 +35,14 @@ def fetch_assignment_id(username: str) -> str:
 def retrieve_timeoff_schedule(assignment_id: str, start_date: str, end_date: str) -> str:
     """
     Get time-off schedule for an employee within a given date range.
-    
-    :param assignment_id: Assignment ID of the employee
-    :param start_date: Start date in YYYY-MM-DD format
-    :param end_date: End date in YYYY-MM-DD format
-    :return: JSON list of time-off dates or error message
+
+    Args:
+        assignment_id: Assignment ID of the employee
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+
+    Returns:
+        JSON list of time-off dates or error message
     """
     if not _is_valid_date(start_date):
         return f"Invalid date format: {start_date}. Expected YYYY-MM-DD."
@@ -57,8 +63,11 @@ def list_direct_reports(manager_assignment_id: str) -> str:
     """
     Retrieve the list of direct report Employee's username for a specified manager's assignment ID.
 
-    :param manager_assignment_id: Assignment ID of the manager as a string
-    :return: JSON-encoded list of Employee's username who report to the manager
+    Args:
+        manager_assignment_id: Assignment ID of the manager as a string
+
+    Returns:
+        JSON-encoded list of Employee's username who report to the manager
     """
     mock_reports = {
         "15778303": ["johndoe", "nken"],
@@ -73,8 +82,11 @@ def get_address_type(address_type_name: str) -> str:
     """
     Retrieve a string address type ID based on a given address type name.
 
-    :param address_type_name: Address type as a string
-    :return: Corresponding string address_type_id or -1 if not found
+    Args:
+        address_type_name: Address type as a string
+
+    Returns:
+        Corresponding string address_type_id or -1 if not found
     """
     address_type_map = {
         "Home": "1",
@@ -90,10 +102,13 @@ def update_address(address_type_id: str, assignment_id: str, new_address: str) -
     """
     Update the address for an employee based on assignment ID and address type.
 
-    :param address_type_id: String representing the address type
-    :param assignment_id: Employee's assignment ID
-    :param new_address: New address string
-    :return: Success or error message
+    Args:
+        address_type_id: String representing the address type
+        assignment_id: Employee's assignment ID
+        new_address: New address string
+
+    Returns:
+        Success or error message
     """
     if address_type_id not in ["1", "2", "3"]:
         return "Invalid address type ID."

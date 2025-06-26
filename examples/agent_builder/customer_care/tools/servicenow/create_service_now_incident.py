@@ -48,10 +48,13 @@ def create_service_now_incident(
     """
     Create a new ServiceNow incident.
 
-    :param short_description: A brief summary of the incident.
-    :param description: Detailed information about the incident (optional).
-    :param urgency: Urgency level (1 - High, 2 - Medium, 3 - Low, default is 3).
-    :returns: The created incident details including incident number and system ID.
+    Args:
+        short_description: A brief summary of the incident.
+        description: Detailed information about the incident (optional).
+        urgency: Urgency level (1 - High, 2 - Medium, 3 - Low, default is 3).
+
+    Returns:
+        The created incident details including incident number and system ID.
     """
     creds = connections.basic_auth(CONNECTION_SNOW)
     base_url = creds.url

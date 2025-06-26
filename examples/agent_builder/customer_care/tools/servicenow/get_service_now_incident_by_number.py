@@ -35,9 +35,12 @@ class ServiceNowIncident(BaseModel):
 def get_service_now_incident_by_number(incident_number: str):
     """
     Fetch a ServiceNow incident based on incident ID, creation date, or other filters.
-    
-    :param incident_number: The uniquely identifying incident number of the ticket.
-    :returns: The incident details including number, system ID, description, state, and urgency.
+
+    Args:
+        incident_number: The uniquely identifying incident number of the ticket.
+
+    Returns:
+        The incident details including number, system ID, description, state, and urgency.
     """
     creds = connections.basic_auth('service-now')
     base_url = creds.url

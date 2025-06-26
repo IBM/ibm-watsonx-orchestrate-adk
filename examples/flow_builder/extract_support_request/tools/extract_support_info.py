@@ -64,8 +64,10 @@ def build_extract_support_info(aflow: Flow = None) -> Flow:
     Creates a flow that will use the Prompt node to extract information from a support
     message, and forward the summary to the helpdesk.
     This flow will rely on the Flow engine to perform automatic data mapping at runtime.
+
     Args:
         flow (Flow, optional): During deployment of the flow model, it will be passed a flow instance.
+
     Returns:
         Flow: The created flow.
     """

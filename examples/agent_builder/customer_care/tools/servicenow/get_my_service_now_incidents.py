@@ -39,6 +39,12 @@ def get_my_service_now_incidents() -> List[ServiceNowIncident]:
 
     :returns: The incident details including number, system ID, description, state, and urgency.
     """
+    """
+    Fetch all ServiceNow that the user was the author of.
+
+    Returns:
+        The incident details including number, system ID, description, state, and urgency.
+    """
     creds = connections.basic_auth('service-now')
     base_url = creds.url
     url = f"{base_url}/api/now/table/incident"

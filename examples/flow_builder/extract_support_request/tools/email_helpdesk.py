@@ -12,7 +12,12 @@ from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 def email_helpdesk(email: str) -> str:
     """
     Send an email to internal help desk.
-    Returns the email body that was sent.
+
+    Args:
+        email: email address
+
+    Returns:
+        The email body that was sent.
     """
 
     return f"Sent email to helpdesk@acme.org with the message: \n{email}."

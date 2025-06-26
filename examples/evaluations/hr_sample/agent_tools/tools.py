@@ -7,7 +7,9 @@ from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 def get_assignment_id_hr_agent(username: str) -> str:
     """
     get the assignment id from username
-    :param username: username of the employee
+
+    Args:
+        username: username of the employee
     """
     if username=="nwaters":
         return "15778303"
@@ -28,9 +30,11 @@ def validate_datetime(date_text):
 def get_timeoff_schedule_hr_agent(assignment_id: str, start_date: str, end_date: str) -> str:
     """
     get timeoff schedule for employee based on assignment id, start date and end date
-    :param assignment_id: assignment_id of the user
-    :param start_date: start date of the timeoff scheduel, in YYYY-MM-DD format
-    :param assignment_id: end date of the timeoff scheduel, in YYYY-MM-DD format
+
+    Args:
+        assignment_id: assignment_id of the user
+        start_date: start date of the timeoff scheduel, in YYYY-MM-DD format
+        end_date: end date of the timeoff scheduel, in YYYY-MM-DD format
     """
 
     if not validate_datetime(start_date):
@@ -48,7 +52,9 @@ def get_timeoff_schedule_hr_agent(assignment_id: str, start_date: str, end_date:
 def get_direct_reports_hr_agent(username: str) -> str:
     """
     get direct reports for a given username
-    :param assignment_id: assignment_id of the user
+
+    Args:
+        username: username of the user you want to get reports for
     """
 
     return json.dumps(["nwaters", "johndoe"])
