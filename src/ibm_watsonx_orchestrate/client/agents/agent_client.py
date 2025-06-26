@@ -19,13 +19,15 @@ def _transform_agent_from_flat_agent_spec(agent_spec: dict ) -> dict:
     transformed = {"additional_properties": {}}
     for key,value in agent_spec.items():
         if key == "starter_prompts":
-            value.pop("is_default_prompts",None)
-            value["customize"] = value.pop("prompts",[])
+            if value:
+                value.pop("is_default_prompts",None)
+                value["customize"] = value.pop("prompts", [])
 
             transformed["additional_properties"] |= { key: value }
             
         elif key == "welcome_content":
-            value.pop("is_default_message",None)
+            if value:
+                value.pop("is_default_message", None)
 
             transformed["additional_properties"] |= { key: value }
 
@@ -46,17 +48,22 @@ def transform_agents_to_flat_agent_spec(agents: dict | list[dict] ) -> dict | li
     return agents
 
 def _transform_agent_to_flat_agent_spec(agent_spec: dict ) -> dict:
+    additional_properties = agent_spec.get("additional_properties", None)
+    if not additional_properties:
+        return agent_spec
+    
     transformed = agent_spec
-    for key,value in agent_spec.get("additional_properties").items():
+    for key,value in additional_properties.items():
         if key == "starter_prompts":
-
-            value["is_default_prompts"] = False
-            value["prompts"] = value.pop("customize",[])
+            if value:
+                value["is_default_prompts"] = False
+                value["prompts"] = value.pop("customize", [])
 
             transformed[key] = value
             
         elif key == "welcome_content":
-            value["is_default_message"] = False
+            if value:
+             value["is_default_message"] = False
             
             transformed[key] = value
             
