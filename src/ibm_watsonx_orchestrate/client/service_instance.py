@@ -51,13 +51,13 @@ class ServiceInstance(BaseServiceInstance):
     def _create_token(self) -> str:
         if not self._credentials.auth_type:
             if ".cloud.ibm.com" in self._credentials.url:
-                logger.warning("Using IBM IAM Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mscp' or 'cpd")
+                logger.warning("Using IBM IAM Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd")
                 return self._authenticate(EnvironmentAuthType.IBM_CLOUD_IAM)
             elif is_cpd_env(self._credentials.url):
-                logger.warning("Using CPD Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mscp' or 'cpd")
+                logger.warning("Using CPD Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd")
                 return self._authenticate(EnvironmentAuthType.CPD)
             else:
-                logger.warning("Using MCSP Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mscp' or 'cpd' ")
+                logger.warning("Using MCSP Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd' ")
                 return self._authenticate(EnvironmentAuthType.MCSP)
         else:
             return self._authenticate(self._credentials.auth_type)
