@@ -20,6 +20,8 @@ tools-runtime-manager:${TRM_TAG}
 tools-runtime:${TR_TAG}
 ai-gateway:${AI_GATEWAY_TAG}
 wxo-tempus-runtime:${FLOW_RUNTIME_TAG}
+jaeger-proxy:${JAEGER_PROXY_TAG}
+agentops-backend:${AGENT_ANALYTICS_TAG}
 EOF)
 
 for image in  $images; do
