@@ -7,7 +7,7 @@ import json
 agents_app = typer.Typer(no_args_is_help=True)
 
 
-@agents_app.command(name="import")
+@agents_app.command(name="import", help='Import an agent definition into the active env from a file')
 def agent_import(
     file: Annotated[
         str,
@@ -25,7 +25,7 @@ def agent_import(
     agents_controller.publish_or_update_agents(agent_specs)
 
 
-@agents_app.command(name="create")
+@agents_app.command(name="create", help='Create and import an agent into the active env')
 def agent_create(
     name: Annotated[
         str,
@@ -105,6 +105,20 @@ def agent_create(
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
     ] = AgentStyle.DEFAULT,
+    custom_join_tool: Annotated[
+        str | None,
+        typer.Option(
+            "--custom-join-tool",
+            help='The name of the python tool to be used by the agent to format and generate the final output. Only needed for "planner" style agents.',
+        ),
+    ] = None,
+    structured_output: Annotated[
+        str | None,
+        typer.Option(
+            "--structured-output",
+            help='A JSON Schema object that defines the desired structure of the agent\'s final output. Only needed for "planner" style agents.',
+        ),
+    ] = None,
     collaborators: Annotated[
         List[str],
         typer.Option(
@@ -119,6 +133,13 @@ def agent_create(
             help="A list of tool names you wish for the agent to be able to utilise. Format --tools tool1 --tools agent2 ...",
         ),
     ] = None,
+    knowledge_base: Annotated[
+        List[str],
+        typer.Option(
+            "--knowledge-bases",
+            help="A list of knowledge bases names you wish for the agent to be able to utilise. Format --knowledge-bases base1 --knowledge-bases base2 ...",
+        ),
+    ] = None,
     output_file: Annotated[
         str,
         typer.Option(
@@ -127,10 +148,26 @@ def agent_create(
             help="Write the agent definition out to a YAML (.yaml/.yml) file or a JSON (.json) file.",
         ),
     ] = None,
+    context_access_enabled: Annotated[
+        bool,
+        typer.Option(
+            "--context-access-enabled",
+            help="Whether the agent has access to context variables (default: True)",
+        ),
+    ] = True,
+    context_variables: Annotated[
+        List[str],
+        typer.Option(
+            "--context-variable",
+            "-v",
+            help="A list of context variable names the agent can access. Format: --context-variable var1 --context-variable var2 ... or -v var1 -v var2 ...",
+        ),
+    ] = None,
 ):
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
     auth_config_dict = json.loads(auth_config) if auth_config else {}
+    structured_output_dict = json.loads(structured_output) if structured_output else None
 
     agents_controller = AgentsController()
     agent = agents_controller.generate_agent_spec(
@@ -144,18 +181,23 @@ def agent_create(
         provider=provider,
         llm=llm,
         style=style,
+        custom_join_tool=custom_join_tool,
+        structured_output=structured_output_dict,
         collaborators=collaborators,
         tools=tools,
+        knowledge_base=knowledge_base,
         tags=tags,
         chat_params=chat_params_dict,
         config=config_dict,
         nickname=nickname,
         app_id=app_id,
         output_file=output_file,
+        context_access_enabled=context_access_enabled,
+        context_variables=context_variables,
     )
     agents_controller.publish_or_update_agents([agent])
 
-@agents_app.command(name="list")
+@agents_app.command(name="list", help='List all agents in the active env')
 def list_agents(
     kind: Annotated[
         AgentKind,
@@ -169,7 +211,7 @@ def list_agents(
     agents_controller = AgentsController()
     agents_controller.list_agents(kind=kind, verbose=verbose)
 
-@agents_app.command(name="remove")
+@agents_app.command(name="remove", help='Remove an agent from the active env')
 def remove_agent(
     name: Annotated[
         str,
@@ -182,3 +224,32 @@ def remove_agent(
 ):  
     agents_controller = AgentsController()
     agents_controller.remove_agent(name=name, kind=kind)
+
+@agents_app.command(name="export", help='Export an agent and its dependencies to a zip file or yaml')
+def export_agent(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent you wish to export"),
+    ],
+    kind: Annotated[
+        AgentKind,
+        typer.Option("--kind", "-k", help="The kind of agent you wish to export"),
+    ],
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to a where the file containing the exported data should be saved",
+        ),
+    ],
+    agent_only_flag: Annotated[
+        bool,
+        typer.Option(
+            "--agent-only",
+            help="Export only the yaml to the specified agent, excluding its dependencies",
+        ),
+    ]=False
+):  
+    agents_controller = AgentsController()
+    agents_controller.export_agent(name=name, kind=kind, output_path=output_file, agent_only_flag=agent_only_flag)

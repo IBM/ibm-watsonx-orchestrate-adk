@@ -1,111 +1,154 @@
-import json
-from pathlib import Path
-import logging
 import pytest
-import re
-import requests
+from unittest.mock import patch
 
 from ibm_watsonx_orchestrate.cli.commands.models import models_command
+from ibm_watsonx_orchestrate.agent_builder.models.types import ModelType
 
-class DummyResponse:
-    def __init__(self, status_code, json_data, content=b""):
-        self.status_code = status_code
-        self._json_data = json_data
-        self.content = content
+class TestModelList:
+    def test_model_list(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.list_models") as list_models_mock:
+            models_command.model_list()
+            list_models_mock.assert_called_once_with(
+                print_raw=False
+            )
+    
+    def test_model_list_print_raw(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.list_models") as list_models_mock:
+            models_command.model_list(print_raw=True)
+            list_models_mock.assert_called_once_with(
+                print_raw=True
+            )
 
-    def json(self):
-        return self._json_data
+class TestModelsImport:
+    def test_models_import(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.import_model") as import_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_models") as publish_mock:
+            import_model_mock.return_value = ["Model"]
 
+            models_command.models_import(
+                file="test.yaml",
+                app_id="test_app_id"
+            )
+            import_model_mock.assert_called_once_with(
+                file="test.yaml",
+                app_id="test_app_id"
+            )
+            publish_mock.assert_called_once_with(
+                model="Model"
+            )
 
-def test_no_models_found(monkeypatch, caplog):
-    fake_env = {"WATSONX_URL": "http://dummy"}
-    monkeypatch.setattr(models_command, "merge_env", lambda default, user: fake_env)
-    monkeypatch.setattr(models_command, "get_default_env_file", lambda: Path("dummy.env"))
+class TestModelsAdd:
+    def test_models_add(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.create_model") as create_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_models") as publish_mock:
+            create_model_mock.return_value = "Model"
 
-    def dummy_requests_get(url):
-        return DummyResponse(200, {"resources": []})
+            models_command.models_add(
+                name="test_name",
+                description="test_description",
+                display_name="test_display_name",
+                provider_config="{}",
+                app_id="test_app_id",
+                type=ModelType.CHAT
+            )
+            create_model_mock.assert_called_once_with(
+                name="test_name",
+                description="test_description",
+                display_name="test_display_name",
+                provider_config_dict={},
+                app_id="test_app_id",
+                model_type=ModelType.CHAT
+            )
+            publish_mock.assert_called_once_with(
+                model="Model"
+            )
+    
+    def test_models_add_invalid_provider_config(self, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.create_model") as create_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_models") as publish_mock:
+            create_model_mock.return_value = "Model"
 
-    monkeypatch.setattr(requests, "get", dummy_requests_get)
+            with pytest.raises(SystemExit):
+                models_command.models_add(
+                    name="test_name",
+                    description="test_description",
+                    display_name="test_display_name",
+                    provider_config="test",
+                    app_id="test_app_id",
+                    type=ModelType.CHAT
+                )
 
-    caplog.set_level(logging.INFO)
-    models_command.model_list()
+            captured = caplog.text
 
-    assert "No models found." in caplog.text
+            assert f"Failed to parse provider config. 'test' is not valid json" in captured
 
+            create_model_mock.assert_not_called()
+            publish_mock.assert_not_called()
 
-def test_models_list_with_preferred_and_incompatible(monkeypatch, caplog, capsys):
-    fake_env = {
-        "WATSONX_URL": "http://dummy",
-        "PREFERRED_MODELS": "preferred",
-        "INCOMPATIBLE_MODELS": "incomp"
-    }
-    monkeypatch.setattr(models_command, "merge_env", lambda default, user: fake_env)
-    monkeypatch.setattr(models_command, "get_default_env_file", lambda: Path("dummy.env"))
+class TestModelsRemove:
+    def test_models_remove(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.remove_model") as remove_model_mock:
 
-    dummy_models = {
-        "resources": [
-            {"model_id": "incomp-model", "short_description": "Should be filtered out"},
-            {"model_id": "preferred-model", "short_description": "This is preferred"},
-            {"model_id": "other-model", "short_description": "Regular model"}
-        ]
-    }
+            models_command.models_remove(
+                name="test_name",
+            )
+            remove_model_mock.assert_called_once_with(
+                name="test_name",
+            )
 
-    def dummy_requests_get(url):
-        return DummyResponse(200, dummy_models)
+class TestModelsPolicyImport:
+    def test_models_policy_import(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.import_model_policy") as import_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_model_policies") as publish_mock:
+            import_model_mock.return_value = ["Policy"]
 
-    monkeypatch.setattr(requests, "get", dummy_requests_get)
-    caplog.set_level(logging.INFO)
+            models_command.models_policy_import(
+                file="test.yaml",
+            )
+            import_model_mock.assert_called_once_with(
+                file="test.yaml",
+            )
+            publish_mock.assert_called_once_with(
+                policy="Policy"
+            )
 
-    models_command.model_list()
+class TestModelsPolicyAdd:
+    def test_models_policy_add(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.create_model_policy") as create_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_model_policies") as publish_mock:
+            create_model_mock.return_value = "Policy"
 
-    text = capsys.readouterr().out
+            models_command.models_policy_add(
+                name="test_name",
+                models="test_models",
+                strategy="test_strategy",
+                strategy_on_code="test_strategy_on_code",
+                retry_on_code="test_retry_on_code",
+                retry_attempts="test_retry_attempts",
+                display_name="test_display_name",
+                description="test_description"
+            )
+            create_model_mock.assert_called_once_with(
+                name="test_name",
+                models="test_models",
+                strategy="test_strategy",
+                strategy_on_code="test_strategy_on_code",
+                retry_on_code="test_retry_on_code",
+                retry_attempts="test_retry_attempts",
+                display_name="test_display_name",
+                description="test_description"
+            )
+            publish_mock.assert_called_once_with(
+                policy="Policy"
+            )
 
-    assert "Available Models" in text
-    assert "watsonx/incomp-model" not in text
-    assert "★ indicates a supported and preferred model" in text
-    assert "watsonx/other-model" in text
-    assert "Regular model" in text
-    preferred_regex = re.compile(r"\★ watsonx\/preferred-model.*This is preferred")
-    preferred_match = re.search(preferred_regex, text)
-    other_regex = re.compile(r"watsonx\/other-model.*Regular model")
-    other_match = re.search(other_regex, text)
-    assert preferred_match and other_match
-    assert preferred_match.span()[0] < other_match.span()[0]
-    assert preferred_match.span()[1] < other_match.span()[1]
-    assert preferred_match.span()[1] < other_match.span()[0]
+class TestModelsPolicyRemove:
+    def test_models_policy_remove(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.remove_policy") as remove_policy_mock:
 
-def test_models_list_raw_with_preferred_and_incompatible(monkeypatch, caplog, capsys):
-    fake_env = {
-        "WATSONX_URL": "http://dummy",
-        "PREFERRED_MODELS": "preferred",
-        "INCOMPATIBLE_MODELS": "incomp"
-    }
-    monkeypatch.setattr(models_command, "merge_env", lambda default, user: fake_env)
-    monkeypatch.setattr(models_command, "get_default_env_file", lambda: Path("dummy.env"))
-
-    dummy_models = {
-        "resources": [
-            {"model_id": "incomp-model", "short_description": "Should be filtered out"},
-            {"model_id": "preferred-model", "short_description": "This is preferred"},
-            {"model_id": "other-model", "short_description": "Regular model"}
-        ]
-    }
-
-    def dummy_requests_get(url):
-        return DummyResponse(200, dummy_models)
-
-    monkeypatch.setattr(requests, "get", dummy_requests_get)
-    caplog.set_level(logging.INFO)
-
-    models_command.model_list(print_raw=True)
-
-    text = capsys.readouterr().out
-
-    assert "Available Models:" in text
-    assert "incomp-model" not in text
-    assert "★ indicates a supported and preferred model" in text
-    assert "other-model: Regular model" in text
-    preferred_index = text.find("★ watsonx/preferred-model: This is preferred")
-    other_index = text.find("other-model: Regular model")
-    assert preferred_index != -1 and other_index != -1
-    assert preferred_index < other_index
+            models_command.models_policy_remove(
+                name="test_name",
+            )
+            remove_policy_mock.assert_called_once_with(
+                name="test_name",
+            )

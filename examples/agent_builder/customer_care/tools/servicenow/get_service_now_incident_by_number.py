@@ -12,10 +12,9 @@ from requests.auth import HTTPBasicAuth
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 from ibm_watsonx_orchestrate.run import connections
 
-from ibm_watsonx_orchestrate.client.connections import ConnectionType
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType
 
 CONNECTION_SNOW = 'service-now'
-CONNECTION_SNOW_URL = 'service-now-url'
 
 class ServiceNowIncident(BaseModel):
     """
@@ -30,20 +29,23 @@ class ServiceNowIncident(BaseModel):
 
 @tool(
     expected_credentials=[
-        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH},
-        {"app_id": CONNECTION_SNOW_URL, "type": ConnectionType.KEY_VALUE}
+        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH}
     ]
 )
-def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncident:
+def get_service_now_incident_by_number(incident_number: str):
     """
     Fetch a ServiceNow incident based on incident ID, creation date, or other filters.
-    
-    :param incident_number: The uniquely identifying incident number of the ticket.
-    :returns: The incident details including number, system ID, description, state, and urgency.
+
+    Args:
+        incident_number: The uniquely identifying incident number of the ticket.
+
+    Returns:
+        The incident details including number, system ID, description, state, and urgency.
     """
-    base_url = connections.key_value(CONNECTION_SNOW_URL)['url']
-    url = f"{base_url}/api/now/table/incident"
     creds = connections.basic_auth('service-now')
+    base_url = creds.url
+    url = f"{base_url}/api/now/table/incident"
+
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -70,7 +72,7 @@ def get_service_now_incident_by_number(incident_number: str) -> ServiceNowIncide
         state=data['state'],
         urgency=data['urgency'],
         created_on=data['opened_at']
-    )
+    ).model_dump_json()
 
 # if __name__ == '__main__':
 #     incident = fetch_service_now_incident(incident_number='INC0010311')

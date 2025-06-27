@@ -4,7 +4,7 @@ from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 tools_app= typer.Typer(no_args_is_help=True)
 
-@tools_app.command(name="import")
+@tools_app.command(name="import", help='Import a tool into the active environment')
 def tool_import(
     kind: Annotated[
         ToolKind,
@@ -15,7 +15,7 @@ def tool_import(
         typer.Option(
             "--file",
             "-f",
-            help="Path to Python or OpenAPI spec YAML file. Required for kind openapi or python",
+            help="Path to Python, OpenAPI spec YAML file or flow JSON or python file. Required for kind openapi, python and flow",
         ),
     ] = None,
     # skillset_id: Annotated[
@@ -41,6 +41,14 @@ def tool_import(
             help="Path to Python requirements.txt file. Required for kind python",
         ),
     ] = None,
+    package_root: Annotated[
+        str,
+        typer.Option("--package-root", "-p", help="""When specified, the package root will be treated 
+as the current working directory from which the module specified by --file will be invoked. All files and dependencies 
+included in this folder will be included within the uploaded package. Local dependencies can either be imported 
+relative to this package root folder or imported using relative imports from the --file. This only applies when the 
+--kind=python. If not specified it is assumed only a single python file is being uploaded."""),
+    ] = None,
 ):
     tools_controller = ToolsController(kind, file, requirements_file)
     tools = tools_controller.import_tool(
@@ -50,12 +58,13 @@ def tool_import(
         # skill_id=skill_id,
         # skill_operation_path=skill_operation_path,
         app_id=app_id,
-        requirements_file=requirements_file
+        requirements_file=requirements_file,
+        package_root=package_root
     )
     
-    tools_controller.publish_or_update_tools(tools)
+    tools_controller.publish_or_update_tools(tools, package_root=package_root)
 
-@tools_app.command(name="list")
+@tools_app.command(name="list", help='List the imported tools in the active environment')
 def list_tools(
     verbose: Annotated[
         bool,
@@ -65,7 +74,7 @@ def list_tools(
     tools_controller = ToolsController()
     tools_controller.list_tools(verbose=verbose)
 
-@tools_app.command(name="remove")
+@tools_app.command(name="remove", help='Remove a tool from the active environment')
 def remove_tool(
     name: Annotated[
         str,
@@ -74,3 +83,24 @@ def remove_tool(
 ):  
     tools_controller = ToolsController()
     tools_controller.remove_tool(name=name)
+
+@tools_app.command(name="export", help='Export a tool to a zip file')
+def tool_export(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="The name of the tool you want to export"),
+    ],
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to a where the zip file containing the exported data should be saved",
+        ),
+    ],
+):
+    tools_controller = ToolsController()
+    tools_controller.export_tool(
+        name=name,
+        output_path=output_file
+    )

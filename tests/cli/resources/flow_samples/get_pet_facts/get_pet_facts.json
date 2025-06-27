@@ -1,0 +1,126 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "get_pet_facts",
+    "display_name": "get_pet_facts",
+    "description": "Based on the request, we will return the list of facts about the pet. A pet can be either a cat or a dog. ",
+    "input_schema": {
+      "$ref": "#/schemas/get_pet_facts_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/PetFacts"
+    }
+  },
+  "nodes": {
+    "getDogFact": {
+      "spec": {
+        "kind": "tool",
+        "name": "getDogFact",
+        "display_name": "getDogFact",
+        "tool": "getDogFact"
+      }
+    },
+    "getCatFact": {
+      "spec": {
+        "kind": "tool",
+        "name": "getCatFact",
+        "display_name": "getCatFact",
+        "tool": "getCatFact"
+      }
+    },
+    "branch_85cd3d725b1841e5a9aeb33f07880808": {
+      "spec": {
+        "kind": "branch",
+        "name": "branch_85cd3d725b1841e5a9aeb33f07880808",
+        "display_name": "branch_85cd3d725b1841e5a9aeb33f07880808",
+        "evaluator": {
+          "expression": "flow.input.kind.strip().lower() == 'dog'"
+        },
+        "cases": {
+          "true": {
+            "display_name": "getDogFact",
+            "node": "getDogFact"
+          },
+          "false": {
+            "display_name": "getCatFact",
+            "node": "getCatFact"
+          }
+        },
+        "match_policy": "FIRST_MATCH"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "branch_85cd3d725b1841e5a9aeb33f07880808"
+    },
+    {
+      "start": "branch_85cd3d725b1841e5a9aeb33f07880808",
+      "end": "getDogFact"
+    },
+    {
+      "start": "branch_85cd3d725b1841e5a9aeb33f07880808",
+      "end": "getCatFact"
+    },
+    {
+      "start": "getDogFact",
+      "end": "__end__"
+    },
+    {
+      "start": "getCatFact",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "get_pet_facts_input": {
+      "type": "object",
+      "title": "get_pet_facts_input",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "title": "Kind",
+          "description": "the kind of pet: dog or cat"
+        }
+      }
+    },
+    "PetFacts": {
+      "type": "object",
+      "title": "PetFacts",
+      "required": [
+        "facts"
+      ],
+      "properties": {
+        "facts": {
+          "type": "array",
+          "title": "Facts",
+          "description": "A list of facts about the pet",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-05-12T16:43:59.802306+00:00"
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "get_number_random_fact_flow",
+    "display_name": "get_number_random_fact_flow",
+    "input_schema": {
+      "$ref": "#/schemas/get_number_random_fact_flow_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/FlowOutput"
+    }
+  },
+  "nodes": {
+    "get_facts_about_numbers": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_facts_about_numbers",
+        "display_name": "get_facts_about_numbers",
+        "description": "Returns an Info object which is a fact about a number\n",
+        "input_schema": {
+          "$ref": "#/schemas/get_facts_about_numbers_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/FlowOutput"
+        },
+        "tool": "get_facts_about_numbers"
+      }
+    },
+    "loop_1": {
+      "spec": {
+        "kind": "loop",
+        "name": "loop_1",
+        "display_name": "loop_1",
+        "input_schema": {
+          "$ref": "#/schemas/loop_1_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/loop_1_output"
+        },
+        "initiators": [
+          "__any_user__"
+        ],
+        "evaluator": {
+          "expression": "\"get_request_status\" not in parent or parent.get_request_status.input.attempt.atmp < 5"
+        }
+      },
+      "nodes": {
+        "get_request_status": {
+          "spec": {
+            "kind": "tool",
+            "name": "get_request_status",
+            "display_name": "get_request_status",
+            "description": "Increase attemp['atmp'] by 1 according to the input\n",
+            "input_schema": {
+              "$ref": "#/schemas/get_request_status_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/Attempt_1"
+            },
+            "tool": "get_request_status"
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "get_request_status"
+        },
+        {
+          "start": "get_request_status",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "get_facts_about_numbers"
+    },
+    {
+      "start": "get_facts_about_numbers",
+      "end": "loop_1"
+    },
+    {
+      "start": "loop_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "get_number_random_fact_flow_input": {
+      "type": "object",
+      "title": "get_number_random_fact_flow_input",
+      "required": [
+        "number"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "title": "Number",
+          "description": "Inputted number from user"
+        }
+      }
+    },
+    "FlowOutput": {
+      "type": "object",
+      "title": "FlowOutput",
+      "required": [
+        "info"
+      ],
+      "properties": {
+        "info": {
+          "type": "string",
+          "title": "Info",
+          "description": "Fact about a number"
+        }
+      }
+    },
+    "get_facts_about_numbers_input": {
+      "type": "object",
+      "title": "get_facts_about_numbers_input",
+      "required": [
+        "number"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "title": "Number",
+          "description": "a number to get the fact."
+        }
+      }
+    },
+    "loop_1_input": {
+      "type": "object",
+      "title": "loop_1_input",
+      "required": [],
+      "properties": {
+        "atmp": {
+          "type": "integer",
+          "title": "Atmp",
+          "description": "Represent each attemp to check if the request is finish",
+          "default": 0
+        }
+      }
+    },
+    "loop_1_output": {
+      "type": "object",
+      "title": "loop_1_output",
+      "required": [
+        "info"
+      ],
+      "properties": {
+        "info": {
+          "type": "string",
+          "title": "Info",
+          "description": "Fact about a number"
+        }
+      }
+    },
+    "Attempt": {
+      "type": "object",
+      "title": "Attempt",
+      "required": [],
+      "properties": {
+        "atmp": {
+          "type": "integer",
+          "title": "Atmp",
+          "description": "Represent each attemp to check if the request is finish.",
+          "default": 0
+        }
+      }
+    },
+    "get_request_status_input": {
+      "type": "object",
+      "title": "get_request_status_input",
+      "required": [
+        "attempt"
+      ],
+      "properties": {
+        "attempt": {
+          "title": "Attempt",
+          "$ref": "#/schemas/Attempt"
+        }
+      }
+    },
+    "Attempt_1": {
+      "type": "object",
+      "title": "Attempt_1",
+      "properties": {
+        "atmp": {
+          "type": "integer",
+          "title": "Atmp",
+          "description": "Represent each attemp to check if the request is finish.",
+          "default": 0
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-17T19:44:14.617102+00:00"
+  }
+}

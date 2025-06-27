@@ -24,8 +24,7 @@ class ClientAPIException(requests.HTTPError):
 
 
 class BaseAPIClient:
-
-    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, authenticator: MCSPAuthenticator = None):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
         self.base_url = base_url.rstrip("/")  # remove trailing slash
         self.api_key = api_key
         self.authenticator = authenticator
@@ -33,9 +32,12 @@ class BaseAPIClient:
         # api path can be re-written by api proxy when deployed
         # TO-DO: re-visit this when shipping to production
         self.is_local = is_local
+        self.verify = verify
 
         if not self.is_local:
             self.base_url = f"{self.base_url}/v1/orchestrate"
+        else:
+            self.base_url = f"{self.base_url}/v1"
 
     def _get_headers(self) -> dict:
         headers = {}
@@ -45,37 +47,50 @@ class BaseAPIClient:
             headers["Authorization"] = f"Bearer {self.authenticator.token_manager.get_token()}"
         return headers
 
-    def _get(self, path: str, params: dict = None) -> dict:
-
+    def _get(self, path: str, params: dict = None, data=None, return_raw=False) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.get(url, headers=self._get_headers(), params=params)
+        response = requests.get(url, headers=self._get_headers(), params=params, data=data, verify=self.verify)
         self._check_response(response)
-        return response.json()
+        if not return_raw:
+            return response.json()
+        else:
+            return response
 
     def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
-
         url = f"{self.base_url}{path}"
-        response = requests.post(url, headers=self._get_headers(), json=data, files=files)
+        response = requests.post(url, headers=self._get_headers(), json=data, files=files, verify=self.verify)
+        self._check_response(response)
+        return response.json() if response.text else {}
+    
+    def _post_form_data(self, path: str, data: dict = None, files: dict = None) -> dict:
+        url = f"{self.base_url}{path}"
+        # Use data argument instead of json so data is encoded as application/x-www-form-urlencoded
+        response = requests.post(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _put(self, path: str, data: dict = None) -> dict:
 
         url = f"{self.base_url}{path}"
-        response = requests.put(url, headers=self._get_headers(), json=data)
+        response = requests.put(url, headers=self._get_headers(), json=data, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _patch(self, path: str, data: dict = None) -> dict:
-
         url = f"{self.base_url}{path}"
-        response = requests.patch(url, headers=self._get_headers(), json=data)
+        response = requests.patch(url, headers=self._get_headers(), json=data, verify=self.verify)
+        self._check_response(response)
+        return response.json() if response.text else {}
+    
+    def _patch_form_data(self, path: str, data: dict = None, files = None) -> dict:
+        url = f"{self.base_url}{path}"
+        response = requests.patch(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
-    def _delete(self, path: str) -> dict:
+    def _delete(self, path: str, data=None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.delete(url, headers=self._get_headers())
+        response = requests.delete(url, headers=self._get_headers(), json=data, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 

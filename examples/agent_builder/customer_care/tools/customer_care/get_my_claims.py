@@ -7,7 +7,8 @@ def get_my_claims():
     Retrieve detailed information about submitted claims including claim status, submission and processing dates,
     amounts claimed and approved, provider information, and services included in the claims.
 
-    :returns: A list of dictionaries, each containing details about a specific claim:
+    Returns:
+      A list of dictionaries, each containing details about a specific claim:
               - 'claimId': Unique identifier for the claim
               - 'submittedDate': Date when the claim was submitted
               - 'claimStatus': Current status of the claim (e.g., 'Processed', 'Pending', 'Rejected')

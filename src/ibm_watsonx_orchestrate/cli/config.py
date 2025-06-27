@@ -13,6 +13,8 @@ AUTH_SECTION_HEADER = "auth"
 CONTEXT_SECTION_HEADER = "context"
 ENVIRONMENTS_SECTION_HEADER = "environments"
 PYTHON_REGISTRY_HEADER = "python_registry"
+USER_ENV_CACHE_HEADER = "cached_user_env"
+LICENSE_HEADER = "license"
 
 # Option Names
 AUTH_MCSP_API_KEY_OPT = "wxo_mcsp_api_key"
@@ -23,25 +25,29 @@ PYTHON_REGISTRY_TYPE_OPT = "type"
 PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT = "test_package_version_override"
 ENV_WXO_URL_OPT = "wxo_url"
 ENV_IAM_URL_OPT = "iam_url"
-ENV_ENABLE_SAAS_OPT = "enable_saas"
 PROTECTED_ENV_NAME = "local"
 ENV_AUTH_TYPE = "auth_type"
+BYPASS_SSL = "bypass_ssl"
+VERIFY = "verify"
+ENV_ACCEPT_LICENSE = 'accepts_license_agreements'
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
+CHAT_UI_PORT = "3000"
 
 DEFAULT_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.config/orchestrate"
 DEFAULT_CONFIG_FILE = "config.yaml"
 DEFAULT_CONFIG_FILE_CONTENT = {
     CONTEXT_SECTION_HEADER: {CONTEXT_ACTIVE_ENV_OPT: None},
     PYTHON_REGISTRY_HEADER: {
-        PYTHON_REGISTRY_TYPE_OPT: str(RegistryType.TESTPYPI),
+        PYTHON_REGISTRY_TYPE_OPT: str(RegistryType.PYPI),
         PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT: None
     },
     ENVIRONMENTS_SECTION_HEADER: {
         PROTECTED_ENV_NAME: {
             ENV_WXO_URL_OPT: DEFAULT_LOCAL_SERVICE_URL
         }
-    }
+    },
+    USER_ENV_CACHE_HEADER: {}
 }
 
 AUTH_CONFIG_FILE_FOLDER = f"{os.path.expanduser('~')}/.cache/orchestrate"
@@ -89,6 +95,7 @@ class ConfigFileTypes(str, Enum):
 
 
 class Config:
+
     def __init__(
             self,
             config_file_folder: str = DEFAULT_CONFIG_FILE_FOLDER,
@@ -134,6 +141,12 @@ class Config:
 
     def create_defaults(self, default_content):
         self.save(default_content)
+
+    def get_active_env(self):
+        return self.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+
+    def get_active_env_config(self, option):
+        return self.read(ENVIRONMENTS_SECTION_HEADER, self.get_active_env()).get(option)
 
     def read(self, section: str, option: str) -> any:
         try:

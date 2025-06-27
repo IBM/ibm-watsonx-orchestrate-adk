@@ -24,7 +24,7 @@ class TestCredentials(unittest.TestCase):
         credentials = Credentials(url="https://example.com", api_key="1234567890")
         self.assertEqual(
             credentials.to_dict(),
-            {"url": "https://example.com", "api_key": "1234567890", "iam_url": "https://iam.platform.saas.ibm.com"},
+            {"url": "https://example.com", "api_key": "1234567890"},
         )
 
     def test_getitem(self):

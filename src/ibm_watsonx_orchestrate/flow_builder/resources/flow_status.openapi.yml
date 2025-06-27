@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Flow status
+  version: '0.1'
+  description: This tool allows you to check the status of a flow.
+servers:
+  - url: http://wxo-tempus-runtime:9044
+components:
+  schemas:
+    APIError:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+          additionalProperties: true
+          required:
+            - message
+      required:
+        - data
+paths:
+  /v1/flows:
+    get:
+      description: Get the status of a flow instance.
+      operationId: get_flow_status
+      responses:
+        '200':
+          description: Return the status of a flow instance.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Bad input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+      parameters:
+        - in: query
+          name: instance_id
+          description: Identifies the instance of the flow. This was provided when the flow tool was run.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: false
+          schema:
+            type: string
+            enum:
+              - completed
+              - in_progress
+              - interrupted
+              - failed
+

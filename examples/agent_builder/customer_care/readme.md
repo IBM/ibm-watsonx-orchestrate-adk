@@ -11,8 +11,9 @@ and
 4. Back on the landing page, click your profile icon on the top right and under "My instance" click manage instance password.
 5. Create an application connection using these credentials
 ```bash
-orchestrate connections application create -a service-now -t basic -u admin -p <password on from modal>
-orchestrate connections application create -a service-now-url -t kv -e url=<the instance url> 
+orchestrate connections add -a service-now
+orchestrate connections configure -a service-now --env draft --type team --kind basic --url <the instance url>
+orchestrate connections set-credentials -a service-now --env draft -u admin -p <password from modal>
 ```
 6. Run `pip install -r tools/requirements.txt`
 6. Run the import all script `./import-all.sh`

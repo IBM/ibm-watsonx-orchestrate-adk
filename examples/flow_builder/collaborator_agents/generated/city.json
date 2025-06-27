@@ -1,0 +1,302 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "collaborator_agents_flow",
+    "display_name": "collaborator_agents_flow",
+    "description": "Return information about a city.",
+    "input_schema": {
+      "$ref": "#/schemas/collaborator_agents_flow_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/FlowOutput"
+    }
+  },
+  "nodes": {
+    "ask_city_founding_date_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_city_founding_date_agent",
+        "display_name": "ask_city_founding_date_agent",
+        "description": "Ask the agent to get founding date of a city",
+        "input_schema": {
+          "$ref": "#/schemas/ask_city_founding_date_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/CityFoundingDate"
+        },
+        "message": "Give a founding date in provided city",
+        "agent": "city_founding_date_agent"
+      }
+    },
+    "ask_weather_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_weather_agent",
+        "display_name": "ask_weather_agent",
+        "description": "Ask the agent to get information about weather in a city",
+        "input_schema": {
+          "$ref": "#/schemas/ask_weather_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/WeatherData"
+        },
+        "message": "Give a real time weather data in provided city",
+        "agent": "weather_agent"
+      }
+    },
+    "ask_population_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_population_agent",
+        "display_name": "ask_population_agent",
+        "description": "Ask the agent to get information about population in a city",
+        "input_schema": {
+          "$ref": "#/schemas/ask_population_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/PopulationData"
+        },
+        "message": "Give a population and coordinate data in provided city",
+        "agent": "population_agent"
+      }
+    },
+    "ask_aggregate_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "ask_aggregate_agent",
+        "display_name": "ask_aggregate_agent",
+        "description": "Ask the agent to aggregate information about a city",
+        "input_schema": {
+          "$ref": "#/schemas/ask_aggregate_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/FlowOutput"
+        },
+        "message": "Invoke the aggregate_data tool with provided input",
+        "agent": "aggregate_agent"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "ask_city_founding_date_agent"
+    },
+    {
+      "start": "ask_city_founding_date_agent",
+      "end": "ask_weather_agent"
+    },
+    {
+      "start": "ask_weather_agent",
+      "end": "ask_population_agent"
+    },
+    {
+      "start": "ask_population_agent",
+      "end": "ask_aggregate_agent"
+    },
+    {
+      "start": "ask_aggregate_agent",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "collaborator_agents_flow_input": {
+      "type": "object",
+      "title": "collaborator_agents_flow_input",
+      "required": [
+        "city"
+      ],
+      "properties": {
+        "city": {
+          "type": "string",
+          "title": "City",
+          "description": "City Name"
+        }
+      }
+    },
+    "FlowOutput": {
+      "type": "object",
+      "title": "FlowOutput",
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "string",
+          "title": "Result",
+          "description": "Information about a city"
+        }
+      }
+    },
+    "ask_city_founding_date_agent_input": {
+      "type": "object",
+      "title": "ask_city_founding_date_agent_input",
+      "required": [
+        "city"
+      ],
+      "properties": {
+        "city": {
+          "type": "string",
+          "title": "City",
+          "description": "City Name"
+        }
+      }
+    },
+    "CityFoundingDate": {
+      "type": "object",
+      "title": "CityFoundingDate",
+      "required": [
+        "founding_date"
+      ],
+      "properties": {
+        "founding_date": {
+          "type": "string",
+          "title": "Founding Date",
+          "description": "Founding Date"
+        }
+      }
+    },
+    "ask_weather_agent_input": {
+      "type": "object",
+      "title": "ask_weather_agent_input",
+      "required": [
+        "city"
+      ],
+      "properties": {
+        "city": {
+          "type": "string",
+          "title": "City",
+          "description": "City Name"
+        }
+      }
+    },
+    "WeatherData": {
+      "type": "object",
+      "title": "WeatherData",
+      "required": [
+        "wind_speed",
+        "temperature",
+        "current_weather"
+      ],
+      "properties": {
+        "wind_speed": {
+          "type": "number",
+          "title": "Wind Speed",
+          "description": "Wind Speed"
+        },
+        "temperature": {
+          "type": "number",
+          "title": "Temperature",
+          "description": "Temperature"
+        },
+        "current_weather": {
+          "type": "string",
+          "title": "Current Weather",
+          "description": "Current Weather"
+        }
+      }
+    },
+    "ask_population_agent_input": {
+      "type": "object",
+      "title": "ask_population_agent_input",
+      "required": [
+        "city"
+      ],
+      "properties": {
+        "city": {
+          "type": "string",
+          "title": "City",
+          "description": "City Name"
+        }
+      }
+    },
+    "PopulationData": {
+      "type": "object",
+      "title": "PopulationData",
+      "required": [
+        "population",
+        "coordinates"
+      ],
+      "properties": {
+        "population": {
+          "type": "string",
+          "title": "Population",
+          "description": "Population"
+        },
+        "coordinates": {
+          "type": "string",
+          "title": "Coordinates",
+          "description": "Coordinates"
+        }
+      }
+    },
+    "ask_aggregate_agent_input": {
+      "type": "object",
+      "title": "ask_aggregate_agent_input",
+      "required": [
+        "wind_speed",
+        "temperature",
+        "current_weather",
+        "population",
+        "coordinates",
+        "city",
+        "founding_date"
+      ],
+      "properties": {
+        "wind_speed": {
+          "type": "number",
+          "title": "Wind Speed",
+          "description": "Wind Speed"
+        },
+        "temperature": {
+          "type": "number",
+          "title": "Temperature",
+          "description": "Temperature"
+        },
+        "current_weather": {
+          "type": "string",
+          "title": "Current Weather",
+          "description": "Current Weather"
+        },
+        "population": {
+          "type": "string",
+          "title": "Population",
+          "description": "Population"
+        },
+        "coordinates": {
+          "type": "string",
+          "title": "Coordinates",
+          "description": "Coordinates"
+        },
+        "city": {
+          "type": "string",
+          "title": "City",
+          "description": "City Name"
+        },
+        "founding_date": {
+          "type": "string",
+          "title": "Founding Date",
+          "description": "City Founding Date"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-09T13:40:01.969486+00:00"
+  }
+}

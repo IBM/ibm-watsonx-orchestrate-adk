@@ -1,0 +1,23 @@
+spec_version: v1
+kind: connection
+app_id: my_app
+environments:
+    draft:
+        kind: basic
+        type: team
+        sso: false
+        server_url: https://wd2-impl-services1.workday.com/ccx
+    live:
+        kind: oauth_auth_on_behalf_of_flow
+        type: member
+        sso: true
+        server_url: https://wd2-impl-services1.workday.com/ccx
+        idp_config:
+          header:
+            content-type: application/x-www-form-urlencoded
+          body:
+            requested_token_use: on_behalf_of,
+            requested_token_type: urn:ietf:params:oauth:token-type:saml2
+        app_config:
+          header:
+            content-type: application/x-www-form-urlencoded

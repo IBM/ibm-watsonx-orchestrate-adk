@@ -6,7 +6,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 # from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 # from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.connections.applications_connections_client import ApplicationConnectionsClient
+from ibm_watsonx_orchestrate.client.connections.connections_client import ConnectionsClient
 
 class TestIsLocalDev:
     @pytest.mark.parametrize(
@@ -117,7 +117,7 @@ class TestInstantiateClient:
             AgentClient,
             # ExternalAgentClient,
             # AssistantAgentClient,
-            ApplicationConnectionsClient
+            ConnectionsClient
         ],
     )
     def test_instantiate_all_client_types(self, client):
@@ -131,7 +131,7 @@ class TestInstantiateClient:
             AgentClient,
             # ExternalAgentClient,
             # AssistantAgentClient,
-            ApplicationConnectionsClient
+            ConnectionsClient
         ],
     )
     def test_no_active_environment(self, client, caplog):
@@ -152,7 +152,7 @@ class TestInstantiateClient:
             AgentClient,
             # ExternalAgentClient,
             # AssistantAgentClient,
-            ApplicationConnectionsClient
+            ConnectionsClient
         ],
     )
     def test_no_url_in_environment(self, client, caplog):
@@ -174,7 +174,7 @@ class TestInstantiateClient:
             AgentClient,
             # ExternalAgentClient,
             # AssistantAgentClient,
-            ApplicationConnectionsClient
+            ConnectionsClient
         ],
     )
     def test_missing_token(self, client, caplog):
@@ -193,7 +193,9 @@ class TestInstantiateClient:
         [
             ToolClient,
             AgentClient,
-            ApplicationConnectionsClient
+            # ExternalAgentClient,
+            # AssistantAgentClient,
+            ConnectionsClient
         ],
     )
     def test_invalid_token(self, client, caplog):

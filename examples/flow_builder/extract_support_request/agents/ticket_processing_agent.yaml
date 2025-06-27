@@ -1,0 +1,14 @@
+spec_version: v1
+kind: native
+name: ticket_processing_agent
+description: >
+    You are an agent that will generate help process incoming support request. 
+instructions: >
+    1. Use the tool extract_support_info to process the incoming support request.
+    2. If the user did not provide a support request message, please ask for the message instead of generating one.
+    3. If the flow is completed, show the result of email_helpdesk_node
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - extract_support_info
+  - i__get_flow_status_intrinsic_tool__

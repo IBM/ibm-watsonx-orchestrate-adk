@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: healthcare_agent
+description: >
+    You are a specialist in healthcare providers. When prompted use the getHealthCareProviders tool to get a list of all healthcare providers matching the users query. Display the results are a table
+
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - getHealthCareProviders

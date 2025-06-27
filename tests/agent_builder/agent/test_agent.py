@@ -1,7 +1,8 @@
 import pytest
 from pydantic_core import ValidationError
 from unittest.mock import patch, mock_open
-from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle
+from ibm_watsonx_orchestrate.agent_builder.tools import tool
+from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
 from ibm_watsonx_orchestrate.utils.request import BadRequest
 
@@ -21,6 +22,18 @@ def valid_native_agent_sample():
         "tools": [
             "test_tool_1",
             "test_tool_2"
+        ],
+        "knowledge_base": [
+            "test_base_1",
+            "test_base_2"
+        ],
+        "guidelines": [
+            {
+                "display_name": "test_guideline_1",
+                "condition": "test_condition_1",
+                "action": "test_action_1",
+                "tool": "test_tool_1"
+            }
         ]
     }
 
@@ -30,10 +43,12 @@ def default_values():
         "kind": AgentKind.NATIVE,
         "llm": DEFAULT_LLM,
         "collaborators": [],
-        "tools": []
+        "tools": [],
+        "knowledge_base": [],
+        "guidelines": []
     }
 
-@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools'])
+@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools', 'knowledge_base', 'guidelines'])
 def native_agent_missing_optional_values(request, valid_native_agent_sample):
     native_spec_definition = valid_native_agent_sample
     native_spec_definition.pop(request.param, None)
@@ -53,6 +68,35 @@ def native_agent_missing_required_values(request, valid_native_agent_sample):
         "spec" : native_spec_definition
     }
 
+@pytest.fixture()
+def valid_agent_guideline():
+    return {
+        "display_name": "test_guideline_1",
+        "condition": "test_condition_1",
+        "action": "test_action_1",
+        "tool": "test_tool_1"
+    }
+
+@pytest.fixture(params=['display_name', 'tool'])
+def agent_guideline_missing_optional_values(request, valid_agent_guideline):
+    guideline_spec_definition = valid_agent_guideline
+    guideline_spec_definition.pop(request.param, None)
+
+    return {
+        "missing" : request.param,
+        "spec" : guideline_spec_definition
+    }
+
+@pytest.fixture(params=['condition', 'action'])
+def agent_guideline_missing_required_values(request, valid_agent_guideline):
+    guideline_spec_definition = valid_agent_guideline
+    guideline_spec_definition.pop(request.param, None)
+
+    return {
+        "missing" : request.param,
+        "spec" : guideline_spec_definition
+    }
+
 class TestAgentInit:
     def test_valid_native_agent(self, valid_native_agent_sample):
         native_spec_definition = valid_native_agent_sample
@@ -65,7 +109,9 @@ class TestAgentInit:
             llm = native_spec_definition["llm"],
             style = native_spec_definition["style"],
             collaborators = native_spec_definition["collaborators"],
-            tools = native_spec_definition["tools"]
+            tools = native_spec_definition["tools"],
+            knowledge_base = native_spec_definition["knowledge_base"],
+            guidelines=native_spec_definition["guidelines"]
             )
         
         assert native_agent.spec_version == native_spec_definition["spec_version"]
@@ -76,6 +122,8 @@ class TestAgentInit:
         assert native_agent.style == native_spec_definition["style"]
         assert native_agent.collaborators == native_spec_definition["collaborators"]
         assert native_agent.tools == native_spec_definition["tools"]
+        assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
+        assert native_agent.guidelines == [AgentGuideline.model_validate(native_spec_definition["guidelines"][0])]
 
 
     def test_native_agent_missing_optional_params(self, native_agent_missing_optional_values, default_values):
@@ -91,6 +139,8 @@ class TestAgentInit:
         for key in agent_spec:
             if key == missing_value:
                 assert getattr(native_agent, key) == default_value
+            if key == "guidelines":
+                assert getattr(native_agent, key) == [AgentGuideline.model_validate(agent_spec.get(key)[0])]
             else:
                 assert getattr(native_agent, key) == agent_spec.get(key)
 
@@ -112,7 +162,8 @@ class TestAgentString:
             llm = native_spec_definition["llm"],
             style = native_spec_definition["style"],
             collaborators = native_spec_definition["collaborators"],
-            tools = native_spec_definition["tools"]
+            tools = native_spec_definition["tools"],
+            knowledge_base = native_spec_definition["knowledge_base"]
             )
 
         print(native_agent)
@@ -141,6 +192,7 @@ class TestAgentFromSpec:
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
             assert native_agent.tools == native_spec_definition["tools"]
+            assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
     def test_native_agent_from_spec_json(self, valid_native_agent_sample):
         with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.json.load") as mock_loader, \
@@ -161,6 +213,7 @@ class TestAgentFromSpec:
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
             assert native_agent.tools == native_spec_definition["tools"]
+            assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
     def test_native_agent_from_spec_invalid_file_extentionl(self):
        with patch("builtins.open", mock_open()) as mock_file:
@@ -184,3 +237,58 @@ class TestAgentFromSpec:
 
                 assert "Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format" in str(e)
 
+class TestAgentGuidelineInit:
+    def test_valid_guideline_init(self, valid_agent_guideline):
+        guideline_spec_definition = valid_agent_guideline
+
+        guideline = AgentGuideline(
+            display_name=guideline_spec_definition.get("display_name"),
+            condition=guideline_spec_definition.get("condition"),
+            action=guideline_spec_definition.get("action"),
+            tool=guideline_spec_definition.get("tool")
+        )
+        
+        assert guideline.display_name == guideline_spec_definition["display_name"]
+        assert guideline.condition == guideline_spec_definition["condition"]
+        assert guideline.action == guideline_spec_definition["action"]
+        assert guideline.tool == guideline_spec_definition["tool"]
+    
+    def test_valid_guideline_init_python_tool(self, valid_agent_guideline):
+        guideline_spec_definition = valid_agent_guideline
+
+        @tool(name=guideline_spec_definition.get("tool") ,description="test tool")
+        def test_tool():
+            return None
+
+        guideline = AgentGuideline(
+            display_name=guideline_spec_definition.get("display_name"),
+            condition=guideline_spec_definition.get("condition"),
+            action=guideline_spec_definition.get("action"),
+            tool=test_tool
+        )
+        
+        assert guideline.display_name == guideline_spec_definition["display_name"]
+        assert guideline.condition == guideline_spec_definition["condition"]
+        assert guideline.action == guideline_spec_definition["action"]
+        assert guideline.tool == guideline_spec_definition["tool"]
+
+
+    def test_guideline_missing_optional_params(self, agent_guideline_missing_optional_values):
+        guideline_spec = agent_guideline_missing_optional_values["spec"]
+        missing_value = agent_guideline_missing_optional_values["missing"]
+
+        guideline = AgentGuideline(
+            **guideline_spec
+            )
+
+        for key in guideline_spec:
+            if key == missing_value:
+                assert getattr(guideline, key) is None
+            else:
+                assert getattr(guideline, key) == guideline_spec.get(key)
+
+    def test_guideline_missing_required_params(self, agent_guideline_missing_required_values):
+        guideline_spec = agent_guideline_missing_required_values["spec"]
+
+        with pytest.raises(ValidationError) as e:
+            _ = AgentGuideline(**guideline_spec)

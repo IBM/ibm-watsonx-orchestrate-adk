@@ -31,14 +31,18 @@ class Credentials:
             url: str | None = None,
             iam_url: str | None = None,
             api_key: str | None = None,
+            username: str | None = None,
+            password: str | None = None,
             token: str | None = None,
             verify: str | bool | None = None,
             auth_type: str | None = None,
     ) -> None:
         env_credentials = Credentials._get_values_from_env_vars()
         self.url = url
-        self.iam_url = iam_url if iam_url is not None else "https://iam.platform.saas.ibm.com"
+        self.iam_url = iam_url
         self.api_key = api_key
+        self.username = username
+        self.password = password
         self.token = token
         self.local_global_token = None
         self.verify = verify

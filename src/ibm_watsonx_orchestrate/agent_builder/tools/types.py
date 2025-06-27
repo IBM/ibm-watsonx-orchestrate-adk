@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Any, Dict, Literal, Optional
+from typing import List, Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices
 from ibm_watsonx_orchestrate.utils.request import BadRequest
@@ -11,11 +11,14 @@ class ToolPermission(str, Enum):
     READ_WRITE = 'read_write'
     ADMIN = 'admin'
 
+class PythonToolKind(str, Enum):
+    JOIN_TOOL = 'join_tool'
+    TOOL = 'tool'
 
 class JsonSchemaObject(BaseModel):
     model_config = ConfigDict(extra='allow')
 
-    type: Optional[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null']] = None
+    type: Optional[Union[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null'], List[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null']]]] = None
     title: str | None = None
     description: str | None = None
     properties: Optional[Dict[str, 'JsonSchemaObject']] = None
@@ -35,13 +38,19 @@ class JsonSchemaObject(BaseModel):
     aliasName: str | None = None
     "Runtime feature where the sdk can provide the original name of a field before prefixing"
 
+    @model_validator(mode='after')
+    def normalize_type_field(self) -> 'JsonSchemaObject':
+        if isinstance(self.type, list):
+            self.type = self.type[0]
+        return self
+
 
 class ToolRequestBody(BaseModel):
     model_config = ConfigDict(extra='allow')
 
     type: Literal['object']
     properties: Dict[str, JsonSchemaObject]
-    required: List[str]
+    required: Optional[List[str]] = None
 
 
 class ToolResponseBody(BaseModel):
@@ -53,7 +62,7 @@ class ToolResponseBody(BaseModel):
     items: JsonSchemaObject = None
     uniqueItems: bool = None
     anyOf: List['JsonSchemaObject'] = None
-    required: List[str] = None
+    required: Optional[List[str]] = None
 
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
@@ -85,6 +94,11 @@ class OpenApiSecurityScheme(BaseModel):
 
 HTTP_METHOD = Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
+class CallbackBinding(BaseModel):
+    callback_url: str
+    method: HTTP_METHOD
+    input_schema: ToolRequestBody
+    output_schema: ToolResponseBody
 
 class OpenApiToolBinding(BaseModel):
     http_method: HTTP_METHOD
@@ -93,6 +107,7 @@ class OpenApiToolBinding(BaseModel):
     security: Optional[List[OpenApiSecurityScheme]] = None
     servers: Optional[List[str]] = None
     connection_id: str | None = None
+    callback: CallbackBinding = None
 
     @model_validator(mode='after')
     def validate_openapi_tool_binding(self):
@@ -129,6 +144,14 @@ class SkillToolBinding(BaseModel):
 class ClientSideToolBinding(BaseModel):
     pass
 
+class McpToolBinding(BaseModel):
+    server_url: Optional[str] = None
+    source: str
+    connections: Dict[str, str] | None
+
+class FlowToolBinding(BaseModel):
+    flow_id: str
+    model: Optional[dict] = None
 
 class ToolBinding(BaseModel):
     openapi: OpenApiToolBinding = None
@@ -136,6 +159,8 @@ class ToolBinding(BaseModel):
     wxflows: WxFlowsToolBinding = None
     skill: SkillToolBinding = None
     client_side: ClientSideToolBinding = None
+    mcp: McpToolBinding = None
+    flow: FlowToolBinding = None
 
     @model_validator(mode='after')
     def validate_binding_type(self) -> 'ToolBinding':
@@ -144,7 +169,9 @@ class ToolBinding(BaseModel):
             self.python is not None,
             self.wxflows is not None,
             self.skill is not None,
-            self.client_side is not None
+            self.client_side is not None,
+            self.mcp is not None,
+            self.flow is not None
         ]
         if sum(bindings) == 0:
             raise BadRequest("One binding must be set")
@@ -152,12 +179,58 @@ class ToolBinding(BaseModel):
             raise BadRequest("Only one binding can be set")
         return self
 
-
 class ToolSpec(BaseModel):
     name: str
+    display_name: str | None = None
     description: str
     permission: ToolPermission
     input_schema: ToolRequestBody = None
     output_schema: ToolResponseBody = None
     binding: ToolBinding = None
+    toolkit_id: str | None = None
+    is_async: bool = False
 
+    def is_custom_join_tool(self) -> bool:
+        if self.binding.python is None:
+            return False
+
+        # The code below validates the input schema to have the following structure:
+        # {
+        #     "type": "object",
+        #     "properties": {
+        #         "messages": {
+        #             "type": "array",
+        #             "items": {
+        #                 "type": "object",
+        #             },
+        #         },
+        #         "task_results": {
+        #             "type": "object",
+        #         },
+        #         "original_query": {
+        #             "type": "string",
+        #         },
+        #     },
+        #     "required": {"original_query", "task_results", "messages"},
+        # }
+
+        input_schema = self.input_schema
+        if input_schema.type != 'object':
+            return False
+
+        required_fields = {"original_query", "task_results", "messages"}
+        if input_schema.required is None or set(input_schema.required) != required_fields:
+            return False
+        if input_schema.properties is None or set(input_schema.properties.keys()) != required_fields:
+            return False
+
+        if input_schema.properties["messages"].type != "array":
+            return False
+        if not input_schema.properties["messages"].items or input_schema.properties["messages"].items.type != "object":
+            return False
+        if input_schema.properties["task_results"].type != "object":
+            return False
+        if input_schema.properties["original_query"].type != "string":
+            return False
+
+        return True

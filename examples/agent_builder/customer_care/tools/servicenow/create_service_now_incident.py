@@ -10,10 +10,9 @@ from pydantic import Field, BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 from ibm_watsonx_orchestrate.run import connections
 
-from ibm_watsonx_orchestrate.client.connections import ConnectionType
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType
 
 CONNECTION_SNOW = 'service-now'
-CONNECTION_SNOW_URL = 'service-now-url'
 
 class ServiceNowIncidentResponse(BaseModel):
     """
@@ -38,27 +37,29 @@ class ServiceNowIncident(BaseModel):
 @tool(
     permission=ToolPermission.READ_WRITE,
     expected_credentials=[
-        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH},
-        {"app_id": CONNECTION_SNOW_URL, "type": ConnectionType.KEY_VALUE}
+        {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH}
     ]
 )
 def create_service_now_incident(
         short_description: str,
         description: Optional[str] = None,
         urgency: Optional[int] = 3
-) -> ServiceNowIncident:
+):
     """
     Create a new ServiceNow incident.
 
-    :param short_description: A brief summary of the incident.
-    :param description: Detailed information about the incident (optional).
-    :param urgency: Urgency level (1 - High, 2 - Medium, 3 - Low, default is 3).
-    :returns: The created incident details including incident number and system ID.
+    Args:
+        short_description: A brief summary of the incident.
+        description: Detailed information about the incident (optional).
+        urgency: Urgency level (1 - High, 2 - Medium, 3 - Low, default is 3).
+
+    Returns:
+        The created incident details including incident number and system ID.
     """
-    base_url = connections.key_value(CONNECTION_SNOW_URL)['url']
+    creds = connections.basic_auth(CONNECTION_SNOW)
+    base_url = creds.url
     url = f"{base_url}/api/now/table/incident"
 
-    creds = connections.basic_auth(CONNECTION_SNOW)
     headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -98,7 +99,7 @@ def create_service_now_incident(
         state=data['state'],
         urgency=data['urgency'],
         created_on=data['opened_at']
-    )
+    ).model_dump_json()
 
 # if __name__ == '__main__':
 #     incident = create_service_now_incident(short_description='Test Incident', description='This is a test incident')

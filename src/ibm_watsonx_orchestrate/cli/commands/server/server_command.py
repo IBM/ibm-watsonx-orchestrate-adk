@@ -1,28 +1,32 @@
+import importlib.resources as resources
 import logging
-import sys
-import subprocess
-import tempfile
-from pathlib import Path
-import requests
-import time
 import os
 import platform
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from urllib.parse import urlparse
 
-
-import typer
-import importlib.resources as resources
 import jwt
+import requests
+import typer
+from dotenv import dotenv_values
 
-from dotenv import dotenv_values, load_dotenv
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, check_token_validity, is_local_dev
+from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
 
-from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login, _decode_token
+from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
+
+from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, \
+    ENV_ACCEPT_LICENSE
+
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
-    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, ENVIRONMENTS_SECTION_HEADER, ENV_WXO_URL_OPT, \
-    CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, AUTH_SECTION_HEADER
-from dotenv import dotenv_values, load_dotenv
+    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER, LICENSE_HEADER, \
+    ENV_ACCEPT_LICENSE
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,17 +54,40 @@ def ensure_docker_compose_installed() -> list:
         typer.echo("Unable to find an installed docker-compose or docker compose")
         sys.exit(1)
 
-def docker_login(iam_api_key: str, registry_url: str) -> None:
+def docker_login(api_key: str, registry_url: str, username:str = "iamapikey") -> None:
     logger.info(f"Logging into Docker registry: {registry_url} ...")
     result = subprocess.run(
-        ["docker", "login", "-u", "iamapikey", "--password-stdin", registry_url],
-        input=iam_api_key.encode("utf-8"),
+        ["docker", "login", "-u", username, "--password-stdin", registry_url],
+        input=api_key.encode("utf-8"),
         capture_output=True,
     )
     if result.returncode != 0:
         logger.error(f"Error logging into Docker:\n{result.stderr.decode('utf-8')}")
         sys.exit(1)
     logger.info("Successfully logged in to Docker.")
+
+def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
+    if env_dict.get('WO_DEVELOPER_EDITION_SKIP_LOGIN', None) == 'true':
+        logger.info('WO_DEVELOPER_EDITION_SKIP_LOGIN is set to true, skipping login.')
+        logger.warning('If the developer edition images are not already pulled this call will fail without first setting WO_DEVELOPER_EDITION_SKIP_LOGIN=false')
+    else:
+        if not env_dict.get("REGISTRY_URL"):
+            raise ValueError("REGISTRY_URL is not set.")
+        registry_url = env_dict["REGISTRY_URL"].split("/")[0]
+        if source == "internal":
+            iam_api_key = env_dict.get("DOCKER_IAM_KEY")
+            if not iam_api_key:
+                raise ValueError("DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
+            docker_login(iam_api_key, registry_url, "iamapikey")
+        elif source == "myibm":
+            wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
+            if not wo_entitlement_key:
+                raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
+            docker_login(wo_entitlement_key, registry_url, "cp")
+        elif source == "orchestrate":
+            wo_auth_type = env_dict.get("WO_AUTH_TYPE")
+            api_key, username = get_docker_cred_by_wo_auth_type(env_dict, wo_auth_type)
+            docker_login(api_key, registry_url, username)
 
 
 def get_compose_file() -> Path:
@@ -91,9 +118,113 @@ def merge_env(
         user_env = dotenv_values(str(user_env_path))
         merged.update(user_env)
 
-
     return merged
 
+def get_default_registry_env_vars_by_dev_edition_source(default_env: dict, user_env:dict, source: str) -> dict[str,str]:
+    component_registry_var_names = {key for key in default_env if key.endswith("_REGISTRY")} | {'REGISTRY_URL'}
+
+    registry_url = user_env.get("REGISTRY_URL", None)
+    if not registry_url:
+        if source == "internal":
+            registry_url = "us.icr.io/watson-orchestrate-private"
+        elif source == "myibm":
+            registry_url = "cp.icr.io/cp/wxo-lite"
+        elif source == "orchestrate":
+            # extract the hostname from the WO_INSTANCE URL, and replace the "api." prefix with "registry." to construct the registry URL per region
+            wo_url = user_env.get("WO_INSTANCE")
+            
+            if not wo_url:
+                raise ValueError("WO_INSTANCE is required in the environment file if the developer edition source is set to 'orchestrate'.")
+            
+            parsed = urlparse(wo_url)
+            hostname = parsed.hostname
+            
+            if not hostname or not hostname.startswith("api."):
+                raise ValueError(f"Invalid WO_INSTANCE URL: '{wo_url}'. It should starts with 'api.'")
+            
+            registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
+        else:
+            raise ValueError(f"Unknown value for developer edition source: {source}. Must be one of ['internal', 'myibm', 'orchestrate'].")
+    
+    result = {name: registry_url for name in component_registry_var_names}
+    return result
+
+def get_dev_edition_source(env_dict: dict | None) -> str:
+    if not env_dict:
+        return "myibm"
+    
+    source = env_dict.get("WO_DEVELOPER_EDITION_SOURCE")
+
+    if source:
+        return source
+    if env_dict.get("WO_INSTANCE"):
+        return "orchestrate"
+    return "myibm"
+
+def get_docker_cred_by_wo_auth_type(env_dict: dict, auth_type: str | None) -> tuple[str, str]:
+    # Try infer the auth type if not provided
+    if not auth_type:
+        instance_url = env_dict.get("WO_INSTANCE")
+        if instance_url:
+            if ".cloud.ibm.com" in instance_url:
+                auth_type = "ibm_iam"
+            elif ".ibm.com" in instance_url:
+                auth_type = "mcsp"
+            elif "https://cpd" in instance_url:
+                auth_type = "cpd"
+    
+    if auth_type in {"mcsp", "ibm_iam"}:
+        wo_api_key = env_dict.get("WO_API_KEY")
+        if not wo_api_key:
+            raise ValueError("WO_API_KEY is required in the environment file if the WO_AUTH_TYPE is set to 'mcsp' or 'ibm_iam'.")
+        instance_url = env_dict.get("WO_INSTANCE")
+        if not instance_url:
+            raise ValueError("WO_INSTANCE is required in the environment file if the WO_AUTH_TYPE is set to 'mcsp' or 'ibm_iam'.")
+        path = urlparse(instance_url).path
+        if not path or '/' not in path:
+            raise ValueError(f"Invalid WO_INSTANCE URL: '{instance_url}'. It should contain the instance (tenant) id.")
+        tenant_id = path.split('/')[-1]
+        return wo_api_key, f"wxouser-{tenant_id}"
+    elif auth_type == "cpd":
+        wo_api_key = env_dict.get("WO_API_KEY")
+        wo_password = env_dict.get("WO_PASSWORD")
+        if not wo_api_key and not wo_password:
+            raise ValueError("WO_API_KEY or WO_PASSWORD is required in the environment file if the WO_AUTH_TYPE is set to 'cpd'.")
+        wo_username = env_dict.get("WO_USERNAME")
+        if not wo_username:
+            raise ValueError("WO_USERNAME is required in the environment file if the WO_AUTH_TYPE is set to 'cpd'.")
+        return wo_api_key or wo_password, wo_username  # type: ignore[return-value]
+    else:
+        raise ValueError(f"Unknown value for WO_AUTH_TYPE: '{auth_type}'. Must be one of ['mcsp', 'ibm_iam', 'cpd'].")
+    
+def apply_server_env_dict_defaults(provided_env_dict: dict) -> dict:
+
+    env_dict = provided_env_dict.copy()
+
+    env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=env_dict)
+
+    model_config = None
+    try:
+        use_model_proxy = env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME")
+        if not use_model_proxy or use_model_proxy.lower() != 'true':
+            model_config = WatsonXAIEnvConfig.model_validate(env_dict)
+    except ValueError:
+        pass
+    
+    # If no watsonx ai detials are found, try build model gateway config
+    if not model_config:
+        try:
+            model_config = ModelGatewayEnvConfig.model_validate(env_dict)
+        except ValueError as e :
+            pass
+    
+    if not model_config:
+        logger.error("Missing required model access environment variables. Please set Watson Orchestrate credentials 'WO_INSTANCE' and 'WO_API_KEY'. For CPD, set 'WO_INSTANCE', 'WO_USERNAME' and either 'WO_API_KEY' or 'WO_PASSWORD'. Alternatively, you can set WatsonX AI credentials directly using 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
+        sys.exit(1)
+
+    env_dict.update(model_config.model_dump(exclude_none=True))
+
+    return env_dict
 
 def apply_llm_api_key_defaults(env_dict: dict) -> None:
     llm_value = env_dict.get("WATSONX_APIKEY")
@@ -108,6 +239,27 @@ def apply_llm_api_key_defaults(env_dict: dict) -> None:
         env_dict.setdefault("ASSISTANT_LLM_SPACE_ID", space_value)
         env_dict.setdefault("ASSISTANT_EMBEDDINGS_SPACE_ID", space_value)
         env_dict.setdefault("ROUTING_LLM_SPACE_ID", space_value)
+
+def _is_docker_container_running(container_name):
+    ensure_docker_installed()
+    command = [ "docker",
+                "ps",
+                "-f",
+                f"name={container_name}"
+            ]
+    result = subprocess.run(command, env=os.environ, capture_output=True)
+    if container_name in str(result.stdout):
+        return True
+    return False
+
+def _check_exclusive_observibility(langfuse_enabled: bool, ibm_tele_enabled: bool):
+    if langfuse_enabled and ibm_tele_enabled:
+        return False
+    if langfuse_enabled and _is_docker_container_running("docker-frontend-server-1"):
+        return False
+    if ibm_tele_enabled and _is_docker_container_running("docker-langfuse-web-1"):
+        return False
+    return True
 
 def write_merged_env_file(merged_env: dict) -> Path:
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
@@ -136,9 +288,33 @@ def refresh_local_credentials() -> None:
     clear_protected_env_credentials_token()
     _login(name=PROTECTED_ENV_NAME, apikey=None)
 
+NON_SECRET_ENV_ITEMS = {
+    "WO_DEVELOPER_EDITION_SOURCE",
+    "WO_INSTANCE",
+    "USE_SAAS_ML_TOOLS_RUNTIME",
+    "AUTHORIZATION_URL",
+    "OPENSOURCE_REGISTRY_PROXY"
+}
+def persist_user_env(env: dict, include_secrets: bool = False) -> None:
+    if include_secrets:
+        persistable_env = env
+    else:
+        persistable_env = {k:env[k] for k in NON_SECRET_ENV_ITEMS if k in env}
+
+    cfg = Config()
+    cfg.save(
+        {
+            USER_ENV_CACHE_HEADER: persistable_env
+        }
+    )
+
+def get_persisted_user_env() -> dict | None:
+    cfg = Config()
+    user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
+    return user_env
 
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, with_flow_runtime=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -170,12 +346,14 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
             '--profile',
             'langfuse'
         ]
+    elif experimental_with_ibm_telemetry:
+        command = compose_command + [
+            '--profile',
+            'ibm-telemetry'
+        ]
     else:
         command = compose_command
 
-    # Check if we start the server with tempus-runtime.
-    if with_flow_runtime:
-        command += ['--profile', 'with-tempus-runtime']
 
     command += [
         "-f", str(compose_path),
@@ -184,7 +362,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, wit
         "--scale",
         "ui=0",
         "-d",
-        "--remove-orphans"
+        "--remove-orphans",
     ]
 
     logger.info("Starting docker-compose services...")
@@ -247,12 +425,25 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     ensure_docker_installed()
-    default_env_path = get_default_env_file()
-    logger.debug(f"user env file: {user_env_file}")
-    merged_env_dict = merge_env(
-        default_env_path,
-        user_env_file if user_env_file else None
-    )
+
+    default_env = read_env_file(get_default_env_file())
+    user_env = read_env_file(user_env_file) if user_env_file else {}
+    if not user_env:
+        user_env = get_persisted_user_env() or {}
+
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
+
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
+
+    # Merge the default environment with the user environment
+    merged_env_dict = {
+        **default_env,
+        **user_env,
+    }
 
     _login(name=PROTECTED_ENV_NAME)
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
@@ -262,21 +453,20 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     tenant_id = token.get('woTenantId', None)
     merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
 
-
-    registry_url = merged_env_dict.get("REGISTRY_URL")
-    if not registry_url:
-        logger.error("Error: REGISTRY_URL is required in the environment file.")
-        sys.exit(1)
-
     agent_client = instantiate_client(AgentClient)
     agents = agent_client.get()
     if not agents:
         logger.error("No agents found for the current environment. Please create an agent before starting the chat.")
         sys.exit(1)
 
-    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
-    if iam_api_key:
-        docker_login(iam_api_key, registry_url)
+    try:
+        docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
+    except ValueError as ignored:
+        # do nothing, as the docker login here is not mandatory
+        pass
+
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
 
     #These are to removed warning and not used in UI component
     if not 'WATSONX_SPACE_ID' in merged_env_dict:
@@ -407,6 +597,8 @@ def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
     command = compose_command + [
         "-f", str(compose_path),
         "--env-file", str(final_env_file),
+        "--profile",
+        "*",
         "logs",
         "-f"
     ]
@@ -427,6 +619,107 @@ def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
         )
         sys.exit(1)
 
+def confirm_accepts_license_agreement(accepts_by_argument: bool):
+    cfg = Config()
+    accepts_license = cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE)
+    if accepts_license != True:
+        logger.warning(('''
+            By running the following command your machine will install IBM watsonx Orchestrate Developer Edition, which is governed by the following IBM license agreement:
+            - * https://www.ibm.com/support/customer/csol/terms/?id=L-YRMZ-PB6MHM&lc=en
+            Additionally, the following prerequisite open source programs will be obtained from Docker Hub and will be installed on your machine. Each of the below programs are Separately Licensed Code, and are governed by the separate license agreements identified below, and not by the IBM license agreement:
+            * redis (7.2)               - https://github.com/redis/redis/blob/7.2.7/COPYING
+            * minio                     - https://github.com/minio/minio/blob/master/LICENSE
+            * milvus-io                 - https://github.com/milvus-io/milvus/blob/master/LICENSE
+            * etcd                      - https://github.com/etcd-io/etcd/blob/main/LICENSE
+            * clickhouse-server         - https://github.com/ClickHouse/ClickHouse/blob/master/LICENSE
+            * langfuse                  - https://github.com/langfuse/langfuse/blob/main/LICENSE
+            After installation, you are solely responsible for obtaining and installing updates and fixes, including security patches, for the above prerequisite open source programs. To update images the customer will run `orchestrate server reset && orchestrate server start -e .env`.
+        ''').strip())
+        if not accepts_by_argument:
+            result = input('\nTo accept the terms and conditions of the IBM license agreement and the Separately Licensed Code licenses above please enter "I accept": ')
+        else:
+            result = None
+        if result == 'I accept' or accepts_by_argument:
+            cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, True)
+        else:
+            logger.error('The terms and conditions were not accepted, exiting.')
+            exit(1)
+
+def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
+    """
+    Automatically detect and configure CALLBACK_HOST_URL if it's empty.
+    
+    Args:
+        merged_env_dict: The merged environment dictionary
+        
+    Returns:
+        Updated environment dictionary with CALLBACK_HOST_URL set
+    """
+    callback_url = merged_env_dict.get('CALLBACK_HOST_URL', '').strip()
+    
+    # Only auto-configure if CALLBACK_HOST_URL is empty
+    if not callback_url:
+        logger.info("Auto-detecting local IP address for async tool callbacks...")
+        
+        system = platform.system()
+        ip = None
+        
+        try:
+            if system in ("Linux", "Darwin"):
+                result = subprocess.run(["ifconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Unix ifconfig output format: "inet 192.168.1.100 netmask 0xffffff00 broadcast 192.168.1.255"
+                    if line.startswith("inet ") and "127.0.0.1" not in line:
+                        candidate_ip = line.split()[1]
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            elif system == "Windows":
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Windows ipconfig output format: "   IPv4 Address. . . . . . . . . . . : 192.168.1.100"
+                    if "IPv4 Address" in line and ":" in line:
+                        candidate_ip = line.split(":")[-1].strip()
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            else:
+                logger.warning(f"Unsupported platform: {system}")
+                ip = None
+                
+        except Exception as e:
+            logger.debug(f"IP detection failed on {system}: {e}")
+            ip = None
+        
+        if ip:
+            callback_url = f"http://{ip}:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Auto-configured CALLBACK_HOST_URL to: {callback_url}")
+        else:
+            # Fallback for localhost
+            callback_url = "http://host.docker.internal:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Using Docker internal URL: {callback_url}")
+            logger.info("For external tools, consider using ngrok or similar tunneling service.")
+    else:
+        logger.info(f"Using existing CALLBACK_HOST_URL: {callback_url}")
+    
+    return merged_env_dict
+
 @server_app.command(name="start")
 def server_start(
     user_env_file: str = typer.Option(
@@ -436,47 +729,79 @@ def server_start(
     ),
     experimental_with_langfuse: bool = typer.Option(
         False,
-        '--experimental-with-langfuse', '-l',
+        '--with-langfuse', '-l',
+        help='Option to enable Langfuse support.'
+    ),
+    experimental_with_ibm_telemetry: bool = typer.Option(
+        False,
+        '--with-ibm-telemetry', '-i',
         help=''
     ),
-    with_flow_runtime: bool = typer.Option(
+    persist_env_secrets: bool = typer.Option(
         False,
-        '--with-tempus-runtime', '-f',
-        help='Option to start server with tempus-runtime.',
+        '--persist-env-secrets', '-p',
+        help='Option to store secret values from the provided env file in the config file (~/.config/orchestrate/config.yaml)',
         hidden=True
-    )
+    ),
+    accept_terms_and_conditions: bool = typer.Option(
+        False,
+        "--accept-terms-and-conditions",
+        help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
+    ),
 ):
+    confirm_accepts_license_agreement(accept_terms_and_conditions)
+
     if user_env_file and not Path(user_env_file).exists():
         logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
         sys.exit(1)
     ensure_docker_installed()
 
-    default_env_path = get_default_env_file()
+    default_env = read_env_file(get_default_env_file())
+    user_env = read_env_file(user_env_file) if user_env_file else {}
+    persist_user_env(user_env, include_secrets=persist_env_secrets)
+    
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
 
-    merged_env_dict = merge_env(
-        default_env_path,
-        Path(user_env_file) if user_env_file else None
-    )
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
 
-    merged_env_dict['DBTAG'] = get_dbtag_from_architecture(merged_env_dict=merged_env_dict)
+    # Merge the default environment with the user environment
+    merged_env_dict = {
+        **default_env,
+        **user_env,
+    }
 
-    iam_api_key = merged_env_dict.get("DOCKER_IAM_KEY")
-    if not iam_api_key:
-        logger.error("Error: DOCKER_IAM_KEY is required in the environment file.")
+    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
+    if not _check_exclusive_observibility(experimental_with_langfuse, experimental_with_ibm_telemetry):
+        logger.error("Please select either langfuse or ibm telemetry for observability not both")
         sys.exit(1)
 
-    registry_url = merged_env_dict.get("REGISTRY_URL")
-    if not registry_url:
-        logger.error("Error: REGISTRY_URL is required in the environment file.")
-        sys.exit(1)
+    # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
+    if experimental_with_langfuse:
+        merged_env_dict['LANGFUSE_ENABLED'] = 'true'
+        
+    if experimental_with_ibm_telemetry:
+        merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
-    docker_login(iam_api_key, registry_url)
+    try:
+        docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
+    except ValueError as e:
+        logger.error(f"Error: {e}")
+        sys.exit(1)
 
     apply_llm_api_key_defaults(merged_env_dict)
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse, with_flow_runtime=with_flow_runtime)
+    run_compose_lite(final_env_file=final_env_file, 
+                     experimental_with_langfuse=experimental_with_langfuse,
+                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry)
 
     run_db_migration()
 
@@ -501,10 +826,9 @@ def server_start(
         logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
+
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
-    if with_flow_runtime:
-        logger.info(f"Starting with flow runtime")
 
 @server_app.command(name="stop")
 def server_stop(

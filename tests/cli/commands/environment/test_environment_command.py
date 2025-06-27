@@ -9,6 +9,8 @@ class TestEnvActivate:
     base_params = {
         "name": "testing",
         "apikey": "123",
+        "username":None,
+        "password": None,
         "registry": str(RegistryType.LOCAL),
         'test_package_version_override': None
     }
@@ -63,7 +65,9 @@ class TestEnvAdd:
         "url": "testing url",
         "should_activate": True,
         "iam_url": None,
-        "type": None
+        "type": None,
+        "insecure": False,
+        "verify": None
     }
 
     def test_add(self):

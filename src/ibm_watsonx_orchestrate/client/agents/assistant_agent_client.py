@@ -10,7 +10,7 @@ class AssistantAgentClient(BaseAPIClient):
         return self._post("/assistants/watsonx", data=payload)
 
     def get(self) -> dict:
-        return self._get("/assistants/watsonx")
+        return self._get("/assistants/watsonx?include_hidden=true")
 
     def update(self, agent_id: str, data: dict) -> dict:
         return self._patch(f"/assistants/watsonx/{agent_id}", data=data)
@@ -23,9 +23,9 @@ class AssistantAgentClient(BaseAPIClient):
 
     def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
-        return self._get(f"/assistants/watsonx?{'&'.join(formatted_agent_names)}")
+        return self._get(f"/assistants/watsonx?{'&'.join(formatted_agent_names)}&include_hidden=true")
     
-    def get_draft_by_id(self, agent_id: str) -> List[dict]:
+    def get_draft_by_id(self, agent_id: str) -> dict | str:
         if agent_id is None:
             return ""
         else:
@@ -36,3 +36,7 @@ class AssistantAgentClient(BaseAPIClient):
                 if e.response.status_code == 404 and "Assistant not found" in e.response.text:
                     return ""
                 raise(e)
+    
+    def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
+        formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
+        return self._get(f"/assistants/watsonx?{'&'.join(formatted_agent_ids)}&include_hidden=true")
