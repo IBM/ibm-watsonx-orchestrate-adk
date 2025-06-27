@@ -507,7 +507,20 @@ class ToolsController:
 
     def list_tools(self, verbose=False):
         response = self.get_client().get()
-        tool_specs = [ToolSpec.model_validate(tool) for tool in response]
+        tool_specs = []
+        parse_errors = []
+
+        for tool in response:
+            try:
+                tool_specs.append(ToolSpec.model_validate(tool))
+            except Exception as e:
+                name = tool.get('name', None)
+                parse_errors.append([
+                    f"Tool '{name}' could not be parsed",
+                    json.dumps(tool),
+                    e
+                ])
+
         tools = [BaseTool(spec=spec) for spec in tool_specs]
 
         if verbose:
@@ -595,6 +608,10 @@ class ToolsController:
                 )
 
             rich.print(table)
+
+            for error in parse_errors:
+                for l in error:
+                    logger.error(l)
 
     def get_all_tools(self) -> dict:
         return {entry["name"]: entry["id"] for entry in self.get_client().get()}

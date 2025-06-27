@@ -7,6 +7,7 @@ from pydantic import BaseModel, model_validator
 class PromptState(str,Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
+    MISSING = ""
 
 
 class AgentPrompt(BaseModel):
