@@ -1,12 +1,18 @@
 {
+    "dataset_name": "",
+    "total_steps": 21,
+    "llm_step": 11,
     "total_tool_calls": 5,
     "expected_tool_calls": 3,
-    "relevant_tool_calls": 4,
     "correct_tool_calls": 2,
+    "relevant_tool_calls": 5,
     "total_routing_calls": 1,
-    "expected_routing_calls": 0,
-    "non_transfer_tool_calls": 4,
-    "tool_call_accuracy": 0.5,
-    "tool_call_relevancy": 1.0,
-    "agent_routing_accuracy": 0.0
+    "relevant_routing_calls": 1,
+    "tool_calls_with_incorrect_parameter": 0,
+    "text_match": "Summary Matched",
+    "is_success": false,
+    "avg_resp_time": -1,
+    "tool_call_recall": 0.67,
+    "tool_call_precision": 0.4,
+    "agent_routing_accuracy": 1.0
 }

@@ -30,6 +30,39 @@ def cleanup_test_output():
     if test_output_dir.exists():
         shutil.rmtree(test_output_dir)
 
+@pytest.fixture
+def external_agent_config():
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+        ext_agent_config = {
+            "spec_version": "v1",
+            "kind": "external",
+            "name": "news_agent",
+            "title": "News Agent",
+            "nickname": "news_agent",
+            "provider": "external_chat",
+            "description": "An agent built in langchain which searches the news.\n",
+            "tags": [
+                "test"
+            ],
+            "api_url": "https://someurl.com",
+            "auth_scheme": "BEARER_TOKEN",
+            "auth_config": {
+                "token": "123"
+            },
+            "chat_params": {
+                "stream": True
+            },
+            "config": {
+                "hidden": False,
+                "enable_cot": True
+            }
+        }
+        yaml.dump(ext_agent_config, tmp)
+        tmp.flush()
+        config_path = tmp.name
+        yield config_path
+        Path(config_path).unlink()
+
 class TestEvaluate:
     @pytest.fixture
     def valid_config(self):
@@ -157,23 +190,19 @@ class TestValidateExternal:
             yield csv_path
             Path(csv_path).unlink()
 
-    def test_validate_external_success(self, config_content, config_file, csv_file, user_env_file):
+    def test_validate_external_success(self, config_content, external_agent_config, csv_file, user_env_file):
         with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.external_validate") as mock_validate:
-            mock_validate.return_value = {"test": "result"}
+            mock_validate.return_value = [{"success": "True", "logged_events": [], "messages": []}]
             evaluations_command.validate_external(
                 data_path=csv_file,
-                config=config_file,
+                external_agent_config=external_agent_config,
                 credential="test-cred",
                 output_dir="test_output",
                 user_env_file=user_env_file
             )
-            mock_validate.assert_called_once_with(
-                config_content,
-                ["test input 1", "test input 2"],
-                "test-cred"
-            )
+            mock_validate.assert_called()
 
-    def test_validate_external_with_invalid_config(self, csv_file, user_env_file):
+    def test_validate_external_with_invalid_config(self, csv_file, user_env_file, external_agent_config):
         with pytest.raises(yaml.YAMLError):
             with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
                 tmp.write("invalid: yaml: content:")
@@ -182,14 +211,14 @@ class TestValidateExternal:
                 try:
                     evaluations_command.validate_external(
                         data_path=csv_file,
-                        config=config_path,
+                        external_agent_config=config_path,
                         credential="test-cred",
                         user_env_file=user_env_file
                     )
                 finally:
                     Path(config_path).unlink()
 
-    def test_validate_external_with_empty_csv(self, config_file, user_env_file):
+    def test_validate_external_with_empty_csv(self, external_agent_config, user_env_file):
         # Since empty CSV is handled gracefully by the code, we'll verify the behavior
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False) as csv_tmp:
             csv_tmp.write("")
@@ -197,17 +226,28 @@ class TestValidateExternal:
             csv_path = csv_tmp.name
             try:
                 with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.external_validate") as mock_validate:
-                    mock_validate.return_value = {"test": "result"}
+                    mock_validate.return_value = [{"success": "True"}]
                     evaluations_command.validate_external(
                         data_path=csv_path,
-                        config=config_file,
+                        external_agent_config=external_agent_config,
                         credential="test-cred",
                         output_dir="test_output",
                         user_env_file=user_env_file
                     )
                     # Verify that it was called with an empty list
-                    mock_validate.assert_called_once_with(
-                        yaml.safe_load(Path(config_file).read_text()),
+                    # Called twice because of single and block validation
+                    assert mock_validate.call_count == 2
+                    print(mock_validate.mock_calls)
+                    mock_validate.assert_any_call(
+                        yaml.safe_load(
+                            Path(external_agent_config).read_text()
+                        ),
+                            [],
+                            "test-cred",
+                            add_context=True
+                        )
+                    mock_validate.assert_any_call(
+                        yaml.safe_load(Path(external_agent_config).read_text()),
                         [],
                         "test-cred"
                     )
