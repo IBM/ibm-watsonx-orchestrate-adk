@@ -57,6 +57,12 @@ class ToolKind(str, Enum):
     flow = "flow"
     # skill = "skill"
 
+def _get_connection_environments() -> List[ConnectionEnvironment]:
+    if is_local_dev():
+        return [ConnectionEnvironment.DRAFT]
+    else:
+        return [env.value for env in ConnectionEnvironment]
+
 def validate_app_ids(kind: ToolKind, **args) -> None:
     app_ids = args.get("app_id")
     if not app_ids:
@@ -71,7 +77,14 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
     connections_client = get_connections_client()
 
     imported_connections_list = connections_client.list()
-    imported_connections = {conn.app_id:conn for conn in imported_connections_list}
+    imported_connections = {}
+    for conn in imported_connections_list:
+        app_id = conn.app_id
+        conn_env = conn.environment
+        if app_id in imported_connections:
+            imported_connections[app_id][conn_env] = conn
+        else:
+            imported_connections[app_id] = {conn_env: conn}
 
     for app_id in app_ids:
         if kind == ToolKind.python:
@@ -89,9 +102,23 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
         if app_id not in imported_connections:
             logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections add`")
         else:
-            if kind == ToolKind.openapi and imported_connections.get(app_id).security_scheme == ConnectionSecurityScheme.KEY_VALUE:
-                logger.error(f"Key value application connections can not be bound to an openapi tool")
-                exit(1)
+            environments = _get_connection_environments()
+
+            imported_connection = imported_connections.get(app_id)
+
+            for conn_environment in environments:
+                conn = imported_connection.get(conn_environment)
+
+                if conn is None or conn.security_scheme is None:
+                    logger.error(f"Connection '{app_id}' is not configured in the '{conn_environment}' environment.")
+                    if conn_environment == ConnectionEnvironment.DRAFT:
+                        sys.exit(1)
+                    logger.error("If you deploy this tool without setting the live configuration the tool will error during execution.")
+                    continue
+
+                if kind == ToolKind.openapi and conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
+                    logger.error(f"Key value application connections can not be bound to an openapi tool")
+                    exit(1)
 
 def validate_params(kind: ToolKind, **args) -> None:
     if kind in {"openapi", "python"} and args["file"] is None:
@@ -157,7 +184,14 @@ def validate_python_connections(tool: BaseTool):
 
     provided_connections = list(connections.keys()) if connections else []
     imported_connections_list = connections_client.list()
-    imported_connections = {conn.connection_id:conn for conn in imported_connections_list}
+    imported_connections = {}
+    for conn in imported_connections_list:
+        conn_id = conn.connection_id
+        conn_env = conn.environment
+        if conn_id in imported_connections:
+            imported_connections[conn_id][conn_env] = conn
+        else:
+            imported_connections[conn_id] = {conn_env: conn}
 
     validation_failed = False
 
@@ -186,15 +220,28 @@ def validate_python_connections(tool: BaseTool):
             
         connection_id = connections.get(sanatized_expected_tool_app_id)
         imported_connection = imported_connections.get(connection_id)
-        imported_connection_auth_type = get_connection_type(security_scheme=imported_connection.security_scheme, auth_type=imported_connection.auth_type)
 
         if connection_id and not imported_connection:
             logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being deleted. Please rec-reate the connection and re-import the tool")
             validation_failed = True
+        
+        environments = _get_connection_environments()
 
-        if imported_connection and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
-            logger.error(f"The app-id '{imported_connection.app_id}' is of type '{imported_connection_auth_type.value}'. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
-            validation_failed = True
+        for conn_environment in environments:
+            conn = imported_connection.get(conn_environment)
+            conn_identifier = conn.app_id if conn is not None else connection_id
+            if conn is None or conn.security_scheme is None:
+                logger.error(f"Connection '{conn_identifier}' is not configured in the '{conn_environment}' environment.")
+                if conn_environment == ConnectionEnvironment.DRAFT:
+                    sys.exit(1)
+                logger.error("If you deploy this tool without setting the live configuration the tool will error during execution.")
+                continue
+
+            imported_connection_auth_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
+
+            if conn and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
+                logger.error(f"The app-id '{conn.app_id}' is of type '{imported_connection_auth_type.value}' in the '{conn_environment}' environment. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
+                validation_failed = True
 
     if validation_failed:
         exit(1)

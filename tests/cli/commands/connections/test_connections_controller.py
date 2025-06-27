@@ -893,7 +893,9 @@ class TestListConnections:
         mock_connection_client = MockConnectionClient(
             list_response=self.mock_list_response
         )
-        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
+        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.is_local_dev") as mock_is_local_dev:
+            mock_is_local_dev.return_value = False
             mock_client.return_value = mock_connection_client
 
             list_connections(environment=None)
@@ -902,7 +904,9 @@ class TestListConnections:
         mock_connection_client = MockConnectionClient(
             list_response=self.mock_list_response
         )
-        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
+        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.is_local_dev") as mock_is_local_dev:
+            mock_is_local_dev.return_value = False
             mock_client.return_value = mock_connection_client
 
             list_connections(environment=None, verbose=True)
@@ -911,7 +915,9 @@ class TestListConnections:
         mock_connection_client = MockConnectionClient(
             list_response=[]
         )
-        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
+        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.is_local_dev") as mock_is_local_dev:
+            mock_is_local_dev.return_value = False
             mock_client.return_value = mock_connection_client
 
             list_connections(environment=None)
@@ -924,7 +930,9 @@ class TestListConnections:
         mock_connection_client = MockConnectionClient(
             list_response=[]
         )
-        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
+        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.is_local_dev") as mock_is_local_dev:
+            mock_is_local_dev.return_value = False
             mock_client.return_value = mock_connection_client
 
             list_connections(environment=None, verbose=True)
