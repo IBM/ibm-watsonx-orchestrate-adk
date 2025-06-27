@@ -865,7 +865,7 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.4.0}
     platform: linux/amd64
     user: root
     profiles:
