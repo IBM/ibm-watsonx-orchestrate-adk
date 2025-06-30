@@ -2,7 +2,7 @@ from enum import Enum
 from typing import List, Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
 class ToolPermission(str, Enum):

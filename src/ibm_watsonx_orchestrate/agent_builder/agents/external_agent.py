@@ -1,7 +1,7 @@
 import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .types import ExternalAgentSpec
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
 class ExternalAgent(ExternalAgentSpec):

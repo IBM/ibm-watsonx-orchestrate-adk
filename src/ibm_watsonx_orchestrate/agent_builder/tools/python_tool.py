@@ -15,7 +15,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredential
 from .base_tool import BaseTool
 from .types import PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 _all_tools = []
 logger = logging.getLogger(__name__)

@@ -1,5 +1,5 @@
-spec_version: v1
-kind: native2 # Optional, Default=native, Valid options ['native', 'external', 'assistant']
+spec_version: 
+kind: native # Optional, Default=native, Valid options ['native', 'external', 'assistant']
 name: finance_agent
 description: >
     You are a helpful calculation agent that assists the user in performing math. 
@@ -14,7 +14,7 @@ description: >
     Make sure to include decimal points when the user's input includes a float.
 llm: watsonx/ibm/granite-3-8b-instruct #Optional, Default=watsonx/meta-llama/llama-3-1-70b-instruct
 style: default #Optional, Valid options ['default', 'react']
-# collaborators:
-#   - finance_agent_2
+collaborators:
+  - finance_agent_2
 tools:
   - getCatFact

@@ -13,7 +13,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
 )
 
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 

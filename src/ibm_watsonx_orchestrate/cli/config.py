@@ -6,7 +6,7 @@ from copy import deepcopy
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from enum import Enum
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 # Section Headers
 AUTH_SECTION_HEADER = "auth"

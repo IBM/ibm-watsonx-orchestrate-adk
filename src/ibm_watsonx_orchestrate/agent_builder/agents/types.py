@@ -9,7 +9,7 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
 from pydantic import Field, AliasChoices
 from typing import Annotated
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 

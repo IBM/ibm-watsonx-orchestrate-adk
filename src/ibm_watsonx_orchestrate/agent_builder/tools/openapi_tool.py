@@ -3,7 +3,7 @@ import json
 import os.path
 import logging
 from typing import Dict, Any, List
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 import yaml
 import yaml.constructor

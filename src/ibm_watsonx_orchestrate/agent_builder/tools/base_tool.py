@@ -4,7 +4,7 @@ import yaml
 
 from .types import ToolSpec
 
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 class BaseTool:
     __tool_spec__: ToolSpec

@@ -41,7 +41,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client, g
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from  ibm_watsonx_orchestrate import __version__
 

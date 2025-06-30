@@ -15,7 +15,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     KeyValueConnectionCredentials,
     ConnectionType
 )
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 TEST_APP_ID = "testing"
 TEST_VAR_PREFIX = f"WXO_CONNECTION_{TEST_APP_ID}_"

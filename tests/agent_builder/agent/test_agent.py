@@ -4,7 +4,7 @@ from unittest.mock import patch, mock_open
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 @pytest.fixture()
 def valid_native_agent_sample():

@@ -16,7 +16,7 @@ from typer import BadParameter
 import json
 import pytest
 import uuid
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import tempfile
 import os
 import sys

@@ -5,7 +5,7 @@ import uuid
 import requests
 from unittest import mock
 import sys
-from ibm_watsonx_orchestrate.utils.request import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     AgentsController,
