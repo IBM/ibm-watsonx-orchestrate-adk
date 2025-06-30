@@ -1,0 +1,79 @@
+[
+    {
+        "role": "user",
+        "content": "I work at Workday, I want to get my payslips. My email id is abrennan@workday.net",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "Hello! I am watsonx Orchestrate, an AI assistant, created by IBM. How can I help you today?",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "I work at Workday, I want to get my payslips. My email id is abrennan@workday.net",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "What is your query?",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "I work at Workday, I want to get my payslips. My email id is abrennan@workday.net",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"transfer_to_workday_compensation_agent\", \"args\": {\"query\": \"I want to get my payslips. My email id is abrennan@workday.net\"}, \"id\": \"chatcmpl-tool-6388ba3129034aefa79a933e97\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"UserWorkdayIDs(person_id='', user_id='6dcb8106e8b74b5aabb1fc3ab8ef2b92')\", \"name\": \"get_user_workday_ids\", \"tool_call_id\": \"chatcmpl-tool-9b2b6219c7264ef59f2274ac2d\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"args\": {\"email\": \"abrennan@workday.net\"}, \"name\": \"get_user_workday_ids\", \"tool_call_id\": \"chatcmpl-tool-9b2b6219c7264ef59f2274ac2d\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"PayslipsResponse(payslips=[])\", \"name\": \"get_payslips\", \"tool_call_id\": \"chatcmpl-tool-da39c5054d8d4e5d9c602fbf8b\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"args\": {\"user_id\": \"6dcb8106e8b74b5aabb1fc3ab8ef2b92\"}, \"name\": \"get_payslips\", \"tool_call_id\": \"chatcmpl-tool-da39c5054d8d4e5d9c602fbf8b\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "You do not have any payslips.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    }
+]

@@ -1,3 +1,2 @@
-test_case,Total Step,Agent Step,Ground Truth Calls,Wrong Function Calls,Wrong Parameters,Wrong Routing Calls,Text Match,Journey Success,Avg Resp Time (Secs)
-data3,19,10,3,0,2,0,Summary Matched,False,1.49
-Summary (Average),19.0,10.0,3.0,0.0,0.67,0.0,1.0,0.0,1.49
+dataset_name,total_steps,llm_step,total_tool_calls,expected_tool_calls,correct_tool_calls,relevant_tool_calls,total_routing_calls,relevant_routing_calls,tool_calls_with_incorrect_parameter,text_match,is_success,avg_resp_time,tool_call_recall,tool_call_precision,agent_routing_accuracy
+data3,21,11,5,3,2,5,1,1,0,Summary Matched,False,1.91,0.67,0.4,1.0

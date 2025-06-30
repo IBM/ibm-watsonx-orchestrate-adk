@@ -12,6 +12,36 @@
     {
         "message": {
             "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_country_code\", \"args\": {\"user_id\": \"your user ID\"}, \"id\": \"chatcmpl-tool-0bb19c6421c44e0e8f9656630a\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "user_id": "your user ID"
+            },
+            "expected": [
+                {
+                    "user_id": "3aa5550b7fe348b98d7b5741afc65534"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"null\", \"name\": \"get_user_country_code\", \"tool_call_id\": \"chatcmpl-tool-0bb19c6421c44e0e8f9656630a\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
             "content": "What is your user ID?",
             "type": "text",
             "event": "message.created",
@@ -22,7 +52,7 @@
     {
         "message": {
             "role": "user",
-            "content": "I don't know my user_id. Can you help me get one? I have my email_id.",
+            "content": "I don't know my user ID. Can you help me get it? I know my email ID is lmcneil@workday.net.",
             "type": "text",
             "event": null,
             "conversational_search_metadata": null
@@ -32,7 +62,47 @@
     {
         "message": {
             "role": "assistant",
-            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_workday_ids\", \"args\": {\"email\": \"user\"}, \"id\": \"chatcmpl-tool-28a555d62d444bb7a44321aaa4\"}",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_workday_ids\", \"args\": {\"email\": \"lmcneil@workday.net\"}, \"id\": \"chatcmpl-tool-322b6aa412c54bb09c0c85e9f4\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"UserWorkdayIDs(person_id='9feb1da3167840a9852698a2f228f795', user_id='3aa5550b7fe348b98d7b5741afc65534')\", \"name\": \"get_user_workday_ids\", \"tool_call_id\": \"chatcmpl-tool-322b6aa412c54bb09c0c85e9f4\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_country_code\", \"args\": {\"user_id\": \"3aa5550b7fe348b98d7b5741afc65534\"}, \"id\": \"chatcmpl-tool-86c88eb1342545d6ae549f9614\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"GetUserCountryCodeResponse(country_code='USA')\", \"name\": \"get_user_country_code\", \"tool_call_id\": \"chatcmpl-tool-86c88eb1342545d6ae549f9614\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"update_preferred_name\", \"args\": {\"first_name\": \"first name\", \"last_name\": \"last name\", \"middle_name\": \"middle name\", \"country_code\": \"USA\", \"user_id\": \"3aa5550b7fe348b98d7b5741afc65534\"}, \"id\": \"chatcmpl-tool-c874ab1207db4578b2e3c89436\"}",
             "type": "tool_call",
             "event": "run.step.delta",
             "conversational_search_metadata": null
@@ -40,11 +110,18 @@
         "reason": {
             "reason": "incorrect parameter",
             "actual": {
-                "email": "user"
+                "first_name": "first name",
+                "last_name": "last name",
+                "middle_name": "middle name",
+                "country_code": "USA",
+                "user_id": "3aa5550b7fe348b98d7b5741afc65534"
             },
             "expected": [
                 {
-                    "email": "lmcneil@workday.net"
+                    "user_id": "3aa5550b7fe348b98d7b5741afc65534",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "country_code": "USA"
                 }
             ]
         }
@@ -52,67 +129,7 @@
     {
         "message": {
             "role": "assistant",
-            "content": "{\"type\": \"tool_response\", \"content\": \"UserWorkdayIDs(person_id='', user_id='')\", \"name\": \"get_user_workday_ids\", \"tool_call_id\": \"chatcmpl-tool-28a555d62d444bb7a44321aaa4\"}",
-            "type": "tool_response",
-            "event": "run.step.delta",
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "assistant",
-            "content": "What is your email?",
-            "type": "text",
-            "event": "message.created",
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "user",
-            "content": "lmcneil@workday.net",
-            "type": "text",
-            "event": null,
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "assistant",
-            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_workday_ids\", \"args\": {\"email\": \"lmcneil@workday.net\"}, \"id\": \"chatcmpl-tool-2d77592c188f459d92799e994e\"}",
-            "type": "tool_call",
-            "event": "run.step.delta",
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "assistant",
-            "content": "{\"type\": \"tool_response\", \"content\": \"UserWorkdayIDs(person_id='9feb1da3167840a9852698a2f228f795', user_id='3aa5550b7fe348b98d7b5741afc65534')\", \"name\": \"get_user_workday_ids\", \"tool_call_id\": \"chatcmpl-tool-2d77592c188f459d92799e994e\"}",
-            "type": "tool_response",
-            "event": "run.step.delta",
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "assistant",
-            "content": "{\"type\": \"tool_call\", \"name\": \"get_user_country_code\", \"args\": {\"user_id\": \"3aa5550b7fe348b98d7b5741afc65534\"}, \"id\": \"chatcmpl-tool-5f98cbb76a544517889a62ec1d\"}",
-            "type": "tool_call",
-            "event": "run.step.delta",
-            "conversational_search_metadata": null
-        },
-        "reason": null
-    },
-    {
-        "message": {
-            "role": "assistant",
-            "content": "{\"type\": \"tool_response\", \"content\": \"GetUserCountryCodeResponse(country_code='USA')\", \"name\": \"get_user_country_code\", \"tool_call_id\": \"chatcmpl-tool-5f98cbb76a544517889a62ec1d\"}",
+            "content": "{\"type\": \"tool_response\", \"content\": \"UpdatePreferredNameResult(success=True)\", \"name\": \"update_preferred_name\", \"tool_call_id\": \"chatcmpl-tool-c874ab1207db4578b2e3c89436\"}",
             "type": "tool_response",
             "event": "run.step.delta",
             "conversational_search_metadata": null
@@ -132,7 +149,7 @@
     {
         "message": {
             "role": "user",
-            "content": "John",
+            "content": "My first name is John.",
             "type": "text",
             "event": null,
             "conversational_search_metadata": null
@@ -142,7 +159,7 @@
     {
         "message": {
             "role": "assistant",
-            "content": "What is your middle name?",
+            "content": "What is your last name?",
             "type": "text",
             "event": "message.created",
             "conversational_search_metadata": null
@@ -152,7 +169,7 @@
     {
         "message": {
             "role": "user",
-            "content": "Doe",
+            "content": "My last name is Doe.",
             "type": "text",
             "event": null,
             "conversational_search_metadata": null
@@ -162,7 +179,27 @@
     {
         "message": {
             "role": "assistant",
-            "content": "{\"type\": \"tool_call\", \"name\": \"update_preferred_name\", \"args\": {\"first_name\": \"John\", \"middle_name\": \"Doe\", \"country_code\": \"USA\", \"user_id\": \"3aa5550b7fe348b98d7b5741afc65534\", \"last_name\": \"McNeil\"}, \"id\": \"chatcmpl-tool-2b948fff61f84df0ab8d9203f7\"}",
+            "content": "Do you have a middle name?",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "I don't have a middle name.",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"update_preferred_name\", \"args\": {\"first_name\": \"John\", \"last_name\": \"Doe\", \"middle_name\": \"null\", \"country_code\": \"USA\", \"user_id\": \"3aa5550b7fe348b98d7b5741afc65534\"}, \"id\": \"chatcmpl-tool-f68f7374107044ec91e8693c5a\"}",
             "type": "tool_call",
             "event": "run.step.delta",
             "conversational_search_metadata": null
@@ -171,10 +208,10 @@
             "reason": "incorrect parameter",
             "actual": {
                 "first_name": "John",
-                "middle_name": "Doe",
+                "last_name": "Doe",
+                "middle_name": "null",
                 "country_code": "USA",
-                "user_id": "3aa5550b7fe348b98d7b5741afc65534",
-                "last_name": "McNeil"
+                "user_id": "3aa5550b7fe348b98d7b5741afc65534"
             },
             "expected": [
                 {
@@ -189,7 +226,7 @@
     {
         "message": {
             "role": "assistant",
-            "content": "{\"type\": \"tool_response\", \"content\": \"UpdatePreferredNameResult(success=True)\", \"name\": \"update_preferred_name\", \"tool_call_id\": \"chatcmpl-tool-2b948fff61f84df0ab8d9203f7\"}",
+            "content": "{\"type\": \"tool_response\", \"content\": \"UpdatePreferredNameResult(success=True)\", \"name\": \"update_preferred_name\", \"tool_call_id\": \"chatcmpl-tool-f68f7374107044ec91e8693c5a\"}",
             "type": "tool_response",
             "event": "run.step.delta",
             "conversational_search_metadata": null
