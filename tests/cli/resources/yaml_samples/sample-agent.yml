@@ -1,4 +1,4 @@
-spec_version: 
+spec_version: v1
 kind: native # Optional, Default=native, Valid options ['native', 'external', 'assistant']
 name: finance_agent
 description: >
