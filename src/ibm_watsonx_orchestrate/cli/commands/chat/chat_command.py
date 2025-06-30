@@ -24,6 +24,8 @@ def chat_start(
         url = "http://localhost:3000/chat-lite"
         webbrowser.open(url)
         logger.info(f"Opening chat interface at {url}")
+        # TODO: Remove when connections UI is added
+        logger.warning("When using local chat, requests that the user 'Connect Apps' must be resolved by running `orchestrate connections set-credentials`")
     else:
         logger.error("Unable to start orchestrate UI chat service.  Please check error messages and logs")
 

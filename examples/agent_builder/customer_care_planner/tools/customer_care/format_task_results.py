@@ -7,12 +7,12 @@ from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 def format_task_results(original_query: str, task_results: Dict[str, Any], messages: List[Dict[str, Any]]) -> str:
     """
     Format the results from various tasks executed by a planner agent into a cohesive response.
-    
+
     Args:
         original_query (str): The initial query submitted by the user.
         task_results (Dict[str, Any]): A dictionary containing the outcomes of each task executed within the agent's plan.
         messages (List[Dict[str, Any]]): The history of messages in the current conversation.
-        
+
     Returns:
         str: A formatted string containing the consolidated results.
     """

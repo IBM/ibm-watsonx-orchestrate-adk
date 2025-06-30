@@ -14,6 +14,7 @@ class Agent(AgentSpec):
                 content = json.load(f)
             else:
                 raise ValueError('file must end in .json, .yaml, or .yml')
+            
             if not content.get("spec_version"):
                 raise ValueError(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
             agent = Agent.model_validate(content)

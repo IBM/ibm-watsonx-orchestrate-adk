@@ -122,6 +122,18 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     context_variables = [x.strip() for x in context_variables if x.strip() != ""]
     agent_details["context_variables"] = context_variables
 
+    # hidden = args.get("hidden")
+    # if hidden:
+    #     agent_details["hidden"] = hidden 
+
+    # starter_prompts = args.get("starter_prompts")
+    # if starter_prompts:
+    #     agent_details["starter_prompts"] = starter_prompts 
+
+    # welcome_content = args.get("welcome_content")
+    # if welcome_content:
+    #     agent_details["welcome_content"] = welcome_content 
+
     return agent_details
 
 def parse_create_external_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
@@ -553,7 +565,7 @@ class AgentsController:
 
         return agent
     
-    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+    def dereference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         agent_dict = agent.model_dump()
 
         if agent_dict.get("app_id") or agent.config.model_dump().get("app_id"):
@@ -561,7 +573,7 @@ class AgentsController:
 
         return agent
 
-    def reference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent: 
+    def reference_external_or_assistant_agent_dependencies(self, agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
         agent_dict = agent.model_dump()
 
         if agent_dict.get("connection_id") or agent.config.model_dump().get("connection_id"):
@@ -735,14 +747,25 @@ class AgentsController:
         return knowledge_bases
 
     def list_agents(self, kind: AgentKind=None, verbose: bool=False):
+        parse_errors = []
+
         if kind == AgentKind.NATIVE or kind is None:
             response = self.get_native_client().get()
-            native_agents = [Agent.model_validate(agent) for agent in response]
+            native_agents = []
+            for agent in response:
+                try:
+                    native_agents.append(Agent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([
+                        f"Agent '{name}' could not be parsed",
+                        json.dumps(agent),
+                        e
+                    ])
 
             if verbose:
                 agents_list = []
                 for agent in native_agents:
-
                     agents_list.append(json.loads(agent.dumps_spec()))
 
                 rich.print(rich.json.JSON(json.dumps(agents_list, indent=4)))
@@ -754,14 +777,14 @@ class AgentsController:
                     show_lines=True
                 )
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Description": {},
                     "LLM": {"overflow": "fold"},
                     "Style": {},
                     "Collaborators": {},
                     "Tools": {},
                     "Knowledge Base": {},
-                    "ID": {},
+                    "ID": {"overflow": "fold"},
                 }
                 for column in column_args:
                     native_table.add_column(column, **column_args[column])
@@ -787,7 +810,13 @@ class AgentsController:
         if kind == AgentKind.EXTERNAL or kind is None:
             response = self.get_external_client().get()
 
-            external_agents = [ExternalAgent.model_validate(agent) for agent in response]
+            external_agents = []
+            for agent in response:
+                try:
+                    external_agents.append(ExternalAgent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([f"External Agent {name} could not be parsed", e])
 
             response_dict = {agent["id"]: agent for agent in response}
 
@@ -811,7 +840,7 @@ class AgentsController:
                     show_lines=True
                 )
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Title": {},
                     "Description": {},
                     "Tags": {},
@@ -819,9 +848,9 @@ class AgentsController:
                     "Chat Params": {},
                     "Config": {},
                     "Nickname": {},
-                    "App ID": {},
-                    "ID": {}
-                    }
+                    "App ID": {"overflow": "fold"},
+                    "ID": {"overflow": "fold"}
+                }
                 
                 for column in column_args:
                     external_table.add_column(column, **column_args[column])
@@ -847,7 +876,13 @@ class AgentsController:
         if kind == AgentKind.ASSISTANT or kind is None:
             response = self.get_assistant_client().get()
 
-            assistant_agents = [AssistantAgent.model_validate(agent) for agent in response]
+            assistant_agents = []
+            for agent in response:
+                try:
+                    assistant_agents.append(AssistantAgent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([f"Assistant Agent {name} could not be parsed", e])
 
             response_dict = {agent["id"]: agent for agent in response}
 
@@ -872,17 +907,17 @@ class AgentsController:
                     title="Assistant Agents",
                     show_lines=True)
                 column_args = {
-                    "Name": {},
+                    "Name": {"overflow": "fold"},
                     "Title": {},
                     "Description": {},
                     "Tags": {},
                     "Nickname": {},
                     "CRN": {},
                     "Instance URL": {},
-                    "Assistant ID": {},
-                    "Environment ID": {},
-                    "ID": {}
-                    }
+                    "Assistant ID": {"overflow": "fold"},
+                    "Environment ID": {"overflow": "fold"},
+                    "ID": {"overflow": "fold"}
+                }
                 
                 for column in column_args:
                     assistants_table.add_column(column, **column_args[column])
@@ -901,6 +936,10 @@ class AgentsController:
                         agent.id
                     )
                 rich.print(assistants_table)
+
+        for error in parse_errors:
+            for l in error:
+                logger.error(l)
 
     def remove_agent(self, name: str, kind: AgentKind):
         try:
@@ -969,7 +1008,6 @@ class AgentsController:
         
 
     def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None) -> None:
-    
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem

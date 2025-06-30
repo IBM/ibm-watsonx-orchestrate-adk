@@ -1,0 +1,21 @@
+auth_config:
+  tenant_name: local
+  token: null
+  url: http://localhost:4321
+data_annotation_run: false
+enable_manual_user_input: false
+enable_verbose_logging: true
+llm_user_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  prompt_config: ./prompt/llama_user_prompt.jinja2
+  user_response_style:
+  - Be verbose in messages and confirmations
+num_workers: 2
+output_dir: test_command
+provider_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  provider: watsonx
+skip_available_results: false
+test_paths:
+- benchmarks/wxo_domains/rel_1.8_mock/workday/data/data3.json
+wxo_lite_version: 1.5.0

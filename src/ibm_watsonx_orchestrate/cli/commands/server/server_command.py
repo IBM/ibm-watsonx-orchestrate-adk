@@ -240,6 +240,27 @@ def apply_llm_api_key_defaults(env_dict: dict) -> None:
         env_dict.setdefault("ASSISTANT_EMBEDDINGS_SPACE_ID", space_value)
         env_dict.setdefault("ROUTING_LLM_SPACE_ID", space_value)
 
+def _is_docker_container_running(container_name):
+    ensure_docker_installed()
+    command = [ "docker",
+                "ps",
+                "-f",
+                f"name={container_name}"
+            ]
+    result = subprocess.run(command, env=os.environ, capture_output=True)
+    if container_name in str(result.stdout):
+        return True
+    return False
+
+def _check_exclusive_observibility(langfuse_enabled: bool, ibm_tele_enabled: bool):
+    if langfuse_enabled and ibm_tele_enabled:
+        return False
+    if langfuse_enabled and _is_docker_container_running("docker-frontend-server-1"):
+        return False
+    if ibm_tele_enabled and _is_docker_container_running("docker-langfuse-web-1"):
+        return False
+    return True
+
 def write_merged_env_file(merged_env: dict) -> Path:
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
     with tmp:
@@ -292,7 +313,8 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> None:
+
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -324,8 +346,14 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False) -> 
             '--profile',
             'langfuse'
         ]
+    elif experimental_with_ibm_telemetry:
+        command = compose_command + [
+            '--profile',
+            'ibm-telemetry'
+        ]
     else:
         command = compose_command
+
 
     command += [
         "-f", str(compose_path),
@@ -436,6 +464,9 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     except ValueError as ignored:
         # do nothing, as the docker login here is not mandatory
         pass
+
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
 
     #These are to removed warning and not used in UI component
     if not 'WATSONX_SPACE_ID' in merged_env_dict:
@@ -614,8 +645,80 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool):
             logger.error('The terms and conditions were not accepted, exiting.')
             exit(1)
 
-
-
+def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
+    """
+    Automatically detect and configure CALLBACK_HOST_URL if it's empty.
+    
+    Args:
+        merged_env_dict: The merged environment dictionary
+        
+    Returns:
+        Updated environment dictionary with CALLBACK_HOST_URL set
+    """
+    callback_url = merged_env_dict.get('CALLBACK_HOST_URL', '').strip()
+    
+    # Only auto-configure if CALLBACK_HOST_URL is empty
+    if not callback_url:
+        logger.info("Auto-detecting local IP address for async tool callbacks...")
+        
+        system = platform.system()
+        ip = None
+        
+        try:
+            if system in ("Linux", "Darwin"):
+                result = subprocess.run(["ifconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Unix ifconfig output format: "inet 192.168.1.100 netmask 0xffffff00 broadcast 192.168.1.255"
+                    if line.startswith("inet ") and "127.0.0.1" not in line:
+                        candidate_ip = line.split()[1]
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            elif system == "Windows":
+                result = subprocess.run(["ipconfig"], capture_output=True, text=True, check=True)
+                lines = result.stdout.splitlines()
+                
+                for line in lines:
+                    line = line.strip()
+                    # Windows ipconfig output format: "   IPv4 Address. . . . . . . . . . . : 192.168.1.100"
+                    if "IPv4 Address" in line and ":" in line:
+                        candidate_ip = line.split(":")[-1].strip()
+                        # Validate IP is not loopback or link-local
+                        if (candidate_ip and 
+                            not candidate_ip.startswith("127.") and 
+                            not candidate_ip.startswith("169.254")):
+                            ip = candidate_ip
+                            break
+            
+            else:
+                logger.warning(f"Unsupported platform: {system}")
+                ip = None
+                
+        except Exception as e:
+            logger.debug(f"IP detection failed on {system}: {e}")
+            ip = None
+        
+        if ip:
+            callback_url = f"http://{ip}:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Auto-configured CALLBACK_HOST_URL to: {callback_url}")
+        else:
+            # Fallback for localhost
+            callback_url = "http://host.docker.internal:4321"
+            merged_env_dict['CALLBACK_HOST_URL'] = callback_url
+            logger.info(f"Using Docker internal URL: {callback_url}")
+            logger.info("For external tools, consider using ngrok or similar tunneling service.")
+    else:
+        logger.info(f"Using existing CALLBACK_HOST_URL: {callback_url}")
+    
+    return merged_env_dict
 
 @server_app.command(name="start")
 def server_start(
@@ -628,6 +731,11 @@ def server_start(
         False,
         '--with-langfuse', '-l',
         help='Option to enable Langfuse support.'
+    ),
+    experimental_with_ibm_telemetry: bool = typer.Option(
+        False,
+        '--with-ibm-telemetry', '-i',
+        help=''
     ),
     persist_env_secrets: bool = typer.Option(
         False,
@@ -668,10 +776,18 @@ def server_start(
 
     merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
 
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
+    if not _check_exclusive_observibility(experimental_with_langfuse, experimental_with_ibm_telemetry):
+        logger.error("Please select either langfuse or ibm telemetry for observability not both")
+        sys.exit(1)
+
     # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-
+        
+    if experimental_with_ibm_telemetry:
+        merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
@@ -683,7 +799,9 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, experimental_with_langfuse=experimental_with_langfuse)
+    run_compose_lite(final_env_file=final_env_file, 
+                     experimental_with_langfuse=experimental_with_langfuse,
+                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry)
 
     run_db_migration()
 

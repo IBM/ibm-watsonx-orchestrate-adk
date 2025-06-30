@@ -39,11 +39,12 @@ def search_healthcare_providers(
     Retrieve a list of the nearest healthcare providers based on location and optional specialty. Infer the
     speciality of the location from the request.
 
+    Args:
+        location: Geographic location to search providers in (city, state, zip code, etc.)
+        specialty: (Optional) Medical specialty to filter providers by (Must be one of: "ENT", "General Medicine", "Cardiology", "Pediatrics", "Orthopedics", "Multi-specialty")
 
-    :param location: Geographic location to search providers in (city, state, zip code, etc.)
-    :param specialty: (Optional) Medical specialty to filter providers by (Must be one of: "ENT", "General Medicine", "Cardiology", "Pediatrics", "Orthopedics", "Multi-specialty")
-
-    :returns: A list of healthcare providers near a particular location for a given speciality
+    Returns:
+      A list of healthcare providers near a particular location for a given speciality
     """
     resp = requests.get(
         'https://find-provider.1sqnxi8zv3dh.us-east.codeengine.appdomain.cloud',

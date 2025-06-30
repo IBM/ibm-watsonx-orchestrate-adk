@@ -291,7 +291,9 @@ def test_openapi_multiple_app_ids():
     assert "Kind 'openapi' can only take one app-id" in str(e)
 
 def test_openapi_app_id_key_value(caplog):
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev:
+        mock_is_local_dev.return_value = False
         mock_client.return_value = MockConnectionClient(
             get_response=MockConnection(appid="test", connection_type="key_value"),
             get_by_id_response=[MockConnection(appid="test", connection_type="key_value")],
@@ -300,6 +302,7 @@ def test_openapi_app_id_key_value(caplog):
                     "app_id": "test",
                     "auth_type": None,
                     "security_scheme": "key_value_creds",
+                    "environment": "draft"
             })]
         )
 
@@ -734,7 +737,9 @@ def test_python_params_valid_with_split_app_id_missing_runtime_app_id():
 
 def test_python_tool_expected_connections():
 
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev:
+        mock_is_local_dev.return_value = False
         mock_response = MockListConnectionResponse(connection_id="12345")
         mock_client.return_value = MockConnectionClient(
             get_response=MockConnection(appid="test", connection_type="basic_auth"),
@@ -744,6 +749,7 @@ def test_python_tool_expected_connections():
                     "app_id": "test",
                     "auth_type": None,
                     "security_scheme": "basic_auth",
+                    "environment": "draft"
             })]
         )
 
@@ -765,6 +771,53 @@ def test_python_tool_expected_connections():
         assert tool.__tool_spec__.name == "my_tool_w_type"
         assert tool.__tool_spec__.permission == ToolPermission.READ_ONLY
         assert tool.__tool_spec__.binding.python.connections == {"test": "12345"}
+
+def test_python_tool_expected_connections_live_missing(caplog):
+
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev:
+        mock_is_local_dev.return_value = False
+        mock_response = MockListConnectionResponse(connection_id="12345")
+        mock_client.return_value = MockConnectionClient(
+            get_response=MockConnection(appid="test", connection_type="basic_auth"),
+            get_by_id_response=[mock_response],
+            list_conn_response=[ListConfigsResponse(**{
+                    "connection_id": "12345",
+                    "app_id": "test",
+                    "auth_type": None,
+                    "security_scheme": "basic_auth",
+                    "environment": "draft"
+            }),
+            ListConfigsResponse(**{
+                    "connection_id": "12345",
+                    "app_id": "test",
+                    "auth_type": None,
+                    "security_scheme": None,
+                    "environment": "live"
+            })]
+        )
+
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(
+            ToolKind.python, 
+            file = "tests/cli/resources/python_samples/tool_w_expectations.py",
+            requirements_file = "tests/cli/resources/python_samples/requirements.txt",
+            app_id=["test"]
+        )
+        tools = list(tools) 
+
+        tool = tools[0]
+        assert tool.__tool_spec__.name == "my_tool"
+        assert tool.__tool_spec__.permission == ToolPermission.READ_ONLY
+        assert tool.__tool_spec__.binding.python.connections == {"test": "12345"}  
+
+        tool = tools[1]
+        assert tool.__tool_spec__.name == "my_tool_w_type"
+        assert tool.__tool_spec__.permission == ToolPermission.READ_ONLY
+        assert tool.__tool_spec__.binding.python.connections == {"test": "12345"}
+
+        captured = caplog.text
+        assert "Connection 'test' is not configured in the '{conn_environment}' environment"
 
 def test_python_no_file():
     with pytest.raises(BadParameter):

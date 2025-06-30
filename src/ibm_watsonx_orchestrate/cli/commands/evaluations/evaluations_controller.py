@@ -1,5 +1,6 @@
 import logging
-from typing import List, Dict, Optional
+import os.path
+from typing import List, Dict, Optional, Tuple
 import csv
 from pathlib import Path
 import rich
@@ -10,12 +11,13 @@ from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stori
 from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig
 from wxo_agentic_evaluation.record_chat import record_chats
 from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
+from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, AUTH_CONFIG_FILE, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind
-
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +77,13 @@ class EvaluationsController:
         evaluate.main(config)
 
     def record(self, output_dir) -> None:
+
+
+        random_uuid = str(uuid.uuid4())
+
         url, tenant_name, token = self._get_env_config()
         config_data = {
-            "output_dir": Path.cwd() if output_dir is None else Path(output_dir),
+            "output_dir": Path(os.path.join(Path.cwd(), random_uuid)) if output_dir is None else Path(os.path.join(output_dir,random_uuid)),
             "service_url": url,
             "tenant_name": tenant_name,
             "token": token
@@ -143,16 +149,23 @@ class EvaluationsController:
     def summarize(self) -> None:
         pass
 
-    def external_validate(self, config: Dict, data: List[str], credential:str):
+    def external_validate(self, config: Dict, data: List[str], credential:str, add_context: bool = False):
         validator = ExternalAgentValidation(credential=credential,
                                 auth_scheme=config["auth_scheme"],
                                 service_url=config["api_url"])
+        
         summary = []
         for entry in data:
-            results = validator.call_validation(entry)
-            if len(results) == 0:
-                rich.print(f"[red] No events are generated for input {entry} [/red]")
-            summary.append({entry: results})
+            results = validator.call_validation(entry, add_context)
+            summary.append(results)
 
         return summary
+    
+    def generate_performance_test(self, agent_name: str, test_data: List[Tuple[str, str]]):
+        performance_test = ExternalAgentPerformanceTest(
+            agent_name=agent_name,
+            test_data=test_data
+        )
+        generated_performance_tests = performance_test.generate_tests()
 
+        return generated_performance_tests

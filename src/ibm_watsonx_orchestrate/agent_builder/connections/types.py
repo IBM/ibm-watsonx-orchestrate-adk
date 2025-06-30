@@ -6,10 +6,10 @@ class ConnectionKind(str, Enum):
     basic = 'basic'
     bearer = 'bearer'
     api_key = 'api_key'
-    # oauth_auth_code_flow = 'oauth_auth_code_flow'
+    oauth_auth_code_flow = 'oauth_auth_code_flow'
     # oauth_auth_implicit_flow = 'oauth_auth_implicit_flow'
     # oauth_auth_password_flow = 'oauth_auth_password_flow'
-    # oauth_auth_client_credentials_flow = 'oauth_auth_client_credentials_flow'
+    oauth_auth_client_credentials_flow = 'oauth_auth_client_credentials_flow'
     oauth_auth_on_behalf_of_flow = 'oauth_auth_on_behalf_of_flow'
     key_value = 'key_value'
     kv = 'kv'
@@ -32,10 +32,10 @@ class ConnectionPreference(str, Enum):
         return self.value
 
 class ConnectionAuthType(str, Enum):
-    # OAUTH2_AUTH_CODE = 'oauth2_auth_code'
+    OAUTH2_AUTH_CODE = 'oauth2_auth_code'
     # OAUTH2_IMPLICIT = 'oauth2_implicit'
     # OAUTH2_PASSWORD = 'oauth2_password'
-    # OAUTH2_CLIENT_CREDS = 'oauth2_client_creds'
+    OAUTH2_CLIENT_CREDS = 'oauth2_client_creds'
     OAUTH_ON_BEHALF_OF_FLOW = 'oauth_on_behalf_of_flow'
 
     def __str__(self):
@@ -63,10 +63,10 @@ class ConnectionType(str, Enum):
     BASIC_AUTH = ConnectionSecurityScheme.BASIC_AUTH.value
     BEARER_TOKEN = ConnectionSecurityScheme.BEARER_TOKEN.value
     API_KEY_AUTH = ConnectionSecurityScheme.API_KEY_AUTH.value
-    # OAUTH2_AUTH_CODE = ConnectionAuthType.OAUTH2_AUTH_CODE.value
+    OAUTH2_AUTH_CODE = ConnectionAuthType.OAUTH2_AUTH_CODE.value
     # OAUTH2_IMPLICIT = ConnectionAuthType.OAUTH2_IMPLICIT.value
     # OAUTH2_PASSWORD = ConnectionAuthType.OAUTH2_PASSWORD.value
-    # OAUTH2_CLIENT_CREDS = ConnectionAuthType.OAUTH2_CLIENT_CREDS.value
+    OAUTH2_CLIENT_CREDS = ConnectionAuthType.OAUTH2_CLIENT_CREDS.value
     OAUTH_ON_BEHALF_OF_FLOW = ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW.value
     KEY_VALUE = ConnectionSecurityScheme.KEY_VALUE.value
 
@@ -77,8 +77,8 @@ class ConnectionType(str, Enum):
         return repr(self.value)
 
 OAUTH_CONNECTION_TYPES = {
-    # ConnectionType.OAUTH2_AUTH_CODE,
-    # ConnectionType.OAUTH2_CLIENT_CREDS,
+    ConnectionType.OAUTH2_AUTH_CODE,
+    ConnectionType.OAUTH2_CLIENT_CREDS,
     # ConnectionType.OAUTH2_IMPLICIT,
     # ConnectionType.OAUTH2_PASSWORD,
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
@@ -137,10 +137,15 @@ class ConnectionConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def validate_config(self):
-        if self.sso and self.security_scheme != ConnectionSecurityScheme.OAUTH2:
-            raise ValueError(f"SSO not supported for auth scheme '{self.security_scheme}'. SSO can only be used with OAuth auth types")
-        if not self.sso and self.security_scheme == ConnectionSecurityScheme.OAUTH2:
-            raise ValueError(f"SSO required for OAuth auth schemes. Please enable SSO.")
+        conn_type = None
+        if self.security_scheme == ConnectionSecurityScheme.OAUTH2:
+            conn_type = self.auth_type
+        else:
+            conn_type = self.security_scheme
+        if self.sso and conn_type != ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW:
+            raise ValueError(f"SSO not supported for auth scheme '{conn_type}'. SSO can only be used with OAuth auth types")
+        if not self.sso and conn_type == ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW:
+            raise ValueError(f"SSO required for '{conn_type}'. Please enable SSO.")
         if self.sso:
             if not self.idp_config_data:
                 raise ValueError("For SSO auth 'idp_config_data' is a required field")
@@ -167,11 +172,12 @@ class OAuth2TokenCredentials(BaseModel):
     access_token: str
     url: Optional[str] = None
 
-# class OAuth2AuthCodeCredentials(BaseModel):
-#     client_id: str
-#     client_secret: str
-#     token_url: str
-#     authorization_url: str
+class OAuth2AuthCodeCredentials(BaseModel):
+    client_id: str
+    client_secret: str
+    token_url: str
+    authorization_url: str
+    scopes : Optional[List[str]] = None
 
 # class OAuth2ImplicitCredentials(BaseModel):
 #     client_id: str
@@ -183,10 +189,11 @@ class OAuth2TokenCredentials(BaseModel):
 #     token_url: str
 #     authorization_url: str
 
-# class OAuth2ClientCredentials(BaseModel):
-#     client_id: str
-#     client_secret: str
-#     token_url: str
+class OAuth2ClientCredentials(BaseModel):
+    client_id: str
+    client_secret: str
+    token_url: str
+    scopes : Optional[List[str]] = None
 
 class OAuthOnBehalfOfCredentials(BaseModel):
     client_id: str
@@ -205,10 +212,10 @@ CREDENTIALS_SET = Union[
     BasicAuthCredentials,
     BearerTokenAuthCredentials,
     APIKeyAuthCredentials,
-    # OAuth2AuthCodeCredentials,
+    OAuth2AuthCodeCredentials,
     # OAuth2ImplicitCredentials,
     # OAuth2PasswordCredentials,
-    # OAuth2ClientCredentials,
+    OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials
 ]
@@ -219,20 +226,20 @@ CONNECTION_KIND_SCHEME_MAPPING = {
     ConnectionKind.basic: ConnectionSecurityScheme.BASIC_AUTH,
     ConnectionKind.bearer: ConnectionSecurityScheme.BEARER_TOKEN,
     ConnectionKind.api_key: ConnectionSecurityScheme.API_KEY_AUTH,
-    # ConnectionKind.oauth_auth_code_flow: ConnectionSecurityScheme.OAUTH2,
+    ConnectionKind.oauth_auth_code_flow: ConnectionSecurityScheme.OAUTH2,
     # ConnectionKind.oauth_auth_implicit_flow: ConnectionSecurityScheme.OAUTH2,
     # ConnectionKind.oauth_auth_password_flow: ConnectionSecurityScheme.OAUTH2,
-    # ConnectionKind.oauth_auth_client_credentials_flow: ConnectionSecurityScheme.OAUTH2,
+    ConnectionKind.oauth_auth_client_credentials_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.key_value: ConnectionSecurityScheme.KEY_VALUE,
     ConnectionKind.kv: ConnectionSecurityScheme.KEY_VALUE,
 }
 
 CONNECTION_KIND_OAUTH_TYPE_MAPPING = {
-    # ConnectionKind.oauth_auth_code_flow: ConnectionAuthType.OAUTH2_AUTH_CODE,
+    ConnectionKind.oauth_auth_code_flow: ConnectionAuthType.OAUTH2_AUTH_CODE,
     # ConnectionKind.oauth_auth_implicit_flow: ConnectionAuthType.OAUTH2_IMPLICIT,
     # ConnectionKind.oauth_auth_password_flow: ConnectionAuthType.OAUTH2_PASSWORD,
-    # ConnectionKind.oauth_auth_client_credentials_flow: ConnectionAuthType.OAUTH2_CLIENT_CREDS,
+    ConnectionKind.oauth_auth_client_credentials_flow: ConnectionAuthType.OAUTH2_CLIENT_CREDS,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW,
 }
 
@@ -240,10 +247,10 @@ CONNECTION_TYPE_CREDENTIAL_MAPPING = {
     ConnectionType.BASIC_AUTH: BasicAuthCredentials,
     ConnectionType.BEARER_TOKEN: BearerTokenAuthCredentials,
     ConnectionType.API_KEY_AUTH: APIKeyAuthCredentials,
-    # ConnectionType.OAUTH2_AUTH_CODE: BearerTokenAuthCredentials,
-    # ConnectionType.OAUTH2_IMPLICIT: BearerTokenAuthCredentials,
-    # ConnectionType.OAUTH2_PASSWORD: BearerTokenAuthCredentials,
-    # ConnectionType.OAUTH2_CLIENT_CREDS: BearerTokenAuthCredentials,
+    ConnectionType.OAUTH2_AUTH_CODE: OAuth2TokenCredentials,
+    # ConnectionType.OAUTH2_IMPLICIT: OAuth2TokenCredentials,
+    # ConnectionType.OAUTH2_PASSWORD: OAuth2TokenCredentials,
+    ConnectionType.OAUTH2_CLIENT_CREDS: OAuth2TokenCredentials,
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW: OAuth2TokenCredentials,
     ConnectionType.KEY_VALUE: KeyValueConnectionCredentials,
 }

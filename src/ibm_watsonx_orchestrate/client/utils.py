@@ -47,6 +47,16 @@ def is_local_dev(url: str | None = None) -> bool:
 
     return False
 
+def is_ibm_cloud():
+    cfg = Config()
+    active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+    url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
+
+    if url.__contains__("cloud.ibm.com"):
+        return True
+    return False
+
+
 def is_cpd_env(url: str) -> bool:
     if url.lower().startswith("https://cpd"):
         return True
