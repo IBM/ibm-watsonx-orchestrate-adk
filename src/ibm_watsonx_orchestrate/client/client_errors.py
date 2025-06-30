@@ -5,8 +5,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
-
 import logging
 import sys
 import re
@@ -83,7 +81,7 @@ class ClientError(Exception):
         )
 
 
-class MissingValue(ClientError, BadRequest):
+class MissingValue(ClientError, ValueError):
     def __init__(self, value_name: str, reason: str | None = None):
         ClientError.__init__(self, 'No "' + value_name + '" provided.', reason)
 
@@ -95,7 +93,7 @@ class MissingMetaProp(MissingValue):
         )
 
 
-class NotUrlNorID(ClientError, BadRequest):
+class NotUrlNorID(ClientError, ValueError):
     def __init__(self, value_name: str, value: str, reason: str | None = None):
         ClientError.__init__(
             self,
@@ -149,7 +147,7 @@ class ApiRequestFailure(ClientError):
             )
 
 
-class UnexpectedType(ClientError, BadRequest):
+class UnexpectedType(ClientError, ValueError):
     def __init__(self, el_name: str, expected_type: type, actual_type: type):
         ClientError.__init__(
             self,
@@ -190,12 +188,12 @@ class NoVirtualDeploymentSupportedForICP(MissingValue):
         MissingValue.__init__(self, "No Virtual deployment supported for ICP", reason)
 
 
-class MissingArgument(ClientError, BadRequest):
+class MissingArgument(ClientError, ValueError):
     def __init__(self, value_name: str, reason: str | None = None):
         ClientError.__init__(self, f"Argument: {value_name} missing.", reason)
 
 
-class WrongEnvironmentVersion(ClientError, BadRequest):
+class WrongEnvironmentVersion(ClientError, ValueError):
     def __init__(
         self, used_version: str, environment_name: str, supported_versions: tuple
     ):
@@ -208,7 +206,7 @@ class WrongEnvironmentVersion(ClientError, BadRequest):
         )
 
 
-class CannotAutogenerateBedrockUrl(ClientError, BadRequest):
+class CannotAutogenerateBedrockUrl(ClientError, ValueError):
     def __init__(self, e1: Exception, e2: Exception):
         ClientError.__init__(
             self,
@@ -246,7 +244,7 @@ class ForbiddenActionForGitBasedProject(ClientError):
         )
 
 
-class CannotInstallLibrary(ClientError, BadRequest):
+class CannotInstallLibrary(ClientError, ValueError):
     def __init__(self, lib_name: str, reason: str):
         ClientError.__init__(
             self,
@@ -269,14 +267,14 @@ class WrongLocationProperty(ClientError, ConnectionError):
         )
 
 
-class WrongFileLocation(ClientError, BadRequest):
+class WrongFileLocation(ClientError, ValueError):
     def __init__(self, reason: str):
         ClientError.__init__(
             self, "Cannot fetch data via Flight Service. Try again.", reason
         )
 
 
-class EmptyDataSource(ClientError, BadRequest):
+class EmptyDataSource(ClientError, ValueError):
     def __init__(self) -> None:
         ClientError.__init__(
             self,
@@ -285,12 +283,12 @@ class EmptyDataSource(ClientError, BadRequest):
         )
 
 
-class SpaceIDandProjectIDCannotBeNone(ClientError, BadRequest):
+class SpaceIDandProjectIDCannotBeNone(ClientError, ValueError):
     def __init__(self, reason: str):
         ClientError.__init__(self, f"Missing 'space_id' or 'project_id'.", reason)
 
 
-class ParamOutOfRange(ClientError, BadRequest):
+class ParamOutOfRange(ClientError, ValueError):
     def __init__(
         self, param_name: str, value: int | float, min: int | float, max: int | float
     ):
@@ -300,7 +298,7 @@ class ParamOutOfRange(ClientError, BadRequest):
         )
 
 
-class InvalidMultipleArguments(ClientError, BadRequest):
+class InvalidMultipleArguments(ClientError, ValueError):
     def __init__(self, params_names_list: list, reason: str | None = None):
         ClientError.__init__(
             self, f"One of {params_names_list} parameters should be set.", reason
@@ -330,7 +328,7 @@ class PromptVariablesError(ClientError, KeyError):
         )
 
 
-class InvalidValue(ClientError, BadRequest):
+class InvalidValue(ClientError, ValueError):
     def __init__(self, value_name: str, reason: str | None = None):
         ClientError.__init__(
             self, 'Inappropriate value of "' + value_name + '"', reason
