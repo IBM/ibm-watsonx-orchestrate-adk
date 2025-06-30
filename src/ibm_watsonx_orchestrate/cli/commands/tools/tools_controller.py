@@ -102,6 +102,10 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
         if app_id not in imported_connections:
             logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections add`")
         else:
+            # Validate that the connection is not key_value when the tool in openapi
+            if kind != ToolKind.openapi:
+                continue
+
             environments = _get_connection_environments()
 
             imported_connection = imported_connections.get(app_id)
@@ -116,7 +120,7 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     logger.error("If you deploy this tool without setting the live configuration the tool will error during execution.")
                     continue
 
-                if kind == ToolKind.openapi and conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
+                if conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
                     logger.error(f"Key value application connections can not be bound to an openapi tool")
                     exit(1)
 

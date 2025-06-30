@@ -346,7 +346,7 @@ def add_connection(app_id: str) -> None:
         status_code = response.status_code
         try:
             if status_code == 409:
-                response_text = f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a diffrent App ID or delete the existing resource."
+                response_text = f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a different App ID or delete the existing resource."
             else:
                 resp = json.loads(response_text)
                 response_text = resp.get('detail')
