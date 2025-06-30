@@ -88,7 +88,7 @@ Release ${VERSION} has been published to testpypi.
 
 To install locally run
 \`\`\`
-pip install --upgrade -i https://test.pypi.org/simple/ ibm-watsonx-orchestrate==${VERSION}
+pip install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple  ibm-watsonx-orchestrate==${VERSION}
 orchestrate server start -e .env
 orchestrate env activate local --registry testpypi --test-package-version-override ${VERSION}
 \`\`\`
