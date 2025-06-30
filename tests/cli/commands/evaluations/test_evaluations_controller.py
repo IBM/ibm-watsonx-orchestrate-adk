@@ -204,30 +204,46 @@ def tool2():
                 assert actual_config.data_path == temp_dir
 
     def test_external_validate(self, controller):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentValidation") as mock_validator_class:
-            mock_validator = MagicMock()
-            mock_validator_class.return_value = mock_validator
-            mock_validator.call_validation.return_value = ["result1", "result2"]
-            
-            config = {
+        config = {
                 "auth_scheme": "api_key",
                 "api_url": "test-url"
             }
-            test_data = ["input1", "input2"]
-            credential = "test-cred"
-            
-            result = controller.external_validate(config, test_data, credential)
-            
+        test_data = ["input1", "input2"]
+        credential = "test-cred"
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentValidation") as mock_validator_class:
+            for add_context in [True, False]:
+                mock_validator = MagicMock()
+                mock_validator_class.return_value = mock_validator
+                mock_validator.call_validation.return_value = ["result1", "result2"]
+
+                result = controller.external_validate(config, test_data, credential, add_context=add_context)
+                
+                mock_validator_class.assert_called_once_with(
+                    credential=credential,
+                    auth_scheme=config["auth_scheme"],
+                    service_url=config["api_url"]
+                )
+                
+                assert mock_validator.call_validation.call_count == 2
+                mock_validator.call_validation.assert_any_call("input1", add_context)
+                mock_validator.call_validation.assert_any_call("input2", add_context)
+                
+                assert len(result) == 2
+                assert result[0] == ["result1", "result2"]
+                assert result[1] == ["result1", "result2"]
+
+                mock_validator_class.reset_mock()
+    
+    def test_generate_performance_test(self, controller):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentPerformanceTest") as mock_validator_class:
+            mock_validator = MagicMock()
+            mock_validator_class.return_value = mock_validator
+            mock_validator.generate_tests.return_value = ["result1"]
+
+            controller.generate_performance_test(agent_name="dummy_agent", test_data=[("dummy story", "dummy_response")])
             mock_validator_class.assert_called_once_with(
-                credential=credential,
-                auth_scheme=config["auth_scheme"],
-                service_url=config["api_url"]
+                agent_name="dummy_agent",
+                test_data=[("dummy story", "dummy_response")]
             )
-            
-            assert mock_validator.call_validation.call_count == 2
-            mock_validator.call_validation.assert_any_call("input1")
-            mock_validator.call_validation.assert_any_call("input2")
-            
-            assert len(result) == 2
-            assert result[0] == {"input1": ["result1", "result2"]}
-            assert result[1] == {"input2": ["result1", "result2"]}
+                

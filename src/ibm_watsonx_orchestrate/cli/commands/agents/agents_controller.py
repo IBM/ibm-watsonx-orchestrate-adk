@@ -747,14 +747,25 @@ class AgentsController:
         return knowledge_bases
 
     def list_agents(self, kind: AgentKind=None, verbose: bool=False):
+        parse_errors = []
+
         if kind == AgentKind.NATIVE or kind is None:
             response = self.get_native_client().get()
-            native_agents = [Agent.model_validate(agent) for agent in response]
+            native_agents = []
+            for agent in response:
+                try:
+                    native_agents.append(Agent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([
+                        f"Agent '{name}' could not be parsed",
+                        json.dumps(agent),
+                        e
+                    ])
 
             if verbose:
                 agents_list = []
                 for agent in native_agents:
-
                     agents_list.append(json.loads(agent.dumps_spec()))
 
                 rich.print(rich.json.JSON(json.dumps(agents_list, indent=4)))
@@ -799,7 +810,13 @@ class AgentsController:
         if kind == AgentKind.EXTERNAL or kind is None:
             response = self.get_external_client().get()
 
-            external_agents = [ExternalAgent.model_validate(agent) for agent in response]
+            external_agents = []
+            for agent in response:
+                try:
+                    external_agents.append(ExternalAgent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([f"External Agent {name} could not be parsed", e])
 
             response_dict = {agent["id"]: agent for agent in response}
 
@@ -859,7 +876,13 @@ class AgentsController:
         if kind == AgentKind.ASSISTANT or kind is None:
             response = self.get_assistant_client().get()
 
-            assistant_agents = [AssistantAgent.model_validate(agent) for agent in response]
+            assistant_agents = []
+            for agent in response:
+                try:
+                    assistant_agents.append(AssistantAgent.model_validate(agent))
+                except Exception as e:
+                    name = agent.get('name', None)
+                    parse_errors.append([f"Assistant Agent {name} could not be parsed", e])
 
             response_dict = {agent["id"]: agent for agent in response}
 
@@ -913,6 +936,10 @@ class AgentsController:
                         agent.id
                     )
                 rich.print(assistants_table)
+
+        for error in parse_errors:
+            for l in error:
+                logger.error(l)
 
     def remove_agent(self, name: str, kind: AgentKind):
         try:

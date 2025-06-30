@@ -370,12 +370,14 @@ def remove_connection(app_id: str) -> None:
 
 def list_connections(environment: ConnectionEnvironment | None, verbose: bool = False) -> None:
     client = get_connections_client()
-
     connections = client.list()
-    
+    is_local = is_local_dev()
+
     if verbose:
         connections_list = []
         for conn in connections:
+            if is_local and  conn.environment == ConnectionEnvironment.LIVE:
+                continue
             connections_list.append(json.loads(conn.model_dump_json()))
 
         rich.print_json(json.dumps(connections_list, indent=4))
@@ -414,7 +416,7 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
                     conn.preference,
                     "✅" if conn.credentials_entered else "❌"
                 )
-            elif conn.environment == ConnectionEnvironment.LIVE:
+            elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
                 live_table.add_row(
                     conn.app_id,
                     connection_type,

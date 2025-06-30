@@ -1,0 +1,43 @@
+{
+  "agent": "hr_agent",
+  "story": "My username is johndoe. I want to find out your time-off schedule from: 2025-01-01 to: 2025-12-31.",
+  "starting_sentence": "I'd like to check my time-off schedule.",
+  "goals": {
+    "fetch_assignment_id-1": [
+      "retrieve_timeoff_schedule-1"
+    ],
+    "retrieve_timeoff_schedule-1": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-1",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "retrieve_timeoff_schedule-1",
+      "tool_name": "retrieve_timeoff_schedule",
+      "args": {
+        "assignment_id": "15338303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Your time-off schedule for 2025-01-01 to 2025-12-31 is: 2025-04-11, 2025-03-11, 2025-01-01",
+      "keywords": [
+        "2025-04-11",
+        "2025-03-11",
+        "2025-01-01"
+      ]
+    }
+  ]
+}
