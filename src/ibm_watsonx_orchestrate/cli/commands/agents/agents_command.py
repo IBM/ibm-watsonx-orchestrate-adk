@@ -31,6 +31,13 @@ def agent_create(
         str,
         typer.Option("--name", "-n", help="Name of the agent you wish to create"),
     ],
+    description: Annotated[
+        str,
+        typer.Option(
+            "--description",
+            help="Description of the agent",
+        ),
+    ],
     title: Annotated[
         str,
         typer.Option("--title", "-t", help="Title of the agent you wish to create. Only needed for External and Assistant Agents"),
@@ -86,13 +93,6 @@ def agent_create(
     app_id: Annotated[
         str,
         typer.Option("--app-id", help="Application ID for the agent"),
-    ] = None,
-    description: Annotated[
-        str,
-        typer.Option(
-            "--description",
-            help="Description of the agent",
-        ),
     ] = None,
     llm: Annotated[
         str,
