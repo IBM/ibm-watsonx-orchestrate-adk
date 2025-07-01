@@ -146,6 +146,7 @@ def test_should_reject_custom_join_tool_without_required_args():
         @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
         def sample_tool():
             return ''
+        sample_tool.__tool_spec__
     except Exception as e:
         assert 'incorrect parameter names or order' in str(e)
     else:
@@ -157,6 +158,7 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         @tool(description=description, kind=PythonToolKind.JOIN_TOOL)
         def sample_tool(original_query: str, task_results: Dict[str, int], messages: List[Dict[str, Any]]) -> str:
             return ''
+        sample_tool.__tool_spec__
     except Exception as e:
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
