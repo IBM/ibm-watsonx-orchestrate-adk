@@ -4,6 +4,7 @@ from unittest.mock import patch, mock_open
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 @pytest.fixture()
 def valid_native_agent_sample():
@@ -216,7 +217,7 @@ class TestAgentFromSpec:
 
     def test_native_agent_from_spec_invalid_file_extentionl(self):
        with patch("builtins.open", mock_open()) as mock_file:
-           with pytest.raises(ValueError) as e:
+           with pytest.raises(BadRequest) as e:
                 Agent.from_spec("test_file.test")
 
                 assert "file must end in .json, .yaml, or .yml" in str(e)
@@ -228,7 +229,7 @@ class TestAgentFromSpec:
             native_spec_definition.pop("spec_version", None)
             mock_loader.return_value = native_spec_definition
             
-            with pytest.raises(ValueError) as e:
+            with pytest.raises(BadRequest) as e:
                 Agent.from_spec("test_file.yml")
 
                 mock_file.assert_called_with("test_file.yml", "r")

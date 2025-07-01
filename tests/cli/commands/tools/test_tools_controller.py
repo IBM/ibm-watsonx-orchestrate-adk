@@ -16,6 +16,7 @@ from typer import BadParameter
 import json
 import pytest
 import uuid
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import tempfile
 import os
 import sys
@@ -871,7 +872,7 @@ def test_invalid_kind():
         tools = tools_controller.import_tool("invalid")
         list(tools)
         assert False
-    except ValueError as e:
+    except BadRequest as e:
         assert True
         assert str(e) == "Invalid kind selected"
 
