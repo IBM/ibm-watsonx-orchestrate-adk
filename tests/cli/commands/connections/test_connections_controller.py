@@ -819,7 +819,7 @@ class TestAddConnection:
             captured = caplog.text
 
             assert f"Creating connection '{app_id}'" in captured
-            assert f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a diffrent App ID or delete the existing resource." in captured
+            assert f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a different App ID or delete the existing resource." in captured
             assert f"Successfully created connection '{app_id}'" not in captured
 
 class TestRemoveConnection:

@@ -36,7 +36,7 @@ dependencies = [
     "munch>=4.0.0",
     "pytz>=2025.2",
     "redis>=6.0.0",
-    "ibm_watsonx_orchestrate_evaluation_framework==1.0.5"
+    "ibm_watsonx_orchestrate_evaluation_framework==1.0.6"
 ]
 
 [project.optional-dependencies]

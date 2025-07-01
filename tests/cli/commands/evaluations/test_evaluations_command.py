@@ -203,20 +203,21 @@ class TestValidateExternal:
             mock_validate.assert_called()
 
     def test_validate_external_with_invalid_config(self, csv_file, user_env_file, external_agent_config):
-        with pytest.raises(yaml.YAMLError):
-            with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
-                tmp.write("invalid: yaml: content:")
-                tmp.flush()
-                config_path = tmp.name
-                try:
-                    evaluations_command.validate_external(
-                        data_path=csv_file,
-                        external_agent_config=config_path,
-                        credential="test-cred",
-                        user_env_file=user_env_file
-                    )
-                finally:
-                    Path(config_path).unlink()
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command.shutil.copy") as mock_copy:
+            with pytest.raises(yaml.YAMLError):
+                with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+                    tmp.write("invalid: yaml: content:")
+                    tmp.flush()
+                    config_path = tmp.name
+                    try:
+                        evaluations_command.validate_external(
+                            data_path=csv_file,
+                            external_agent_config=config_path,
+                            credential="test-cred",
+                            user_env_file=user_env_file
+                        )
+                    finally:
+                        Path(config_path).unlink()
 
     def test_validate_external_with_empty_csv(self, external_agent_config, user_env_file):
         # Since empty CSV is handled gracefully by the code, we'll verify the behavior

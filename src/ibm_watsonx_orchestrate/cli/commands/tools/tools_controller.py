@@ -102,6 +102,10 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
         if app_id not in imported_connections:
             logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections add`")
         else:
+            # Validate that the connection is not key_value when the tool in openapi
+            if kind != ToolKind.openapi:
+                continue
+
             environments = _get_connection_environments()
 
             imported_connection = imported_connections.get(app_id)
@@ -110,13 +114,15 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 conn = imported_connection.get(conn_environment)
 
                 if conn is None or conn.security_scheme is None:
-                    logger.error(f"Connection '{app_id}' is not configured in the '{conn_environment}' environment.")
+                    message = f"Connection '{app_id}' is not configured in the '{conn_environment}' environment."
                     if conn_environment == ConnectionEnvironment.DRAFT:
+                        logger.error(message)
                         sys.exit(1)
-                    logger.error("If you deploy this tool without setting the live configuration the tool will error during execution.")
+                    else:
+                        logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
                     continue
 
-                if kind == ToolKind.openapi and conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
+                if conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
                     logger.error(f"Key value application connections can not be bound to an openapi tool")
                     exit(1)
 
@@ -231,10 +237,12 @@ def validate_python_connections(tool: BaseTool):
             conn = imported_connection.get(conn_environment)
             conn_identifier = conn.app_id if conn is not None else connection_id
             if conn is None or conn.security_scheme is None:
-                logger.error(f"Connection '{conn_identifier}' is not configured in the '{conn_environment}' environment.")
+                message = f"Connection '{conn_identifier}' is not configured in the '{conn_environment}' environment."
                 if conn_environment == ConnectionEnvironment.DRAFT:
+                    logger.error(message)
                     sys.exit(1)
-                logger.error("If you deploy this tool without setting the live configuration the tool will error during execution.")
+                else:
+                    logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
                 continue
 
             imported_connection_auth_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
