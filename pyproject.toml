@@ -20,7 +20,7 @@ dependencies = [
     "click>=8.0.0,<8.2.0",
     "docstring-parser>=0.16,<1.0",
     "httpx>=0.28.1,<1.0.0",
-    "ibm-cloud-sdk-core>=3.22.0",
+    "ibm-cloud-sdk-core>=3.24.2",
     "jsonref==1.1.0",
     "jsonschema>=4.23.0,<5.0.0",
     "langchain-community>=0.3.12,<1.0.0",
