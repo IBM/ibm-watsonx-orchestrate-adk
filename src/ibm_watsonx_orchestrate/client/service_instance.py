@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator 
+from ibm_cloud_sdk_core.authenticators import MCSPV2Authenticator
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core.authenticators import CloudPakForDataAuthenticator
 
@@ -51,24 +52,47 @@ class ServiceInstance(BaseServiceInstance):
     def _create_token(self) -> str:
         if not self._credentials.auth_type:
             if ".cloud.ibm.com" in self._credentials.url:
-                logger.warning("Using IBM IAM Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd")
+                logger.warning("Using IBM IAM Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'mcsp', 'mcsp_v1', 'mcsp_v2' or 'cpd' ")
                 return self._authenticate(EnvironmentAuthType.IBM_CLOUD_IAM)
             elif is_cpd_env(self._credentials.url):
-                logger.warning("Using CPD Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd")
+                logger.warning("Using CPD Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam', 'mcsp', 'mcsp_v1' or 'mcsp_v2' ")
                 return self._authenticate(EnvironmentAuthType.CPD)
             else:
-                logger.warning("Using MCSP Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam' or 'mcsp' or 'cpd' ")
-                return self._authenticate(EnvironmentAuthType.MCSP)
+                logger.warning("Using MCSP Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam', 'mcsp_v1', 'mcsp_v2' or 'cpd' ")
+                try:
+                    return self._authenticate(EnvironmentAuthType.MCSP_V1)
+                except:
+                    return self._authenticate(EnvironmentAuthType.MCSP_V2)
+        auth_type = self._credentials.auth_type.lower()
+        if auth_type == "mcsp":
+            try:
+                return self._authenticate(EnvironmentAuthType.MCSP_V1)
+            except:
+                return self._authenticate(EnvironmentAuthType.MCSP_V2)
+        elif auth_type == "mcsp_v1":
+            return self._authenticate(EnvironmentAuthType.MCSP_V1)
+        elif auth_type == "mcsp_v2":
+            return self._authenticate(EnvironmentAuthType.MCSP_V2)
         else:
-            return self._authenticate(self._credentials.auth_type)
+            return self._authenticate(auth_type)
 
     def _authenticate(self, auth_type: str) -> str:
         """Handles authentication based on the auth_type."""
         try:
             match auth_type:
-                case EnvironmentAuthType.MCSP:
+                case EnvironmentAuthType.MCSP | EnvironmentAuthType.MCSP_V1:
                     url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://iam.platform.saas.ibm.com"
                     authenticator = MCSPAuthenticator(apikey=self._credentials.api_key, url=url)
+                case EnvironmentAuthType.MCSP_V2:
+                    url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://account-iam.platform.saas.ibm.com"
+                    wxo_url = self._credentials.url
+                    instance_id = wxo_url.split("instances/")[1]
+                    authenticator = MCSPV2Authenticator(
+                        apikey=self._credentials.api_key, 
+                        url=url, 
+                        scope_collection_type="services", 
+                        scope_id=instance_id
+                    )
                 case EnvironmentAuthType.IBM_CLOUD_IAM:
                     authenticator = IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
                 case EnvironmentAuthType.CPD:
@@ -100,8 +124,10 @@ class ServiceInstance(BaseServiceInstance):
                     raise ClientError(f"Unsupported authentication type: {auth_type}")
 
             return authenticator.token_manager.get_token()
+
         except Exception as e:
-            raise ClientError(f"Error getting {auth_type.upper()} Token", e)
+            raise ClientError(f"Error getting {auth_type.upper()} Token", logg_messages=False)
+
 
     
     def _is_token_refresh_possible(self) -> bool:

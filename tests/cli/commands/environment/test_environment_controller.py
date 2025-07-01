@@ -114,7 +114,7 @@ class TestActivate:
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
-            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.KnowledgeBaseClient", MagicMock):
             
             mock_cfg.return_value = MockConfig(read_value=mock_read_value, expected_write="testing", expected_save={
                 "auth": {
@@ -145,7 +145,7 @@ class TestActivate:
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
                 patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
                 patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
-                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
+                patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.KnowledgeBaseClient", MagicMock):
 
             cfg = MockConfig2()
             cfg.save(mock_read_value)
@@ -180,7 +180,7 @@ class TestActivate:
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
-            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock):
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.KnowledgeBaseClient", MagicMock):
             
             expected_save = {
                 "auth": {
@@ -216,7 +216,7 @@ class TestActivate:
         with patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Config") as mock_cfg, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Client", MockClient) as mock_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.Credentials", MockCredentials) as mock_credentials, \
-            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.AgentClient", MagicMock) as mock_agent_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.environment.environment_controller.KnowledgeBaseClient", MagicMock) as mock_agent_client:
             
             mock_http_error_response = Response()
             mock_http_error_response.status_code = 401
