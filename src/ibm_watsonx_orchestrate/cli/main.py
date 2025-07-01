@@ -26,14 +26,6 @@ app = typer.Typer(
     callback=init_callback
 )
 
-# Global callback to handle --debug flag
-@app.callback()
-def global_flags(debug: bool = False):
-    if debug:
-        sys.tracebacklimit = 40
-    else:
-        sys.tracebacklimit = 0
-
 app.add_typer(login_app)
 app.add_typer(environment_app, name="env", help='Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)')
 app.add_typer(agents_app, name="agents", help='Interact with the agents in your active env')
