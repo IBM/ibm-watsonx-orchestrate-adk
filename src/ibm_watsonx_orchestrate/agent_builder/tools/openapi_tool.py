@@ -123,12 +123,12 @@ def create_openapi_json_tool(
     spec_permission = permission or _action_to_perm(route_spec.get('x-ibm-operation', {}).get('action'))
     if spec_name is None:
         raise BadRequest(
-            f"Failed to import tool from endpoint {http_method}: {http_path} as no name was provided.")
+            f"Failed to import tool from endpoint {http_method}: {http_path} as no operationId was provided. An operationId must be provided to generate the name of the tool.")
 
     spec_description = description or route_spec.get('description')
     if spec_description is None:
         raise BadRequest(
-            f"Failed to import tool from endpoint {http_method}: {http_path} as no operationId was provided. An operationId must be provided to generate the name of the tool.")
+            f"No description provided for tool. {http_method}: {http_path} did not specify a description field, and no description was provided")
 
     spec = ToolSpec(
         name=spec_name,
