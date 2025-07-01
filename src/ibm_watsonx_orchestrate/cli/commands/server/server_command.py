@@ -32,6 +32,16 @@ logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
 
+_ALWAYS_UNSET: set[str] = {
+    "WO_API_KEY",
+    "WO_INSTANCE",
+    "DOCKER_IAM_KEY",
+    "WO_DEVELOPER_EDITION_SOURCE",
+    "WATSONX_SPACE_ID",
+    "WATSONX_APIKEY",
+    "WO_USERNAME",
+    "WO_PASSWORD",
+}
 
 def ensure_docker_installed() -> None:
     try:
@@ -261,6 +271,13 @@ def _check_exclusive_observibility(langfuse_enabled: bool, ibm_tele_enabled: boo
         return False
     return True
 
+def _prepare_clean_env(env_file: Path) -> None:
+    """Remove env vars so terminal definitions don't override"""
+    keys_from_file = set(dotenv_values(str(env_file)).keys())
+    keys_to_unset = keys_from_file | _ALWAYS_UNSET
+    for key in keys_to_unset:
+        os.environ.pop(key, None)
+
 def write_merged_env_file(merged_env: dict) -> Path:
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
     with tmp:
@@ -316,6 +333,7 @@ def get_persisted_user_env() -> dict | None:
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_docproc=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
     logger.info(f"Detected architecture: {platform.machine()}, using DBTAG: {db_tag}")
 
@@ -421,6 +439,7 @@ def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
 def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(user_env_file)  
     ensure_docker_installed()
 
     default_env = read_env_file(get_default_env_file())
@@ -515,6 +534,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
 def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(user_env_file)  
 
 
     ensure_docker_installed()
@@ -558,6 +578,7 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
 def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
 
     command = compose_command + [
         '--profile', '*',
@@ -590,6 +611,7 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
 def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
 
     command = compose_command + [
         "-f", str(compose_path),
