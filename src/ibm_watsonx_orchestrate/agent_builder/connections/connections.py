@@ -8,6 +8,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAuth2TokenCredentials,
     KeyValueConnectionCredentials,
     ConnectionType,
+    ConnectionSecurityScheme,
     CREDENTIALS,
     CONNECTION_TYPE_CREDENTIAL_MAPPING
 )
@@ -25,6 +26,18 @@ connection_type_requirements_mapping = {
     APIKeyAuthCredentials: ["api_key"],
     OAuth2TokenCredentials: ["access_token"],
     KeyValueConnectionCredentials: None
+}
+
+connection_type_security_schema_map = {
+    ConnectionType.API_KEY_AUTH: ConnectionSecurityScheme.API_KEY_AUTH,
+    ConnectionType.BASIC_AUTH: ConnectionSecurityScheme.BASIC_AUTH,
+    ConnectionType.BEARER_TOKEN: ConnectionSecurityScheme.BEARER_TOKEN,
+    ConnectionType.KEY_VALUE: ConnectionSecurityScheme.KEY_VALUE,
+    ConnectionType.OAUTH2_AUTH_CODE: ConnectionSecurityScheme.OAUTH2,
+    ConnectionType.OAUTH2_CLIENT_CREDS: ConnectionSecurityScheme.OAUTH2,
+    ConnectionType.OAUTH_ON_BEHALF_OF_FLOW: ConnectionSecurityScheme.OAUTH2,
+    # ConnectionType.OAUTH2_IMPLICIT: ConnectionSecurityScheme.OAUTH2,
+    # ConnectionType.OAUTH2_PASSWORD: ConnectionSecurityScheme.OAUTH2
 }
 
 def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -> dict[str,str]:
@@ -76,10 +89,10 @@ def _build_credentials_model(credentials_type: type[CREDENTIALS], vars: dict[str
         )
 
 
-def _validate_schema_type(requested_type: ConnectionType, expected_type: ConnectionType) -> bool:
+def _validate_schema_type(requested_type: ConnectionSecurityScheme, expected_type: ConnectionSecurityScheme) -> bool:
         return expected_type == requested_type
 
-def _get_credentials_model(connection_type: ConnectionType, app_id: str) -> type[CREDENTIALS]:
+def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: str) -> type[CREDENTIALS]:
     base_prefix = _PREFIX_TEMPLATE.format(app_id=app_id)
     variables = {}
     for key, value in os.environ.items():
@@ -94,7 +107,7 @@ def _get_credentials_model(connection_type: ConnectionType, app_id: str) -> type
 
     return _build_credentials_model(credentials_type=credentials_type, vars=variables, base_prefix=base_prefix)
 
-def get_connection_type(app_id: str) -> ConnectionType:
+def get_connection_type(app_id: str) -> ConnectionSecurityScheme:
     sanitized_app_id = sanatize_app_id(app_id=app_id)
     expected_schema_key = f"WXO_SECURITY_SCHEMA_{sanitized_app_id}"
     expected_schema = os.environ.get(expected_schema_key)
@@ -104,7 +117,7 @@ def get_connection_type(app_id: str) -> ConnectionType:
         logger.error(message)
         raise BadRequest(message)
 
-    auth_types = {e.value for e in ConnectionType}
+    auth_types = {e.value for e in ConnectionSecurityScheme}
     if expected_schema not in auth_types:
         message = f"The expected type '{expected_schema}' cannot be resolved into a valid connection auth type ({', '.join(list(auth_types))})"
         logger.error(message)
@@ -115,10 +128,11 @@ def get_connection_type(app_id: str) -> ConnectionType:
 def get_application_connection_credentials(type: ConnectionType, app_id: str) -> CREDENTIALS:
     sanitized_app_id = sanatize_app_id(app_id=app_id)
     expected_schema = get_connection_type(app_id=app_id)
+    requested_schema = connection_type_security_schema_map.get(type)
 
-    if not _validate_schema_type(requested_type=type, expected_type=expected_schema):
-        message = f"The requested type '{type.__name__}' does not match the type '{expected_schema}' for the connection '{app_id}'"
+    if not _validate_schema_type(requested_type=requested_schema, expected_type=expected_schema):
+        message = f"The requested type '{requested_schema}' does not match the type '{expected_schema}' for the connection '{app_id}'"
         logger.error(message)
         raise BadRequest(message)
 
-    return _get_credentials_model(connection_type=type, app_id=sanitized_app_id)
+    return _get_credentials_model(connection_type=requested_schema, app_id=sanitized_app_id)
