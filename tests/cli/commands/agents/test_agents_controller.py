@@ -4,6 +4,8 @@ import pytest
 import uuid
 import requests
 from unittest import mock
+import sys
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     AgentsController,
@@ -431,7 +433,7 @@ class TestCreateAgentFromSpec:
             mock.assert_called_once_with("test.yaml")
 
     def test_create_invalid_agent_from_spec(self):
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(BadRequest) as e:
             create_agent_from_spec("test.yaml", "fake")
 
             assert "'kind' must be either 'native'" in str(e)
@@ -508,7 +510,7 @@ class TestParseFile:
             assert len(agents) == 0
 
     def test_parse_file_invalid(self):
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(BadRequest) as e:
             parse_file("test.test")
             assert "file must end in .json, .yaml, .yml or .py" in str(e)
 
@@ -1177,7 +1179,7 @@ class TestRemoveAgent:
     def test_remove_agent_invalid_kind(self, caplog):
             name = "test_agent"
 
-            with pytest.raises(ValueError) as e:
+            with pytest.raises(BadRequest) as e:
                 agents_controller.remove_agent(name=name, kind="test")
                 
 

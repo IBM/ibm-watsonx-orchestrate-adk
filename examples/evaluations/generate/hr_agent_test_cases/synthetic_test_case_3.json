@@ -1,0 +1,40 @@
+{
+  "agent": "hr_agent",
+  "story": "My username is nwaters. I want to find out who reports to me.",
+  "starting_sentence": "I am nwaters and I want to find out who reports to me.",
+  "goals": {
+    "fetch_assignment_id-1": [
+      "list_direct_reports-1"
+    ],
+    "list_direct_reports-1": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-1",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "list_direct_reports-1",
+      "tool_name": "list_direct_reports",
+      "args": {
+        "manager_assignment_id": "15778303"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "The employees who report to you are: johndoe, nken",
+      "keywords": [
+        "johndoe",
+        "nken"
+      ]
+    }
+  ]
+}

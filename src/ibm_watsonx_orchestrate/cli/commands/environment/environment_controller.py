@@ -23,7 +23,7 @@ from ibm_watsonx_orchestrate.cli.config import (
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient, ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env
@@ -55,13 +55,13 @@ def _validate_token_functionality(token: str, url: str) -> None:
     '''
     is_cpd = is_cpd_env(url)
     if is_cpd is True:
-        agent_client = AgentClient(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
+        knowledge_base_client = KnowledgeBaseClient(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
     else:
-        agent_client = AgentClient(base_url=url, api_key=token, is_local=is_local_dev(url))
-    agent_client.api_key = token
+        knowledge_base_client = KnowledgeBaseClient(base_url=url, api_key=token, is_local=is_local_dev(url))
+    knowledge_base_client.api_key = token
 
     try:
-        agent_client.get()
+        knowledge_base_client.get()
     except ClientAPIException as e:
         if e.response.status_code >= 400:
             reason = e.response.reason

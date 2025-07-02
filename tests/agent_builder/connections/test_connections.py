@@ -16,6 +16,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionType,
     ConnectionSecurityScheme
 )
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 TEST_APP_ID = "testing"
 TEST_VAR_PREFIX = f"WXO_CONNECTION_{TEST_APP_ID}_"
@@ -85,7 +86,7 @@ class TestCleanEnvVars:
             if f"{TEST_VAR_PREFIX}{requirement}" not in connection_env_vars:
                 expected_missing_requirements.append(f"{TEST_VAR_PREFIX}{requirement}")
         
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(BadRequest) as e:
             cleaned_dict = _clean_env_vars(vars=connection_env_vars, requirements=requirements, app_id=TEST_APP_ID)
 
         expected_missing_requirements_str = ", ".join(expected_missing_requirements)
@@ -198,7 +199,7 @@ class TestGetConnectionType:
             assert connection_type == returned_connection_type
     
     def test_get_connection_type_missing_credentials(self, caplog):
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(BadRequest) as e:
             get_connection_type("fake_app_id")
         
         message = "No credentials found for connections 'fake_app_id'"
@@ -248,7 +249,7 @@ class TestGetApplicationConnectionCredentials:
         assert conn == expected_connection
     
     def test_get_application_connection_credentials_no_credentials(self, mock_env, caplog):
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(BadRequest) as e:
             conn = get_application_connection_credentials(type=ConnectionType.BASIC_AUTH, app_id="not_real")
         
         message = f"No credentials found for connections 'not_real'"
@@ -273,7 +274,7 @@ class TestGetApplicationConnectionCredentials:
     def test_get_application_connection_credentials_invalid_type(self, expected_connection, app_id, conn_types, conn_schema, mock_env, monkeypatch, caplog):
         for conn_type in conn_types:
             monkeypatch.setenv(f"WXO_SECURITY_SCHEMA_{app_id}", conn_schema)
-            with pytest.raises(ValueError) as e:
+            with pytest.raises(BadRequest) as e:
                 conn = get_application_connection_credentials(type=conn_type, app_id=app_id)
             
             message = f"The requested type '{connection_type_security_schema_map[conn_type]}' does not match the type '{conn_schema}' for the connection '{app_id}'"

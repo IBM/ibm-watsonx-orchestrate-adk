@@ -8,7 +8,6 @@ import inspect
 from pathlib import Path
 from typing import List
 
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base_requests import KnowledgeBaseUpdateRequest
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
@@ -72,11 +71,20 @@ class KnowledgeBaseController:
         client = self.get_client()
 
         knowledge_bases = parse_file(file=file)
+        existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
+        
         for kb in knowledge_bases:
             try:
+                file_dir = "/".join(file.split("/")[:-1])
+
+                existing = list(filter(lambda ex: ex.get('name') == kb.name, existing_knowledge_bases))
+                if len(existing) > 0:
+                    logger.info(f"Existing knowledge base '{kb.name}' found. Updating...")
+                    self.update_knowledge_base(existing[0].get("id"), kb=kb, file_dir=file_dir)
+                    continue
+
                 kb.validate_documents_or_index_exists()
                 if kb.documents:
-                    file_dir = "/".join(file.split("/")[:-1])
                     files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in kb.documents]
                     
                     kb.prioritize_built_in_index = True
@@ -106,10 +114,7 @@ class KnowledgeBaseController:
                 
                 logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                if "duplicate key value violates unique constraint" in e.response.text:
-                    logger.error(f"A knowledge base with the name '{kb.name}' already exists. Failed to import knowledge base")
-                else:
-                    logger.error(f"Error importing knowledge base '{kb.name}\n' {e.response.text}")
+                logger.error(f"Error importing knowledge base '{kb.name}\n' {e.response.text}")
     
     def get_id(
         self, id: str, name: str
@@ -131,27 +136,36 @@ class KnowledgeBaseController:
 
 
     def update_knowledge_base(
-        self, id: str, name: str, file: str
+        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str
     ) -> None:
-        knowledge_base_id = self.get_id(id, name)
-        update_request = KnowledgeBaseUpdateRequest.from_spec(file=file)
-
-        if update_request.documents:
-            file_dir = "/".join(file.split("/")[:-1])
-            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in update_request.documents]
+        filtered_files = []
+        
+        if kb.documents:
+            status = self.get_client().status(knowledge_base_id)
+            existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
             
-            update_request.prioritize_built_in_index = True
-            payload = update_request.model_dump(exclude_none=True);
+            for filepath in kb.documents:
+                filename = get_file_name(filepath)
+
+                if filename in existing_docs:
+                    logger.warning(f'Document \"{filename}\" already exists in knowledge base, skipping.')
+                else:
+                    filtered_files.append(filepath)
+
+        if filtered_files:
+            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in filtered_files]
+            
+            kb.prioritize_built_in_index = True
+            payload = kb.model_dump(exclude_none=True);
             payload.pop('documents');
 
             self.get_client().update_with_documents(knowledge_base_id, payload=payload, files=files)
         else:
-            if update_request.conversational_search_tool and update_request.conversational_search_tool.index_config:
-                update_request.prioritize_built_in_index = False
-            self.get_client().update(knowledge_base_id, update_request.model_dump(exclude_none=True))
+            if kb.conversational_search_tool and kb.conversational_search_tool.index_config:
+                kb.prioritize_built_in_index = False
+            self.get_client().update(knowledge_base_id, kb.model_dump(exclude_none=True))
 
-        logEnding = f"with ID '{id}'" if id else f"'{name}'"
-        logger.info(f"Successfully updated knowledge base {logEnding}")
+        logger.info(f"Knowledge base '{kb.name}' updated successfully")
 
 
     def knowledge_base_status( self, id: str, name: str) -> None:

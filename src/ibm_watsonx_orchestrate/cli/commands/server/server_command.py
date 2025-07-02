@@ -32,6 +32,16 @@ logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
 
+_ALWAYS_UNSET: set[str] = {
+    "WO_API_KEY",
+    "WO_INSTANCE",
+    "DOCKER_IAM_KEY",
+    "WO_DEVELOPER_EDITION_SOURCE",
+    "WATSONX_SPACE_ID",
+    "WATSONX_APIKEY",
+    "WO_USERNAME",
+    "WO_PASSWORD",
+}
 
 def ensure_docker_installed() -> None:
     try:
@@ -261,6 +271,13 @@ def _check_exclusive_observibility(langfuse_enabled: bool, ibm_tele_enabled: boo
         return False
     return True
 
+def _prepare_clean_env(env_file: Path) -> None:
+    """Remove env vars so terminal definitions don't override"""
+    keys_from_file = set(dotenv_values(str(env_file)).keys())
+    keys_to_unset = keys_from_file | _ALWAYS_UNSET
+    for key in keys_to_unset:
+        os.environ.pop(key, None)
+
 def write_merged_env_file(merged_env: dict) -> Path:
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
     with tmp:
@@ -313,10 +330,10 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_doc_processing=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
     logger.info(f"Detected architecture: {platform.machine()}, using DBTAG: {db_tag}")
 
@@ -341,19 +358,17 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
 
 
     # Step 2: Start all remaining services (except DB)
+    profiles = []
     if experimental_with_langfuse:
-        command = compose_command + [
-            '--profile',
-            'langfuse'
-        ]
-    elif experimental_with_ibm_telemetry:
-        command = compose_command + [
-            '--profile',
-            'ibm-telemetry'
-        ]
-    else:
-        command = compose_command
+        profiles.append("langfuse")
+    if experimental_with_ibm_telemetry:
+        profiles.append("ibm-telemetry")
+    if with_doc_processing:
+        profiles.append("docproc")
 
+    command = compose_command[:]
+    for profile in profiles:
+        command += ["--profile", profile]
 
     command += [
         "-f", str(compose_path),
@@ -424,6 +439,7 @@ def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
 def run_compose_lite_ui(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(user_env_file)  
     ensure_docker_installed()
 
     default_env = read_env_file(get_default_env_file())
@@ -518,6 +534,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
 def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(user_env_file)  
 
 
     ensure_docker_installed()
@@ -561,6 +578,7 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
 def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
 
     command = compose_command + [
         '--profile', '*',
@@ -593,6 +611,7 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
 def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(final_env_file)  
 
     command = compose_command + [
         "-f", str(compose_path),
@@ -648,63 +667,63 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool):
 def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
     """
     Automatically detect and configure CALLBACK_HOST_URL if it's empty.
-    
+
     Args:
         merged_env_dict: The merged environment dictionary
-        
+
     Returns:
         Updated environment dictionary with CALLBACK_HOST_URL set
     """
     callback_url = merged_env_dict.get('CALLBACK_HOST_URL', '').strip()
-    
+
     # Only auto-configure if CALLBACK_HOST_URL is empty
     if not callback_url:
         logger.info("Auto-detecting local IP address for async tool callbacks...")
-        
+
         system = platform.system()
         ip = None
-        
+
         try:
             if system in ("Linux", "Darwin"):
                 result = subprocess.run(["ifconfig"], capture_output=True, text=True, check=True)
                 lines = result.stdout.splitlines()
-                
+
                 for line in lines:
                     line = line.strip()
                     # Unix ifconfig output format: "inet 192.168.1.100 netmask 0xffffff00 broadcast 192.168.1.255"
                     if line.startswith("inet ") and "127.0.0.1" not in line:
                         candidate_ip = line.split()[1]
                         # Validate IP is not loopback or link-local
-                        if (candidate_ip and 
-                            not candidate_ip.startswith("127.") and 
+                        if (candidate_ip and
+                            not candidate_ip.startswith("127.") and
                             not candidate_ip.startswith("169.254")):
                             ip = candidate_ip
                             break
-            
+
             elif system == "Windows":
                 result = subprocess.run(["ipconfig"], capture_output=True, text=True, check=True)
                 lines = result.stdout.splitlines()
-                
+
                 for line in lines:
                     line = line.strip()
                     # Windows ipconfig output format: "   IPv4 Address. . . . . . . . . . . : 192.168.1.100"
                     if "IPv4 Address" in line and ":" in line:
                         candidate_ip = line.split(":")[-1].strip()
                         # Validate IP is not loopback or link-local
-                        if (candidate_ip and 
-                            not candidate_ip.startswith("127.") and 
+                        if (candidate_ip and
+                            not candidate_ip.startswith("127.") and
                             not candidate_ip.startswith("169.254")):
                             ip = candidate_ip
                             break
-            
+
             else:
                 logger.warning(f"Unsupported platform: {system}")
                 ip = None
-                
+
         except Exception as e:
             logger.debug(f"IP detection failed on {system}: {e}")
             ip = None
-        
+
         if ip:
             callback_url = f"http://{ip}:4321"
             merged_env_dict['CALLBACK_HOST_URL'] = callback_url
@@ -717,7 +736,7 @@ def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
             logger.info("For external tools, consider using ngrok or similar tunneling service.")
     else:
         logger.info(f"Using existing CALLBACK_HOST_URL: {callback_url}")
-    
+
     return merged_env_dict
 
 @server_app.command(name="start")
@@ -747,6 +766,11 @@ def server_start(
         False,
         "--accept-terms-and-conditions",
         help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
+    ),
+    with_doc_processing: bool = typer.Option(
+        False,
+        '--with-doc-processing', '-d',
+        help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
     ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
@@ -782,10 +806,13 @@ def server_start(
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
         sys.exit(1)
 
-    # Add LANGFUSE_ENABLED into the merged_env_dict, for tempus to pick up.
+    # Add LANGFUSE_ENABLED and DOCPROC_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-        
+
+    if with_doc_processing:
+        merged_env_dict['DOCPROC_ENABLED'] = 'true'
+
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
@@ -799,10 +826,12 @@ def server_start(
 
 
     final_env_file = write_merged_env_file(merged_env_dict)
-    run_compose_lite(final_env_file=final_env_file, 
-                     experimental_with_langfuse=experimental_with_langfuse,
-                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry)
 
+    run_compose_lite(final_env_file=final_env_file,
+                     experimental_with_langfuse=experimental_with_langfuse,
+                     experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
+                     with_doc_processing=with_doc_processing)
+    
     run_db_migration()
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
@@ -829,6 +858,8 @@ def server_start(
 
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+    if with_doc_processing:
+        logger.info(f"Document processing capabilities are now available for use in Flows (both ADK and runtime). Note: This option is currently available only in the Developer edition.")
 
 @server_app.command(name="stop")
 def server_stop(

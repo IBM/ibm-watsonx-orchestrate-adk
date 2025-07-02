@@ -1,4 +1,5 @@
 import typer
+import sys
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
 from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
@@ -24,6 +25,7 @@ app = typer.Typer(
     pretty_exceptions_enable=False,
     callback=init_callback
 )
+
 app.add_typer(login_app)
 app.add_typer(environment_app, name="env", help='Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)')
 app.add_typer(agents_app, name="agents", help='Interact with the agents in your active env')

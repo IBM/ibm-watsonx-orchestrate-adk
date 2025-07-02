@@ -3,6 +3,7 @@ import json
 import os.path
 import logging
 from typing import Dict, Any, List
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 import yaml
 import yaml.constructor
@@ -40,7 +41,7 @@ class OpenAPITool(BaseTool):
         BaseTool.__init__(self, spec=spec)
 
         if self.__tool_spec__.binding.openapi is None:
-            raise ValueError('Missing openapi binding')
+            raise BadRequest('Missing openapi binding')
 
     async def __call__(self, **kwargs):
         raise RuntimeError('OpenAPI Tools are only available when deployed onto watson orchestrate or the watson '
@@ -54,10 +55,10 @@ class OpenAPITool(BaseTool):
             elif file.endswith('.json'):
                 spec = ToolSpec.model_validate(json.load(f))
             else:
-                raise ValueError('file must end in .json, .yaml, or .yml')
+                raise BadRequest('file must end in .json, .yaml, or .yml')
 
         if spec.binding.openapi is None or spec.binding.openapi is None:
-            raise ValueError('failed to load python tool as the tool had no openapi binding')
+            raise BadRequest('failed to load python tool as the tool had no openapi binding')
 
         return OpenAPITool(spec=spec)
 
@@ -108,11 +109,11 @@ def create_openapi_json_tool(
     paths = openapi_contents.get('paths', {})
     route = paths.get(http_path)
     if route is None:
-        raise ValueError(f"Path {http_path} not found in paths. Available endpoints are: {list(paths.keys())}")
+        raise BadRequest(f"Path {http_path} not found in paths. Available endpoints are: {list(paths.keys())}")
 
     route_spec = route.get(http_method.lower(), route.get(http_method.upper()))
     if route_spec is None:
-        raise ValueError(
+        raise BadRequest(
             f"Path {http_path} did not have an http_method {http_method}. Available methods are {list(route.keys())}")
 
     operation_id = re.sub( r'(\W|_)+', '_', route_spec.get('operationId') ) \
@@ -121,12 +122,12 @@ def create_openapi_json_tool(
     spec_name = name or operation_id
     spec_permission = permission or _action_to_perm(route_spec.get('x-ibm-operation', {}).get('action'))
     if spec_name is None:
-        raise ValueError(
-            f"No name provided for tool. {http_method}: {http_path} did not specify an operationId, and no name was provided")
+        raise BadRequest(
+            f"Failed to import tool from endpoint {http_method}: {http_path} as no operationId was provided. An operationId must be provided to generate the name of the tool.")
 
     spec_description = description or route_spec.get('description')
     if spec_description is None:
-        raise ValueError(
+        raise BadRequest(
             f"No description provided for tool. {http_method}: {http_path} did not specify a description field, and no description was provided")
 
     spec = ToolSpec(
@@ -199,7 +200,7 @@ def create_openapi_json_tool(
     for needed_security in route_spec.get('security', []) + openapi_spec.get('security', []):
         name = next(iter(needed_security.keys()), None)
         if name is None or name not in security_schemes_map:
-            raise ValueError(f"Invalid openapi spec, {HTTP_METHOD} {http_path} asks for a security scheme of {name}, "
+            raise BadRequest(f"Invalid openapi spec, {HTTP_METHOD} {http_path} asks for a security scheme of {name}, "
                              f"but no such security scheme was configured in the .security section of the spec")
 
         security.append(security_schemes_map[name])
@@ -260,23 +261,23 @@ async def _get_openapi_spec_from_uri(openapi_uri: str) -> Dict[str, Any]:
             elif openapi_uri.endswith('.yaml') or openapi_uri.endswith('.yml'):
                 openapi_contents = yaml_safe_load(fp)
             else:
-                raise ValueError(
+                raise BadRequest(
                     f"Unexpected file extension for file {openapi_uri}, expected one of [.json, .yaml, .yml]")
     elif openapi_uri.endswith('.json'):
         async with httpx.AsyncClient() as client:
             r = await client.get(openapi_uri)
             if r.status_code != 200:
-                raise ValueError(f"Failed to fetch an openapi spec from {openapi_uri}, status code: {r.status_code}")
+                raise BadRequest(f"Failed to fetch an openapi spec from {openapi_uri}, status code: {r.status_code}")
             openapi_contents = r.json()
     elif openapi_uri.endswith('.yaml'):
         async with httpx.AsyncClient() as client:
             r = await client.get(openapi_uri)
             if r.status_code != 200:
-                raise ValueError(f"Failed to fetch an openapi spec from {openapi_uri}, status code: {r.status_code}")
+                raise BadRequest(f"Failed to fetch an openapi spec from {openapi_uri}, status code: {r.status_code}")
             openapi_contents = yaml_safe_load(r.text)
 
     if openapi_contents is None:
-        raise ValueError(f"Unrecognized path or uri {openapi_uri}")
+        raise BadRequest(f"Unrecognized path or uri {openapi_uri}")
 
     return openapi_contents
 

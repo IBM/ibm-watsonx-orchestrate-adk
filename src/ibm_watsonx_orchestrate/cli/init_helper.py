@@ -4,6 +4,7 @@ from typing import Optional
 from rich import print as pprint
 from dotenv import dotenv_values
 import typer
+import sys
 
 from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, \
     PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT
@@ -29,7 +30,6 @@ def version_callback(checkVersion: bool=True):
 
         raise typer.Exit()
 
-    
 
 def init_callback(
     ctx: typer.Context,
@@ -38,6 +38,15 @@ def init_callback(
       "--version",
       help="Show the installed version of the ADK and Developer Edition Tags",
       callback=version_callback
+    ),
+    debug: Optional[bool] = typer.Option(
+        False,
+        "--debug",
+        help="Enable debug mode"
     )
 ):
+    if debug:
+        sys.tracebacklimit = 40
+    else:
+        sys.tracebacklimit = 0
     pass
