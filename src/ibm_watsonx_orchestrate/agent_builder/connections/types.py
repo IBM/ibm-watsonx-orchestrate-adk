@@ -244,15 +244,11 @@ CONNECTION_KIND_OAUTH_TYPE_MAPPING = {
 }
 
 CONNECTION_TYPE_CREDENTIAL_MAPPING = {
-    ConnectionType.BASIC_AUTH: BasicAuthCredentials,
-    ConnectionType.BEARER_TOKEN: BearerTokenAuthCredentials,
-    ConnectionType.API_KEY_AUTH: APIKeyAuthCredentials,
-    ConnectionType.OAUTH2_AUTH_CODE: OAuth2TokenCredentials,
-    # ConnectionType.OAUTH2_IMPLICIT: OAuth2TokenCredentials,
-    # ConnectionType.OAUTH2_PASSWORD: OAuth2TokenCredentials,
-    ConnectionType.OAUTH2_CLIENT_CREDS: OAuth2TokenCredentials,
-    ConnectionType.OAUTH_ON_BEHALF_OF_FLOW: OAuth2TokenCredentials,
-    ConnectionType.KEY_VALUE: KeyValueConnectionCredentials,
+    ConnectionSecurityScheme.BASIC_AUTH: BasicAuthCredentials,
+    ConnectionSecurityScheme.BEARER_TOKEN: BearerTokenAuthCredentials,
+    ConnectionSecurityScheme.API_KEY_AUTH: APIKeyAuthCredentials,
+    ConnectionSecurityScheme.OAUTH2: OAuth2TokenCredentials,
+    ConnectionSecurityScheme.KEY_VALUE: KeyValueConnectionCredentials,
 }
 
 class IdentityProviderCredentials(BaseModel):
