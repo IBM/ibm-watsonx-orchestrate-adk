@@ -330,7 +330,7 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_docproc=False) -> None:
+def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_doc_processing=False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
     _prepare_clean_env(final_env_file)  
@@ -363,7 +363,7 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
         profiles.append("langfuse")
     if experimental_with_ibm_telemetry:
         profiles.append("ibm-telemetry")
-    if with_docproc:
+    if with_doc_processing:
         profiles.append("docproc")
 
     command = compose_command[:]
@@ -767,9 +767,9 @@ def server_start(
         "--accept-terms-and-conditions",
         help="By providing this flag you accept the terms and conditions outlined in the logs on server start."
     ),
-    with_docproc: bool = typer.Option(
+    with_doc_processing: bool = typer.Option(
         False,
-        '--with-docproc', '-d',
+        '--with-doc-processing', '-d',
         help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
     ),
 ):
@@ -810,7 +810,7 @@ def server_start(
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
 
-    if with_docproc:
+    if with_doc_processing:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
 
     if experimental_with_ibm_telemetry:
@@ -830,8 +830,8 @@ def server_start(
     run_compose_lite(final_env_file=final_env_file,
                      experimental_with_langfuse=experimental_with_langfuse,
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
-                     with_docproc=with_docproc)
-
+                     with_doc_processing=with_doc_processing)
+    
     run_db_migration()
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
@@ -858,7 +858,7 @@ def server_start(
 
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
-    if with_docproc:
+    if with_doc_processing:
         logger.info(f"Document processing capabilities are now available for use in Flows (both ADK and runtime). Note: This option is currently available only in the Developer edition.")
 
 @server_app.command(name="stop")
