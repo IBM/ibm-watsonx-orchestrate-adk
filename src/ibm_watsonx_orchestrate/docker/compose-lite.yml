@@ -120,7 +120,7 @@ services:
       TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
       AGENT_OPS_API_KEY: ${AGENTOPS_API_KEY}
-      AGENTS_OPS_RUNTIME_ENDPOINT: https://host.docker.internal:8765
+      AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
     command: 'npm start'

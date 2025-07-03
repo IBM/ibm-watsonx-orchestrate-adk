@@ -166,7 +166,7 @@ def import_flow_support_tools():
 
     if not is_local_dev():
         # we can't import support tools into non-local environments yet
-        return
+        return []
 
     client = instantiate_client(TempusClient)
 

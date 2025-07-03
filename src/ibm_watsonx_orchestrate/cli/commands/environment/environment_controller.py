@@ -167,7 +167,7 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
 
 def add(name: str, url: str, should_activate: bool=False, iam_url: str=None, type: EnvironmentAuthType=None, insecure: bool=None, verify: str=None) -> None:
     if name == PROTECTED_ENV_NAME:
-        logger.error(f"The name '{PROTECTED_ENV_NAME}' is a reserved environment name. Please select a diffrent name or use `orchestrate env activate {PROTECTED_ENV_NAME}` to swap to '{PROTECTED_ENV_NAME}'")
+        logger.error(f"The name '{PROTECTED_ENV_NAME}' is a reserved environment name. Please select a different name or use `orchestrate env activate {PROTECTED_ENV_NAME}` to swap to '{PROTECTED_ENV_NAME}'")
         return
 
     cfg = Config()
