@@ -149,7 +149,7 @@ def models_policy_add(
         retry_attempts: Annotated[
             int,
             typer.Option('--retry-attempts', help='The number of attempts to retry'),
-        ],
+        ] = None,
         strategy_on_code: Annotated[
             List[int],
             typer.Option('--strategy-on-code', help='The http status to consider invoking the strategy'),
