@@ -187,7 +187,7 @@ def create_flow_status_tool(flow_status_tool: str, TEMPUS_ENDPOINT: str="http://
     )
 
     openapi_binding = OpenApiToolBinding(
-        http_path="/flows",
+        http_path="/v1/flows",
         http_method="GET",
         security=[],
         servers=[TEMPUS_ENDPOINT]
