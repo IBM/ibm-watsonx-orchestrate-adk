@@ -905,6 +905,7 @@ services:
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
+      STANDALONE_DPI: "true"
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
