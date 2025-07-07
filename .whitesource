@@ -1,5 +1,5 @@
 {
-  "settingsInheritedFrom": "WatsonOrchestrate/whitesource-config@main"
+  "settingsInheritedFrom": "WatsonOrchestrate/whitesource-config@main",
   "scanSettings": {
     "baseBranches": [
         "develop",
