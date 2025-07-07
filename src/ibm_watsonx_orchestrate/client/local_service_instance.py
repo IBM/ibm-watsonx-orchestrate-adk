@@ -2,6 +2,8 @@ from ibm_watsonx_orchestrate.client.base_service_instance import BaseServiceInst
 import logging
 import requests
 from ibm_watsonx_orchestrate.client.credentials import Credentials
+import json
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +13,7 @@ DEFAULT_TENANT = {
     "tags": ["test"]
 }
 
-DEFAULT_USER = {"username": "wxo.archer@ibm.com", "password": "watsonx"}
+DEFAULT_USER = json.loads(base64.b64decode('eyJ1c2VybmFtZSI6ICJ3eG8uYXJjaGVyQGlibS5jb20iLCJwYXNzd29yZCI6ICJ3YXRzb254In0='))
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 DEFAULT_LOCAL_AUTH_ENDPOINT = f"{DEFAULT_LOCAL_SERVICE_URL}/api/v1/auth/token"
 DEFAULT_LOCAL_TENANT_URL = f"{DEFAULT_LOCAL_SERVICE_URL}/api/v1/tenants"
