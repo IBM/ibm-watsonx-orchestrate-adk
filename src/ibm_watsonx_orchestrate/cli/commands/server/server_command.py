@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
 
+
 _ALWAYS_UNSET: set[str] = {
     "WO_API_KEY",
     "WO_INSTANCE",
@@ -42,6 +43,18 @@ _ALWAYS_UNSET: set[str] = {
     "WO_USERNAME",
     "WO_PASSWORD",
 }
+  
+def define_saas_wdu_runtime(value: str = "none") -> None:
+    cfg = Config()
+
+    current_config_file_values = cfg.get(USER_ENV_CACHE_HEADER)
+    current_config_file_values["SAAS_WDU_RUNTIME"] = value
+
+    cfg.save(
+        {
+            USER_ENV_CACHE_HEADER: current_config_file_values
+        }
+    )
 
 def ensure_docker_installed() -> None:
     try:
@@ -310,7 +323,8 @@ NON_SECRET_ENV_ITEMS = {
     "WO_INSTANCE",
     "USE_SAAS_ML_TOOLS_RUNTIME",
     "AUTHORIZATION_URL",
-    "OPENSOURCE_REGISTRY_PROXY"
+    "OPENSOURCE_REGISTRY_PROXY",
+    "SAAS_WDU_RUNTIME"
 }
 def persist_user_env(env: dict, include_secrets: bool = False) -> None:
     if include_secrets:
@@ -775,6 +789,8 @@ def server_start(
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
+    define_saas_wdu_runtime()
+    
     if user_env_file and not Path(user_env_file).exists():
         logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
         sys.exit(1)
@@ -812,6 +828,7 @@ def server_start(
 
     if with_doc_processing:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
+        define_saas_wdu_runtime("local")
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
@@ -869,6 +886,7 @@ def server_stop(
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):
+
     ensure_docker_installed()
     default_env_path = get_default_env_file()
     merged_env_dict = merge_env(

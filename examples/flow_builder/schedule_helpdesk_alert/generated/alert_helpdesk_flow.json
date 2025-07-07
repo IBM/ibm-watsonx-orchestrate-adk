@@ -1,0 +1,245 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "alert_helpdesk_flow",
+    "display_name": "alert_helpdesk_flow",
+    "description": "Build a simple system that will check for an alert in the support system and send a summary to the helpdesk.",
+    "output_schema": {
+      "$ref": "#/schemas/Message"
+    }
+  },
+  "nodes": {
+    "check_support_system": {
+      "spec": {
+        "kind": "tool",
+        "name": "check_support_system",
+        "display_name": "check_support_system",
+        "description": "Check support system and return current set of open tickets",
+        "input_schema": {
+          "$ref": "#/schemas/check_support_system_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/Alert"
+        },
+        "tool": "check_support_system"
+      }
+    },
+    "alert_helpdesk": {
+      "spec": {
+        "kind": "tool",
+        "name": "alert_helpdesk",
+        "display_name": "alert_helpdesk",
+        "description": "Send an email to internal help desk.\nReturns the email body that was sent.",
+        "input_schema": {
+          "$ref": "#/schemas/alert_helpdesk_input"
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "tool": "alert_helpdesk"
+      }
+    },
+    "generate_alert_message": {
+      "spec": {
+        "kind": "prompt",
+        "name": "generate_alert_message",
+        "display_name": "Generate a simple alert message.",
+        "description": "Generate a simple alert message.",
+        "input_schema": {
+          "$ref": "#/schemas/generate_alert_message_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/Message"
+        },
+        "system_prompt": [
+          "You are a customer support processing assistant.",
+          "Generate a summary message based on the supplied number of ticket that can be used to send to helpdesk.",
+          "Please state the number of tickets per priority in the summary."
+        ],
+        "user_prompt": [
+          "Here is the alert."
+        ],
+        "llm": "meta-llama/llama-3-3-70b-instruct",
+        "llm_parameters": {
+          "min_new_tokens": 5,
+          "max_new_tokens": 400,
+          "top_k": 1,
+          "stop_sequences": [
+            "Human:",
+            "AI:"
+          ]
+        }
+      }
+    },
+    "notify_user_via_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "notify_user_via_agent",
+        "display_name": "notify_user_via_agent",
+        "description": "Summarize the alert message that was sent to the helpdesk.",
+        "input_schema": {
+          "$ref": "#/schemas/notify_user_via_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/Message"
+        },
+        "message": "Summarize the alert message that was sent to the helpdesk.",
+        "agent": "schedule_inform_agent",
+        "title": "Inform alert"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "check_support_system"
+    },
+    {
+      "start": "check_support_system",
+      "end": "generate_alert_message"
+    },
+    {
+      "start": "generate_alert_message",
+      "end": "alert_helpdesk"
+    },
+    {
+      "start": "alert_helpdesk",
+      "end": "notify_user_via_agent"
+    },
+    {
+      "start": "notify_user_via_agent",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "Message": {
+      "type": "object",
+      "title": "Message",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "A Message"
+        }
+      }
+    },
+    "check_support_system_input": {
+      "type": "object",
+      "title": "check_support_system_input",
+      "required": [],
+      "properties": {}
+    },
+    "Alert": {
+      "type": "object",
+      "title": "Alert",
+      "required": [
+        "product_name",
+        "high_priority_tickets",
+        "medium_priority_tickets",
+        "low_priority_tickets"
+      ],
+      "properties": {
+        "product_name": {
+          "type": "string",
+          "title": "Product Name",
+          "description": "The product that we should search for support alert."
+        },
+        "high_priority_tickets": {
+          "type": "integer",
+          "title": "High Priority Tickets",
+          "description": "Number of high priority tickets"
+        },
+        "medium_priority_tickets": {
+          "type": "integer",
+          "title": "Medium Priority Tickets",
+          "description": "Number of medium priority tickets"
+        },
+        "low_priority_tickets": {
+          "type": "integer",
+          "title": "Low Priority Tickets",
+          "description": "Number of low priority tickets"
+        }
+      }
+    },
+    "alert_helpdesk_input": {
+      "type": "object",
+      "title": "alert_helpdesk_input",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message"
+        }
+      }
+    },
+    "generate_alert_message_input": {
+      "type": "object",
+      "title": "generate_alert_message_input",
+      "required": [
+        "product_name",
+        "high_priority_tickets",
+        "medium_priority_tickets",
+        "low_priority_tickets"
+      ],
+      "properties": {
+        "product_name": {
+          "type": "string",
+          "title": "Product Name",
+          "description": "The product that we should search for support alert."
+        },
+        "high_priority_tickets": {
+          "type": "integer",
+          "title": "High Priority Tickets",
+          "description": "Number of high priority tickets"
+        },
+        "medium_priority_tickets": {
+          "type": "integer",
+          "title": "Medium Priority Tickets",
+          "description": "Number of medium priority tickets"
+        },
+        "low_priority_tickets": {
+          "type": "integer",
+          "title": "Low Priority Tickets",
+          "description": "Number of low priority tickets"
+        }
+      }
+    },
+    "notify_user_via_agent_input": {
+      "type": "object",
+      "title": "notify_user_via_agent_input",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "A Message"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-09T19:20:39.597451+00:00"
+  }
+}

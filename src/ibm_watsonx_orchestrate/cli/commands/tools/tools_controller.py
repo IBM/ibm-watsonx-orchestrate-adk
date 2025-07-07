@@ -400,7 +400,14 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     
 [bold cyan]Additional information:[/bold cyan]
 
-- The [bold green]Get flow status[/bold green] tool is being imported to support flow tools. This tool can query the status of a flow tool instance.  You can add it to your agent using the UI or including the following tool name in your agent definition: [green]i__get_flow_status_intrinsic_tool__[/green]. 
+- The [bold green]Get flow status[/bold green] tool is being imported to support flow tools. This tool can query the status of a flow tool instance. You can add it to your agent using the UI or including the following tool name in your agent definition: [green]i__get_flow_status_intrinsic_tool__[/green].
+
+[bold cyan]Experimental Features - Scheduling Flows and Agents: [/bold cyan]
+- You can now schedule any Flows to be run on a later time.  Just include the [bold green]"schedulable=True"[/bold green] attribute in the @flow decorator.
+- Once enabled, you can schedule a flow by saying something like: [bold green]Can you schedule the flow <flow_name> to run everyday at 7am EST for 3 times?[/bold green]
+- To schedule an agent, see the example in [bold green]examples/flow_builder/agent_scheduler[/bold green]. Use that to import the [bold green]agent_run[/bold green] tool to your agent. 
+- Use [bold green]agent_run[/bold green] tool to schedule an agent. For example: [bold green]Can you schedule the agent <agent_name> to run every weekday at 8am UK time?[/bold green]
+- In scheduling, it is important to mention timezone or UTC time (also known as Greenwich Mean Time or Coordinated Universal Time) will be used.
 
     """
 
@@ -477,7 +484,7 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                                  permission="read_only", 
                                  flow_model=model)   
     
-    tools = import_flow_support_tools()
+    tools = import_flow_support_tools(model=model)
     
     tools.append(tool)
 

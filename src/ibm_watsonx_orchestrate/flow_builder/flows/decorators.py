@@ -33,7 +33,8 @@ def flow(*args,
          description: str|None=None,
          input_schema: type[BaseModel] | None = None,
          output_schema: type[BaseModel] | None = None,
-         initiators: Sequence[str] = ()):
+         initiators: Sequence[str] = (),
+         schedulable: bool = False):
     """Decorator to mark a function as a flow model builder."""
 
     def decorator(func: Callable):
@@ -58,7 +59,8 @@ def flow(*args,
                              description = node_spec.description,
                              input_schema = input_schema,
                              output_schema = output_schema,
-                             initiators = initiators)
+                             initiators = initiators,
+                             schedulable = schedulable)
 
         # logger.info("Creating flow model: %s", a_model.spec.name)
 

@@ -1,0 +1,373 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "invoice_extraction_flow_example",
+    "display_name": "invoice_extraction_flow_example",
+    "description": "This flow only contains a single docproc node",
+    "input_schema": {
+      "$ref": "#/schemas/invoice_extraction_flow_example_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "kvp_invoices_extraction": {
+      "spec": {
+        "kind": "docproc",
+        "name": "kvp_invoices_extraction",
+        "display_name": "kvp_invoices_extraction",
+        "description": "Extract key-value pairs from an invoice",
+        "input_schema": {
+          "$ref": "#/schemas/kvp_invoices_extraction_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/KVPInvoicesExtractionResponse"
+        },
+        "task": "kvp_invoices_extraction"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "kvp_invoices_extraction"
+    },
+    {
+      "start": "kvp_invoices_extraction",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "invoice_extraction_flow_example_input": {
+      "type": "object",
+      "title": "invoice_extraction_flow_example_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "kvp_invoices_extraction_input": {
+      "type": "object",
+      "title": "kvp_invoices_extraction_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Invoice": {
+      "type": "object",
+      "title": "Invoice",
+      "description": "This class represents the fields extracted by the \"kvp_invoices_extraction\" document processing (docproc) operation.",
+      "properties": {
+        "bank_account_number": {
+          "title": "Bank account number",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bank_name": {
+          "title": "Bank name",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bill_to_address": {
+          "title": "Bill-to address",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bill_to_name": {
+          "title": "Bill-to name",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invoice_date": {
+          "title": "Invoice date",
+          "format": "date",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invoice_number": {
+          "title": "Invoice number",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invoice_total": {
+          "title": "Invoice total",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payment_due_date": {
+          "title": "Payment due date",
+          "format": "date",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payment_terms": {
+          "title": "Payment terms",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purchase_order_number": {
+          "title": "Purchase order number",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ship_to_address": {
+          "title": "Ship-to address",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ship_to_name": {
+          "title": "Ship-to name",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shipping_amount": {
+          "title": "Shipping amount",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subtotal": {
+          "title": "Subtotal",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tax_amount": {
+          "title": "Tax amount",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tax_rate": {
+          "title": "Tax rate",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tax_type": {
+          "title": "Tax type",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vendor_address": {
+          "title": "Vendor address",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vendor_name": {
+          "title": "Vendor name",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "KVPInvoicesExtractionResponse": {
+      "type": "object",
+      "title": "KVPInvoicesExtractionResponse",
+      "description": "The response of a \"kvp_invoices_extraction\" document processing (docproc) operation.\nAttributes:\n    invoice: an object with the fields extracted from the input invoice document",
+      "required": [
+        "output"
+      ],
+      "properties": {
+        "output": {
+          "title": "Invoice",
+          "$ref": "#/schemas/Invoice"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-27T00:12:26.782615+00:00"
+  }
+}

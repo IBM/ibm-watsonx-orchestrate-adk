@@ -51,6 +51,8 @@ dev = [
     "black~=22.3.0",
     "pylint~=2.16.4",
 ]
+[tool.pytest.ini_options]
+pythonpath = "src"
 
 [tool.hatch.envs.default]
 dependencies = [

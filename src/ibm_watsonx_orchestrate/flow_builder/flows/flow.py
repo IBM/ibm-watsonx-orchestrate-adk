@@ -15,6 +15,7 @@ import logging
 import copy
 import uuid
 import pytz
+import os
 
 from typing_extensions import Self
 from pydantic import BaseModel, Field, SerializeAsAny
@@ -25,11 +26,13 @@ from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
     EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
-    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy
+    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
+    DocProcSpec, TextExtractionResponse, KVPInvoicesExtractionResponse, KVPUtilityBillsExtractionResponse,
+    DocumentContent
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode
+    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
@@ -114,7 +117,7 @@ class Flow(Node):
                 # pydantic suppport nested comparison by default
 
                 schema.title = title
-                
+
                 if schema == existing_schema:
                     return existing_schema
                 # we need to do a deep compare
@@ -354,6 +357,7 @@ class Flow(Node):
               name: str, 
               agent: str, 
               display_name: str|None=None,
+              title: str | None = None,
               message: str | None = "Follow the agent instructions.",
               description: str | None = None,
               input_schema: type[BaseModel]|None = None, 
@@ -371,6 +375,7 @@ class Flow(Node):
             display_name=display_name,
             description=description,
             agent=agent,
+            title=title,
             message=message,
             guidelines=guidelines,
             input_schema=_get_tool_request_body(input_schema_obj),
@@ -428,6 +433,50 @@ class Flow(Node):
         # add the node to the list of node
         node = self._add_node(node)
         return cast(PromptNode, node)
+    
+    def docproc(self, 
+            name: str, 
+            task: str,
+            display_name: str|None=None,
+            description: str | None = None,
+            input_map: DataMap = None) -> DocProcNode:
+
+        if name is None :
+            raise ValueError("name must be provided.")
+        
+        if task is None:
+            raise ValueError("task must be provided.")
+        
+        output_schema_dict = { 
+            "text_extraction" : TextExtractionResponse,
+            "kvp_invoices_extraction" : KVPInvoicesExtractionResponse,
+            "kvp_utility_bills_extraction" : KVPUtilityBillsExtractionResponse
+        }
+         # create input spec
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentContent)
+        output_schema_obj = _get_json_schema_obj("output", output_schema_dict[task])
+        if "$defs" in output_schema_obj.model_extra:
+            output_schema_obj.model_extra.pop("$defs")
+        # Create the docproc spec
+        task_spec = DocProcSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            input_schema=_get_tool_request_body(input_schema_obj),
+            output_schema=_get_tool_response_body(output_schema_obj),
+            output_schema_object = output_schema_obj,
+            task=task
+        )
+
+        node = DocProcNode(spec=task_spec)
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        node = self._add_node(node)
+        return cast(DocProcNode, node)
+    
 
     def node_exists(self, node: Union[str, Node]):
      
@@ -921,7 +970,8 @@ class FlowFactory(BaseModel):
                     description: str|None=None,
                     initiators: Sequence[str]|None=None,
                     input_schema: type[BaseModel]|None=None,
-                    output_schema: type[BaseModel]|None=None) -> Flow:
+                    output_schema: type[BaseModel]|None=None,
+                    schedulable: bool=False) -> Flow:
         if isinstance(name, Callable):
             flow_spec = getattr(name, "__flow_spec__", None)
             if not flow_spec:
@@ -942,7 +992,8 @@ class FlowFactory(BaseModel):
             initiators=initiators,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
-            output_schema_object = output_schema_obj
+            output_schema_object = output_schema_obj,
+            schedulable=schedulable,
         )
 
         return Flow(spec = flow_spec)
@@ -1228,10 +1279,12 @@ class UserFlow(Flow):
               kind: UserFieldKind = UserFieldKind.Text,
               display_name: str | None = None,
               description: str | None = None,
-              owners: list[str] = [],
               default: Any | None = None,
-              text: str = None,
+              text: str = None, # The text used to ask question to the user, e.g. 'what is your name?'
               option: UserFieldOption | None = None,
+              is_list: bool = False,
+              min: Any | None = None,
+              max: Any | None = None,
               input_map: DataMap = None,
               custom: dict[str, Any] = {}) -> UserNode:
         '''create a node in the flow'''
@@ -1246,20 +1299,42 @@ class UserFlow(Flow):
         schema_obj.properties = {}
         schema_obj.properties[name] = UserFieldKind.convert_kind_to_schema_property(kind, name, description, default, option, custom)
 
-        return self.user(name, 
-                         display_name=display_name,
-                         description=description,
-                         owners=owners,
-                         text=text,
-                         output_schema=schema_obj,
-                         input_map=input_map)
+        task_spec = UserNodeSpec(
+            name=name,
+            display_name=display_name,
+            description=description,
+            owners=[CURRENT_USER],
+            input_schema=_get_tool_request_body(schema_obj),
+            output_schema=_get_tool_response_body(schema_obj),
+            text=text,
+            output_schema_object = schema_obj
+        )
+
+        node = UserNode(spec = task_spec)
+        node.field(name = name,
+                   kind = kind,
+                   display_name = display_name,
+                   description = description,
+                   default = default,
+                   text = text,
+                   option = option,
+                   is_list = is_list,
+                   min = min,
+                   max = max,
+                   custom = custom)
+
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+
+        node = self._add_node(node)
+        return cast(UserNode, node)
 
     def user(
         self,
         name: str | None = None,
         display_name: str | None = None,
         description: str | None = None,
-        owners: list[str] = [],
         text: str | None = None,
         output_schema: type[BaseModel] | JsonSchemaObject| None = None,
         input_map: DataMap = None,
@@ -1273,16 +1348,12 @@ class UserFlow(Flow):
         # input and output is always the same in an user node
         output_schema_obj = output_schema_obj
 
-        # identify owner
-        if not owners:
-            owners = [ANY_USER]
-
         # Create the tool spec
         task_spec = UserNodeSpec(
             name=name,
             display_name=display_name,
             description=description,
-            owners=owners,
+            owners=[CURRENT_USER],
             input_schema=_get_tool_request_body(output_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             text=text,

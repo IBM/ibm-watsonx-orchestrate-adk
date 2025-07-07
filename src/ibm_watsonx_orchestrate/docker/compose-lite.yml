@@ -753,8 +753,8 @@ services:
       SERVER_HTTP_PORT: "9044"
       SERVER_CONTEXT_PATH:
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
-      SERVER_STANDALONE_TASK_CALLBACK_URL: http://localhost:9044/task/callback/{thread_id}/{requestId}
-      SERVER_FLOW_CALLBACK_URL: http://localhost:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
+      SERVER_STANDALONE_TASK_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
+      SERVER_FLOW_CALLBACK_URL: http://wxo-tempus-runtime:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
@@ -784,6 +784,7 @@ services:
       LOG_LEVEL: info
       DISABLE_FLOW_BINDING: true
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
+      DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}

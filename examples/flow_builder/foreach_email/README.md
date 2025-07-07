@@ -4,7 +4,7 @@
 2. Run `import-all.sh` 
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `customer_email_agent`
-5. Type in something like `I'd to send email to all my contact in ABC Inc.`
+5. Type in something like `Send an invitation to all`
 
 ### Testing Flow programmatically
 

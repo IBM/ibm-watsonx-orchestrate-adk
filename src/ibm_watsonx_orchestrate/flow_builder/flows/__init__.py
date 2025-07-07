@@ -1,5 +1,5 @@
 from .constants import START, END, RESERVED
-from ..types import FlowContext, TaskData, TaskEventType
+from ..types import FlowContext, TaskData, TaskEventType, DocumentContent
 from ..node import UserNode, AgentNode, StartNode, EndNode, PromptNode, ToolNode
 from .flow import Flow, CompiledFlow, FlowRun, FlowEvent, FlowEventType, FlowFactory, MatchPolicy, WaitPolicy, ForeachPolicy, Branch, Foreach, Loop
 from .decorators import flow
@@ -14,7 +14,9 @@ __all__ = [
     "FlowContext",
     "TaskData",
     "TaskEventType",
+    "DocumentContent",
 
+    "DocProcNode",
     "UserNode",
     "AgentNode",
     "StartNode",
