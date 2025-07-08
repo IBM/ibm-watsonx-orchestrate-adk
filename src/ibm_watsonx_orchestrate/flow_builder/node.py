@@ -5,7 +5,7 @@ import uuid
 import yaml
 from pydantic import BaseModel, Field, SerializeAsAny
 
-from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec
+from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec
 from .data_map import DataMap
 
 class Node(BaseModel):
@@ -78,6 +78,8 @@ class UserNode(Node):
               description: str | None = None,
               default: Any | None = None,
               option: UserFieldOption | None = None,
+              min: Any | None = None,
+              max: Any | None = None,
               is_list: bool = False,
               custom: dict[str, Any] | None = None,
               widget: str | None = None):
@@ -88,6 +90,8 @@ class UserNode(Node):
                               description=description,
                               default=default,
                               option=option,
+                              min=min,
+                              max=max,
                               is_list=is_list,
                               custom=custom,
                               widget=widget)
@@ -105,6 +109,13 @@ class PromptNode(Node):
 
     def get_spec(self) -> PromptNodeSpec:
         return cast(PromptNodeSpec, self.spec)
+    
+class DocProcNode(Node):
+    def __repr__(self):
+        return f"DocProcNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> DocProcSpec:
+        return cast(DocProcSpec, self.spec)
 
 class NodeInstance(BaseModel):
     node: Node

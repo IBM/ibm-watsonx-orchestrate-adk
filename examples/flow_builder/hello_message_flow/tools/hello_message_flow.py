@@ -19,10 +19,13 @@ class Name(BaseModel):
     first_name: str
     last_name: str
 
+class Message(BaseModel):
+    msg: str
+
 @flow(
         name = "hello_message_flow",
         input_schema=Name,
-        output_schema=str
+        output_schema=Message
     )
 def build_hello_message_flow(aflow: Flow = None) -> Flow:
     """
@@ -34,7 +37,7 @@ def build_hello_message_flow(aflow: Flow = None) -> Flow:
         Flow: The created flow.
     """
     combine_names_node = aflow.tool(combine_names)
-    get_hello_message_node = aflow.tool(get_hello_message)
+    get_hello_message_node = aflow.tool(get_hello_message, output_schema=Message)
 
     aflow.edge(START, combine_names_node).edge(combine_names_node, get_hello_message_node).edge(get_hello_message_node, END)
 

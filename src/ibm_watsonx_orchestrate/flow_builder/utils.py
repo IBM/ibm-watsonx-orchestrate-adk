@@ -87,9 +87,15 @@ def _get_tool_request_body(schema_obj: JsonSchemaObject) -> ToolRequestBody:
         return None
     
     if isinstance(schema_obj, JsonSchemaObject):
-        request_obj = ToolRequestBody(type='object', properties=schema_obj.properties, required=schema_obj.required)
-        if schema_obj.model_extra:
-            request_obj.__pydantic_extra__ = schema_obj.model_extra
+        if schema_obj.type == "object":
+            request_obj = ToolRequestBody(type='object', properties=schema_obj.properties, required=schema_obj.required)
+            if schema_obj.model_extra:
+                request_obj.__pydantic_extra__ = schema_obj.model_extra
+        else:  # we need to wrap a simple type with an object
+            request_obj = ToolRequestBody(type='object', properties={}, required=[])
+            request_obj.properties["data"] = schema_obj
+            if schema_obj.model_extra:
+                request_obj.__pydantic_extra__ = schema_obj.model_extra
 
         return request_obj
     
@@ -162,17 +168,26 @@ async def import_flow_model(model):
 
     return tool_id
 
-def import_flow_support_tools():
+def import_flow_support_tools(model):
 
     if not is_local_dev():
         # we can't import support tools into non-local environments yet
         return []
 
+        
+    schedulable = False
+    if "schedulable" in model["spec"]:
+        schedulable = model["spec"]["schedulable"]
 
     client = instantiate_client(TempusClient)
 
     logger.info(f"Import 'get_flow_status' tool spec...")
     tools = [create_flow_status_tool("i__get_flow_status_intrinsic_tool__")]
+
+    if schedulable:
+        get_schedule_tool = create_get_schedule_tool("i__get_schedule_intrinsic_tool__")
+        delete_schedule_tool = create_delete_schedule_tool("i__delete_schedule_intrinsic_tool__")
+        tools.extend([get_schedule_tool, delete_schedule_tool])
 
     return tools
 
@@ -214,3 +229,102 @@ def create_flow_status_tool(flow_status_tool: str, TEMPUS_ENDPOINT: str="http://
 
     return OpenAPITool(spec=spec)
 
+
+def create_get_schedule_tool(name: str, TEMPUS_ENDPOINT: str="http://wxo-tempus-runtime:9044") -> dict:
+
+    spec = ToolSpec(
+        name=name,
+        description="Use this tool to show the current schedules.",
+        permission='read_only',
+        display_name= "Get Schedules"
+    )
+
+    openapi_binding = OpenApiToolBinding(
+        http_path="/v1/schedules/simple",
+        http_method="GET",
+        security=[],
+        servers=[TEMPUS_ENDPOINT]
+    )
+    
+    spec.binding = ToolBinding(openapi=openapi_binding)
+    # Input Schema
+    properties = {
+        "query_schedule_id": {
+            "type": "string",
+            "title": "schedule_id",
+            "description": "Identifies the schedule instance.",
+            "in": "query"
+        },
+        "query_schedule_name": {
+            "type": "string",
+            "title": "schedule_name",
+            "description": "Identifies the schedule name.",
+            "in": "query"
+        },
+    }
+    
+    spec.input_schema = ToolRequestBody(
+        type='object',
+        properties=properties,
+        required=[]
+    )
+
+    response_properties = {
+        "schedule_id": {
+            "type": "string",
+        },
+        "schedule_name": {
+            "type": "string",
+        },
+        "schedule_data": {
+            "type": "string",
+        },
+        "schedule_time": {
+            "type": "string",
+        }
+    }
+
+    spec.output_schema = ToolResponseBody(type='object',
+                                          properties=response_properties,
+                                          description='Return the information about the schedule.')
+
+    return OpenAPITool(spec=spec)
+
+
+def create_delete_schedule_tool(name: str, TEMPUS_ENDPOINT: str="http://wxo-tempus-runtime:9044") -> dict:
+
+    spec = ToolSpec(
+        name=name,
+        description="Use this tool to delete/remove a schedule based on the schedule_id.",
+        permission='read_only',
+        display_name= "Delete Schedule"
+    )
+
+    openapi_binding = OpenApiToolBinding(
+        http_path="/v1/schedules/{schedule_id}",
+        http_method="DELETE",
+        security=[],
+        servers=[TEMPUS_ENDPOINT]
+    )
+    
+    spec.binding = ToolBinding(openapi=openapi_binding)
+    # Input Schema
+    properties = {
+        "path_schedule_id": {
+            "type": "string",
+            "title": "schedule_id",
+            "description": "Identifies the schedule instance.",
+            "in": "query"
+        }
+    }
+    
+    spec.input_schema = ToolRequestBody(
+        type='object',
+        properties=properties,
+        required=[]
+    )
+
+    spec.output_schema = ToolResponseBody(type='object',
+                                          description='Schedule deleted.')
+
+    return OpenAPITool(spec=spec)

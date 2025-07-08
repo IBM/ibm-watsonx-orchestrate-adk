@@ -1,0 +1,234 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "text_extraction_flow_example",
+    "display_name": "text_extraction_flow_example",
+    "description": "This flow consists of two nodes: a docproc node, which extracts text from the input document, and a prompt node, which summarizes the extracted content.",
+    "input_schema": {
+      "$ref": "#/schemas/text_extraction_flow_example_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/SummarizationResponse"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "text_extraction": {
+      "spec": {
+        "kind": "docproc",
+        "name": "text_extraction",
+        "display_name": "text_extraction",
+        "description": "Extract text out of a document's contents.",
+        "input_schema": {
+          "$ref": "#/schemas/text_extraction_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/TextExtractionResponse"
+        },
+        "task": "text_extraction"
+      }
+    },
+    "summarization_node": {
+      "spec": {
+        "kind": "prompt",
+        "name": "summarization_node",
+        "display_name": "Summarize the provided text",
+        "description": "Summarize the provided text",
+        "input_schema": {
+          "$ref": "#/schemas/summarization_node_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/SummarizationResponse"
+        },
+        "system_prompt": [
+          "You are an expert at summarizing text. Your job is to summarize the text provided as input."
+        ],
+        "user_prompt": [
+          "Here is the {text}"
+        ],
+        "llm": "meta-llama/llama-3-2-11b-vision-instruct",
+        "llm_parameters": {
+          "min_new_tokens": 5,
+          "max_new_tokens": 400,
+          "top_k": 1,
+          "stop_sequences": [
+            "Human:",
+            "AI:"
+          ]
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "text_extraction"
+    },
+    {
+      "start": "text_extraction",
+      "end": "summarization_node"
+    },
+    {
+      "start": "summarization_node",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "text_extraction_flow_example_input": {
+      "type": "object",
+      "title": "text_extraction_flow_example_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SummarizationResponse": {
+      "type": "object",
+      "title": "SummarizationResponse",
+      "required": [
+        "summary"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "title": "Summary",
+          "description": "Summarize the text from previous node"
+        }
+      }
+    },
+    "text_extraction_input": {
+      "type": "object",
+      "title": "text_extraction_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TextExtraction": {
+      "type": "object",
+      "title": "TextExtraction",
+      "description": "This class represents the output generated by a \"text_extraction\" document processing (docproc) operation.\nAttributes:\n    text (str): the text extracted from the input document.",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "title": "Text extraction",
+          "description": "The text extracted from the input document"
+        }
+      }
+    },
+    "TextExtractionResponse": {
+      "type": "object",
+      "title": "TextExtractionResponse",
+      "description": "The text extraction operation response.\nAttributes:\n    output (TextExtraction): a wrapper for the text extraction response",
+      "required": [
+        "output"
+      ],
+      "properties": {
+        "output": {
+          "title": "TextExtraction",
+          "$ref": "#/schemas/TextExtraction"
+        }
+      }
+    },
+    "summarization_node_input": {
+      "type": "object",
+      "title": "summarization_node_input",
+      "required": [
+        "output"
+      ],
+      "properties": {
+        "output": {
+          "title": "TextExtraction",
+          "$ref": "#/schemas/TextExtraction"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-06-27T00:06:22.304957+00:00"
+  }
+}

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum, auto
 import inspect
 import logging
 from typing import (
@@ -116,7 +116,7 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
     return model_spec
 
 class NodeSpec(BaseModel):
-    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "branch", "wait", "foreach", "loop", "userflow", "end"] = "node"
+    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc" ] = "node"
     name: str
     display_name: str | None = None
     description: str | None = None
@@ -162,6 +162,26 @@ class NodeSpec(BaseModel):
 
         return model_spec
 
+class DocProcTask(StrEnum):
+    '''
+    Possible names for the Document processing task parameter
+    '''
+    text_extraction = auto()
+    kvp_invoices_extraction = auto()
+    kvp_utility_bills_extraction = auto()
+
+class DocProcSpec(NodeSpec):
+    task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.kind = "docproc"
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        model_spec["task"] = self.task
+        return model_spec
+    
 class StartNodeSpec(NodeSpec):
     def __init__(self, **data):
         super().__init__(**data)
@@ -296,6 +316,8 @@ class UserField(BaseModel):
     description: str | None = None
     default: Any | None = None
     option: UserFieldOption | None = None
+    min: Any | None = None,
+    max: Any | None = None,
     is_list: bool = False
     custom: dict[str, Any] | None = None
     widget: str | None = None
@@ -314,6 +336,10 @@ class UserField(BaseModel):
             model_spec["description"] = self.description
         if self.default:
             model_spec["default"] = self.default
+        if self.min:
+            model_spec["min"] = self.min
+        if self.max:
+            model_spec["min"] = self.max
         if self.is_list:
             model_spec["is_list"] = self.is_list
         if self.option:
@@ -356,7 +382,10 @@ class UserNodeSpec(NodeSpec):
               display_name: str | None = None, 
               description: str | None = None, 
               default: Any | None = None, 
-              option: list[str] | None = None, is_list: bool = False,
+              option: list[str] | None = None, 
+              min: Any | None = None,
+              max: Any | None = None,
+              is_list: bool = False,
               custom: dict[str, Any] | None = None,
               widget: str | None = None):
         userfield = UserField(name=name, 
@@ -366,6 +395,8 @@ class UserNodeSpec(NodeSpec):
                               description=description, 
                               default=default, 
                               option=option, 
+                              min=min,
+                              max=max,
                               is_list=is_list,
                               custom=custom,
                               widget=widget)
@@ -402,6 +433,8 @@ class UserNodeSpec(NodeSpec):
                                              default=prop_schema.default,
                                              option=self.setup_field_options(prop_schema.title, prop_schema.enum),
                                              is_list=prop_schema.type == "array",
+                                             min=prop_schema.minimum,
+                                             max=prop_schema.maximum,
                                              custom=prop_schema.model_extra))
 
     def setup_field_options(self, name: str, enums: List[str]) -> UserFieldOption:
@@ -415,6 +448,7 @@ class UserNodeSpec(NodeSpec):
 
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
+    title: str | None = Field(default=None, description="The title of the message.")
     guidelines: str | None = Field(default=None, description="The guidelines for the task.")
     agent: str
 
@@ -430,6 +464,8 @@ class AgentNodeSpec(ToolNodeSpec):
             model_spec["guidelines"] = self.guidelines
         if self.agent:
             model_spec["agent"] = self.agent
+        if self.title:
+            model_spec["title"] = self.title
         return model_spec
 
 class PromptLLMParameters(BaseModel):
@@ -553,10 +589,9 @@ class WaitNodeSpec(FlowControlNodeSpec):
         return my_dict
 
 class FlowSpec(NodeSpec):
- 
-
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
+    schedulable: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -566,6 +601,8 @@ class FlowSpec(NodeSpec):
         model_spec = super().to_json()
         if self.initiators:
             model_spec["initiators"] = self.initiators
+        
+        model_spec["schedulable"] = self.schedulable
 
         return model_spec
 
@@ -631,11 +668,11 @@ class TaskData(NamedTuple):
 
 class TaskEventType(Enum):
  
-    ON_TASK_WAIT = "on_task_wait" # the task is waiting for inputs before proceeding
-    ON_TASK_START = "on_task_start"
-    ON_TASK_END = "on_task_end"
-    ON_TASK_STREAM = "on_task_stream"
-    ON_TASK_ERROR = "on_task_error"
+    ON_TASK_WAIT = "task:on_task_wait" # the task is waiting for inputs before proceeding
+    ON_TASK_START = "task:on_task_start"
+    ON_TASK_END = "task:on_task_end"
+    ON_TASK_STREAM = "task:on_task_stream"
+    ON_TASK_ERROR = "task:on_task_error"
 
 class FlowData(BaseModel):
     '''This class represents the data that is passed between tasks in a flow.'''
@@ -667,9 +704,9 @@ class FlowContext(BaseModel):
     
 class FlowEventType(Enum):
  
-    ON_FLOW_START = "on_flow_start"
-    ON_FLOW_END = "on_flow_end"
-    ON_FLOW_ERROR = "on_flow_error"
+    ON_FLOW_START = "flow:on_flow_start"
+    ON_FLOW_END = "flow:on_flow_end"
+    ON_FLOW_ERROR = "flow:on_flow_error"
 
 
 @dataclass
@@ -691,9 +728,125 @@ class Assignment(BaseModel):
             e.g. "node.input.name" or "=f'{node.output.name}_{node.output.id}'"
 
     '''
-    target: str
-    source: str
-    
+    target_variable: str
+    value_expression: str | None = None
+    has_no_value: bool = False
+    default_value: Any | None = None
+    metadata: dict = Field(default_factory=dict[str, Any])
+
+class LanguageCode(StrEnum):
+    '''
+    The ISO-639 language codes understood by Document Processing functions.
+    A special 'en_hw' code is used to enable an English handwritten model.
+    '''
+    en = auto()
+    fr = auto()
+    en_hw = auto()
+
+class DocumentContent(BaseModel):
+    '''
+    This class represents the input of a Document processing task. 
+
+    Attributes:
+        document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
+        language (LanguageCode): Optional language code used when processing the input document
+    '''
+    # This is declared as bytes but the runtime will understand if a URL is send in as input.
+    # We need to use bytes here for Chat-with-doc to recognize the input as a Document.
+    document_ref: bytes | str = Field(
+        description="Either an ID or a URL identifying the document to be used.", 
+        title='Document reference', 
+        default=None, 
+        json_schema_extra={"format": "binary"})
+    language: Optional[LanguageCode] = Field(
+        description='Optional language code of the document, defaults to "en"', 
+        title='Document language code', 
+        default=LanguageCode.en)
+
+class TextExtraction(BaseModel):
+    '''
+    This class represents the output generated by a "text_extraction" document processing (docproc) operation.
+    Attributes:
+        text (str): the text extracted from the input document.
+    '''
+    text: str = Field(description='The text extracted from the input document', title='Text extraction')
+
+class TextExtractionResponse(BaseModel):
+    '''
+    The text extraction operation response.
+    Attributes:
+        output (TextExtraction): a wrapper for the text extraction response
+    '''
+    output: TextExtraction = Field(description='The text extraction response')
+
+class Invoice(BaseModel):
+    '''
+    This class represents the fields extracted by the "kvp_invoices_extraction" document processing (docproc) operation.
+    '''
+    bank_account_number: Optional[str] = Field(title='Bank account number', default=None)
+    bank_name: Optional[str] = Field(title='Bank name', default=None)
+    bill_to_address: Optional[str] = Field(title='Bill-to address', default=None)
+    bill_to_name: Optional[str] = Field(title='Bill-to name', default=None)
+    invoice_date: Optional[str] = Field(title='Invoice date', format='date', default=None)
+    invoice_number: Optional[str] = Field(title='Invoice number', default=None)
+    invoice_total: Optional[float] = Field(title='Invoice total', default=None)
+    payment_due_date: Optional[str] = Field(title='Payment due date', format='date', default=None)
+    payment_terms: Optional[str] = Field(title='Payment terms', default=None)
+    purchase_order_number: Optional[str] = Field(title='Purchase order number', default=None)
+    ship_to_address: Optional[str] = Field(title='Ship-to address', default=None)
+    ship_to_name: Optional[str] = Field(title='Ship-to name', default=None)
+    shipping_amount: Optional[float] = Field(title='Shipping amount', default=None)
+    subtotal: Optional[float] = Field(title='Subtotal', default=None)
+    tax_amount: Optional[float] = Field(title='Tax amount', default=None)
+    tax_rate: Optional[float] = Field(title='Tax rate', default=None)
+    tax_type: Optional[str] = Field(title='Tax type', default=None)
+    vendor_address: Optional[str] = Field(title='Vendor address', default=None)
+    vendor_name: Optional[str] = Field(title='Vendor name', default=None)
+
+
+class KVPInvoicesExtractionResponse(BaseModel):
+    '''
+    The response of a "kvp_invoices_extraction" document processing (docproc) operation.
+    Attributes:
+        invoice: an object with the fields extracted from the input invoice document
+    '''
+    output: Invoice = Field(
+        title='Invoice',
+        description='The fields extracted from an invoice document'
+    )
+
+
+class UtilityBill(BaseModel):
+    '''
+    This class represents the fields extracted by the "kvp_utility_bills_extraction" document processing (docproc) operation.
+    '''
+    account_number: Optional[str] = Field(title='Account number', default=None)
+    amount_due: Optional[float] = Field(title='Amount due', default=None)
+    client_number: Optional[str] = Field(title='Client number', default=None)
+    company_name: Optional[str] = Field(title='Company name', default=None)
+    company_address: Optional[str] = Field(title='Company address', default=None)
+    customer_name: Optional[str] = Field(title='Customer name', default=None)
+    customer_address: Optional[str] = Field(title='Customer address', default=None)
+    due_date: Optional[str] = Field(title='Due date', format='date', default=None)
+    payment_received: Optional[float] = Field(title='Payment received', default=None)
+    previous_balance: Optional[float] = Field(title='Previous balance', default=None)
+    service_address: Optional[str] = Field(title='Service address', default=None)
+    statement_date: Optional[str] = Field(title='Statement date', format='date', default=None)
+
+#class UtilityBillResponse(BaseModel):
+#    field_value: UtilityBill = Field(title='Field value')
+
+class KVPUtilityBillsExtractionResponse(BaseModel):
+    '''
+    The response of a "kvp_utility_bills_extraction" document processing (docproc) operation.
+    Attributes:
+        utility_bull: an object with the fields extracted from the input utility bill document
+    '''
+    output: UtilityBill = Field(
+        title='Utility bill',
+        description='The fields extracted from a utility bill document'
+    )
+
 def extract_node_spec(
         fn: Callable | PythonTool,
         name: Optional[str] = None,
