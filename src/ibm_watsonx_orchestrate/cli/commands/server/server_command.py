@@ -943,9 +943,24 @@ def server_logs(
 def run_db_migration() -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
+    default_env_path = get_default_env_file()
+    merged_env_dict = merge_env(default_env_path, user_env_path=None)
+    merged_env_dict['WATSONX_SPACE_ID']='X'
+    merged_env_dict['WATSONX_APIKEY']='X'
+    merged_env_dict['WXAI_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_EMBEDDINGS_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_LLM_SPACE_ID'] = ''
+    merged_env_dict['ROUTING_LLM_SPACE_ID'] = ''
+    merged_env_dict['USE_SAAS_ML_TOOLS_RUNTIME'] = ''
+    merged_env_dict['BAM_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_EMBEDDINGS_SPACE_ID'] = ''
+    merged_env_dict['ROUTING_LLM_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
+    final_env_file = write_merged_env_file(merged_env_dict)
 
     command = compose_command + [
         "-f", str(compose_path),
+        "--env-file", str(final_env_file),
         "exec",
         "wxo-server-db",
         "bash",
