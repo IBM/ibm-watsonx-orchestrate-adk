@@ -5,8 +5,10 @@ from dotenv import load_dotenv
 import os
 
 from typing import (
-    AsyncIterator, Union
+    AsyncIterator, TypeVar, Union
 )
+
+from enum import Enum
 
 from ..types import (
     FlowEventType, TaskEventType, FlowEvent, FlowContext
@@ -66,12 +68,11 @@ def deserialize_flow_event(byte_data: bytes) -> FlowEvent:
     
     return flow_event
 
+def is_valid_enum_value(value: str, enum_type: type[Enum]) -> bool:
+    return value in (item.value for item in enum_type)
+
 def get_event_type(selected_event_type: str) -> Union[FlowEventType, TaskEventType]:
-    """Selects the right event type from the corresponding enumerator"""
-    eventKind = selected_event_type.upper()
-    if eventKind in FlowEventType.__members__:
-        return FlowEventType(selected_event_type)
-    elif eventKind in TaskEventType.__members__:
-        return TaskEventType(selected_event_type)
-    else:
-        raise ValueError(f"Invalid event type: {eventKind}")
+    for enum_type in [FlowEventType, TaskEventType]:
+        if is_valid_enum_value(selected_event_type, enum_type):
+            return enum_type(selected_event_type)
+    raise ValueError(f"Invalid event type: {selected_event_type}")

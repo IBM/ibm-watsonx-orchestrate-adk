@@ -20,7 +20,8 @@ class FlowOutput(BaseModel):
 @flow(
     name = "get_number_random_fact_flow",
     input_schema=InputtedNumber,
-    output_schema=FlowOutput
+    output_schema=FlowOutput,
+    description="A flow to get a random fact about a number"
 
 )
 def get_number_random_fact_flow(aflow: Flow) -> Flow:

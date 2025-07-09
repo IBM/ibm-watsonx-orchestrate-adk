@@ -21,24 +21,6 @@ def knowledge_base_import(
     controller = KnowledgeBaseController()
     controller.import_knowledge_base(file=file, app_id=app_id)
 
-@knowledge_bases_app.command(name="patch", help="Patch a knowledge base by uploading documents, or providing an external vector index")
-def knowledge_base_patch(
-    file: Annotated[
-        str,
-        typer.Option("--file", "-f", help="YAML or JSON file with knowledge base definition"),
-    ],
-    name: Annotated[
-        str,
-        typer.Option("--name", "-n", help="Name of the knowledge base you wish to update"),
-    ]=None,
-    id: Annotated[
-        str,
-        typer.Option("--id", "-i", help="ID of the knowledge base you wish to update"),
-    ]=None
-):
-    controller = KnowledgeBaseController()
-    controller.update_knowledge_base(id=id, name=name, file=file)
-
 
 @knowledge_bases_app.command(name="list", help="List all knowledge bases")
 def list_knowledge_bases(

@@ -29,6 +29,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, Agen
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 
@@ -71,7 +72,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
         case AgentKind.ASSISTANT:
             agent = AssistantAgent.from_spec(file)
         case _:
-            raise ValueError("'kind' must be either 'native' or 'external'")
+            raise BadRequest("'kind' must be either 'native' or 'external'")
 
     return agent
 
@@ -88,7 +89,7 @@ def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
         agents = import_python_agent(file)
         return agents
     else:
-        raise ValueError("file must end in .json, .yaml, .yml or .py")
+        raise BadRequest("file must end in .json, .yaml, .yml or .py")
 
 def parse_create_native_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
     agent_details = {
@@ -950,7 +951,7 @@ class AgentsController:
             elif kind == AgentKind.ASSISTANT:
                 client = self.get_assistant_client()
             else:
-                raise ValueError("'kind' must be 'native'")
+                raise BadRequest("'kind' must be 'native'")
 
             draft_agents = client.get_draft_by_name(name)
             if len(draft_agents) > 1:

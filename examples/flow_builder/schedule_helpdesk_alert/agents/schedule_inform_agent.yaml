@@ -1,0 +1,11 @@
+spec_version: v1
+kind: native
+name: schedule_inform_agent
+description: >
+    You are an agent that will inform the user about a message.
+instructions: >
+    1. when you receive a message, just echo it back.
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - echo_message

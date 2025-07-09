@@ -6,6 +6,7 @@ from copy import deepcopy
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from enum import Enum
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 # Section Headers
 AUTH_SECTION_HEADER = "auth"
@@ -82,7 +83,6 @@ def _check_if_default_config_file(folder, file):
 def _check_if_auth_config_file(folder, file):
     return folder == AUTH_CONFIG_FILE_FOLDER and file == AUTH_CONFIG_FILE
 
-
 def clear_protected_env_credentials_token():
     auth_cfg = Config(config_file_folder=AUTH_CONFIG_FILE_FOLDER, config_file=AUTH_CONFIG_FILE)
     auth_cfg.delete(AUTH_SECTION_HEADER, PROTECTED_ENV_NAME, AUTH_MCSP_TOKEN_OPT)
@@ -91,7 +91,7 @@ def clear_protected_env_credentials_token():
 class ConfigFileTypes(str, Enum):
     AUTH = 'auth'
     CONFIG = 'config'
-
+    DOCPROC_FEATURE_CONF= 'docproc_feature'
 
 class Config:
 
@@ -209,7 +209,7 @@ class Config:
         as keys to access deeper sections of the config and then deleting the last specified key.
         """
         if len(args) < 1:
-            raise ValueError("Config.delete() requires at least one positional argument")
+            raise BadRequest("Config.delete() requires at least one positional argument")
 
         config_data = {}
         try:

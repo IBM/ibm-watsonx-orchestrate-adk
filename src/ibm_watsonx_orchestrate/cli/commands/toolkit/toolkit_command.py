@@ -47,7 +47,7 @@ def import_toolkit(
     ] = None,
     tools: Annotated[
         Optional[str],
-        typer.Option("--tools", "-t", help="Comma-separated list of tools to import. Or you can use `*` to use all tools"),
+        typer.Option("--tools", "-t", help="Comma-separated list of tools to import. Or you can use \"*\" to use all tools"),
     ] = None,
     app_id: Annotated[
         List[str],

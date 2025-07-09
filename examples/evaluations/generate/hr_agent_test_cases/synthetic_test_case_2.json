@@ -1,0 +1,28 @@
+{
+  "agent": "hr_agent",
+  "story": "I want to know my assignment ID for nwaters.",
+  "starting_sentence": "I'd like to know my assignment ID.",
+  "goals": {
+    "fetch_assignment_id-1": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-1",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Your assignment ID is 15778303.",
+      "keywords": [
+        "15778303"
+      ]
+    }
+  ]
+}

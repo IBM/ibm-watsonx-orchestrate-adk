@@ -1,0 +1,52 @@
+{
+  "agent": "hr_agent",
+  "story": "My username is johndoe. I want to update my Home adress to 123 Main St, Springfield, IL.",
+  "starting_sentence": "I am johndoe and I want to update my Home address to 123 Main St, Springfield, IL.",
+  "goals": {
+    "fetch_assignment_id-1": [
+      "get_address_type-1"
+    ],
+    "get_address_type-1": [
+      "update_address-1"
+    ],
+    "update_address-1": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "fetch_assignment_id-1",
+      "tool_name": "fetch_assignment_id",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_address_type-1",
+      "tool_name": "get_address_type",
+      "args": {
+        "address_type_name": "Home"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "update_address-1",
+      "tool_name": "update_address",
+      "args": {
+        "address_type_id": "1",
+        "assignment_id": "15338303",
+        "new_address": "123 Main St, Springfield, IL"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Your Home address has been updated to 123 Main St, Springfield, IL.",
+      "keywords": [
+        "123 Main St, Springfield, IL"
+      ]
+    }
+  ]
+}

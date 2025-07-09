@@ -16,12 +16,6 @@ class TestKnowledgeBaseImport:
                 file="test.yaml", app_id="app-id"
             )
 
-class TestKnowledgeBasePatch:
-    def test_knowledge_base_patch(self):
-        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.update_knowledge_base") as update_mock:
-            knowledge_bases_command.knowledge_base_patch(file="test.yaml", id="1234")
-            update_mock.assert_called_once_with(id="1234", name=None, file="test.yaml")
-
 class TestKnowledgeBaseList:
     def test_knowledge_base_list_knowledge_bases_non_verbose(self):
         with patch(

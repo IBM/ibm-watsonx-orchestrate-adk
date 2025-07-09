@@ -1,3 +1,4 @@
+from typing import List
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END, Branch
 )
@@ -18,11 +19,14 @@ class RequestInfo(BaseModel):
     first_name: str = Field(description="Employee's first name")
     last_name: str = Field(description="Employee's first name")
 
+class RequestResults(BaseModel):
+    results: List[str]
 
 @flow(
     name = "get_tuition_reimbursed",
     input_schema=RequestID,
-    output_schema=str
+    output_schema=str,
+    description="A flow can take employee id and find if they are eligible for tuition reimbursed"
 )
 def build_get_tuition_reimbursed_flow(aflow: Flow) -> Flow:
     # The flow will take ids as an input which is a string: eg : "1,2"
@@ -49,7 +53,7 @@ def build_get_tuition_reimbursed_flow(aflow: Flow) -> Flow:
     #        ouput:
     #           Employee Boogey Man(FULL-TIME) with a request of tuition 10000 and over all grade A is automatically APPROVED. 
     #           Employee Invisible Man(FULL-TIME) with a request of tuition 9000 and over all grade B requires MANAGER APPROVAL.
-    foreach_flow: Flow = aflow.foreach(item_schema=RequestInfo, output_schema=str)
+    foreach_flow: Flow = aflow.foreach(item_schema=RequestInfo, output_schema=RequestResults)
     
     auto_denial_node = foreach_flow.tool(auto_deny_request, input_schema=RequestInfo, output_schema=str)
     

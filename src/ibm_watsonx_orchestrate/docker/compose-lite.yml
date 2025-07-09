@@ -753,8 +753,8 @@ services:
       SERVER_HTTP_PORT: "9044"
       SERVER_CONTEXT_PATH:
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
-      SERVER_STANDALONE_TASK_CALLBACK_URL: http://localhost:9044/task/callback/{thread_id}/{requestId}
-      SERVER_FLOW_CALLBACK_URL: http://localhost:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
+      SERVER_STANDALONE_TASK_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
+      SERVER_FLOW_CALLBACK_URL: http://wxo-tempus-runtime:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
@@ -782,6 +782,9 @@ services:
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       LOG_LEVEL: info
+      DISABLE_FLOW_BINDING: true
+      DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
+      DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
@@ -795,6 +798,170 @@ services:
       - 9044:9044
     depends_on:
       - wxo-server-db
+
+########################
+# DOCPROC dependencies
+# DPS - 18081
+# DPI - 19080 / 19443
+# WDU - 18082
+# WDU (Prometheus) - 18086
+# DPS Cache - 18083
+# LLM Service - 18084
+######################## 
+
+  wxo-doc-processing-service:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-service
+      LOG_LEVEL: info
+      VERIFY_CLIENT_CERT: 0
+      SERVICE_URL: ${SERVICE_URL:-https://wxo-doc-processing-cache:8080}
+      RATE_LIMITING_ENABLED: "false"
+      SHOULD_CACHE_IMAGES: "false"
+      HANDWRITING_ENABLED: "true"
+      WDU_RUNTIME_URL: wdu-runtime:8080
+      WDU_TIMEOUT_SECS: "180"
+      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+    profiles:
+      - docproc
+    # depends_on:
+      # wxo-doc-processing-cache:
+        # condition: service_healthy
+    ports:
+      - "18081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wdu-runtime:
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      MEMORY_MINIMAL: "true"
+      PREFLIGHT_MAX_SIZE: 10Mb
+      PREFLIGHT_MAX_PAGES: 600
+      RUNTIME_LIBRARY: "watson_doc_understanding"
+    profiles:
+      - docproc
+    ports:
+      - "18082:8080"
+      - "18086:8086"
+    volumes:
+      - "wdu-models:/models"
+      - "wdu-prometheus-files:/prometheus/"
+    tmpfs:
+      - "/dev/shm"
+    healthcheck:
+      test: ["CMD-SHELL", "/app/check_heartbeat.sh /tmp/heartbeat.txt 120"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+    depends_on:
+      wdu-model-copy:
+        condition: service_completed_successfully
+
+  wdu-model-copy:
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.4.0}
+    platform: linux/amd64
+    user: root
+    profiles:
+      - docproc
+    environment:
+      DEST_FOLDER: "/app/models"
+    volumes:
+      - "wdu-models:/app/models"
+      - "wdu-prometheus-files:/prometheus/"
+    tmpfs:
+      - "/dev/shm"
+
+  wxo-doc-processing-infra-standalone:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    platform: linux/amd64
+    profiles:
+      - docproc
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-dpi
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
+      USE_PGBOUNCER: "false"
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_ENDPOINT_URL: http://wxo-server-minio:9000
+      BUCKET_NAME_DEFAULT: wxo-document-processing-dpi-common
+      S3_FILERESOURCE_BUCKET: ${BUCKET_NAME_DEFAULT:-wxo-document-processing-dpi}
+      # S3_TLS_ENABLED: "true"
+      ENRICHMENT_BATCH_SIZE: "1000"
+      CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
+      SIDECAR_METERED_ENABLED: "false"
+      DPI_DEBUG: true
+      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
+      # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      DISABLE_TLS: true
+      STANDALONE_DPI: "true"
+    depends_on:
+      wxo-doc-processing-dpi-minio-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-infra-pg-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-service:
+        condition: service_healthy
+      # wxo-doc-processing-llm-service:
+      #   condition: service_healthy
+    ports:
+      - 19080:9080
+      - 19443:9443
+    healthcheck:
+      test: ["CMD-SHELL", "HEALTHCHECK_URL=http://localhost:9080/dps/v1/health /healthcheck-all.sh all"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wxo-doc-processing-infra-pg-init:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
+    platform: linux/amd64
+    environment: 
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-dpi
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
+      USE_PGBOUNCER: "false"
+    entrypoint: /liquibase-init.sh
+      - pgbouncer
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
+      interval: 1s
+      timeout: 5s
+      retries: 50
+
+  wxo-doc-processing-dpi-minio-init:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    platform: linux/amd64
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-dpi;
+      exit 0;
+      "
 
 volumes:
   tools:
@@ -818,6 +985,14 @@ volumes:
   langfuse_clickhouse_data:
     driver: local
   langfuse_clickhouse_logs:
+    driver: local
+  wdu-prometheus-files:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "uid=1000,gid=1000,mode=1777"
+  wdu-models:
     driver: local
   es_data:
 

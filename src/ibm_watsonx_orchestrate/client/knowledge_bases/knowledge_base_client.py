@@ -1,4 +1,4 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 import json
 from typing_extensions import List
 from ibm_watsonx_orchestrate.client.utils import is_local_dev

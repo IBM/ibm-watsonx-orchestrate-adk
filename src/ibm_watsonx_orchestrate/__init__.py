@@ -5,7 +5,8 @@
 
 pkg_name = "ibm-watsonx-orchestrate"
 
-__version__ = "1.6.2"
+__version__ = "1.7.0b1"
+
 
 
 

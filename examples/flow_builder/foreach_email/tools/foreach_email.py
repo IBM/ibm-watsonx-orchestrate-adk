@@ -17,6 +17,9 @@ from .get_emails_from_customer import get_emails_from_customer, CustomerRecord
 class CustomerName(BaseModel):
     name: str = Field(description="The name of the customer")
 
+class Invitations(BaseModel):
+    invitations: List[str]
+
 @flow(
     name="send_invitation_to_customer",
     input_schema=CustomerName,
@@ -28,8 +31,7 @@ def build_send_invitation_to_customer_flow(aflow: Flow) -> Flow:
     get_customer_list_node = aflow.tool(get_emails_from_customer)
 
     # calling add_foreach will create a subflow, and we can add more node to the subflow
-    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord,
-                                       output_schema=CustomerRecord)
+    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord, output_schema=Invitations)
     
     node2 = foreach_flow.tool(send_invitation_email)
     foreach_flow.sequence(START, node2, END)

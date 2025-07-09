@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 class SpecVersion(str, Enum):
     V1 = "v1"
@@ -218,22 +218,6 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None
-    
-class PatchKnowledgeBase(BaseModel):
-    """request payload schema"""
-    description: Optional[str] = None
-    documents: list[str] = None
-    conversational_search_tool: Optional[ConversationalSearchConfig] = None  
-    prioritize_built_in_index: Optional[bool] = None
-    representation: Optional[KnowledgeBaseRepresentation] = None
-
-    @model_validator(mode="after")
-    def validate_fields(self):
-        if self.documents and self.conversational_search_tool and self.conversational_search_tool.index_config:
-            raise ValueError("Must not provide both \"documents\" or \"conversational_search_tool.index_config\"")
-        if self.conversational_search_tool and self.conversational_search_tool.index_config and len(self.conversational_search_tool.index_config) != 1:
-            raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(self.conversational_search_tool.index_config)}.")
-        return self
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
