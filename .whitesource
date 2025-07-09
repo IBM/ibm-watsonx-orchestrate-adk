@@ -1,3 +1,22 @@
 {
-  "settingsInheritedFrom": "whitesource-config/whitesource-config@master"
+  "settingsInheritedFrom": "WatsonOrchestrate/whitesource-config@main",
+  "scanSettings": {
+    "baseBranches": [
+        "develop",
+        "main",
+    ],
+    "configMode": "AUTO"
+  },
+  "scanSettingsSAST": {
+      "enableScan": true,
+      "scanPullRequests": true,
+      "incrementalScan": true,
+      "baseBranches": [
+          "develop",
+          "main"
+      ]
+  },
+  "docker":{
+    "enabled": false
+  }
 }
