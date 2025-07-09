@@ -390,6 +390,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
         "up",
         "--scale",
         "ui=0",
+        "--scale",
+        "cpe=0",
         "-d",
         "--remove-orphans",
     ]

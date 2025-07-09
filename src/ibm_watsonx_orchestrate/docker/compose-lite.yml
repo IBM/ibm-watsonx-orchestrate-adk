@@ -798,6 +798,16 @@ services:
       - 9044:9044
     depends_on:
       - wxo-server-db
+  
+  cpe:
+    image: ${CPE_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-prompt-optimizer:${CPE_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      WATSONX_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+    ports:
+      - 8081:8080
 
 ########################
 # DOCPROC dependencies

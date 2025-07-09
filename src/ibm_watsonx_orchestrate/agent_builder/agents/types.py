@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
-DEFAULT_LLM = "watsonx/meta-llama/llama-3-1-70b-instruct"
+DEFAULT_LLM = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
 
 class SpecVersion(str, Enum):
     V1 = "v1"
@@ -24,6 +24,12 @@ class AgentKind(str, Enum):
     NATIVE = "native"
     EXTERNAL = "external"
     ASSISTANT = "assistant"
+
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
 
 class ExternalAgentAuthScheme(str, Enum):
     BEARER_TOKEN = 'BEARER_TOKEN'
