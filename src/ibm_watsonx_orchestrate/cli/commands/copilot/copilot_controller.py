@@ -107,8 +107,8 @@ def pre_cpe_step(cpe_client, tool_client):
     res = {}
     while True:
         if "message" in response and response["message"]:
-            rich.print('\n[blue]CPE>[/blue]: ' + response["message"])
-            user_message = Prompt.ask("\n[green]You>[/green]").strip()
+            rich.print('\n🤖 Copilot: ' + response["message"])
+            user_message = Prompt.ask("\n👤 You").strip()
             message_content = {"user_message": user_message}
         elif "description" in response and response["description"]:
             res["description"] = response["description"]
@@ -177,8 +177,8 @@ def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
         accepted_prompt = resp.get("final_zsh_prompt", None)
         if not accepted_prompt:
             cpe_message = resp.get("message", "")
-            rich.print('\n[blue]CPE>[/blue]: ' + cpe_message)
-            message = Prompt.ask("\n[green]You>[/green]").strip()
+            rich.print('\n🤖 Copilot: ' + cpe_message)
+            message = Prompt.ask("\n👤 You").strip()
             with _get_progress_spinner() as progress:
                 task = progress.add_task(description="Thinking...", total=None)
                 response = cpe_client.invoke(prompt=message)
