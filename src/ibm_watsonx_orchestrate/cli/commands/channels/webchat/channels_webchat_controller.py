@@ -4,7 +4,7 @@ import jwt
 import sys
 
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud_platform, get_environment, get_cpd_instance_id_from_url, is_saas_env, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
@@ -22,7 +22,7 @@ class ChannelsWebchatController:
         return self.native_client
     
     def extract_tenant_id_from_crn(self, crn: str) -> str:
-        is_ibm_cloud_env = is_ibm_cloud()
+        is_ibm_cloud_env = is_ibm_cloud_platform()
         if is_ibm_cloud_env:
             try:
                 parts = crn.split("a/")[1].split(":")
@@ -77,6 +77,7 @@ class ChannelsWebchatController:
         agent_environments = agent.get("environments", [])        
 
         is_local = is_local_dev()
+        is_saas = is_saas_env()
         target_env = env or 'draft'
 
         if is_local:
@@ -91,7 +92,7 @@ class ChannelsWebchatController:
                 logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
             exit(1)
 
-        if target_env == 'draft' and is_local == False:
+        if target_env == 'draft' and is_saas == True:
             logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
             exit(1)
              
@@ -99,7 +100,7 @@ class ChannelsWebchatController:
 
         return filtered_environments[0].get("id")
 
-    def get_tennent_id(self):
+    def get_tenant_id(self):
         auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
 
         cfg = Config()
@@ -154,30 +155,40 @@ class ChannelsWebchatController:
             
     def create_webchat_embed_code(self):
         crn = None
-        is_ibm_cloud_env = is_ibm_cloud()
-        is_local = is_local_dev()
-        if is_ibm_cloud_env is True:
-            crn = input("Please enter your CRN which can be gotten from the IBM Cloud UI: ")
-            if crn == "":
-                logger.error("You must enter your CRN for IBM Cloud instances")
-                sys.exit(1)
-            is_crn_correct = self.check_crn_is_correct(crn)
-            if is_crn_correct == False:
-                logger.error("Invalid CRN format provided.")
+        environment = get_environment()
 
-        if is_ibm_cloud_env and crn is not None:
-            tenant_id = self.extract_tenant_id_from_crn(crn)
-        elif is_ibm_cloud_env is False and is_local is False:
-            tenant_id = self.get_tennent_id()
-        elif is_local:
-            tenant_id = self.get_tenant_id_local()
+        match (environment):
+            case "local":
+                tenant_id = self.get_tenant_id_local()
+
+            case "cpd":
+                tenant_id = get_cpd_instance_id_from_url()
+
+            case "ibmcloud":
+                crn = input("Please enter your CRN which can be retrieved from the IBM Cloud UI: ")
+                if crn == "":
+                    logger.error("You must enter your CRN for IBM Cloud instances")
+                    sys.exit(1)
+                is_crn_correct = self.check_crn_is_correct(crn)
+                if is_crn_correct == False:
+                    logger.error("Invalid CRN format provided.")
+                    sys.exit(1)
+                tenant_id = self.extract_tenant_id_from_crn(crn)
+
+            case "ga":
+                tenant_id = self.get_tenant_id()
+
+            case _:
+                logger.error("Environment not recognized")
+                sys.exit(1)
+            
         host_url = self.get_host_url()
         agent_id = self.get_agent_id(self.agent_name)
         agent_env_id = self.get_environment_id(self.agent_name, self.env)
 
         script_path = (
             "/wxoLoader.js?embed=true"
-            if is_local
+            if environment == "local"
             else "/wxochat/wxoLoader.js?embed=true"
         )
 
@@ -189,9 +200,8 @@ class ChannelsWebchatController:
         ]
 
         # Conditional fields for IBM Cloud
-        if is_ibm_cloud_env:
+        if environment == "ibmcloud":
             config_lines.append(f'crn: "{crn}"')
-        if is_ibm_cloud_env:
             config_lines.append(f'deploymentPlatform: "ibmcloud"')
 
         config_lines.append(f"""chatOptions: {{
