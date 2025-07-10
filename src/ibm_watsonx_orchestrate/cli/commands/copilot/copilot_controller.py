@@ -9,6 +9,7 @@ from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from requests import ConnectionError
 from typing import List
+from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
@@ -213,6 +214,9 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
     except ConnectionError:
         logger.error("Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
+    except ClientAPIException:
+        logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
+        sys.exit(1)
 
     if new_prompt:
         logger.info(f"The new instruction is: {new_prompt}")
@@ -240,6 +244,9 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
         res = pre_cpe_step(cpe_client, tool_client)
     except ConnectionError:
         logger.error("Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
+        sys.exit(1)
+    except ClientAPIException:
+        logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
         
     tools = res["tools"]

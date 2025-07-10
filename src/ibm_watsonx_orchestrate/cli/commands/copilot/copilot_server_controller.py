@@ -20,6 +20,11 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
 
 logger = logging.getLogger(__name__)
 
+def _verify_env_contents(env: dict) -> None:
+    if not env.get("WATSONX_APIKEY") or not env.get("WATSONX_SPACE_ID"):
+        logger.error("The Copilot feature requires wx.ai credentials to passed through the provided env file. Please set 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
+        sys.exit(1)
+
 def wait_for_wxo_cpe_health_check(timeout_seconds=45, interval_seconds=2):
     url = "http://localhost:8081/version"
     logger.info("Waiting for Copilot component to be initialized...")
@@ -61,6 +66,8 @@ def run_compose_lite_cpe(user_env_file: Path) -> bool:
         **default_env,
         **user_env,
     }
+
+    _verify_env_contents(merged_env_dict)
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
