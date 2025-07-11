@@ -121,9 +121,11 @@ class TestChannelController:
         assert agent_id == "mocked-agent-id"
 
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_local_dev")
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_saas_env")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.instantiate_client")
-    def test_get_environment_id(self, mock_instantiate_client, mock_is_local_dev):
+    def test_get_environment_id(self, mock_instantiate_client, mock_is_saas_env, mock_is_local_dev):
         mock_is_local_dev.return_value = True
+        mock_is_saas_env.return_value = False
         
         mock_client = mock.Mock()
         mock_client.get_draft_by_name.return_value = [{"environments": [{"name": "draft", "id": "mocked-env-id"}]}]
