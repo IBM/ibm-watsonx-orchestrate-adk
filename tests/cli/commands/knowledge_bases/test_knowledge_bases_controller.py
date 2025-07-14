@@ -234,7 +234,7 @@ class TestImportKnowledgeBase:
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
              patch("builtins.open", mock_open()) as mock_file:
 
-            expected_files =  [('files', ('document_2.pdf', 'pdf-data-2'))]
+            expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
             knowledge_Base = KnowledgeBase(**existing_built_in_knowledge_base_content)
             from_spec_mock.return_value = knowledge_Base
@@ -244,19 +244,20 @@ class TestImportKnowledgeBase:
             knowledge_base_payload.pop("documents")
 
             fakeStatus = {
-                "documents": [{ "metadata" : { 'original_file_name': "document_1.pdf" } }, {} ]
+                "documents": [{ "metadata" : { 'original_file_name': "document_1.pdf" } }, { "metadata" : { 'original_file_name': "document_3.pdf" } } ]
             } 
 
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, fake_status=fakeStatus, expected_files=expected_files, expected_id=uuid.uuid4())
 
-            mock_file.side_effect = [ "pdf-data-2" ]
+            mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
-            mock_file.assert_has_calls([ mock.call("my_dir/document_2.pdf", "rb") ])
+            mock_file.assert_has_calls([ mock.call("my_dir/document_1.pdf", "rb"), mock.call("my_dir/document_2.pdf", "rb") ])
 
             captured = caplog.text
-            assert f"Document \"document_1.pdf\" already exists in knowledge base, skipping." in captured
+            assert f"Document \"document_1.pdf\" already exists in knowledge base. Updating..." in captured
+            assert f"Document \"document_3.pdf\" removed from knowledge base." in captured
             assert f"Knowledge base 'existing-knowledge-base' updated successfully" in captured
 
 

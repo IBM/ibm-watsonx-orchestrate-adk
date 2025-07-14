@@ -71,6 +71,7 @@ class KnowledgeBaseController:
         client = self.get_client()
 
         knowledge_bases = parse_file(file=file)
+        
         existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
         
         for kb in knowledge_bases:
@@ -137,23 +138,24 @@ class KnowledgeBaseController:
 
     def update_knowledge_base(
         self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str
-    ) -> None:
-        filtered_files = []
-        
+    ) -> None:        
         if kb.documents:
             status = self.get_client().status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
             
+            removed_docs = existing_docs[:]
             for filepath in kb.documents:
                 filename = get_file_name(filepath)
 
                 if filename in existing_docs:
-                    logger.warning(f'Document \"{filename}\" already exists in knowledge base, skipping.')
-                else:
-                    filtered_files.append(filepath)
+                    logger.warning(f'Document \"{filename}\" already exists in knowledge base. Updating...')
+                    removed_docs.remove(filename)
 
-        if filtered_files:
-            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in filtered_files]
+            for filename in removed_docs:
+                logger.warning(f'Document \"{filename}\" removed from knowledge base.')
+
+
+            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in kb.documents]
             
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True);
