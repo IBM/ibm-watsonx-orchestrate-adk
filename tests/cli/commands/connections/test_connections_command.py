@@ -181,9 +181,10 @@ class TestConnectionsSetCredentials:
         "api_key": "test_api_key",
         "client_id": "test_client_id",
         "client_secret": "test_client_secret",
+        "send_via": "header",
         "token_url": "test_token_url",
         "auth_url": "test_auth_url",
-        "scopes": ["test_scope"],
+        "scope": "test_scope test_scope2",
         "grant_type": "test_grant_type",
         "entries": ["testentry1=testentry"]
     }
@@ -202,6 +203,7 @@ class TestConnectionsSetCredentials:
             ("api_key", None),
             ("client_id", None),
             # ("client_secret", None),
+            ("send_via", None),
             ("token_url", None),
             ("auth_url", None),
             ("grant_type", None),
