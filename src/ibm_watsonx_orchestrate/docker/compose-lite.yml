@@ -911,7 +911,7 @@ services:
       ENRICHMENT_BATCH_SIZE: "1000"
       CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
       SIDECAR_METERED_ENABLED: "false"
-      DPI_DEBUG: true
+      DPI_DEBUG: "false"
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
