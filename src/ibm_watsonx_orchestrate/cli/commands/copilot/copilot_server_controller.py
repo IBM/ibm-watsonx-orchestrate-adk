@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import time
 import requests
+from urllib.parse import urlparse
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     get_compose_file,
     ensure_docker_compose_installed,
@@ -16,14 +17,10 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     get_default_registry_env_vars_by_dev_edition_source,
     docker_login_by_dev_edition_source,
     write_merged_env_file,
+    apply_server_env_dict_defaults
 )
 
 logger = logging.getLogger(__name__)
-
-def _verify_env_contents(env: dict) -> None:
-    if not env.get("WATSONX_APIKEY") or not env.get("WATSONX_SPACE_ID"):
-        logger.error("The Copilot feature requires wx.ai credentials to passed through the provided env file. Please set 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
-        sys.exit(1)
 
 def wait_for_wxo_cpe_health_check(timeout_seconds=45, interval_seconds=2):
     url = "http://localhost:8081/version"
@@ -41,6 +38,24 @@ def wait_for_wxo_cpe_health_check(timeout_seconds=45, interval_seconds=2):
 
         time.sleep(interval_seconds)
     return False
+
+def _trim_authorization_urls(env_dict: dict) -> dict:
+    auth_url_key = "AUTHORIZATION_URL"
+    env_dict_copy = env_dict.copy()
+
+    auth_url = env_dict_copy.get(auth_url_key)
+    if not auth_url:
+        return env_dict_copy
+    
+    
+    parsed_url = urlparse(auth_url)
+    new_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    env_dict_copy[auth_url_key] = new_url
+
+    return env_dict_copy
+
+    
+
 
 def run_compose_lite_cpe(user_env_file: Path) -> bool:
     compose_path = get_compose_file()
@@ -66,8 +81,9 @@ def run_compose_lite_cpe(user_env_file: Path) -> bool:
         **default_env,
         **user_env,
     }
-
-    _verify_env_contents(merged_env_dict)
+    
+    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+    merged_env_dict = _trim_authorization_urls(merged_env_dict)
 
     try:
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)

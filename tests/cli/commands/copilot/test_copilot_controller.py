@@ -244,11 +244,13 @@ class TestPreCPEStep:
         ]
         cpe_client = MockCPEClient(pre_chat_responses=pre_chat_responses)
         with patch("builtins.input") as mock_input, \
+            patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_deployed_tools_agents") as get_deployed_tools_agents, \
             patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.find_tools_by_description") as mock_find_tools_by_description:
             mock_input.side_effect = ["test", "test"]
             mock_find_tools_by_description.return_value=[]
+            get_deployed_tools_agents.return_value={"tools": [], "agents": []}
 
-            pre_cpe_step(cpe_client, None)
+            pre_cpe_step(cpe_client)
 
 class TestFindToolsByDescription:
     @pytest.mark.parametrize(
@@ -470,7 +472,8 @@ class TestCreateAgent:
                 "tools": [],
                 "description": "test description",
                 "agent_name": "test_name",
-                "agent_style": AgentStyle.DEFAULT
+                "agent_style": AgentStyle.DEFAULT,
+                "collaborators": []
             }
 
             mock_talk_to_cpe.return_value = "test instructions"
@@ -499,7 +502,8 @@ class TestCreateAgent:
                 "tools": [],
                 "description": "test description",
                 "agent_name": "test_name",
-                "agent_style": AgentStyle.DEFAULT
+                "agent_style": AgentStyle.DEFAULT,
+                "collaborators": []
             }
 
             mock_talk_to_cpe.return_value = "test instructions"

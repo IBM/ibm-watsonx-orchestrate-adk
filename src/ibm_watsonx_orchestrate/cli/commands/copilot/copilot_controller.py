@@ -12,7 +12,8 @@ from typing import List
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind
-from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
+from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -20,20 +21,23 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
+
 def _validate_output_file(output_file: str, dry_run_flag: bool) -> None:
     if not output_file and not dry_run_flag:
-        logger.error("Please provide a valid yaml output file. Or use the `--dry-run` flag to output generated agent content to terminal")
+        logger.error(
+            "Please provide a valid yaml output file. Or use the `--dry-run` flag to output generated agent content to terminal")
         sys.exit(1)
-    
+
     if output_file and dry_run_flag:
         logger.error("Cannot set output file when performing a dry run")
         sys.exit(1)
-    
+
     if output_file:
         _, file_extension = os.path.splitext(output_file)
-        if file_extension not in  {".yaml", ".yml", ".json"}:
+        if file_extension not in {".yaml", ".yml", ".json"}:
             logger.error("Output file must be of type '.yaml', '.yml' or '.json'")
             sys.exit(1)
+
 
 def _get_progress_spinner() -> Progress:
     console = Console()
@@ -44,16 +48,22 @@ def _get_progress_spinner() -> Progress:
         console=console,
     )
 
+
 def _get_incomplete_tool_from_name(tool_name: str) -> dict:
     input_schema = ToolRequestBody(**{"type": "object", "properties": {}})
     output_schema = ToolResponseBody(**{"description": "None"})
-    spec = ToolSpec(**{"name": tool_name, "description": tool_name, "permission": ToolPermission.ADMIN, "input_schema": input_schema, "output_schema": output_schema})
+    spec = ToolSpec(**{"name": tool_name, "description": tool_name, "permission": ToolPermission.ADMIN,
+                       "input_schema": input_schema, "output_schema": output_schema})
+    return spec.model_dump()
+
+def _get_incomplete_agent_from_name(agent_name: str) -> dict:
+    spec = BaseAgentSpec(**{"name": agent_name, "description": agent_name, "kind": AgentKind.NATIVE})
     return spec.model_dump()
 
 def _get_tools_from_names(tool_names: List[str]) -> List[dict]:
     if not len(tool_names):
         return []
-    
+
     tool_client = get_tool_client()
 
     try:
@@ -64,20 +74,58 @@ def _get_tools_from_names(tool_names: List[str]) -> List[dict]:
             rich.print("\n")
             for tool_name in tool_names:
                 if tool_name not in found_tools:
-                    logger.warning(f"Failed to find tool named '{tool_name}'. Falling back to incomplete tool definition. Copilot performance maybe effected.")
+                    logger.warning(
+                        f"Failed to find tool named '{tool_name}'. Falling back to incomplete tool definition. Copilot performance maybe effected.")
                     tools.append(_get_incomplete_tool_from_name(tool_name))
             progress.remove_task(task)
     except ConnectionError:
-        logger.warning(f"Failed to fetch tools from server. For optimal results please start the server and import the relevant tools {', '.join(tool_names)}.")
+        logger.warning(
+            f"Failed to fetch tools from server. For optimal results please start the server and import the relevant tools {', '.join(tool_names)}.")
         tools = []
         for tool_name in tool_names:
             tools.append(_get_incomplete_tool_from_name(tool_name))
 
     return tools
 
+
+def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
+    if not len(collaborators_names):
+        return []
+
+    native_agents_client = get_native_client()
+
+    try:
+        with _get_progress_spinner() as progress:
+            task = progress.add_task(description="Fetching agents", total=None)
+            agents = native_agents_client.get_drafts_by_names(collaborators_names)
+            found_agents = {tool.get("name") for tool in agents}
+            rich.print("\n")
+            for collaborator_name in collaborators_names:
+                if collaborator_name not in found_agents:
+                    logger.warning(
+                        f"Failed to find agent named '{collaborator_name}'. Falling back to incomplete agent definition. Copilot performance maybe effected.")
+                    agents.append(_get_incomplete_agent_from_name(collaborator_name))
+            progress.remove_task(task)
+    except ConnectionError:
+        logger.warning(
+            f"Failed to fetch tools from server. For optimal results please start the server and import the relevant tools {', '.join(collaborators_names)}.")
+        agents = []
+        for collaborator_name in collaborators_names:
+            agents.append(_get_incomplete_agent_from_name(collaborator_name))
+
+    return agents
+
 def get_cpe_client() -> CPEClient:
     url = os.getenv('CPE_URL', "http://localhost:8081")
     return instantiate_client(client=CPEClient, url=url)
+
+
+def get_tool_client(*args, **kwargs):
+    return instantiate_client(ToolClient)
+
+
+def get_native_client(*args, **kwargs):
+    return instantiate_client(AgentClient)
 
 
 def gather_utterances(max: int) -> list[str]:
@@ -98,7 +146,16 @@ def gather_utterances(max: int) -> list[str]:
 
     return utterances
 
-def pre_cpe_step(cpe_client, tool_client):
+
+def get_deployed_tools_agents():
+    all_tools = find_tools_by_description(tool_client=get_tool_client(), description=None)
+    # TODO: this brings only the "native" agents. Can external and assistant agents also be collaborators?
+    all_agents = find_agents(agent_client=get_native_client())
+    return {"tools": all_tools, "agents": all_agents}
+
+
+def pre_cpe_step(cpe_client):
+    tools_agents = get_deployed_tools_agents()
     user_message = ""
     with _get_progress_spinner() as progress:
         task = progress.add_task(description="Initilizing Prompt Engine", total=None)
@@ -113,19 +170,20 @@ def pre_cpe_step(cpe_client, tool_client):
             message_content = {"user_message": user_message}
         elif "description" in response and response["description"]:
             res["description"] = response["description"]
-            tools = find_tools_by_description(res["description"], tool_client)
-            message_content = {"tools": tools}
+            message_content = tools_agents
         elif "metadata" in response:
             res["agent_name"] = response["metadata"]["agent_name"]
             res["agent_style"] = response["metadata"]["style"]
-            res["tools"] = [t for t in tools if t["name"] in response["metadata"]["tools"]]
+            res["tools"] = [t for t in tools_agents["tools"] if t["name"] in response["metadata"]["tools"]]
+            res["collaborators"] = [a for a in tools_agents["agents"] if
+                                    a["name"] in response["metadata"]["collaborators"]]
             return res
         with _get_progress_spinner() as progress:
             task = progress.add_task(description="Thinking...", total=None)
             response = cpe_client.submit_pre_cpe_chat(**message_content)
             progress.remove_task(task)
 
-# TODO: Add description RAG search
+
 def find_tools_by_description(description, tool_client):
     with _get_progress_spinner() as progress:
         task = progress.add_task(description="Fetching Tools", total=None)
@@ -137,6 +195,19 @@ def find_tools_by_description(description, tool_client):
             logger.warning("Failed to contact wxo server to fetch tools. Proceeding with empty tool list")
         progress.remove_task(task)
     return tools
+
+def find_agents(agent_client):
+    with _get_progress_spinner() as progress:
+        task = progress.add_task(description="Fetching Agents", total=None)
+        try:
+            agents = agent_client.get()
+        except ConnectionError:
+            agents = []
+            rich.print("\n")
+            logger.warning("Failed to contact wxo server to fetch agents. Proceeding with empty agent list")
+        progress.remove_task(task)
+    return agents
+
 
 def gather_examples(samples_file=None):
     if samples_file:
@@ -167,7 +238,7 @@ def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
     examples = gather_examples(samples_file)
     # upload or gather input examples
     context_data['examples'] = examples
-    response=None
+    response = None
     with _get_progress_spinner() as progress:
         task = progress.add_task(description="Thinking...", total=None)
         response = cpe_client.init_with_context(context_data=context_data)
@@ -199,20 +270,23 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
 
     if not output_file and not dry_run_flag:
         output_file = agent_spec
-    
+
     _validate_output_file(output_file, dry_run_flag)
 
     client = get_cpe_client()
 
     instr = agent.instructions
-    prompt = 'My current prompt is:\n' + instr if instr else "I don't have an initial prompt."
 
     tools = _get_tools_from_names(agent.tools)
 
+    collaborators = _get_agents_from_names(agent.collaborators)
     try:
-        new_prompt = talk_to_cpe(cpe_client=client, samples_file=samples_file, context_data={"prompt": prompt, 'tools': tools, 'description': agent.description})
+        new_prompt = talk_to_cpe(cpe_client=client, samples_file=samples_file,
+                                 context_data={"initial_instruction": instr, 'tools': tools, 'description': agent.description,
+                                               "collaborators": collaborators})
     except ConnectionError:
-        logger.error("Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
+        logger.error(
+            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
     except ClientAPIException:
         logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
@@ -230,32 +304,30 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
             AgentsController.persist_record(agent, output_file=output_file)
 
 
-def get_tool_client(*args, **kwargs):
-    return instantiate_client(ToolClient)
-
 def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_flag: bool = False) -> None:
     _validate_output_file(output_file, dry_run_flag)
     # 1. prepare the clients
     cpe_client = get_cpe_client()
-    tool_client = get_tool_client()
 
     # 2. Pre-CPE stage:
     try:
-        res = pre_cpe_step(cpe_client, tool_client)
+        res = pre_cpe_step(cpe_client)
     except ConnectionError:
-        logger.error("Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
+        logger.error(
+            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
     except ClientAPIException:
         logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
         
     tools = res["tools"]
+    collaborators = res["collaborators"]
     description = res["description"]
     agent_name = res["agent_name"]
     agent_style = res["agent_style"]
 
     # 4. discuss the instructions
-    instructions = talk_to_cpe(cpe_client, samples_file, {'tools': tools, 'description': description})
+    instructions = talk_to_cpe(cpe_client, samples_file, {'description': description, 'tools': tools, 'collaborators': collaborators})
 
     # 6. create and save the agent
     llm = llm if llm else DEFAULT_LLM
@@ -274,7 +346,6 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
     if os.path.dirname(output_file):
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
     AgentsController.persist_record(agent, output_file=output_file)
-
 
     message_lines = [
         "Your agent building session finished successfully!",

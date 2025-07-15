@@ -21,10 +21,11 @@ class CPEClient(BaseAPIClient):
         }
 
 
-    def submit_pre_cpe_chat(self, user_message: str | None =None, tools: Dict[str, Any] = None) -> dict:
+    def submit_pre_cpe_chat(self, user_message: str | None =None, tools: Dict[str, Any] = None, agents: Dict[str, Any] = None) -> dict:
         payload = {
             "message": user_message,
             "tools": tools,
+            "agents": agents,
             "chat_id": self.chat_id,
             "chat_model_name": self.chat_model_name
         }
