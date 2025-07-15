@@ -25,14 +25,20 @@ def read_env_file(env_path: Path|str) -> dict:
     return dotenv_values(str(env_path))
 
 def validate_watsonx_credentials(user_env_file: str) -> bool:
-    required_keys = ["WATSONX_SPACE_ID", "WATSONX_APIKEY"]
+    required_sets = [
+        ["WATSONX_SPACE_ID", "WATSONX_APIKEY"],
+        ["WO_INSTANCE", "WO_API_KEY"]
+    ]
     
-    if all(key in os.environ for key in required_keys):
+    def has_valid_keys(env: dict) -> bool:
+        return any(all(key in env for key in key_set) for key_set in required_sets)
+
+    if has_valid_keys(os.environ):
         logger.info("WatsonX credentials validated successfully.")
         return
     
     if user_env_file is None:
-        logger.error("WatsonX credentials are not set. Please set WATSONX_SPACE_ID and WATSONX_APIKEY in your system environment variables or include them in your enviroment file and pass it with --env-file option.")
+        logger.error("WatsonX credentials are not set. Please set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables or include them in your environment file and pass it with --env-file option.")
         sys.exit(1)
 
     if not Path(user_env_file).exists():
@@ -41,11 +47,15 @@ def validate_watsonx_credentials(user_env_file: str) -> bool:
     
     user_env = read_env_file(user_env_file)
     
-    if not all(key in user_env for key in required_keys):
-        logger.error("Error: The environment file does not contain the required keys: WATSONX_SPACE_ID and WATSONX_APIKEY.")
+    if not has_valid_keys(user_env):
+        logger.error("Error: The environment file does not contain the required keys: either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY.")
         sys.exit(1)
 
-    os.environ.update({key: user_env[key] for key in required_keys})
+    # Update os.environ with whichever set is present
+    for key_set in required_sets:
+        if all(key in user_env for key in key_set):
+            os.environ.update({key: user_env[key] for key in key_set})
+            break
     logger.info("WatsonX credentials validated successfully.")
 
 def read_csv(data_path: str, delimiter="\t"):

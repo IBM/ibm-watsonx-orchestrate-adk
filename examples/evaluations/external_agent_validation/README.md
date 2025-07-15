@@ -15,7 +15,7 @@ orchestrate evaluations validate-external --tsv ./examples/evaluations/external_
 ```
 5. The validation results are saved to a `validation_results` subfolder under the path provided for the `--output` flag.
 
-🚨 Note: we expect `WATSONX_APIKEY` `WATSONX_SPACE_ID` be part of the environment variables or specified in .env_file. 
+🚨 Note: we expect `WATSONX_APIKEY, WATSONX_SPACE_ID` or `WO_INSTANCE, WO_API_KEY` be part of the environment variables or specified in .env_file. 
 
 ### Analyzing the Results
 There are two files created:
