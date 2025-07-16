@@ -71,13 +71,13 @@ def _get_tools_from_names(tool_names: List[str]) -> List[dict]:
             task = progress.add_task(description="Fetching tools", total=None)
             tools = tool_client.get_drafts_by_names(tool_names)
             found_tools = {tool.get("name") for tool in tools}
-            rich.print("\n")
+            progress.remove_task(task)
+            progress.refresh()
             for tool_name in tool_names:
                 if tool_name not in found_tools:
                     logger.warning(
                         f"Failed to find tool named '{tool_name}'. Falling back to incomplete tool definition. Copilot performance maybe effected.")
                     tools.append(_get_incomplete_tool_from_name(tool_name))
-            progress.remove_task(task)
     except ConnectionError:
         logger.warning(
             f"Failed to fetch tools from server. For optimal results please start the server and import the relevant tools {', '.join(tool_names)}.")
@@ -99,13 +99,13 @@ def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
             task = progress.add_task(description="Fetching agents", total=None)
             agents = native_agents_client.get_drafts_by_names(collaborators_names)
             found_agents = {tool.get("name") for tool in agents}
-            rich.print("\n")
+            progress.remove_task(task)
+            progress.refresh()
             for collaborator_name in collaborators_names:
                 if collaborator_name not in found_agents:
                     logger.warning(
                         f"Failed to find agent named '{collaborator_name}'. Falling back to incomplete agent definition. Copilot performance maybe effected.")
                     agents.append(_get_incomplete_agent_from_name(collaborator_name))
-            progress.remove_task(task)
     except ConnectionError:
         logger.warning(
             f"Failed to fetch tools from server. For optimal results please start the server and import the relevant tools {', '.join(collaborators_names)}.")
@@ -189,11 +189,12 @@ def find_tools_by_description(description, tool_client):
         task = progress.add_task(description="Fetching Tools", total=None)
         try:
             tools = tool_client.get()
+            progress.remove_task(task)
         except ConnectionError:
             tools = []
-            rich.print("\n")
+            progress.remove_task(task)
+            progress.refresh()
             logger.warning("Failed to contact wxo server to fetch tools. Proceeding with empty tool list")
-        progress.remove_task(task)
     return tools
 
 def find_agents(agent_client):
@@ -201,11 +202,12 @@ def find_agents(agent_client):
         task = progress.add_task(description="Fetching Agents", total=None)
         try:
             agents = agent_client.get()
+            progress.remove_task(task)
         except ConnectionError:
             agents = []
-            rich.print("\n")
+            progress.remove_task(task)
+            progress.refresh()
             logger.warning("Failed to contact wxo server to fetch agents. Proceeding with empty agent list")
-        progress.remove_task(task)
     return agents
 
 
