@@ -176,7 +176,7 @@ class ChannelsWebchatController:
                     sys.exit(1)
                 tenant_id = self.extract_tenant_id_from_crn(crn)
 
-            case RuntimeEnvironmentType.GA:
+            case RuntimeEnvironmentType.AWS:
                 tenant_id = self.get_tenant_id()
 
             case _:

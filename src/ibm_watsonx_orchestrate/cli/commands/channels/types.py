@@ -19,7 +19,7 @@ class RuntimeEnvironmentType(str, Enum):
     LOCAL = 'local'
     CPD = 'cpd'
     IBM_CLOUD = 'ibmcloud'
-    GA = 'ga'
+    AWS = 'aws'
 
     def __str__(self):
         return self.value

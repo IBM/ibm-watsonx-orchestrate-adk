@@ -99,7 +99,7 @@ def get_environment() -> str:
     if is_ibm_cloud_platform():
         return RuntimeEnvironmentType.IBM_CLOUD
     if is_ga_platform():
-        return RuntimeEnvironmentType.GA
+        return RuntimeEnvironmentType.AWS
     return None
 
 def check_token_validity(token: str) -> bool:
