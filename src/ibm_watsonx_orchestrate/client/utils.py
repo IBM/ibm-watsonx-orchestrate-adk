@@ -87,7 +87,7 @@ def get_environment() -> str:
     if is_ibm_cloud_platform():
         return RuntimeEnvironmentType.IBM_CLOUD
     if is_ga_platform():
-        return RuntimeEnvironmentType.GA
+        return RuntimeEnvironmentType.AWS
     return None
 
 def get_cpd_instance_id_from_url(url: str | None = None) -> str:
