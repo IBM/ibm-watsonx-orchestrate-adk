@@ -4,6 +4,7 @@ import jwt
 import sys
 
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
+from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud_platform, get_environment, get_cpd_instance_id_from_url, is_saas_env, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
@@ -158,13 +159,13 @@ class ChannelsWebchatController:
         environment = get_environment()
 
         match (environment):
-            case "local":
+            case RuntimeEnvironmentType.LOCAL:
                 tenant_id = self.get_tenant_id_local()
 
-            case "cpd":
+            case RuntimeEnvironmentType.CPD:
                 tenant_id = get_cpd_instance_id_from_url()
 
-            case "ibmcloud":
+            case RuntimeEnvironmentType.IBM_CLOUD:
                 crn = input("Please enter your CRN which can be retrieved from the IBM Cloud UI: ")
                 if crn == "":
                     logger.error("You must enter your CRN for IBM Cloud instances")
@@ -175,7 +176,7 @@ class ChannelsWebchatController:
                     sys.exit(1)
                 tenant_id = self.extract_tenant_id_from_crn(crn)
 
-            case "ga":
+            case RuntimeEnvironmentType.GA:
                 tenant_id = self.get_tenant_id()
 
             case _:

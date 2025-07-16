@@ -16,6 +16,7 @@ from ibm_watsonx_orchestrate.cli.config import (
 from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 import logging
 from typing import TypeVar
 import os
@@ -92,13 +93,13 @@ def is_ga_platform(url: str | None = None) -> bool:
 
 def get_environment() -> str:
     if is_local_dev():
-        return "local"
+        return RuntimeEnvironmentType.LOCAL
     if is_cpd_env():
-        return "cpd"
+        return RuntimeEnvironmentType.CPD
     if is_ibm_cloud_platform():
-        return "ibmcloud"
+        return RuntimeEnvironmentType.IBM_CLOUD
     if is_ga_platform():
-        return "ga"
+        return RuntimeEnvironmentType.GA
     return None
 
 def check_token_validity(token: str) -> bool:
