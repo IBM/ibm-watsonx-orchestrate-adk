@@ -46,7 +46,7 @@ services:
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
-      SUFFIXLIST: '["global_05d7ba72", "ibm_184bdbd3"]'
+      SUFFIXLIST: ${CM_SUFFIXLIST:-'[]'}
     ports:
       - 3001:3001
 
