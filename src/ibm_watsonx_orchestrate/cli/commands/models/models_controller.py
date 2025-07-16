@@ -167,15 +167,12 @@ class ModelsController:
             logger.error("Error: WATSONX_URL is required in the environment.")
             sys.exit(1)
 
-        if is_cpd_env(models_client.base_url):
-            virtual_models = []
-            virtual_model_policies = []
-        else:
-            logger.info("Retrieving virtual-model models list...")
-            virtual_models = models_client.list()
+    
+        logger.info("Retrieving virtual-model models list...")
+        virtual_models = models_client.list()
 
-            logger.info("Retrieving virtual-policies models list...")
-            virtual_model_policies = model_policies_client.list()
+        logger.info("Retrieving virtual-policies models list...")
+        virtual_model_policies = model_policies_client.list()
 
         logger.info("Retrieving watsonx.ai models list...")
         found_models = _get_wxai_foundational_models()

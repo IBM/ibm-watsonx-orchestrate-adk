@@ -1,6 +1,6 @@
 from enum import Enum
 
-class  EnvironmentType(str, Enum):
+class EnvironmentType(str, Enum):
     DRAFT ='draft'
     LIVE = 'live'
 
@@ -8,8 +8,20 @@ class  EnvironmentType(str, Enum):
         return self.value
     
 
-class  ChannelType(str, Enum):
+class ChannelType(str, Enum):
     WEBCHAT ='webchat'
 
     def __str__(self):
+        return self.value
+    
+class RuntimeEnvironmentType(str, Enum):
+    LOCAL = 'local'
+    CPD = 'cpd'
+    IBM_CLOUD = 'ibmcloud'
+    GA = 'ga'
+
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
         return self.value
