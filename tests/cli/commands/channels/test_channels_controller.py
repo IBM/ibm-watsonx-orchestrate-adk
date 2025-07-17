@@ -4,30 +4,29 @@ from ibm_watsonx_orchestrate.cli.config import ENV_WXO_URL_OPT, ENVIRONMENTS_SEC
 
 class TestChannelController:
     @mock.patch("builtins.input", return_value="crn:v1:bluemix:public:resource-controller:us-south:a/mock-account-id:some-resource")
-    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config")
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config.read", return_value='local')
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config.get", return_value='some-resource')
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_host_url")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_agent_id")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_environment_id")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_local_dev", return_value=False)
-    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_ibm_cloud", return_value=True)
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_ibm_cloud_platform", return_value=True)
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.get_environment", return_value='ibmcloud')
     def test_create_webchat_embed_code(
         self,
-        mock_is_ibm_cloud,
-        mock_is_local_dev_env,
-        mock_get_env_id,
-        mock_get_agent_id,
-        mock_get_host_url,
-        mock_config_class,
         mock_input,
+        mock_config_read,
+        mock_config_get,
+        mock_get_host_url,
+        mock_get_agent_id,
+        mock_get_env_id,
+        mock_is_local_dev,
+        mock_is_ibm_cloud_platform,
+        mock_get_environment,
     ):
         mock_get_host_url.return_value = "http://localhost:3000"
         mock_get_agent_id.return_value = "mocked-agent-id"
         mock_get_env_id.return_value = "mocked-env-id"
-
-        mock_config = mock.Mock()
-        mock_config.read.return_value = "local"
-        mock_config.get.return_value = "some-resource"
-        mock_config_class.return_value = mock_config
 
         agent_name = "test-agent"
         env = "draft"
@@ -43,10 +42,10 @@ class TestChannelController:
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_local_dev", return_value=False)
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.jwt.decode")
-    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_ibm_cloud", return_value=True)
-    def test_get_tennent_id(
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_ibm_cloud_platform", return_value=True)
+    def test_get_tenant_id(
         self,
-        mock_is_ibm_cloud,
+        mock_is_ibm_cloud_platform,
         mock_jwt_decode,
         mock_is_local_dev,
         mock_config_class,
@@ -65,7 +64,7 @@ class TestChannelController:
         mock_config_class.return_value = mock_config
 
         controller = ChannelsWebchatController(agent_name="test-agent", env="draft")
-        tenant_id = controller.get_tennent_id()
+        tenant_id = controller.get_tenant_id()
 
         assert tenant_id == "123456_abcde"
 
@@ -122,9 +121,11 @@ class TestChannelController:
         assert agent_id == "mocked-agent-id"
 
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_local_dev")
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_saas_env")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.instantiate_client")
-    def test_get_environment_id(self, mock_instantiate_client, mock_is_local_dev):
+    def test_get_environment_id(self, mock_instantiate_client, mock_is_saas_env, mock_is_local_dev):
         mock_is_local_dev.return_value = True
+        mock_is_saas_env.return_value = False
         
         mock_client = mock.Mock()
         mock_client.get_draft_by_name.return_value = [{"environments": [{"name": "draft", "id": "mocked-env-id"}]}]

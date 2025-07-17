@@ -260,7 +260,7 @@ def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
         with patch.object(Path, "exists", return_value=True):
             run_compose_lite(mock_env_file, experimental_with_langfuse=True)
             mock_run.assert_called_with(
-                ['docker', 'compose', '--profile', 'langfuse', '-f', posixpath.abspath(mock_compose_file), '--env-file', posixpath.basename(mock_env_file), 'up', '--scale', 'ui=0', '-d', '--remove-orphans'],
+                ['docker', 'compose', '--profile', 'langfuse', '-f', posixpath.abspath(mock_compose_file), '--env-file', posixpath.basename(mock_env_file), 'up', '--scale', 'ui=0', '--scale', 'cpe=0', '-d', '--remove-orphans'],
                 capture_output=False
             )
 

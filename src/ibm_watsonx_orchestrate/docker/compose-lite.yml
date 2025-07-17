@@ -46,7 +46,7 @@ services:
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
-      SUFFIXLIST: '["global_05d7ba72", "ibm_184bdbd3"]'
+      SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
     ports:
       - 3001:3001
 
@@ -798,6 +798,23 @@ services:
       - 9044:9044
     depends_on:
       - wxo-server-db
+  
+  cpe:
+    image: ${CPE_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-prompt-optimizer:${CPE_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      WATSONX_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      WO_API_KEY: ${WO_API_KEY}
+      WO_USERNAME: ${WO_USERNAME}
+      WO_PASSWORD: ${WO_PASSWORD}
+      WO_INSTANCE: ${WO_INSTANCE}
+      USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+    ports:
+      - 8081:8080
 
 ########################
 # DOCPROC dependencies
@@ -901,7 +918,7 @@ services:
       ENRICHMENT_BATCH_SIZE: "1000"
       CIPHER_AES_REALM_KEY: "dGVzdHRlc3R0ZXN0dGVzdA=="
       SIDECAR_METERED_ENABLED: "false"
-      DPI_DEBUG: true
+      DPI_DEBUG: "false"
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true

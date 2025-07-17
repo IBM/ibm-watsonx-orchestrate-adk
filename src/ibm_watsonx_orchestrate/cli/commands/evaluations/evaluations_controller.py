@@ -3,12 +3,12 @@ import os.path
 from typing import List, Dict, Optional, Tuple
 import csv
 from pathlib import Path
-import rich
+import sys
 from wxo_agentic_evaluation import main as evaluate
 from wxo_agentic_evaluation.tool_planner import build_snapshot
 from wxo_agentic_evaluation.analyze_run import analyze
 from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
-from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig
 from wxo_agentic_evaluation.record_chat import record_chats
 from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
 from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
@@ -41,12 +41,26 @@ class EvaluationsController:
     def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None) -> None:
         url, tenant_name, token = self._get_env_config()
 
+        if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
+            provider = "watsonx"
+        elif "WO_INSTANCE" in os.environ and "WO_API_KEY" in os.environ:
+            provider = "model_proxy"
+        else:
+            logger.error(
+                "No provider found. Please either provide a config_file or set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables."
+            )
+            sys.exit(1)
+        
         config_data = {
             "wxo_lite_version": __version__,
             "auth_config": AuthConfig(
                 url=url,
                 tenant_name=tenant_name,
                 token=token
+            ),
+            "provider_config": ProviderConfig(
+                provider=provider,
+                model_id="meta-llama/llama-3-405b-instruct",
             )
         }
 
@@ -62,6 +76,10 @@ class EvaluationsController:
                 if "llm_user_config" in file_config:
                     llm_config_data = file_config.pop("llm_user_config")
                     config_data["llm_user_config"] = LLMUserConfig(**llm_config_data)
+
+                if "provider_config" in file_config:
+                    provider_config_data = file_config.pop("provider_config")
+                    config_data["provider_config"] = ProviderConfig(**provider_config_data)
                 
                 config_data.update(file_config)
 

@@ -201,6 +201,13 @@ def set_credentials_connection_command(
             help='For oauth_auth_client_credentials_flow, the client_secret to authenticate with'
         )
     ] = None,
+    send_via: Annotated[
+        str,
+        typer.Option(
+            '--send-via',
+            help='For oauth_auth_client_credentials_flow, how the token will be sent to the server. Defaults to using `header`'
+        )
+    ] = None,
     token_url: Annotated[
         str,
         typer.Option(
@@ -220,14 +227,14 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--grant-type',
-            help='For oauth_auth_on_behalf_of_flow, the grant type used by the application token server'
+            help='For oauth_auth_on_behalf_of_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
         )
     ] = None,
-    scopes: Annotated[
-        List[str],
+    scope: Annotated[
+        str,
         typer.Option(
-            '--scopes',
-            help='For oauth_auth_code_flow and oauth_auth_client_credentials_flow, the optional scopes used by the application token server'
+            '--scope',
+            help='For oauth_auth_code_flow and oauth_auth_client_credentials_flow, the optional scopes used by the application token server. Should be in the form of a space seperated string.'
         )
     ] = None,
     entries: Annotated[
@@ -247,10 +254,11 @@ def set_credentials_connection_command(
         api_key=api_key,
         client_id=client_id,
         client_secret=client_secret,
+        send_via=send_via,
         token_url=token_url,
         auth_url=auth_url,
         grant_type=grant_type,
-        scopes=scopes,
+        scope=scope,
         entries=entries
     )
 

@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+name: insurance_assessment_agent
+description: >
+    You are an agent that will assess an insurance based on available data 
+instructions: >
+    1. use the tool get_insurance_rate to get an assessment from the available data
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - get_insurance_rate
+  - i__get_flow_status_intrinsic_tool__

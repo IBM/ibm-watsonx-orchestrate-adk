@@ -27,12 +27,11 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
     EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, KVPInvoicesExtractionResponse, KVPUtilityBillsExtractionResponse,
-    DocumentContent
+    DocProcSpec, TextExtractionResponse, File, DecisionsNodeSpec, DecisionsRule
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode
+    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
@@ -434,6 +433,49 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
+    def decisions(self, 
+            name: str, 
+            display_name: str|None=None,
+            rules: list[DecisionsRule] | None = None,
+            default_actions: dict[str, Any] = None,
+            locale: str | None = None,
+            description: str | None = None,
+            input_schema: type[BaseModel]|None = None, 
+            output_schema: type[BaseModel]|None=None,
+            input_map: DataMap = None) -> PromptNode:
+
+        if name is None:
+            raise ValueError("name must be provided.")
+        
+        if rules is None:
+            raise ValueError("rules must be specified.")
+
+         # create input spec
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+
+        # Create the tool spec
+        task_spec = DecisionsNodeSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            rules=rules,
+            default_actions=default_actions,
+            locale=locale,
+            input_schema=_get_tool_request_body(input_schema_obj),
+            output_schema=_get_tool_response_body(output_schema_obj),
+            output_schema_object = output_schema_obj
+        )
+
+        node = DecisionsNode(spec=task_spec)
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        node = self._add_node(node)
+        return cast(DecisionsNode, node)
+    
     def docproc(self, 
             name: str, 
             task: str,
@@ -448,12 +490,10 @@ class Flow(Node):
             raise ValueError("task must be provided.")
         
         output_schema_dict = { 
-            "text_extraction" : TextExtractionResponse,
-            "kvp_invoices_extraction" : KVPInvoicesExtractionResponse,
-            "kvp_utility_bills_extraction" : KVPUtilityBillsExtractionResponse
+            "text_extraction" : TextExtractionResponse
         }
          # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentContent)
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = File)
         output_schema_obj = _get_json_schema_obj("output", output_schema_dict[task])
         if "$defs" in output_schema_obj.model_extra:
             output_schema_obj.model_extra.pop("$defs")

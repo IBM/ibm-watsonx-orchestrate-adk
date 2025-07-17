@@ -1,0 +1,217 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "get_insurance_rate",
+    "display_name": "get_insurance_rate",
+    "description": "Creates a flow to calculate the insurance rate based on provided information.",
+    "input_schema": {
+      "$ref": "#/schemas/get_insurance_rate_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/Assessment"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "assess_insurance_rate": {
+      "spec": {
+        "kind": "decisions",
+        "name": "assess_insurance_rate",
+        "display_name": "Assess insurance rate.",
+        "description": "Based on credit rate and loan amount, assess insurance rate.",
+        "input_schema": {
+          "$ref": "#/schemas/assess_insurance_rate_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/Assessment"
+        },
+        "rules": [
+          {
+            "conditions": {
+              "grade": "== \"A\"",
+              "loan_amount": "< 100000"
+            },
+            "actions": {
+              "insurance_required": false
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"A\"",
+              "loan_amount": "[100000:300000)"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.001
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"A\"",
+              "loan_amount": "[300000:600000)"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.003
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"A\"",
+              "loan_amount": ">= 600000"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.005
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"B\"",
+              "loan_amount": "< 100000"
+            },
+            "actions": {
+              "insurance_required": false
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"B\"",
+              "loan_amount": "[100000:300000)"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.0025
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"B\"",
+              "loan_amount": "[300000:600000)"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.005
+            }
+          },
+          {
+            "conditions": {
+              "grade": "== \"A\"",
+              "loan_amount": ">= 600000"
+            },
+            "actions": {
+              "insurance_required": true,
+              "insurance_rate": 0.0075
+            }
+          }
+        ],
+        "default_actions": {
+          "assessment_error": "Not assessed. Incorrect data submitted."
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "assess_insurance_rate"
+    },
+    {
+      "start": "assess_insurance_rate",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "get_insurance_rate_input": {
+      "type": "object",
+      "title": "get_insurance_rate_input",
+      "required": [
+        "loan_amount",
+        "grade"
+      ],
+      "properties": {
+        "loan_amount": {
+          "type": "number",
+          "title": "Loan Amount"
+        },
+        "grade": {
+          "type": "string",
+          "title": "Grade",
+          "enum": [
+            "A",
+            "B"
+          ]
+        }
+      }
+    },
+    "Assessment": {
+      "type": "object",
+      "title": "Assessment",
+      "description": "This class represents the outcome of the assessment.",
+      "required": [],
+      "properties": {
+        "insurance_required": {
+          "type": "boolean",
+          "title": "Insurance Required",
+          "default": false
+        },
+        "insurance_rate": {
+          "type": "number",
+          "title": "Insurance Rate",
+          "default": 0.0
+        },
+        "assessment_error": {
+          "title": "Assessment Error",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "assess_insurance_rate_input": {
+      "type": "object",
+      "title": "assess_insurance_rate_input",
+      "required": [
+        "loan_amount",
+        "grade"
+      ],
+      "properties": {
+        "loan_amount": {
+          "type": "number",
+          "title": "Loan Amount"
+        },
+        "grade": {
+          "type": "string",
+          "title": "Grade",
+          "enum": [
+            "A",
+            "B"
+          ]
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-07-14T19:42:52.270222+00:00"
+  }
+}

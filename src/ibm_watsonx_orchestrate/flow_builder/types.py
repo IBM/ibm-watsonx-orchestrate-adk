@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, StrEnum, auto
+from datetime import date
+import numbers
 import inspect
 import logging
 from typing import (
@@ -167,8 +169,6 @@ class DocProcTask(StrEnum):
     Possible names for the Document processing task parameter
     '''
     text_extraction = auto()
-    kvp_invoices_extraction = auto()
-    kvp_utility_bills_extraction = auto()
 
 class DocProcSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
@@ -515,6 +515,7 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
 
         return model_spec
+    
 
 class Expression(BaseModel):
     '''An expression could return a boolean or a value'''
@@ -743,7 +744,7 @@ class LanguageCode(StrEnum):
     fr = auto()
     en_hw = auto()
 
-class DocumentContent(BaseModel):
+class File(BaseModel):
     '''
     This class represents the input of a Document processing task. 
 
@@ -752,7 +753,7 @@ class DocumentContent(BaseModel):
         language (LanguageCode): Optional language code used when processing the input document
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
-    # We need to use bytes here for Chat-with-doc to recognize the input as a Document.
+    # We need to use bytes here for Chat-with-doc to recognize the input as a File.
     document_ref: bytes | str = Field(
         description="Either an ID or a URL identifying the document to be used.", 
         title='Document reference', 
@@ -779,73 +780,175 @@ class TextExtractionResponse(BaseModel):
     '''
     output: TextExtraction = Field(description='The text extraction response')
 
-class Invoice(BaseModel):
-    '''
-    This class represents the fields extracted by the "kvp_invoices_extraction" document processing (docproc) operation.
-    '''
-    bank_account_number: Optional[str] = Field(title='Bank account number', default=None)
-    bank_name: Optional[str] = Field(title='Bank name', default=None)
-    bill_to_address: Optional[str] = Field(title='Bill-to address', default=None)
-    bill_to_name: Optional[str] = Field(title='Bill-to name', default=None)
-    invoice_date: Optional[str] = Field(title='Invoice date', format='date', default=None)
-    invoice_number: Optional[str] = Field(title='Invoice number', default=None)
-    invoice_total: Optional[float] = Field(title='Invoice total', default=None)
-    payment_due_date: Optional[str] = Field(title='Payment due date', format='date', default=None)
-    payment_terms: Optional[str] = Field(title='Payment terms', default=None)
-    purchase_order_number: Optional[str] = Field(title='Purchase order number', default=None)
-    ship_to_address: Optional[str] = Field(title='Ship-to address', default=None)
-    ship_to_name: Optional[str] = Field(title='Ship-to name', default=None)
-    shipping_amount: Optional[float] = Field(title='Shipping amount', default=None)
-    subtotal: Optional[float] = Field(title='Subtotal', default=None)
-    tax_amount: Optional[float] = Field(title='Tax amount', default=None)
-    tax_rate: Optional[float] = Field(title='Tax rate', default=None)
-    tax_type: Optional[str] = Field(title='Tax type', default=None)
-    vendor_address: Optional[str] = Field(title='Vendor address', default=None)
-    vendor_name: Optional[str] = Field(title='Vendor name', default=None)
+
+class DecisionsCondition(BaseModel):
+    _condition: str | None = None
+
+    def greater_than(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f"> {self._format_value(value)}"
+        return self
+
+    def greater_than_or_equal(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f">= {self._format_value(value)}"
+        return self
+
+    def less_than(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f"< {self._format_value(value)}"
+        return self
+
+    def less_than_or_equal(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f"<= {self._format_value(value)}"
+        return self
+
+    def equal(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f"== {self._format_value(value)}"
+        return self
+
+    def not_equal(self, value: Union[numbers.Number, date, str]) -> Self:
+        self._check_type_is_number_or_date_or_str(value)
+        self._condition = f"== {self._format_value(value)}"
+        return self
+    
+    def contains(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"contains {self._format_value(value)}"
+        return self
+
+    def not_contains(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"doesNotContain {self._format_value(value)}"
+        return self
+
+    def is_in(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"in {self._format_value(value)}"
+        return self
+
+    def is_not_in(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"notIn {self._format_value(value)}"
+        return self
+
+    def startswith(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"startsWith {self._format_value(value)}"
+        return self
+
+    def endswith(self, value: str) -> Self:
+        self._check_type_is_str(value)
+        self._condition = f"endsWith {self._format_value(value)}"
+        return self
 
 
-class KVPInvoicesExtractionResponse(BaseModel):
-    '''
-    The response of a "kvp_invoices_extraction" document processing (docproc) operation.
-    Attributes:
-        invoice: an object with the fields extracted from the input invoice document
-    '''
-    output: Invoice = Field(
-        title='Invoice',
-        description='The fields extracted from an invoice document'
-    )
+    def in_range(self, startValue: Union[numbers.Number, date], endValue: Union[numbers.Number, date], 
+                 startsInclusive: bool = False, endsInclusive: bool = False) -> Self:
+        self._check_type_is_number_or_date_or_str(startValue)
+        self._check_type_is_number_or_date_or_str(endValue)
+        if type(startValue) is not type(endValue):
+            raise TypeError("startValue and endValue must be of the same type")
+        start_op = "[" if startsInclusive else "("    # [ is inclusive, ( is exclusive
+        end_op =  "]" if endsInclusive else ")" 
+        self._condition = f"{start_op}{self._format_value(startValue)}:{self._format_value(endValue)}{end_op}"
+        return self
+
+    def _check_type_is_number_or_date(self, value: Union[numbers.Number, date]):
+        if not isinstance(value, (numbers.Number, date)):
+            raise TypeError("Value must be a number or a date")
+
+    def _check_type_is_number_or_date_or_str(self, value: Union[numbers.Number, date, str]):
+        if not isinstance(value, (numbers.Number, date, str)):
+            raise TypeError("Value must be a number or a date or a string")
+        
+    def _check_type_is_str(self, value: str):
+        if not isinstance(value, str):
+            raise TypeError("Value must be a string")
+    
+    @staticmethod
+    def _format_value(value: Union[numbers.Number, date, str]):
+        if isinstance(value, numbers.Number):
+            return f"{value}"
+        if isinstance(value, date):
+            return f"\"{value.strftime('%B %d, %Y')}\""
+        return f"\"{value}\""
+    
+    def condition(self):
+        return self._condition
 
 
-class UtilityBill(BaseModel):
-    '''
-    This class represents the fields extracted by the "kvp_utility_bills_extraction" document processing (docproc) operation.
-    '''
-    account_number: Optional[str] = Field(title='Account number', default=None)
-    amount_due: Optional[float] = Field(title='Amount due', default=None)
-    client_number: Optional[str] = Field(title='Client number', default=None)
-    company_name: Optional[str] = Field(title='Company name', default=None)
-    company_address: Optional[str] = Field(title='Company address', default=None)
-    customer_name: Optional[str] = Field(title='Customer name', default=None)
-    customer_address: Optional[str] = Field(title='Customer address', default=None)
-    due_date: Optional[str] = Field(title='Due date', format='date', default=None)
-    payment_received: Optional[float] = Field(title='Payment received', default=None)
-    previous_balance: Optional[float] = Field(title='Previous balance', default=None)
-    service_address: Optional[str] = Field(title='Service address', default=None)
-    statement_date: Optional[str] = Field(title='Statement date', format='date', default=None)
 
-#class UtilityBillResponse(BaseModel):
-#    field_value: UtilityBill = Field(title='Field value')
+class DecisionsRule(BaseModel):
+    '''
+    A set of decisions rules.
+    '''
+    _conditions: dict[str, str]
+    _actions: dict[str, Union[numbers.Number, str]]
 
-class KVPUtilityBillsExtractionResponse(BaseModel):
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._conditions = {}
+        self._actions = {}
+
+    def condition(self, key: str, cond: DecisionsCondition) -> Self:
+        self._conditions[key] = cond.condition()
+        return self
+    
+    def action(self, key: str, value: Union[numbers.Number, date, str]) -> Self:
+        if isinstance(value, date):
+            self._actions[key] = value.strftime("%B %d, %Y")
+            return self
+        self._actions[key] = value
+        return self
+
+    def to_json(self) -> dict[str, Any]:
+        '''
+        Serialize the rules into JSON object
+        '''
+        model_spec = {}
+        if self._conditions:
+            model_spec["conditions"] = self._conditions
+        if self._actions:
+            model_spec["actions"] = self._actions
+        return model_spec
+
+
+class DecisionsNodeSpec(NodeSpec):
     '''
-    The response of a "kvp_utility_bills_extraction" document processing (docproc) operation.
-    Attributes:
-        utility_bull: an object with the fields extracted from the input utility bill document
+    Node specification for Decision Table
     '''
-    output: UtilityBill = Field(
-        title='Utility bill',
-        description='The fields extracted from a utility bill document'
-    )
+    locale: str | None = None
+    rules: list[DecisionsRule]
+    default_actions: dict[str, Union[int, float, complex, str]] | None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.kind = "decisions"
+
+    def default_action(self, key: str, value: Union[int, float, complex, date, str]) -> Self:
+        '''
+        create a new default action
+        '''
+        if isinstance(value, date):
+            self.default_actions[key] = value.strftime("%B %d, %Y")
+            return self
+        self.default_actions[key] = value
+        return self
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        if self.locale:
+            model_spec["locale"] = self.locale
+        if self.rules:
+            model_spec["rules"] = [rule.to_json() for rule in self.rules]
+        if self.default_actions:
+            model_spec["default_actions"] = self.default_actions
+
+        return model_spec
+
 
 def extract_node_spec(
         fn: Callable | PythonTool,

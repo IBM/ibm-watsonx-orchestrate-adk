@@ -75,6 +75,16 @@ class ConnectionType(str, Enum):
 
     def __repr__(self):
         return repr(self.value)
+    
+class ConnectionSendVia(str,Enum):
+    HEADER = 'header'
+    BODY = 'body'
+
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return repr(self.value)
 
 OAUTH_CONNECTION_TYPES = {
     ConnectionType.OAUTH2_AUTH_CODE,
@@ -177,7 +187,7 @@ class OAuth2AuthCodeCredentials(BaseModel):
     client_secret: str
     token_url: str
     authorization_url: str
-    scopes : Optional[List[str]] = None
+    scope : Optional[str] = None
 
 # class OAuth2ImplicitCredentials(BaseModel):
 #     client_id: str
@@ -193,7 +203,9 @@ class OAuth2ClientCredentials(BaseModel):
     client_id: str
     client_secret: str
     token_url: str
-    scopes : Optional[List[str]] = None
+    scope : Optional[str] = None
+    send_via: ConnectionSendVia = ConnectionSendVia.HEADER
+    grant_type: str = "client_credentials"
 
 class OAuthOnBehalfOfCredentials(BaseModel):
     client_id: str

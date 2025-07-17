@@ -1,3 +1,4 @@
+
 import typer
 import sys
 
@@ -14,6 +15,7 @@ from ibm_watsonx_orchestrate.cli.commands.channels.channels_command import chann
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_command import knowledge_bases_app
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import evaluation_app
+from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_command import copilot_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 
 import urllib3
@@ -38,6 +40,7 @@ app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Dev
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
 app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat)")
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
+app.add_typer(copilot_app, name="copilot", help='Access AI powered assistance to help refine your agents')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
 
 if __name__ == "__main__":

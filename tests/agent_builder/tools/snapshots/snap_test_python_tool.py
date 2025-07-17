@@ -352,47 +352,6 @@ snapshots['test_should_use_correct_defaults 1'] = {
     'permission': 'read_only'
 }
 
-snapshots['test_should_work_with_custom_join_tool 1'] = {
-    'binding': {
-        'python': {
-            'function': 'test_python_tool:sample_tool'
-        }
-    },
-    'description': 'test python description',
-    'input_schema': {
-        'properties': {
-            'messages': {
-                'items': {
-                    'additionalProperties': True,
-                    'type': 'object'
-                },
-                'title': 'Messages',
-                'type': 'array'
-            },
-            'original_query': {
-                'title': 'Original Query',
-                'type': 'string'
-            },
-            'task_results': {
-                'additionalProperties': True,
-                'title': 'Task Results',
-                'type': 'object'
-            }
-        },
-        'required': [
-            'original_query',
-            'task_results',
-            'messages'
-        ],
-        'type': 'object'
-    },
-    'name': 'sample_tool',
-    'output_schema': {
-        'type': 'string'
-    },
-    'permission': 'read_only'
-}
-
 snapshots['test_should_work_with_dicts 1'] = {
     'binding': {
         'python': {

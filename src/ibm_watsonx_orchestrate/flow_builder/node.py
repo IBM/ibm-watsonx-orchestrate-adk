@@ -5,7 +5,7 @@ import uuid
 import yaml
 from pydantic import BaseModel, Field, SerializeAsAny
 
-from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec
+from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, DecisionsNodeSpec
 from .data_map import DataMap
 
 class Node(BaseModel):
@@ -116,7 +116,13 @@ class DocProcNode(Node):
 
     def get_spec(self) -> DocProcSpec:
         return cast(DocProcSpec, self.spec)
+class DecisionsNode(Node):
+    def __repr__(self):
+        return f"DecisionsNode(name='{self.spec.name}', description='{self.spec.description}')"
 
+    def get_spec(self) -> DecisionsNodeSpec:
+        return cast(DecisionsNodeSpec, self.spec)
+    
 class NodeInstance(BaseModel):
     node: Node
     id: str # unique id of this task instance

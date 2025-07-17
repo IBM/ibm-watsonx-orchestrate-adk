@@ -160,13 +160,13 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --token-url is required for type {type}"
         )
 
-
     if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
             args.get('grant_type') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --grant-type is required for type {type}"
         )
+    
 
 def _parse_entry(entry: str) -> dict[str,str]:
     split_entry = entry.split('=')
@@ -197,15 +197,13 @@ def _get_credentials(type: ConnectionType, **kwargs):
                 client_id=kwargs.get("client_id"),
                 client_secret=kwargs.get("client_secret"),
                 token_url=kwargs.get("token_url"),
-                scopes=kwargs.get("scopes")
+                scope=kwargs.get("scope")
             )
         case ConnectionType.OAUTH2_CLIENT_CREDS:
-            return OAuth2ClientCredentials(
-                client_id=kwargs.get("client_id"),
-                client_secret=kwargs.get("client_secret"),
-                token_url=kwargs.get("token_url"),
-                scopes=kwargs.get("scopes")
-            )
+            # using filtered args as default values will not be set if 'None' is passed, causing validation errors
+            keys = ["client_id","client_secret","token_url","grant_type","send_via", "scope"]
+            filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
+            return OAuth2ClientCredentials(**filtered_args)
         # case ConnectionType.OAUTH2_IMPLICIT:
         #     return OAuth2ImplicitCredentials(
         #         authorization_url=kwargs.get("auth_url"),

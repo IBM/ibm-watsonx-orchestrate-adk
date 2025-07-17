@@ -46,15 +46,7 @@ _ALWAYS_UNSET: set[str] = {
   
 def define_saas_wdu_runtime(value: str = "none") -> None:
     cfg = Config()
-
-    current_config_file_values = cfg.get(USER_ENV_CACHE_HEADER)
-    current_config_file_values["SAAS_WDU_RUNTIME"] = value
-
-    cfg.save(
-        {
-            USER_ENV_CACHE_HEADER: current_config_file_values
-        }
-    )
+    cfg.write(USER_ENV_CACHE_HEADER,"SAAS_WDU_RUNTIME",value)
 
 def ensure_docker_installed() -> None:
     try:
@@ -390,6 +382,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
         "up",
         "--scale",
         "ui=0",
+        "--scale",
+        "cpe=0",
         "-d",
         "--remove-orphans",
     ]

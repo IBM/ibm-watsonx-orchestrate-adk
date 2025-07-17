@@ -3,6 +3,7 @@ import json
 import requests
 from abc import ABC, abstractmethod
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
+from typing_extensions import List
 
 
 class ClientAPIException(requests.HTTPError):
@@ -61,6 +62,17 @@ class BaseAPIClient:
         response = requests.post(url, headers=self._get_headers(), json=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
+    
+    def _post_nd_json(self, path: str, data: dict = None, files: dict = None) -> List[dict]:
+        url = f"{self.base_url}{path}"
+        response = requests.post(url, headers=self._get_headers(), json=data, files=files)
+        self._check_response(response)
+
+        res = []
+        if response.text:
+            for line in response.text.splitlines():
+                res.append(json.loads(line))
+        return res
     
     def _post_form_data(self, path: str, data: dict = None, files: dict = None) -> dict:
         url = f"{self.base_url}{path}"
