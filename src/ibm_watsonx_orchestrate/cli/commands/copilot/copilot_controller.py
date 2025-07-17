@@ -11,7 +11,7 @@ from requests import ConnectionError
 from typing import List
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
-from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind
+from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -299,7 +299,7 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
         agent.instructions = new_prompt
 
         if dry_run_flag:
-            rich.print(agent.model_dump())
+            rich.print(agent.model_dump(exclude_none=True))
         else:
             if os.path.dirname(output_file):
                 os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -336,13 +336,15 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
     params = {
         'style': agent_style,
         'tools': [t['name'] for t in tools],
-        'llm': llm
+        'llm': llm,
+        'collaborators': [c['name'] for c in collaborators]
     }
     agent = AgentsController.generate_agent_spec(agent_name, AgentKind.NATIVE, description, **params)
     agent.instructions = instructions
+    agent.spec_version = SpecVersion.V1
 
     if dry_run_flag:
-        rich.print(agent.model_dump())
+        rich.print(agent.model_dump(exclude_none=True))
         return
 
     if os.path.dirname(output_file):

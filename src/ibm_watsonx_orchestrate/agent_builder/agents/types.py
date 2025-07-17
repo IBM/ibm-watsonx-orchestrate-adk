@@ -29,6 +29,12 @@ yaml.representer.SafeRepresenter.add_representer(str, str_presenter) # to use wi
 class SpecVersion(str, Enum):
     V1 = "v1"
 
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
+
 
 class AgentKind(str, Enum):
     NATIVE = "native"
@@ -103,6 +109,12 @@ class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
     PLANNER = "planner"
+
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
 
 class AgentGuideline(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
