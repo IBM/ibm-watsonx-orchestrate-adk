@@ -12,16 +12,24 @@ source $ENV_FILE
 images=$(cat <<EOF
 wxo-server-db:${DBTAG}
 wxo-connections:${CM_TAG}
+ai-gateway:${AI_GATEWAY_TAG}
+wxo-agent-gateway:${AGENT_GATEWAY_TAG}
 wxo-chat:${UITAG}
 wxo-builder:${BUILDER_TAG}
+wxo-socket-handler:${SOCKET_HANDLER_TAG}
 wxo-server-server:${SERVER_TAG}
 wxo-server-conversation_controller:${WORKER_TAG}
 tools-runtime-manager:${TRM_TAG}
 tools-runtime:${TR_TAG}
-ai-gateway:${AI_GATEWAY_TAG}
-wxo-tempus-runtime:${FLOW_RUNTIME_TAG}
 jaeger-proxy:${JAEGER_PROXY_TAG}
 agentops-backend:${AGENT_ANALYTICS_TAG}
+wxo-tempus-runtime:${FLOW_RUNTIME_TAG}
+wxo-prompt-optimizer:${CPE_TAG}
+document-processing/wo_doc_processing_service:${DOCPROC_DPS_TAG}
+document-processing/wdu-runtime:${WDU_TAG}
+document-processing/wdu-models:${WDU_TAG}
+document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG}
+document-processing/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG}
 EOF)
 
 for image in  $images; do
