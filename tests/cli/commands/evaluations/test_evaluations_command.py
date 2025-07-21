@@ -1,5 +1,5 @@
 from unittest.mock import patch
-import yaml
+import json
 import tempfile
 import pytest
 import shutil
@@ -32,7 +32,7 @@ def cleanup_test_output():
 
 @pytest.fixture
 def external_agent_config():
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
         ext_agent_config = {
             "spec_version": "v1",
             "kind": "external",
@@ -46,18 +46,13 @@ def external_agent_config():
             ],
             "api_url": "https://someurl.com",
             "auth_scheme": "BEARER_TOKEN",
-            "auth_config": {
-                "token": "123"
-            },
-            "chat_params": {
-                "stream": True
-            },
-            "config": {
-                "hidden": False,
-                "enable_cot": True
-            }
+            "version": "1.0.1",
+            "publisher": "11x",
+            "language_support": ["English"],
+            "icon": "<svg>",
+            
         }
-        yaml.dump(ext_agent_config, tmp)
+        json.dump(ext_agent_config, tmp)
         tmp.flush()
         config_path = tmp.name
         yield config_path
@@ -78,8 +73,8 @@ class TestEvaluate:
 
     @pytest.fixture
     def config_file(self, valid_config):
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
-            yaml.dump(valid_config, tmp)
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
+            json.dump(valid_config, tmp)
             tmp.flush()
             config_path = tmp.name
             yield config_path
@@ -173,8 +168,8 @@ class TestValidateExternal:
 
     @pytest.fixture
     def config_file(self, config_content):
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
-            yaml.dump(config_content, tmp)
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
+            json.dump(config_content, tmp)
             tmp.flush()
             config_path = tmp.name
             yield config_path
@@ -202,23 +197,6 @@ class TestValidateExternal:
             )
             mock_validate.assert_called()
 
-    def test_validate_external_with_invalid_config(self, csv_file, user_env_file, external_agent_config):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command.shutil.copy") as mock_copy:
-            with pytest.raises(yaml.YAMLError):
-                with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
-                    tmp.write("invalid: yaml: content:")
-                    tmp.flush()
-                    config_path = tmp.name
-                    try:
-                        evaluations_command.validate_external(
-                            data_path=csv_file,
-                            external_agent_config=config_path,
-                            credential="test-cred",
-                            user_env_file=user_env_file
-                        )
-                    finally:
-                        Path(config_path).unlink()
-
     def test_validate_external_with_empty_csv(self, external_agent_config, user_env_file):
         # Since empty CSV is handled gracefully by the code, we'll verify the behavior
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False) as csv_tmp:
@@ -240,7 +218,7 @@ class TestValidateExternal:
                     assert mock_validate.call_count == 2
                     print(mock_validate.mock_calls)
                     mock_validate.assert_any_call(
-                        yaml.safe_load(
+                        json.loads(
                             Path(external_agent_config).read_text()
                         ),
                             [],
@@ -248,7 +226,7 @@ class TestValidateExternal:
                             add_context=True
                         )
                     mock_validate.assert_any_call(
-                        yaml.safe_load(Path(external_agent_config).read_text()),
+                        json.loads(Path(external_agent_config).read_text()),
                         [],
                         "test-cred"
                     )

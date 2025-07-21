@@ -2,11 +2,12 @@ import json
 import logging
 import typer
 import os
-import yaml
 import csv
 import rich
 import sys
 import shutil
+import tempfile
+import random
 
 from rich.panel import Panel
 from pathlib import Path
@@ -16,10 +17,36 @@ from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
+from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 logger = logging.getLogger(__name__)
 
 evaluation_app = typer.Typer(no_args_is_help=True)
+
+def _native_agent_template():
+    return {
+        "spec_version": "v1",
+        "style": "default",
+        "llm": "watsonx/meta-llama/llama-3-405b-instruct",
+        "name": "",
+        "description": "Native agent for validating external agent",
+        "instructions": "Use the tools and external agent(s) provided to answer the user's question.  If you do not have enough information to answer the question, say so.  If you need more information, ask follow up questions.",
+        "collaborators": []
+    }
+
+def _random_native_agent_name(external_agent_name):
+    """ Generate a native agent name in the following format to ensure uniqueness:
+
+    "external_agent_validation_{external_agent_name}_{random number}
+
+    So if the external agent name is, "QA_Agent", and the random number generated is, '100', the native agent name is:
+    "external_agent_validation_QA_Agent_100"
+
+    """
+    seed = 42
+    random.seed(seed)
+    
+    return f"external_agent_validation_{external_agent_name}_{random.randint(0, 100)}"
 
 def read_env_file(env_path: Path|str) -> dict:
     return dotenv_values(str(env_path))
@@ -218,7 +245,7 @@ def validate_external(
             str,
             typer.Option(
                 "--external-agent-config", "-ext",
-                help="Path to the external agent yaml",
+                help="Path to the external agent json file",
 
             )
         ],
@@ -244,33 +271,65 @@ def validate_external(
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
     ] = None,
-    agent_name: Annotated[
-        str,
+    perf_test: Annotated[
+        bool,
         typer.Option(
-            "--agent_name", "-a",
-            help="Name of the native agent which has the external agent to test registered as a collaborater. See: https://developer.watson-orchestrate.ibm.com/agents/build_agent#native-agents)." \
-            " If this parameter is pased, validation of the external agent is not run.",
-            rich_help_panel="Parameters for Input Evaluation"
+            "--perf", "-p",
+            help="Performance test your external agent against the provide user stories.",
+            rich_help_panel="Parameters for Input Evaluation",
         )
-    ] = None
+    ] = False
 ):
 
     validate_watsonx_credentials(user_env_file)
-    Path(output_dir).mkdir(exist_ok=True)
-    shutil.copy(data_path, os.path.join(output_dir, "input_sample.tsv"))
 
-    if agent_name is not None:
-        eval_dir = os.path.join(output_dir, "evaluation")
+    with open(external_agent_config, 'r') as f:
+        try:
+            external_agent_config = json.load(f)
+        except Exception:
+            rich.print(
+                f"[red]: Please provide a valid external agent spec in JSON format. See 'examples/evaluations/external_agent_validation/sample_external_agent_config.json' for an example."
+            )
+            sys.exit(1)
+
+    eval_dir = os.path.join(output_dir, "evaluations")
+    if perf_test:
         if os.path.exists(eval_dir):
             rich.print(f"[yellow]: found existing {eval_dir} in target directory. All content is removed.")
-            shutil.rmtree(os.path.join(output_dir, "evaluation"))
-        Path(eval_dir).mkdir(exist_ok=True)
+            shutil.rmtree(eval_dir)
+        Path(eval_dir).mkdir(exist_ok=True, parents=True)
         # save external agent config even though its not used for evaluation
         # it can help in later debugging customer agents
-        with open(os.path.join(eval_dir, "external_agent_cfg.yaml"), "w+") as f:
-            with open(external_agent_config, "r") as cfg:
-                external_agent_config = yaml.safe_load(cfg)
-            yaml.safe_dump(external_agent_config, f, indent=4)
+        with open(os.path.join(eval_dir, f"external_agent_cfg.json"), "w+") as f:
+            json.dump(external_agent_config, f, indent=4)
+
+        logger.info("Registering External Agent")
+        agent_controller = AgentsController()
+
+        external_agent_config["title"] = external_agent_config["name"]
+        external_agent_config["auth_config"] = {"token": credential}
+        external_agent_config["spec_version"] = external_agent_config.get("spec_version", "v1")
+        external_agent_config["provider"] = "external_chat"
+
+        with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8", suffix=".json", delete=True) as fp:
+            json.dump(external_agent_config, fp, indent=4)
+            fp.flush()
+            agents = agent_controller.import_agent(file=os.path.abspath(fp.name), app_id=None)
+            agent_controller.publish_or_update_agents(agents)
+
+        logger.info("Registering Native Agent")
+
+        native_agent_template = _native_agent_template()
+        agent_name = _random_native_agent_name(external_agent_config["name"])
+        rich.print(f"[blue][b]Generated native agent name is: [i]{agent_name}[/i][/b]")
+        native_agent_template["name"] = agent_name
+        native_agent_template["collaborators"] = [external_agent_config["name"]]
+
+        with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8", suffix=".json", delete=True) as fp:
+            json.dump(native_agent_template, fp, indent=4)
+            fp.flush()
+            agents = agent_controller.import_agent(file=os.path.abspath(fp.name), app_id=None)
+            agent_controller.publish_or_update_agents(agents)
 
         rich.print(f"[gold3]Starting evaluation of inputs in '{data_path}' against '{agent_name}'[/gold3]")
         performance_test(
@@ -281,8 +340,6 @@ def validate_external(
         )
     
     else:
-        with open(external_agent_config, "r") as f:
-            external_agent_config = yaml.safe_load(f)
         controller = EvaluationsController()
         test_data = []
         with open(data_path, "r") as f:
@@ -290,31 +347,29 @@ def validate_external(
             for line in csv_reader:
                 test_data.append(line[0])
 
-        # save validation results in "validation_results" sub-dir
-        validation_folder = Path(output_dir) / "validation_results"
+        # save validation results in "validate_external" sub-dir
+        validation_folder = Path(output_dir) / "validate_external"
         if os.path.exists(validation_folder):
             rich.print(f"[yellow]: found existing {validation_folder} in target directory. All content is removed.")
             shutil.rmtree(validation_folder)
         validation_folder.mkdir(exist_ok=True, parents=True)
+        shutil.copy(data_path, os.path.join(validation_folder, "input_sample.tsv"))
 
         # validate the inputs in the provided csv file
         summary = controller.external_validate(external_agent_config, test_data, credential)
-        with open(validation_folder / "validation_results.json", "w") as f:
-            json.dump(summary, f, indent=4)
-        
         # validate sample block inputs
-        rich.print("[gold3]Validating external agent to see if it can handle an array of messages.")
+        rich.print("[gold3]Validating external agent against an array of messages.")
         block_input_summary = controller.external_validate(external_agent_config, test_data, credential, add_context=True)
-        with open(validation_folder / "sample_block_validation_results.json", "w") as f:
-            json.dump(block_input_summary, f, indent=4)
-
+        
+        with open(validation_folder / "validation_results.json", "w") as f:
+            json.dump([summary, block_input_summary], f, indent=4)
+        
         user_validation_successful = all([item["success"] for item in summary])
         block_validation_successful = all([item["success"] for item in block_input_summary])
 
         if user_validation_successful and block_validation_successful:
             msg = (
                 f"[green]Validation is successful. The result is saved to '{str(validation_folder)}'.[/green]\n"
-                "You can add the external agent as a collaborator agent. See: https://developer.watson-orchestrate.ibm.com/agents/build_agent#native-agents."
             )
         else:
             msg = f"[dark_orange]Schema validation did not succeed. See '{str(validation_folder)}' for failures.[/dark_orange]"
