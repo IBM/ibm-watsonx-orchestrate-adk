@@ -870,7 +870,7 @@ def server_start(
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
-        logger.info(f"Document processing capabilities are now available for use in Flows (both ADK and runtime). Note: This option is currently available only in the Developer edition.")
+        logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
 
 @server_app.command(name="stop")
 def server_stop(
