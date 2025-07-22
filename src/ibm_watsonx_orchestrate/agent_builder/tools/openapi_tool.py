@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from .types import ToolSpec
 from .base_tool import BaseTool
 from .types import HTTP_METHOD, ToolPermission, ToolRequestBody, ToolResponseBody, \
-    OpenApiToolBinding, \
+    OpenApiToolBinding, AcknowledgementBinding, \
     JsonSchemaObject, ToolBinding, OpenApiSecurityScheme, CallbackBinding
 
 import json
@@ -207,35 +207,82 @@ def create_openapi_json_tool(
 
     # If it's an async tool, add callback binding
     if spec.is_async:
-
-
         callbacks = route_spec.get('callbacks', {})
         callback_name = next(iter(callbacks.keys()))
         callback_spec = callbacks[callback_name]
         callback_path = next(iter(callback_spec.keys()))
         callback_method = next(iter(callback_spec[callback_path].keys()))
+        callback_operation = callback_spec[callback_path][callback_method]
         
-        # Phase 1: Create a separate input schema for callback that excludes callbackUrl
-        # Note: Currently assuming the callback URL parameter will be named 'callbackUrl' in the OpenAPI spec
-        # Future phases will handle other naming conventions
+        # Extract callback input schema from the callback requestBody
         callback_input_schema = ToolRequestBody(
+            type='object',
+            properties={},
+            required=[]
+        )
+        
+        # Handle callback parameters (query, path, header params)
+        callback_parameters = callback_operation.get('parameters') or []
+        for parameter in callback_parameters:
+            name = f"{parameter['in']}_{parameter['name']}"
+            if parameter.get('required'):
+                callback_input_schema.required.append(name)
+            parameter['schema']['title'] = parameter['name']
+            parameter['schema']['description'] = parameter.get('description', None)
+            callback_input_schema.properties[name] = JsonSchemaObject.model_validate(parameter['schema'])
+            callback_input_schema.properties[name].in_field = parameter['in']
+            callback_input_schema.properties[name].aliasName = parameter['name']
+        
+        # Handle callback request body
+        callback_request_body_params = callback_operation.get('requestBody', {}).get('content', {}).get(http_response_content_type, {}).get('schema', None)
+        if callback_request_body_params is not None:
+            callback_input_schema.required.append('__requestBody__')
+            callback_request_body_params = copy.deepcopy(callback_request_body_params)
+            callback_request_body_params['in'] = 'body'
+            if callback_request_body_params.get('title') is None:
+                callback_request_body_params['title'] = 'CallbackRequestBody'
+            if callback_request_body_params.get('description') is None:
+                callback_request_body_params['description'] = 'The callback request body used for this async operation.'
+            
+            callback_input_schema.properties['__requestBody__'] = JsonSchemaObject.model_validate(callback_request_body_params)
+        
+        # Extract callback output schema
+        callback_responses = callback_operation.get('responses', {})
+        callback_response = callback_responses.get(str(http_success_response_code), {})
+        callback_response_description = callback_response.get('description')
+        callback_response_schema = callback_response.get('content', {}).get(http_response_content_type, {}).get('schema', {})
+        
+        callback_response_schema['required'] = []
+        callback_output_schema = ToolResponseBody.model_validate(callback_response_schema)
+        callback_output_schema.description = callback_response_description
+
+        # Remove callbackUrl parameter from main tool input schema
+        original_input_schema = ToolRequestBody(
             type='object',
             properties={k: v for k, v in spec.input_schema.properties.items() if not k.endswith('_callbackUrl')},
             required=[r for r in spec.input_schema.required if not r.endswith('_callbackUrl')]
         )
+        spec.input_schema = original_input_schema
 
-        if callback_input_schema:
-            spec.input_schema = callback_input_schema
-
+        original_response_schema = spec.output_schema
+        
         callback_binding = CallbackBinding(
             callback_url=callback_path,
             method=callback_method.upper(),
-            input_schema=callback_input_schema,
-            output_schema=spec.output_schema
+            output_schema=callback_output_schema
         )
+
+        # Create acknowledgement binding with the original response schema
+        acknowledgement_binding = AcknowledgementBinding(
+            output_schema=original_response_schema
+        )
+        
+        # For async tools, set the main tool's output_schema to the callback's input_schema
+        spec.output_schema = callback_input_schema
 
     else:
         callback_binding = None
+        acknowledgement_binding = None
 
     openapi_binding = OpenApiToolBinding(
         http_path=http_path,
@@ -247,6 +294,9 @@ def create_openapi_json_tool(
     
     if callback_binding is not None:
         openapi_binding.callback = callback_binding
+
+    if acknowledgement_binding is not None:
+        openapi_binding.acknowledgement = acknowledgement_binding
 
     spec.binding = ToolBinding(openapi=openapi_binding)
 

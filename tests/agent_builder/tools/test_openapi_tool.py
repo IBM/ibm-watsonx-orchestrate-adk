@@ -832,12 +832,14 @@ async def test_async_spec_with_callback(mocker, snapshot, openapi_async_callback
     spec = json.loads(tool.dumps_spec())
     snapshot.assert_match(spec)
     
+    # Test 1: Verify callback exists and has correct structure
     assert spec['binding']['openapi']['callback'] is not None
     assert spec['binding']['openapi']['callback']['callback_url'] == '{$request.header.callbackUrl}'
-
-    callback_input_schema = spec['binding']['openapi']['callback']['input_schema']
-    assert 'header_callbackUrl' not in callback_input_schema['properties']
-    assert 'header_callbackUrl' not in callback_input_schema['required']
+    
+    # Test 2: Verify acknowledgement field exists in OpenApiToolBinding
+    assert 'acknowledgement' in spec['binding']['openapi']
+    assert spec['binding']['openapi']['acknowledgement'] is not None
+    assert 'output_schema' in spec['binding']['openapi']['acknowledgement']
     
     try:
         await tool()
