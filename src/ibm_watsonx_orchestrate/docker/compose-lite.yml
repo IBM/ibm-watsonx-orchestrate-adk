@@ -791,7 +791,7 @@ services:
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
-      interval: 5s
+      interval: 30s
       timeout: 60s
       retries: 5
     ports:
