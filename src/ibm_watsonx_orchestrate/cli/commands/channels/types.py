@@ -13,8 +13,8 @@ class ChannelType(str, Enum):
 
     def __str__(self):
         return self.value
-    
-    
+
+
 class RuntimeEnvironmentType(str, Enum):
     LOCAL = 'local'
     CPD = 'cpd'
