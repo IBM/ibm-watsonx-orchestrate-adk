@@ -1,0 +1,20 @@
+auth_config:
+  tenant_name: local
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYiLCJ1c2VybmFtZSI6Ind4by5hcmNoZXJAaWJtLmNvbSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJ0ZW5hbnRfaWQiOiI5NmZlMTdjNy1lNjVmLTQzNDYtOTY0OS03YjE1NjI3YzVmZmIiLCJ3b1RlbmFudElkIjoiOTZmZTE3YzctZTY1Zi00MzQ2LTk2NDktN2IxNTYyN2M1ZmZiIiwid29Vc2VySWQiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYifQ.1n8gEqtb5JZI1PnNpaAaFTJs0moFvrv0JkjvUXEwCJU
+  url: http://localhost:4321
+data_annotation_run: false
+enable_manual_user_input: false
+enable_verbose_logging: true
+llm_user_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  prompt_config: /Users/emarcoux/Workspaces/assistant/wxo-clients-3/.venv/lib/python3.12/site-packages/wxo_agentic_evaluation/prompt/llama_user_prompt.jinja2
+  user_response_style: []
+num_workers: 2
+output_dir: ./debug
+provider_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  provider: model_proxy
+skip_available_results: false
+test_paths:
+- ./examples/evaluations/evaluate/
+wxo_lite_version: 1.8.0b1
