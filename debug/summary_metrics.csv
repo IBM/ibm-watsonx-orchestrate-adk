@@ -1,3 +1,0 @@
-dataset_name,total_steps,llm_step,total_tool_calls,expected_tool_calls,correct_tool_calls,relevant_tool_calls,total_routing_calls,relevant_routing_calls,tool_calls_with_incorrect_parameter,text_match,is_success,avg_resp_time,tool_call_recall,tool_call_precision,agent_routing_accuracy
-data_complex,14,10,6,5,5,6,0,0,0,Summary Matched,True,2.92,1.0,0.83,0.0
-data_simple,10,6,2,2,2,2,0,0,0,Summary Matched,True,2.47,1.0,1.0,0.0
