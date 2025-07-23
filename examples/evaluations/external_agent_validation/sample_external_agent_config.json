@@ -8,7 +8,7 @@
     "provider": "external_agent",
 	"model": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
     "version": "1.0.1",
-    "publisher": "11x",
+    "publisher": "YOUR_COMPANY_NAME",
 	"language_support": ["English"],
     "icon": "<svg>",
 	"tags": [
