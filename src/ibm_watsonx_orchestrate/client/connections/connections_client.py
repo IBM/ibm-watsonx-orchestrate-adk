@@ -63,12 +63,7 @@ class ConnectionsClient(BaseAPIClient):
     # GET /api/v1/connections/applications/{app_id}
     def get(self, app_id: str) -> GetConnectionResponse | None:
         try:
-            path = (
-                f"/connections/applications/{app_id}"
-                if is_cpd_env(self.base_url)
-                else f"/connections/applications?app_id={app_id}"
-            )
-            return GetConnectionResponse.model_validate(self._get(path))
+            return GetConnectionResponse.model_validate(self._get(f"/connections/applications?app_id={app_id}"))
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -78,12 +73,7 @@ class ConnectionsClient(BaseAPIClient):
     # GET api/v1/connections/applications
     def list(self) -> List[ListConfigsResponse]:
         try:
-            path = (
-                f"/connections/applications"
-                if is_cpd_env(self.base_url)
-                else f"/connections/applications?include_details=true"
-            )
-            res = self._get(path)
+            res = self._get(f"/connections/applications?include_details=true")
             import json
             json.dumps(res)
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
@@ -135,19 +125,9 @@ class ConnectionsClient(BaseAPIClient):
     def get_credentials(self, app_id: str, env: ConnectionEnvironment, use_app_credentials: bool) -> dict:
         try:
             if use_app_credentials:
-                path = (
-                    f"/connections/applications/{app_id}/credentials?env={env}"
-                    if is_cpd_env(self.base_url)
-                    else f"/connections/applications/{app_id}/credentials/{env}"
-                )
-                return self._get(path)
+                return self._get(f"/connections/applications/{app_id}/credentials/{env}")
             else:
-                path = (
-                    f"/connections/applications/{app_id}/configs/runtime_credentials?env={env}"
-                    if is_cpd_env(self.base_url)
-                    else f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}"
-                )
-                return self._get(path)
+                return self._get(f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}")
         except ClientAPIException as e:
             if e.response.status_code == 404:
                 return None
@@ -177,12 +157,7 @@ class ConnectionsClient(BaseAPIClient):
         if conn_id is None:
             return ""
         try:
-            path = (
-                f"/connections/applications/id/{conn_id}"
-                if is_cpd_env(self.base_url)
-                else f"/connections/applications?connection_id={conn_id}"
-            )
-            app_details = self._get(path)
+            app_details = self._get(f"/connections/applications?connection_id={conn_id}")
             return app_details.get("app_id")
         except ClientAPIException as e:
             if e.response.status_code == 404:

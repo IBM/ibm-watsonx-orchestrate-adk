@@ -33,18 +33,6 @@ def get_current_env_url() -> str:
     active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
     return cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
 
-def get_cpd_instance_id_from_url(url: str | None = None) -> str:
-    if url is None:
-        url = get_current_env_url()
-
-    if not is_cpd_env(url):
-        logger.error(f"The host {url} is not a CPD instance")
-        sys.exit(1)
-    
-    url_fragments = url.split('/')
-    return url_fragments[-1] if url_fragments[-1] else url_fragments[-2]
-
-
 def is_local_dev(url: str | None = None) -> bool:
     if url is None:
         url = get_current_env_url()
@@ -63,11 +51,11 @@ def is_local_dev(url: str | None = None) -> bool:
 
     return False
 
-def is_cpd_env(url: str | None = None) -> bool:
+def is_ga_platform(url: str | None = None) -> bool:
     if url is None:
         url = get_current_env_url()
 
-    if url.lower().startswith("https://cpd"):
+    if url.__contains__("orchestrate.ibm.com"):
         return True
     return False
 
@@ -82,13 +70,26 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
         return True
     return False
 
-def is_ga_platform(url: str | None = None) -> bool:
+def is_cpd_env(url: str | None = None) -> bool:
     if url is None:
         url = get_current_env_url()
 
-    if url.__contains__("orchestrate.ibm.com"):
+    if url.lower().startswith("https://cpd"):
         return True
     return False
+
+def get_cpd_instance_id_from_url(url: str | None = None) -> str:
+    if url is None:
+        url = get_current_env_url()
+
+    if not is_cpd_env(url):
+        logger.error(f"The host {url} is not a CPD instance")
+        sys.exit(1)
+
+    url_fragments = url.split('/')
+    return url_fragments[-1] if url_fragments[-1] else url_fragments[-2]
+
+
 
 
 def get_environment() -> str:

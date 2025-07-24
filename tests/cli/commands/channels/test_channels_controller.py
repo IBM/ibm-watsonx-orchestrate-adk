@@ -126,7 +126,7 @@ class TestChannelController:
     def test_get_environment_id(self, mock_instantiate_client, mock_is_saas_env, mock_is_local_dev):
         mock_is_local_dev.return_value = True
         mock_is_saas_env.return_value = False
-        
+
         mock_client = mock.Mock()
         mock_client.get_draft_by_name.return_value = [{"environments": [{"name": "draft", "id": "mocked-env-id"}]}]
         mock_instantiate_client.return_value = mock_client

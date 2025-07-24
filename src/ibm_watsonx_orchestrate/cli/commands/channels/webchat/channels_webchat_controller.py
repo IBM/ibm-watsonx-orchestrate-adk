@@ -11,6 +11,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 
+
 logger = logging.getLogger(__name__)
 
 class ChannelsWebchatController:
@@ -96,8 +97,6 @@ class ChannelsWebchatController:
         if target_env == 'draft' and is_saas == True:
             logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
             exit(1)
-             
-
 
         return filtered_environments[0].get("id")
 
@@ -182,7 +181,7 @@ class ChannelsWebchatController:
             case _:
                 logger.error("Environment not recognized")
                 sys.exit(1)
-            
+
         host_url = self.get_host_url()
         agent_id = self.get_agent_id(self.agent_name)
         agent_env_id = self.get_environment_id(self.agent_name, self.env)
