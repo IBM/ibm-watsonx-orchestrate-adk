@@ -97,8 +97,12 @@ HTTP_METHOD = Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 class CallbackBinding(BaseModel):
     callback_url: str
     method: HTTP_METHOD
-    input_schema: ToolRequestBody
+    input_schema: Optional[ToolRequestBody] = None
     output_schema: ToolResponseBody
+
+class AcknowledgementBinding(BaseModel):
+    output_schema: ToolResponseBody
+
 
 class OpenApiToolBinding(BaseModel):
     http_method: HTTP_METHOD
@@ -107,7 +111,8 @@ class OpenApiToolBinding(BaseModel):
     security: Optional[List[OpenApiSecurityScheme]] = None
     servers: Optional[List[str]] = None
     connection_id: str | None = None
-    callback: CallbackBinding = None
+    callback: Optional[CallbackBinding] = None
+    acknowledgement: Optional[AcknowledgementBinding] = None
 
     @model_validator(mode='after')
     def validate_openapi_tool_binding(self):

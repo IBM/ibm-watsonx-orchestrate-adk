@@ -769,7 +769,7 @@ class AgentsController:
                 for agent in native_agents:
                     agents_list.append(json.loads(agent.dumps_spec()))
 
-                rich.print(rich.json.JSON(json.dumps(agents_list, indent=4)))
+                rich.print_json(json.dumps(agents_list, indent=4))
             else:
                 native_table = rich.table.Table(
                     show_header=True, 
@@ -832,7 +832,7 @@ class AgentsController:
             if verbose:
                 for agent in external_agents:
                     external_agents_list.append(json.loads(agent.dumps_spec()))
-                rich.print(rich.json.JSON(json.dumps(external_agents_list, indent=4)))
+                rich.print_json(json.dumps(external_agents_list, indent=4))
             else:
                 external_table = rich.table.Table(
                     show_header=True, 
@@ -900,7 +900,7 @@ class AgentsController:
 
             if verbose:
                 for agent in assistant_agents:
-                    rich.print(agent.dumps_spec())
+                    rich.print_json(agent.dumps_spec())
             else:
                 assistants_table = rich.table.Table(
                     show_header=True, 

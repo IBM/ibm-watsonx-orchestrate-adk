@@ -346,31 +346,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[query] 1'] = {
 snapshots['test_async_spec_with_callback 1'] = {
     'binding': {
         'openapi': {
-            'callback': {
-                'callback_url': '{$request.header.callbackUrl}',
-                'input_schema': {
-                    'properties': {
-                        '__requestBody__': {
-                            'description': 'The html request body used to satisfy this user utterance.',
-                            'in': 'body',
-                            'properties': {
-                                'param': {
-                                    'type': 'string'
-                                }
-                            },
-                            'required': [
-                                'param'
-                            ],
-                            'title': 'RequestBody',
-                            'type': 'object'
-                        }
-                    },
-                    'required': [
-                        '__requestBody__'
-                    ],
-                    'type': 'object'
-                },
-                'method': 'POST',
+            'acknowledgement': {
                 'output_schema': {
                     'description': 'Success response',
                     'properties': {
@@ -381,6 +357,15 @@ snapshots['test_async_spec_with_callback 1'] = {
                     'required': [
                     ],
                     'type': 'object'
+                }
+            },
+            'callback': {
+                'callback_url': '{$request.header.callbackUrl}',
+                'method': 'POST',
+                'output_schema': {
+                    'description': 'Callback response',
+                    'required': [
+                    ]
                 }
             },
             'http_method': 'POST',
@@ -418,13 +403,21 @@ snapshots['test_async_spec_with_callback 1'] = {
     'is_async': True,
     'name': 'testAsyncCallback',
     'output_schema': {
-        'description': 'Success response',
         'properties': {
-            'status': {
-                'type': 'string'
+            '__requestBody__': {
+                'description': 'The callback request body used for this async operation.',
+                'in': 'body',
+                'properties': {
+                    'result': {
+                        'type': 'string'
+                    }
+                },
+                'title': 'CallbackRequestBody',
+                'type': 'object'
             }
         },
         'required': [
+            '__requestBody__'
         ],
         'type': 'object'
     },

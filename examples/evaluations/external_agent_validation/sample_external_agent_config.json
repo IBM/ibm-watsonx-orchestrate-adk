@@ -1,0 +1,17 @@
+{
+    "name": "<agent_name>_agent",
+	"description": "Describe Agent briefly",
+	"api_url": "https://partnerDomain/agentPath/v1/chat/completions",
+	"auth_scheme": "API_KEY",
+    "category": "agent",
+	"kind": "external",
+    "provider": "external_agent",
+	"model": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    "version": "1.0.1",
+    "publisher": "YOUR_COMPANY_NAME",
+	"language_support": ["English"],
+    "icon": "<svg>",
+	"tags": [
+		"Sales"
+	]
+}
