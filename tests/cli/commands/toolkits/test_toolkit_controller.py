@@ -72,6 +72,7 @@ def test_import_toolkit_exits_if_toolkit_exists():
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.os.path.isdir", return_value=True), \
          patch("sys.exit", side_effect=SystemExit) as mock_exit:
         controller = ToolkitController(
             kind=ToolkitKind.MCP,
@@ -94,7 +95,8 @@ def test_import_toolkit_successful_path():
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip", return_value="dummy.zip"), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"):
+         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"), \
+         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.os.path.isdir", return_value=True):
 
         controller = ToolkitController(
             kind=ToolkitKind.MCP,

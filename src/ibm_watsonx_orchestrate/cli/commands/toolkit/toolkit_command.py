@@ -64,8 +64,8 @@ def import_toolkit(
     else:
         tool_list = None
 
-    if not package and not package_root:
-        logger.error("You must provide either '--package' or '--package-root'.")
+    if not package and not package_root and not command:
+        logger.error("You must provide either '--package', '--package-root' or '--command'.")
         sys.exit(1)
 
     if package_root and not command:
@@ -85,6 +85,8 @@ def import_toolkit(
             else:
                 logger.error("Unable to infer start up command: '--language' flag must be either 'node' or 'python' when using the '--package' flag without '--command' flag.")
                 sys.exit(1)
+        else:
+            logger.warning(f"Default package installation command for package '{package}' overridden by '--command {command}'.")
 
 
     toolkit_controller = ToolkitController(
