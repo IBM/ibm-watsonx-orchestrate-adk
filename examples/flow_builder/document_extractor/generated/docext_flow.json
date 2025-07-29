@@ -1,24 +1,62 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "text_extraction_flow_test",
-    "display_name": "text_extraction_flow_test",
-    "description": "This flow contains only one node which is docproc node"
+    "name": "custom_flow_docext_example",
+    "display_name": "custom_flow_docext_example",
+    "description": "Extraction of custom fields from a document, specified by the user.",
+    "input_schema": {
+      "$ref": "#/schemas/custom_flow_docext_example_input"
+    },
+    "schedulable": false
   },
   "nodes": {
-    "text_extraction": {
+    "contract_extractor": {
       "spec": {
-        "kind": "docproc",
-        "name": "text_extraction",
-        "display_name": "text_extraction",
-        "description": "Extract text out of a document's contents.",
+        "kind": "docext",
+        "name": "contract_extractor",
+        "display_name": "Extract fields from a contract",
+        "description": "Extracts fields from an input contract file",
         "input_schema": {
-          "$ref": "#/schemas/text_extraction_input"
+          "$ref": "#/schemas/contract_extractor_input"
         },
         "output_schema": {
-          "$ref": "#/schemas/TextExtractionResponse"
+          "$ref": "#/schemas/DocExtFieldValue"
         },
-        "task": "text_extraction"
+        "version": "TIP",
+        "config": {
+          "domain": "other",
+          "type": "agreement",
+          "llm": "meta-llama/llama-3-2-11b-vision-instruct",
+          "entities": [
+            {
+              "name": "Buyer",
+              "type": "string",
+              "description": "",
+              "field_name": "buyer",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Seller",
+              "type": "string",
+              "description": "",
+              "field_name": "seller",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Agreement Date",
+              "type": "string",
+              "description": "",
+              "field_name": "agreement_date",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            }
+          ]
+        }
       }
     },
     "__start__": {
@@ -39,17 +77,17 @@
   "edges": [
     {
       "start": "__start__",
-      "end": "text_extraction"
+      "end": "contract_extractor"
     },
     {
-      "start": "text_extraction",
+      "start": "contract_extractor",
       "end": "__end__"
     }
   ],
   "schemas": {
-    "text_extraction_flow_example_input": {
+    "custom_flow_docext_example_input": {
       "type": "object",
-      "title": "text_extraction_flow_example_input",
+      "title": "custom_flow_docext_example_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -88,9 +126,9 @@
         }
       }
     },
-    "text_extraction_input": {
+    "contract_extractor_input": {
       "type": "object",
-      "title": "text_extraction_input",
+      "title": "contract_extractor_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -129,24 +167,35 @@
         }
       }
     },
-    "TextExtractionResponse": {
+    "DocExtFieldValue": {
       "type": "object",
-      "title": "TextExtractionResponse",
-      "description": "The text extraction operation response.\nAttributes:\n    text (str): the text extracted from the input document.",
+      "title": "DocExtFieldValue",
       "required": [
-        "text"
+        "buyer",
+        "seller",
+        "agreement_date"
       ],
       "properties": {
-        "text": {
+        "buyer": {
           "type": "string",
-          "title": "text",
-          "description": "The text extracted from the input document"
+          "title": "Buyer",
+          "description": "Extracted value for Buyer"
+        },
+        "seller": {
+          "type": "string",
+          "title": "Seller",
+          "description": "Extracted value for Seller"
+        },
+        "agreement_date": {
+          "type": "string",
+          "title": "Agreement Date",
+          "description": "Extracted value for Agreement Date"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-07-17T23:47:55.216266+00:00"
+    "compiled_on": "2025-07-25T16:07:44.901042+00:00"
   }
 }

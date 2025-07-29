@@ -127,7 +127,7 @@ THREAD_ID=a606063c-d8ed-4f36-a43d-aa7dee11f5a0
 URL=http://localhost:4321/api/v1
 JSON_FILE_PATH=~/.documents/files.json
 COLLECTION_ID_FILE=~/.documents/collection_id
-JWT_TOKEN=`cat ${ORCHESTRATE_CRED_YAML} | grep wxo_mcsp_token | awk '{print $2}'`
+JWT_TOKEN=`awk '/local:/ {f=1} f && /wxo_mcsp_token:/ {print $2; exit}' $ORCHESTRATE_CRED_YAML`
 
 
 mkdir -p ~/.documents
