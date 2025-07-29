@@ -750,6 +750,13 @@ class AgentsController:
     def list_agents(self, kind: AgentKind=None, verbose: bool=False):
         parse_errors = []
 
+        if verbose:
+            verbose_output_dictionary = {
+                "native":[],
+                "assistant":[],
+                "external":[]  
+            }
+
         if kind == AgentKind.NATIVE or kind is None:
             response = self.get_native_client().get()
             native_agents = []
@@ -769,7 +776,7 @@ class AgentsController:
                 for agent in native_agents:
                     agents_list.append(json.loads(agent.dumps_spec()))
 
-                rich.print_json(json.dumps(agents_list, indent=4))
+                verbose_output_dictionary["native"] = agents_list
             else:
                 native_table = rich.table.Table(
                     show_header=True, 
@@ -832,7 +839,7 @@ class AgentsController:
             if verbose:
                 for agent in external_agents:
                     external_agents_list.append(json.loads(agent.dumps_spec()))
-                rich.print_json(json.dumps(external_agents_list, indent=4))
+                verbose_output_dictionary["external"] = external_agents_list
             else:
                 external_table = rich.table.Table(
                     show_header=True, 
@@ -899,8 +906,10 @@ class AgentsController:
                     assistant_agent.config.authorization_url = response_data.get("authorization_url", assistant_agent.config.authorization_url)
 
             if verbose:
+                assistant_agent_specs = []
                 for agent in assistant_agents:
-                    rich.print_json(agent.dumps_spec())
+                    assistant_agent_specs.append(json.loads(agent.dumps_spec()))
+                verbose_output_dictionary["assistant"] = assistant_agent_specs
             else:
                 assistants_table = rich.table.Table(
                     show_header=True, 
@@ -937,6 +946,9 @@ class AgentsController:
                         agent.id
                     )
                 rich.print(assistants_table)
+
+        if verbose:
+            rich.print_json(data=verbose_output_dictionary)
 
         for error in parse_errors:
             for l in error:
