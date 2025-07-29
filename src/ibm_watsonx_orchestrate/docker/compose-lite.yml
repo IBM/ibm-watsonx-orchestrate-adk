@@ -827,7 +827,7 @@ services:
 ######################## 
 
   wxo-doc-processing-service:
-    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250606-172035-246-4191121}
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_service:${DOCPROC_DPS_TAG:-20250721-164412-250-503756a}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -843,9 +843,9 @@ services:
       IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
     profiles:
       - docproc
-    # depends_on:
-      # wxo-doc-processing-cache:
-        # condition: service_healthy
+    depends_on:
+      wxo-doc-processing-cache:
+        condition: service_healthy
     ports:
       - "18081:8080"
     healthcheck:
@@ -857,6 +857,7 @@ services:
   wdu-runtime:
     image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
     platform: linux/amd64
+    user: app
     restart: unless-stopped
     environment:
       MEMORY_MINIMAL: "true"
@@ -896,6 +897,48 @@ services:
     tmpfs:
       - "/dev/shm"
 
+  wxo-doc-processing-cache:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_cache:${DOCPROC_CACHE_TAG:-20250723-100852-70-9edc1ab}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-cache
+      LOG_LEVEL: info
+      RATE_LIMITING_ENABLED: "false"
+      USE_DUMMY_CACHE: "false"
+      CACHE_ENFORCE_STRICT_JWT: "false" 
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-cache
+      PG_DB_SCHEMA: dpschema
+      # PG_USE_SSL: false
+      S3_ENDPOINT_URL: http://wxo-server-minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_REGION: us-east-1
+      S3_BUCKET_NAME: wxo-document-processing-cache
+      VERIFY_CLIENT_CERT: 1
+      # S3_USE_SSL: false
+      # S3_VERIFY_CERT: false
+    profiles:
+      - docproc
+    depends_on:
+      wxo-doc-processing-pg-init:
+        condition: service_completed_successfully
+      wxo-doc-processing-cache-minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "18083:8080"
+    # volumes:
+      # - ./docker/wo_doc_processing_rag_base/etc/certs:/etc/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
   wxo-doc-processing-infra-standalone:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
     platform: linux/amd64
@@ -920,7 +963,7 @@ services:
       SIDECAR_METERED_ENABLED: "false"
       DPI_DEBUG: "false"
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
-      # DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
       STANDALONE_DPI: "true"
     depends_on:
@@ -930,13 +973,40 @@ services:
         condition: service_completed_successfully
       wxo-doc-processing-service:
         condition: service_healthy
-      # wxo-doc-processing-llm-service:
-      #   condition: service_healthy
+      wxo-doc-processing-llm-service:
+        condition: service_healthy
     ports:
       - 19080:9080
       - 19443:9443
     healthcheck:
       test: ["CMD-SHELL", "HEALTHCHECK_URL=http://localhost:9080/dps/v1/health /healthcheck-all.sh all"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wxo-doc-processing-llm-service:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG:-20250725-100249-111-51d3e51}
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-llm-service
+      LOG_LEVEL: info
+      WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
+      WATSONX_API_KEY: ${WATSONX_APIKEY}
+      WATSONX_PROJECT_ID: ${WATSONX_PROJECT_ID}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
+    profiles:
+      - docproc
+    depends_on:
+      wxo-doc-processing-cache: 
+        condition: service_healthy
+    ports:
+      - "18084:8083"
+    # volumes:
+      # - ./conf/rag/certs:/etc/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8083/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -965,6 +1035,28 @@ services:
       timeout: 5s
       retries: 50
 
+  wxo-doc-processing-pg-init:
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_cache_rds_init:${DOCPROC_CACHE_TAG:-20250723-100852-70-9edc1ab}
+    platform: linux/amd64
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: wxo-document-processing-cache
+      PG_DB_SCHEMA: dpschema
+      # PG_USE_SSL: false
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
+      interval: 1s
+      timeout: 5s
+      retries: 50
+
   wxo-doc-processing-dpi-minio-init:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
     platform: linux/amd64
@@ -977,6 +1069,21 @@ services:
       /bin/sh -c "
       /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-document-processing-dpi;
+      exit 0;
+      "
+
+  wxo-doc-processing-cache-minio-init:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/mc:latest
+    platform: linux/amd64
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
       exit 0;
       "
 
