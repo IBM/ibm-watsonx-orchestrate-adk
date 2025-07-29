@@ -169,7 +169,7 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
     
 
 def _parse_entry(entry: str) -> dict[str,str]:
-    split_entry = entry.split('=')
+    split_entry = entry.split('=', 1)
     if len(split_entry) != 2:
         message = f"The entry '{entry}' is not in the expected form '<key>=<value>'"
         logger.error(message)
