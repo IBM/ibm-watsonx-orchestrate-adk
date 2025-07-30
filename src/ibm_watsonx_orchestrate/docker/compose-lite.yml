@@ -1,3 +1,4 @@
+name: docker
 services:
   ########################
   # Orchestrate Lite dependencies
