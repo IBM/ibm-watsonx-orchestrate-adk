@@ -9,7 +9,6 @@ from typing import (
 )
 
 import docstring_parser
-from munch import Munch
 from pydantic import BaseModel, Field
 
 from langchain_core.tools.base import create_schema_from_function

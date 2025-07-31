@@ -6,9 +6,7 @@ import logging
 from pydantic import BaseModel, TypeAdapter
 
 from langchain_core.utils.json_schema import dereference_refs
-from rpds import List
 import typer
-import yaml
 
 from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
