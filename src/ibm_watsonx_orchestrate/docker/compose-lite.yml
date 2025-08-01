@@ -122,6 +122,11 @@ services:
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
       AGENT_OPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
+      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
+      DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
+      BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
     command: 'npm start'
