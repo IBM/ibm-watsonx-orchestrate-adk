@@ -43,7 +43,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 - 8 cores
 - 25GB disk space
 
-> **Note:** If you run with Document Processing enabled, you will need **at least an additional 2GB of memory** (i.e., a total of **18GB RAM**) to ensure stable operation.
+> **Note:** If you run with Document Processing enabled, you will need **at least an additional 3GB of memory** (i.e., a total of **19GB RAM**) to ensure stable operation.
 
 **A docker engine**   
   Ensure that you have a docker engine installed capable of running docker compose.

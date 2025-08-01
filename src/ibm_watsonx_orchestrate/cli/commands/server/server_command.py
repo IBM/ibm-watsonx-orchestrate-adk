@@ -4,11 +4,13 @@ import os
 import platform
 import subprocess
 import sys
+import shutil
 import tempfile
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+import re
 import jwt
 import requests
 import typer
@@ -32,6 +34,13 @@ logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
 
+_EXPORT_FILE_TYPES: set[str] = {
+    'py',
+    'yaml',
+    'yml',
+    'json',
+    'env'
+}
 
 _ALWAYS_UNSET: set[str] = {
     "WO_API_KEY",
@@ -43,10 +52,33 @@ _ALWAYS_UNSET: set[str] = {
     "WO_USERNAME",
     "WO_PASSWORD",
 }
+
+NON_SECRET_ENV_ITEMS: set[str] = {
+    "WO_DEVELOPER_EDITION_SOURCE",
+    "WO_INSTANCE",
+    "USE_SAAS_ML_TOOLS_RUNTIME",
+    "AUTHORIZATION_URL",
+    "OPENSOURCE_REGISTRY_PROXY",
+    "SAAS_WDU_RUNTIME",
+    "LATEST_ENV_FILE",
+}
   
 def define_saas_wdu_runtime(value: str = "none") -> None:
     cfg = Config()
     cfg.write(USER_ENV_CACHE_HEADER,"SAAS_WDU_RUNTIME",value)
+
+def set_compose_file_path_in_env(path: str = None) -> None:
+    Config().save(
+        {
+            USER_ENV_CACHE_HEADER: {
+                "DOCKER_COMPOSE_FILE_PATH" : path
+            }
+        }
+    )
+
+def get_compose_file_path_from_env() -> str:
+    return Config().read(USER_ENV_CACHE_HEADER,"DOCKER_COMPOSE_FILE_PATH")
+
 
 def ensure_docker_installed() -> None:
     try:
@@ -106,6 +138,11 @@ def docker_login_by_dev_edition_source(env_dict: dict, source: str) -> None:
 
 
 def get_compose_file() -> Path:
+    custom_compose_path = get_compose_file_path_from_env()
+    return Path(custom_compose_path) if custom_compose_path else get_default_compose_file()
+
+
+def get_default_compose_file() -> Path:
     with resources.as_file(
         resources.files("ibm_watsonx_orchestrate.docker").joinpath("compose-lite.yml")
     ) as compose_file:
@@ -283,12 +320,17 @@ def _prepare_clean_env(env_file: Path) -> None:
     for key in keys_to_unset:
         os.environ.pop(key, None)
 
-def write_merged_env_file(merged_env: dict) -> Path:
-    tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
-    with tmp:
+def write_merged_env_file(merged_env: dict, target_path: str = None) -> Path:
+
+    if target_path:
+        file = open(target_path,"w")
+    else:
+        file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
+
+    with file:
         for key, val in merged_env.items():
-            tmp.write(f"{key}={val}\n")
-    return Path(tmp.name)
+            file.write(f"{key}={val}\n")
+    return Path(file.name)
 
 
 def get_dbtag_from_architecture(merged_env_dict: dict) -> str:
@@ -310,14 +352,6 @@ def refresh_local_credentials() -> None:
     clear_protected_env_credentials_token()
     _login(name=PROTECTED_ENV_NAME, apikey=None)
 
-NON_SECRET_ENV_ITEMS = {
-    "WO_DEVELOPER_EDITION_SOURCE",
-    "WO_INSTANCE",
-    "USE_SAAS_ML_TOOLS_RUNTIME",
-    "AUTHORIZATION_URL",
-    "OPENSOURCE_REGISTRY_PROXY",
-    "SAAS_WDU_RUNTIME"
-}
 def persist_user_env(env: dict, include_secrets: bool = False) -> None:
     if include_secrets:
         persistable_env = env
@@ -337,7 +371,10 @@ def get_persisted_user_env() -> dict | None:
     return user_env
 
 def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_doc_processing=False) -> None:
+    
+    
     compose_path = get_compose_file()
+
     compose_command = ensure_docker_compose_installed()
     _prepare_clean_env(final_env_file)  
     db_tag = read_env_file(final_env_file).get('DBTAG', None)
@@ -747,6 +784,32 @@ def auto_configure_callback_ip(merged_env_dict: dict) -> dict:
 
     return merged_env_dict
 
+def prepare_server_env_vars(user_env: dict = {}):
+    
+    default_env = read_env_file(get_default_env_file())
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
+    
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
+
+    # Merge the default environment with the user environment
+    merged_env_dict = {
+        **default_env,
+        **user_env,
+    }
+
+    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+
+    # Auto-configure callback IP for async tools
+    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
+
+    apply_llm_api_key_defaults(merged_env_dict)
+
+    return merged_env_dict
+
 @server_app.command(name="start")
 def server_start(
     user_env_file: str = typer.Option(
@@ -780,38 +843,37 @@ def server_start(
         '--with-doc-processing', '-d',
         help='Enable IBM Document Processing to extract information from your business documents. Enabling this activates the Watson Document Understanding service.'
     ),
+    custom_compose_file: str = typer.Option(
+        None,
+        '--compose-file', '-f',
+        help='Provide the path to a custom docker-compose file to use instead of the default compose file'
+    ),  
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
     define_saas_wdu_runtime()
     
-    if user_env_file and not Path(user_env_file).exists():
-        logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
-        sys.exit(1)
     ensure_docker_installed()
 
-    default_env = read_env_file(get_default_env_file())
+    if user_env_file and not Path(user_env_file).exists():
+        logger.error(f"The specified environment file '{user_env_file}' does not exist.")
+        sys.exit(1)
+
+    if custom_compose_file:
+        if Path(custom_compose_file).exists():
+            logger.warning("You are using a custom docker compose file, official support will not be available for this configuration")
+        else:
+            logger.error(f"The specified docker-compose file '{custom_compose_file}' does not exist.")
+            sys.exit(1)
+    
+    #Run regardless, to allow this to set compose as 'None' when not in use 
+    set_compose_file_path_in_env(custom_compose_file)
+
     user_env = read_env_file(user_env_file) if user_env_file else {}
     persist_user_env(user_env, include_secrets=persist_env_secrets)
     
-    dev_edition_source = get_dev_edition_source(user_env)
-    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
+    merged_env_dict = prepare_server_env_vars(user_env)  
 
-    # Update the default environment with the default registry variables only if they are not already set
-    for key in default_registry_vars:
-        if key not in default_env or not default_env[key]:
-            default_env[key] = default_registry_vars[key]
-
-    # Merge the default environment with the user environment
-    merged_env_dict = {
-        **default_env,
-        **user_env,
-    }
-
-    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
-
-    # Auto-configure callback IP for async tools
-    merged_env_dict = auto_configure_callback_ip(merged_env_dict)
     if not _check_exclusive_observibility(experimental_with_langfuse, experimental_with_ibm_telemetry):
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
         sys.exit(1)
@@ -828,13 +890,11 @@ def server_start(
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
     try:
+        dev_edition_source = get_dev_edition_source(merged_env_dict)
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
     except ValueError as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
-
-    apply_llm_api_key_defaults(merged_env_dict)
-
 
     final_env_file = write_merged_env_file(merged_env_dict)
 
@@ -992,6 +1052,56 @@ def run_db_migration() -> None:
             f"Error running database migration):\n{error_message}"
         )
         sys.exit(1)
+
+
+def bump_file_iteration(filename: str) -> str:
+    regex = re.compile(f"^(?P<name>[^\\(\\s\\.\\)]+)(\\((?P<num>\\d+)\\))?(?P<type>\\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")
+    _m = regex.match(filename)
+    iter = int(_m['num']) + 1 if (_m and _m['num']) else 1
+    return f"{_m['name']}({iter}){_m['type'] or ''}"
+
+def get_next_free_file_iteration(filename: str) -> str:
+    while Path(filename).exists():
+        filename = bump_file_iteration(filename)
+    return filename
+
+@server_app.command(name="eject", help="output the docker-compose file and associated env file used to run the server")
+def server_eject(
+    user_env_file: str = typer.Option(
+        None,
+        "--env-file",
+        "-e",
+        help="Path to a .env file that overrides default.env. Then environment variables override both."
+    )
+):
+    
+    if not user_env_file:
+        logger.error(f"To use 'server eject' you need to specify an env file with '--env-file' or '-e'")
+        sys.exit(1)
+
+    if not Path(user_env_file).exists():
+        logger.error(f"The specified environment file '{user_env_file}' does not exist.")
+        sys.exit(1)
+
+    logger.warning("Changes to your docker compose file are not supported")
+    
+    compose_file_path = get_compose_file()
+
+    compose_output_file = get_next_free_file_iteration('docker-compose.yml')
+    logger.info(f"Exporting docker compose file to '{compose_output_file}'")
+
+    shutil.copyfile(compose_file_path,compose_output_file)
+
+
+    user_env = read_env_file(user_env_file)
+    merged_env_dict = prepare_server_env_vars(user_env)
+    
+    env_output_file = get_next_free_file_iteration('server.env')
+    logger.info(f"Exporting env file to '{env_output_file}'")
+
+    write_merged_env_file(merged_env=merged_env_dict,target_path=env_output_file)
+
+    logger.info(f"To make use of the exported configuration file run \"orchestrate server start -e {env_output_file} -f {compose_output_file}\"")
 
 if __name__ == "__main__":
     server_app()

@@ -215,15 +215,6 @@ class TestGatherUtterances:
         assert len(utterances) == max
         for item in utterances:
             assert item == "test"
-    
-    def test_gather_utterances_quit(self):
-        with patch("builtins.input") as mock_input:
-            mock_input.side_effect = ["test", "q"]
-            utterances = gather_utterances(3)
-
-        assert len(utterances) == 1
-        for item in utterances:
-            assert item == "test"
 
 class TestPreCPEStep:
     def test_pre_cpe_step(self):

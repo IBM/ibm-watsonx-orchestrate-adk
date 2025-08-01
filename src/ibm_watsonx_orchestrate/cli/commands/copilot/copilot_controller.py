@@ -137,9 +137,6 @@ def gather_utterances(max: int) -> list[str]:
     while count < max:
         utterance = Prompt.ask("  [green]>[/green]").strip()
 
-        if utterance.lower() == 'q':
-            break
-
         if utterance:
             utterances.append(utterance)
             count += 1

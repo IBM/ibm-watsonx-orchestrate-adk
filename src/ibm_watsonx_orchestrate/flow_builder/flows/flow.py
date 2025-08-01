@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 import inspect
 from typing import (
-    Any, AsyncIterator, Callable, cast, List, Sequence, Union, Tuple
+    Any, AsyncIterator, Callable, Optional, cast, List, Sequence, Union, Tuple
 )
 import json
 import logging
@@ -18,7 +18,7 @@ import pytz
 import os
 
 from typing_extensions import Self
-from pydantic import BaseModel, Field, SerializeAsAny
+from pydantic import BaseModel, Field, SerializeAsAny, create_model
 import yaml
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -27,11 +27,11 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
     EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, File, DecisionsNodeSpec, DecisionsRule
+    DocProcSpec, TextExtractionResponse, File, DecisionsNodeSpec, DecisionsRule, DocExtSpec, LanguageCode
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode
+    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
@@ -433,6 +433,50 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
+    def docext(self, 
+            name: str, 
+            llm : str = "meta-llama/llama-3-2-11b-vision-instruct",
+            version: str = "TIP",
+            display_name: str| None = None,
+            input_entities: type[BaseModel]| None = None, 
+            description: str | None = None,
+            input_map: DataMap = None) -> tuple[DocExtNode, type[BaseModel]]:
+        
+        if name is None :
+            raise ValueError("name must be provided.")
+
+        doc_ext_config = DocExtNode.generate_config(llm=llm, input_entites=input_entities)
+
+        DocExtFieldValue = DocExtNode.generate_docext_field_value_model(input_entities=input_entities)
+        
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = File)
+        output_schema_obj = _get_json_schema_obj("output", DocExtFieldValue)
+
+        if "$defs" in output_schema_obj.model_extra:
+            output_schema_obj.model_extra.pop("$defs")
+
+        # Create the docext spec
+        task_spec = DocExtSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            input_schema=_get_tool_request_body(input_schema_obj),
+            output_schema=_get_tool_response_body(output_schema_obj),
+            output_schema_object = output_schema_obj,
+            config=doc_ext_config,
+            version=version
+        )
+        node = DocExtNode(spec=task_spec)
+
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        
+        node = self._add_node(node)
+        return cast(DocExtNode, node), DocExtFieldValue
+
     def decisions(self, 
             name: str, 
             display_name: str|None=None,
@@ -486,8 +530,6 @@ class Flow(Node):
         if name is None :
             raise ValueError("name must be provided.")
         
-        if task is None:
-            raise ValueError("task must be provided.")
         
         output_schema_dict = { 
             "text_extraction" : TextExtractionResponse

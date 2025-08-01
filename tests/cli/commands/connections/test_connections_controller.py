@@ -325,6 +325,9 @@ class TestParseEntry:
         [
             ("test=test", {"test": "test"}),
             ("test=", {"test": ""}),
+            ("test=test=", {"test": "test="}),
+            ("test====", {"test": "==="}),
+            ("test=test=test", {"test": "test=test"}),
         ]
     )
     def test_parse_entry(self, entry_string, expected):
@@ -335,7 +338,7 @@ class TestParseEntry:
         "entry_string",
         [
             "test",
-            "test=test=test",
+            "",
         ]
     )
     def test_parse_entry_invalid_entries(self, entry_string, caplog):

@@ -70,7 +70,7 @@ class ToolkitController:
         self.client = None
 
         self.source: ToolkitSource = (
-            ToolkitSource.PUBLIC_REGISTRY if package else ToolkitSource.FILES
+            ToolkitSource.FILES if package_root else ToolkitSource.PUBLIC_REGISTRY
         )
 
     def get_client(self) -> ToolKitClient:
@@ -104,6 +104,14 @@ class ToolkitController:
 
         command = command_parts[0]
         args = command_parts[1:]
+
+        if self.package_root:
+            is_folder = os.path.isdir(self.package_root)
+            is_zip_file = os.path.isfile(self.package_root) and zipfile.is_zipfile(self.package_root)
+
+            if not is_folder and not is_zip_file:
+                logger.error(f"Unable to find a valid directory or zip file at location '{self.package_root}'")
+                sys.exit(1)
 
         console = Console()
 

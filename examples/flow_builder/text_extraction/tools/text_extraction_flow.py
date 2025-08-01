@@ -1,3 +1,4 @@
+from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END
 )

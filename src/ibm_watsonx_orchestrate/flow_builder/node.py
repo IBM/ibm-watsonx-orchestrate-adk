@@ -1,11 +1,14 @@
 import json
-from typing import Any, cast
+from typing import Any, cast, Type
 import uuid
 
 import yaml
-from pydantic import BaseModel, Field, SerializeAsAny
+from pydantic import BaseModel, Field, SerializeAsAny, create_model
+from enum import Enum
 
-from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, DecisionsNodeSpec
+from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
+                    DocExtSpec, DocExtConfig, LanguageCode, DecisionsNodeSpec
+
 from .data_map import DataMap
 
 class Node(BaseModel):
@@ -116,6 +119,34 @@ class DocProcNode(Node):
 
     def get_spec(self) -> DocProcSpec:
         return cast(DocProcSpec, self.spec)
+    
+class DocExtNode(Node):
+    def __repr__(self):
+        return f"DocExtNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> DocExtSpec:
+        return cast(DocExtSpec, self.spec)
+    
+    @staticmethod
+    def generate_config(llm: str, input_entites: type[BaseModel]) -> DocExtConfig:
+        entities = input_entites.__dict__.values()
+        return DocExtConfig(llm=llm, entities=entities)
+    
+    @staticmethod
+    def generate_docext_field_value_model(input_entities: type[BaseModel]) -> type[BaseModel]:
+        create_field_value_description = lambda field_name: "Extracted value for " + field_name
+
+        DocExtFieldValue = create_model(
+                "DocExtFieldValue",
+                    **{
+                        name: (str, Field(
+                            title=value['name'], 
+                            description=create_field_value_description(value['name']),
+                            )
+                        )
+                        for name, value in input_entities.model_dump().items()})
+        return DocExtFieldValue
+    
 class DecisionsNode(Node):
     def __repr__(self):
         return f"DecisionsNode(name='{self.spec.name}', description='{self.spec.description}')"
