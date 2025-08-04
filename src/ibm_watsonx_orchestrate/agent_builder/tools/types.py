@@ -186,6 +186,7 @@ class ToolBinding(BaseModel):
 
 class ToolSpec(BaseModel):
     name: str
+    id: str | None = None
     display_name: str | None = None
     description: str
     permission: ToolPermission
