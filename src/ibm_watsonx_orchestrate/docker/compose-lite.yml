@@ -555,6 +555,7 @@ services:
       - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
       - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
       - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
+      - FORCE_SINGLE_TENANT=${FORCE_SINGLE_TENANT:-true}
     ports:
       - "9202:9201" # Expose proxy on host port 9202
     networks:
@@ -651,6 +652,7 @@ services:
       - INBOUND_API_KEY=${AGENTOPS_API_KEY}
       - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
       - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
+      - FORCE_SINGLE_TENANT=${FORCE_SINGLE_TENANT:-true}
     ports:
       - "8765:443"
     networks:
