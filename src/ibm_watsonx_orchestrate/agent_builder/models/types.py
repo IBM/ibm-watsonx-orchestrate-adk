@@ -87,6 +87,11 @@ class ProviderConfig(BaseModel):
     azure_entra_tenant_id: Optional[str] = Field(None, alias="azureEntraTenantId")
     azure_ad_token: Optional[str] = Field(None, alias="azureAdToken")
     azure_model_name: Optional[str] = Field(None, alias="azureModelName")
+    azure_inference_deployment_name: Optional[str] = Field(None, alias="azureDeploymentName")
+    azure_inference_api_version: Optional[str] = Field(None, alias="azureApiVersion")
+    azure_inference_extra_params: Optional[str] = Field(None, alias="azureExtraParams")
+    azure_inference_foundry_url: Optional[str] = Field(None, alias="azureFoundryUrl")
+
 
     # Workers AI specific
     workers_ai_account_id: Optional[str] = Field(None, alias="workersAiAccountId")

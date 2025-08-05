@@ -10,19 +10,23 @@ _BASIC_PROVIDER_CONFIG_KEYS = {'provider', 'api_key', 'custom_host', 'url_to_fet
 
 PROVIDER_EXTRA_PROPERTIES_LUT = {
     ModelProvider.ANTHROPIC: {'anthropic_beta', 'anthropic_version'},
-    # ModelProvider.AZURE_AI: {
-    #     'azure_resource_name',
-    #     'azure_deployment_id',
-    #     'azure_api_version',
-    #     'ad_auth',
-    #     'azure_auth_mode',
-    #     'azure_managed_client_id',
-    #     'azure_entra_client_id',
-    #     'azure_entra_client_secret',
-    #     'azure_entra_tenant_id',
-    #     'azure_ad_token',
-    #     'azure_model_name'
-    # },
+    ModelProvider.AZURE_AI: {
+        'azure_resource_name',
+        'azure_deployment_id',
+        'azure_api_version',
+        'ad_auth',
+        'azure_auth_mode',
+        'azure_managed_client_id',
+        'azure_entra_client_id',
+        'azure_entra_client_secret',
+        'azure_entra_tenant_id',
+        'azure_ad_token',
+        'azure_model_name',
+        'azure_inference_deployment_name',
+        'azure_inference_api_version',
+        'azure_inference_extra_params',
+        'azure_inference_foundry_url'
+    },
     ModelProvider.AZURE_OPENAI: {
         'azure_resource_name',
         'azure_deployment_id',
