@@ -20,7 +20,7 @@ class TestDocExtNodes():
         pass
 
     def test_doc_ext_node_spec_generation(self):
-        aflow = FlowFactory.create_flow(name="custom_flow_docext_test")
+        aflow = FlowFactory.create_flow(name="custom_flow_docext_example")
         doc_ext_node, CEEResponse = aflow.docext(
             name="contract_extractor",
             display_name="Extract fields from a contract",
@@ -35,12 +35,10 @@ class TestDocExtNodes():
         assert actual_extraction_spec["version"] == "TIP"
         assert actual_extraction_spec["kind"] == "docext"
         assert actual_extraction_spec["name"] == "contract_extractor"
-        assert actual_extraction_spec["input_schema"]['$ref'].split("/")[-1] == expected_extraction_spec["schemas"]["contract_extractor_input"]["title"]
         assert actual_extraction_spec["output_schema"]['$ref'].split("/")[-1] == expected_extraction_spec["schemas"]["DocExtFieldValue"]["title"] 
         
         assert aflow_json_spec["spec"]["kind"] == expected_extraction_spec["spec"]["kind"]
         assert aflow_json_spec["spec"]["name"] == expected_extraction_spec["spec"]["name"]
-        assert aflow_json_spec["schemas"]["contract_extractor_input"]["title"] == expected_extraction_spec["schemas"]["contract_extractor_input"]["title"]
         for k,v in aflow_json_spec["schemas"]["DocExtFieldValue"]["properties"].items():
             assert aflow_json_spec["schemas"]["DocExtFieldValue"]["properties"][k]["title"] == expected_extraction_spec["schemas"]["DocExtFieldValue"]["properties"][k]["title"]
         

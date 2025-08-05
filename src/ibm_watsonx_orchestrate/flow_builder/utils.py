@@ -89,9 +89,13 @@ def _get_tool_request_body(schema_obj: JsonSchemaObject) -> ToolRequestBody:
             request_obj = ToolRequestBody(type='object', properties=schema_obj.properties, required=schema_obj.required)
             if schema_obj.model_extra:
                 request_obj.__pydantic_extra__ = schema_obj.model_extra
-        else:  # we need to wrap a simple type with an object
-            request_obj = ToolRequestBody(type='object', properties={}, required=[])
-            request_obj.properties["data"] = schema_obj
+        else:  
+            if schema_obj.wrap_data:
+                # we need to wrap a simple type with an object
+                request_obj = ToolRequestBody(type='object', properties={}, required=[])
+                request_obj.properties["data"] = schema_obj
+            else:
+                request_obj = ToolRequestBody(type=schema_obj.type, title=schema_obj.title, description=schema_obj.description, format=schema_obj.format)
             if schema_obj.model_extra:
                 request_obj.__pydantic_extra__ = schema_obj.model_extra
 

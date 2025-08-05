@@ -36,6 +36,7 @@ class JsonSchemaObject(BaseModel):
     anyOf: Optional[List['JsonSchemaObject']] = None
     in_field: Optional[Literal['query', 'header', 'path', 'body']] = Field(None, alias='in')
     aliasName: str | None = None
+    wrap_data: Optional[bool] = True
     "Runtime feature where the sdk can provide the original name of a field before prefixing"
 
     @model_validator(mode='after')
@@ -48,9 +49,9 @@ class JsonSchemaObject(BaseModel):
 class ToolRequestBody(BaseModel):
     model_config = ConfigDict(extra='allow')
 
-    type: Literal['object']
-    properties: Dict[str, JsonSchemaObject]
-    required: Optional[List[str]] = None
+    type: Literal['object', 'string']
+    properties: Optional[Dict[str, JsonSchemaObject]] = {}
+    required: Optional[List[str]] = []
 
 
 class ToolResponseBody(BaseModel):

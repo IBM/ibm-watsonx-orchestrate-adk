@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END
 )
-from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigEntity, File
+from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigEntity, DocProcInput, File, DocExtInput
 
 
 class Entities(BaseModel):
@@ -16,7 +16,7 @@ class Entities(BaseModel):
     name ="custom_flow_docext_example",
     display_name="custom_flow_docext_example",
     description="Extraction of custom fields from a document, specified by the user.",
-    input_schema=File
+    input_schema=DocExtInput
 )
 def build_docext_flow(aflow: Flow = None) -> Flow:
     # aflow.docext return 2 things

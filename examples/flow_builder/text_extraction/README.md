@@ -5,7 +5,7 @@
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `text_extraction_agent`
 
-5. Type in something like `I want to extract text from a document`. Then, the agent will promt you to upload the document
+5. Type in something like `extract text from a document with language is English`. Then, the agent will promt you to upload the document
 
 
 ### Testing Flow programmatically

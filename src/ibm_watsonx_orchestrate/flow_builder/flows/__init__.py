@@ -1,6 +1,6 @@
 from .constants import START, END, RESERVED
 
-from ..types import FlowContext, TaskData, TaskEventType, File, DecisionsCondition, DecisionsRule
+from ..types import FlowContext, TaskData, TaskEventType, DocProcInput, DecisionsCondition, DecisionsRule
 from ..node import UserNode, AgentNode, StartNode, EndNode, PromptNode, ToolNode, DecisionsNode
 
 from .flow import Flow, CompiledFlow, FlowRun, FlowEvent, FlowEventType, FlowFactory, MatchPolicy, WaitPolicy, ForeachPolicy, Branch, Foreach, Loop
@@ -16,7 +16,7 @@ __all__ = [
     "FlowContext",
     "TaskData",
     "TaskEventType",
-    "File",
+    "DocProcInput",
 
     "DocProcNode",
     "UserNode",

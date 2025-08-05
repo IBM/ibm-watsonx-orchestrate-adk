@@ -18,7 +18,7 @@ import pytz
 import os
 
 from typing_extensions import Self
-from pydantic import BaseModel, Field, SerializeAsAny, create_model
+from pydantic import BaseModel, Field, SerializeAsAny, create_model, TypeAdapter
 import yaml
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -27,7 +27,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
     EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, File, DecisionsNodeSpec, DecisionsRule, DocExtSpec, LanguageCode
+    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
@@ -190,7 +190,7 @@ class Flow(Node):
     
     def _add_schema_ref(self, schema: JsonSchemaObject, title: str = None) -> SchemaRef:
         '''Create a schema reference'''
-        if schema and (schema.type == "object" or schema.type == "array"):
+        if schema and (schema.type == "object" or schema.type == "array" or schema.type == "string"):
             new_schema = self._add_schema(schema, title)
             return SchemaRef(ref=f"#/schemas/{new_schema.title}")
         raise AssertionError(f"schema is not a complex object: {schema}")
@@ -199,7 +199,7 @@ class Flow(Node):
         self._refactor_spec_to_schemaref(node.spec)
                 
     def _refactor_spec_to_schemaref(self, spec: NodeSpec):
-        if spec.input_schema:
+        if spec.input_schema and (spec.input_schema.type == "object" or spec.input_schema.type == "array") :
             if isinstance(spec.input_schema, ToolRequestBody):
                 spec.input_schema = self._add_schema_ref(JsonSchemaObject(type = spec.input_schema.type,
                                                                                 properties= spec.input_schema.properties,
@@ -535,7 +535,7 @@ class Flow(Node):
             "text_extraction" : TextExtractionResponse
         }
          # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = File)
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocProcInput)
         output_schema_obj = _get_json_schema_obj("output", output_schema_dict[task])
         if "$defs" in output_schema_obj.model_extra:
             output_schema_obj.model_extra.pop("$defs")
@@ -1060,8 +1060,8 @@ class FlowFactory(BaseModel):
                 raise ValueError("Only functions with @flow_spec can be used to create a Flow specification.")
             return Flow(spec = flow_spec)
 
-        # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
+        # create input spec
         output_schema_obj = _get_json_schema_obj("output", output_schema)
         if initiators is None:
             initiators = []
