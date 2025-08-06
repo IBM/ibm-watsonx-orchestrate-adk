@@ -72,6 +72,21 @@ class KnowledgeBaseController:
 
         knowledge_bases = parse_file(file=file)
         
+        if app_id:
+            connections_client = get_connections_client()
+            connection_id = None
+                
+            connections = connections_client.get_draft_by_app_id(app_id=app_id)
+            if not connections:
+                logger.error(f"No connection exists with the app-id '{app_id}'")
+                exit(1)
+
+            connection_id = connections.connection_id
+
+            for kb in knowledge_bases:
+                if kb.conversational_search_tool and kb.conversational_search_tool.index_config and len(kb.conversational_search_tool.index_config) > 0:
+                    kb.conversational_search_tool.index_config[0].connection_id = connection_id
+        
         existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
         
         for kb in knowledge_bases:
@@ -97,18 +112,10 @@ class KnowledgeBaseController:
                     if len(kb.conversational_search_tool.index_config) != 1:
                         raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(kb.conversational_search_tool.index_config)}.")
                     
-                    
-                    if app_id:
-                        connections_client = get_connections_client()
-                        connection_id = None
-                        if app_id is not None:
-                            connections = connections_client.get_draft_by_app_id(app_id=app_id)
-                            if not connections:
-                                logger.error(f"No connection exists with the app-id '{app_id}'")
-                                exit(1)
-
-                            connection_id = connections.connection_id
-                            kb.conversational_search_tool.index_config[0].connection_id = connection_id
+                    if (kb.conversational_search_tool.index_config[0].milvus or \
+                        kb.conversational_search_tool.index_config[0].elastic_search) and \
+                            not kb.conversational_search_tool.index_config[0].connection_id:
+                        raise ValueError(f"Must provide credentials (via --app-id) when using milvus or elastic_search.")
 
                     kb.prioritize_built_in_index = False
                     client.create(payload=kb.model_dump(exclude_none=True))
