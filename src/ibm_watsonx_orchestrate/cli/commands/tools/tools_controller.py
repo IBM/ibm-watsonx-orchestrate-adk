@@ -590,7 +590,7 @@ class ToolsController:
             for tool in tools:
                 tools_list.append(json.loads(tool.dumps_spec()))
 
-            rich.print(JSON(json.dumps(tools_list, indent=4)))
+            rich.print_json(json.dumps(tools_list, indent=4))
         else:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
             column_args = {

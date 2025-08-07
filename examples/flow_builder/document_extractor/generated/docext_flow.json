@@ -17,7 +17,11 @@
         "display_name": "Extract fields from a contract",
         "description": "Extracts fields from an input contract file",
         "input_schema": {
-          "$ref": "#/schemas/contract_extractor_input"
+          "type": "string",
+          "required": [],
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary"
         },
         "output_schema": {
           "$ref": "#/schemas/DocExtFieldValue"
@@ -100,68 +104,11 @@
               "format": "binary"
             },
             {
-              "type": "string"
-            }
-          ]
-        },
-        "language": {
-          "title": "Document language code",
-          "description": "Optional language code of the document, defaults to \"en\"",
-          "default": "en",
-          "anyOf": [
-            {
               "type": "string",
-              "title": "LanguageCode",
-              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
-              "enum": [
-                "en",
-                "fr",
-                "en_hw"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "contract_extractor_input": {
-      "type": "object",
-      "title": "contract_extractor_input",
-      "required": [],
-      "properties": {
-        "document_ref": {
-          "title": "Document reference",
-          "description": "Either an ID or a URL identifying the document to be used.",
-          "format": "binary",
-          "anyOf": [
-            {
-              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
               "format": "binary"
-            },
-            {
-              "type": "string"
-            }
-          ]
-        },
-        "language": {
-          "title": "Document language code",
-          "description": "Optional language code of the document, defaults to \"en\"",
-          "default": "en",
-          "anyOf": [
-            {
-              "type": "string",
-              "title": "LanguageCode",
-              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
-              "enum": [
-                "en",
-                "fr",
-                "en_hw"
-              ]
-            },
-            {
-              "type": "null"
             }
           ]
         }
@@ -196,6 +143,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-07-25T16:07:44.901042+00:00"
+    "compiled_on": "2025-08-04T21:05:32.406784+00:00"
   }
 }

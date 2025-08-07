@@ -404,8 +404,11 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
                     "❌"
                 )
                 continue
-
-            connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
+            
+            try:
+                connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
+            except:
+                connection_type = conn.auth_type
 
             if conn.environment == ConnectionEnvironment.DRAFT:
                 draft_table.add_row(

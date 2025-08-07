@@ -86,11 +86,10 @@ class GenerationConfiguration(BaseModel):
     {
         "model_id": "meta-llama/llama-3-1-70b-instruct",
         "prompt_instruction": "When the documents are in different languages, you should respond in english.",
-        "retrieval_confidence_threshold": "Lowest",
         "generated_response_length": "Moderate",
-        "response_confidence_threshold": "Low",
         "display_text_no_results_found": "no docs found",
         "display_text_connectivity_issue": "conn failed",
+        "idk_message": "I dont know",
     }
     """
 
@@ -99,6 +98,7 @@ class GenerationConfiguration(BaseModel):
     generated_response_length: Optional[GeneratedResponseLength] = None
     display_text_no_results_found: Optional[str] = None
     display_text_connectivity_issue: Optional[str] = None
+    idk_message: Optional[str] = None
 
 class FieldMapping(BaseModel):
     """

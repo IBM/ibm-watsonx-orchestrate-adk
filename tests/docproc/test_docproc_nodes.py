@@ -13,7 +13,7 @@ class TestDocProcNodes():
         pass
 
     def test_text_extraction_node_spec_generation(self):
-        aflow = FlowFactory.create_flow(name="text_extraction_flow_test")
+        aflow = FlowFactory.create_flow(name="text_extraction_flow_example")
         text_extraction_node = aflow.docproc(
             name="text_extraction",
             display_name="text_extraction",

@@ -1,11 +1,12 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "custom_flow_docext_test",
-    "display_name": "custom_flow_docext_test",
+    "name": "custom_flow_docext_example",
+    "display_name": "custom_flow_docext_example",
     "description": "Extraction of custom fields from a document, specified by the user.",
     "input_schema": {
-      "$ref": "#/schemas/custom_flow_docext_test_input"
+      "type": "string",
+      "required": []
     },
     "schedulable": false
   },
@@ -17,7 +18,8 @@
         "display_name": "Extract fields from a contract",
         "description": "Extracts fields from an input contract file",
         "input_schema": {
-          "$ref": "#/schemas/contract_extractor_input"
+          "type": "string",
+          "required": []
         },
         "output_schema": {
           "$ref": "#/schemas/DocExtFieldValue"
@@ -85,88 +87,6 @@
     }
   ],
   "schemas": {
-    "custom_flow_docext_example_input": {
-      "type": "object",
-      "title": "custom_flow_docext_example_input",
-      "required": [],
-      "properties": {
-        "document_ref": {
-          "title": "Document reference",
-          "description": "Either an ID or a URL identifying the document to be used.",
-          "format": "binary",
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "binary"
-            },
-            {
-              "type": "string"
-            }
-          ]
-        },
-        "language": {
-          "title": "Document language code",
-          "description": "Optional language code of the document, defaults to \"en\"",
-          "default": "en",
-          "anyOf": [
-            {
-              "type": "string",
-              "title": "LanguageCode",
-              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
-              "enum": [
-                "en",
-                "fr",
-                "en_hw"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "contract_extractor_input": {
-      "type": "object",
-      "title": "contract_extractor_input",
-      "required": [],
-      "properties": {
-        "document_ref": {
-          "title": "Document reference",
-          "description": "Either an ID or a URL identifying the document to be used.",
-          "format": "binary",
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "binary"
-            },
-            {
-              "type": "string"
-            }
-          ]
-        },
-        "language": {
-          "title": "Document language code",
-          "description": "Optional language code of the document, defaults to \"en\"",
-          "default": "en",
-          "anyOf": [
-            {
-              "type": "string",
-              "title": "LanguageCode",
-              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
-              "enum": [
-                "en",
-                "fr",
-                "en_hw"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
     "DocExtFieldValue": {
       "type": "object",
       "title": "DocExtFieldValue",
@@ -196,6 +116,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-07-25T16:07:44.901042+00:00"
+    "compiled_on": "2025-08-04T10:06:21.070688+00:00"
   }
 }

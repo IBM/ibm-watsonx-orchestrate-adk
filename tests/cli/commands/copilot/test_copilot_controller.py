@@ -226,20 +226,29 @@ class TestPreCPEStep:
                 "description": "Test Description"
             },
             {
-                "metadata": {
-                    "agent_name": "Test Agent",
-                    "style": "Test Style",
-                    "tools": []
-                }
+                "tools": []
+            },
+            {
+                "collaborators": []
+            },
+            {
+                "knowledge_bases": []
+            },
+            {
+                "agent_name": "Test Agent",
+                "agent_style": "Test Style",
             }
         ]
         cpe_client = MockCPEClient(pre_chat_responses=pre_chat_responses)
         with patch("builtins.input") as mock_input, \
-            patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_deployed_tools_agents") as get_deployed_tools_agents, \
-            patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.find_tools_by_description") as mock_find_tools_by_description:
-            mock_input.side_effect = ["test", "test"]
-            mock_find_tools_by_description.return_value=[]
-            get_deployed_tools_agents.return_value={"tools": [], "agents": []}
+            patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_deployed_tools_agents_and_knowledge_bases") as get_deployed_tools_agents_and_knowledge_bases:
+            #, \
+            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.find_tools_by_description") as mock_find_tools_by_description,
+            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.") as XXX,
+            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.") as YYY:
+            mock_input.side_effect = ["test", "test","test","test"]
+            # mock_find_tools_by_description.return_value=[]
+            get_deployed_tools_agents_and_knowledge_bases.return_value={"tools": [], "collaborators": [], "knowledge_bases":[]}
 
             pre_cpe_step(cpe_client)
 
@@ -464,7 +473,8 @@ class TestCreateAgent:
                 "description": "test description",
                 "agent_name": "test_name",
                 "agent_style": AgentStyle.DEFAULT,
-                "collaborators": []
+                "collaborators": [],
+                "knowledge_bases": []
             }
 
             mock_talk_to_cpe.return_value = "test instructions"
@@ -494,7 +504,8 @@ class TestCreateAgent:
                 "description": "test description",
                 "agent_name": "test_name",
                 "agent_style": AgentStyle.DEFAULT,
-                "collaborators": []
+                "collaborators": [],
+                "knowledge_bases": []
             }
 
             mock_talk_to_cpe.return_value = "test instructions"

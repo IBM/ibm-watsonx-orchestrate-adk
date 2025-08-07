@@ -122,6 +122,11 @@ services:
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
       AGENT_OPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
+      DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
+      DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
+      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
+      BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
     command: 'npm start'
@@ -165,7 +170,7 @@ services:
       "
 
   wxo-milvus-standalone:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.6
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.15
     command: ["milvus", "run", "standalone"]
     security_opt:
       - seccomp:unconfined
@@ -550,6 +555,7 @@ services:
       - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
       - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
       - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
+      - FORCE_SINGLE_TENANT=${FORCE_SINGLE_TENANT:-true}
     ports:
       - "9202:9201" # Expose proxy on host port 9202
     networks:
@@ -646,6 +652,7 @@ services:
       - INBOUND_API_KEY=${AGENTOPS_API_KEY}
       - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
       - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
+      - FORCE_SINGLE_TENANT=${FORCE_SINGLE_TENANT:-true}
     ports:
       - "8765:443"
     networks:

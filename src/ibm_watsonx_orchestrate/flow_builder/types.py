@@ -5,11 +5,14 @@ import numbers
 import inspect
 import logging
 from typing import (
-    Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union
+    Annotated, Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union, NewType
 )
+from typing_extensions import Doc
 
 import docstring_parser
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler, RootModel
+from pydantic_core import core_schema
+from pydantic.json_schema import JsonSchemaValue
 
 from langchain_core.tools.base import create_schema_from_function
 from langchain_core.utils.json_schema import dereference_refs
@@ -86,7 +89,11 @@ def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef]) -> dic
             model_spec["properties"] = {}
             for prop_name, prop_schema in request_body.properties.items():
                 model_spec["properties"][prop_name] = _to_json_from_json_schema(prop_schema)
-        model_spec["required"] = request_body.required
+        model_spec["required"] = request_body.required if request_body.required else []
+        if schema.model_extra:
+            for k, v in schema.model_extra.items():
+                model_spec[k] = v
+        
     elif isinstance(schema, SchemaRef):
         model_spec["$ref"] = schema.ref
     
@@ -182,7 +189,10 @@ class LanguageCode(StrEnum):
     en = auto()
     fr = auto()
 
-class DocExtSpec(NodeSpec):
+class DocProcCommonNodeSpec(NodeSpec):
+    enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
+
+class DocExtSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocExtConfig
 
@@ -196,14 +206,63 @@ class DocExtSpec(NodeSpec):
         model_spec["config"] = self.config.model_dump()
         return model_spec
     
+class DocProcField(BaseModel):
+    description: str = Field(description="A description of the field to extract from the document.")
+    example: str = Field(description="An example of the field to extract from the document.", default='')
+    default: Optional[str] = Field(description="A default value for the field to extract from the document.", default='')
+
+class DocProcTable(BaseModel):
+    type: Literal["array"]
+    description: str = Field(description="A description of the table to extract from the document.")
+    columns: dict[str,DocProcField] = Field(description="The columns to extract from the table. These are the keys in the table extraction result.")
+
+class DocProcKVPSchema(BaseModel):
+    document_type: str = Field(description="A label for the kind of documents we want to extract")
+    document_description: str = Field(description="A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction.")
+    fields: dict[str, DocProcField | DocProcTable] = Field(description="The fields to extract from the document. These are the keys in the KVP extraction result.")
+
+class DocProcBoundingBox(BaseModel):
+    x: float = Field(description="The x coordinate of the bounding box.")
+    y: float = Field(description="The y coordinate of the bounding box.")
+    width: float = Field(description="The width of the bounding box.")
+    height: float = Field(description="The height of the bounding box.")
+    page_number: int = Field(description="The page number of the bounding box in the document.")
+
+class KVPBaseEntry(BaseModel):
+    id: str = Field(description="A unique identifier.")
+    raw_text: str = Field(description="The raw text.")
+    normalized_text: Optional[str] = Field(description="The normalized text.", default=None)
+    confidence_score: Optional[float] = Field(description="The confidence score.", default=None)
+    bbox: Optional[DocProcBoundingBox] = Field(description="The bounding box in the document.", default=None)
+    
+class DocProcKey(KVPBaseEntry):
+    semantic_label: str = Field(description="A semantic label for the key.")
+
+class DocProcValue(KVPBaseEntry):
+    pass
+
+class DocProcKVP(BaseModel):
+    id: str = Field(description="A unique identifier for the key-value pair.")
+    type: Literal["key_value","only_value"]
+    key: DocProcKey = Field(description="The key of the key-value pair.")
+    value: DocProcValue = Field(description="The value of the key-value pair.")
+    group_id: Optional[str] = Field(default=None, description="The group id of the key-value pair. This is used to group key-value pairs together.")
+    table_id: Optional[str] = Field(default=None, description="The table id of the key-value pair. This is used to group key-value pairs together in a table.")
+    table_name: Optional[str] = Field(default=None, description="The name of the table the key-value pair belongs to. This is used to group key-value pairs together in a table.")
+    table_row_index: Optional[int] = Field(default=None, description="The index of the row in the table the key-value pair belongs to. This is used to group key-value pairs together in a table.")
+
 class DocProcTask(StrEnum):
     '''
     Possible names for the Document processing task parameter
     '''
     text_extraction = auto()
 
-class DocProcSpec(NodeSpec):
+class DocProcSpec(DocProcCommonNodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
+    kvp_schema: List[DocProcKVPSchema] | None = Field(
+        title='KVP schemas',
+        description="Optional list of key-value pair schemas to use for extraction.",
+        default=None)
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -777,34 +836,67 @@ class LanguageCode(StrEnum):
     fr = auto()
     en_hw = auto()
 
-class File(BaseModel):
+
+class File(str):
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_wrap_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(lambda v: str(v))
+        )
+
+    @classmethod
+    def validate(cls, value: Any) -> "File":
+        if not isinstance(value, str):
+            raise TypeError("File must be a document reference (string)")
+        return cls(value)
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        return {
+            "type": "string",
+            "title": "Document reference",
+            "format": "binary",
+            "description": "Either an ID or a URL identifying the document to be used.",
+            "wrap_data": False,
+            "required": []
+        }
+    
+class DocExtInput(BaseModel):
+    document_ref: bytes | File = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
+
+
+class DocProcInput(BaseModel):
     '''
     This class represents the input of a Document processing task. 
 
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
         language (LanguageCode): Optional language code used when processing the input document
+        kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPS.
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
-    document_ref: bytes | str = Field(
-        description="Either an ID or a URL identifying the document to be used.", 
-        title='Document reference', 
-        default=None, 
-        json_schema_extra={"format": "binary"})
-    language: Optional[LanguageCode] = Field(
-        description='Optional language code of the document, defaults to "en"', 
-        title='Document language code', 
-        default=LanguageCode.en)
- 
+    document_ref: bytes | File = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
+    kvp_schemas: Optional[List[DocProcKVPSchema]] = Field(
+        title='KVP schemas',
+        description="Optional list of key-value pair schemas to use for extraction.",
+        default=None)
 
 class TextExtractionResponse(BaseModel):
     '''
     The text extraction operation response.
     Attributes:
         text (str): the text extracted from the input document.
+        kvps (Optional[list[DocProcKVP]]): A list of key-value pairs extracted from the document. If no KVPs were extracted, this will be None.
     '''
-    text : str = Field(description="the text extracted from the input document.")
+    text: str = Field(description='The text extracted from the input document', title='text')
+    kvps: Optional[list[DocProcKVP]] = Field(description="A list of key-value pairs extracted from the document.", default=None)
 
 
 class DecisionsCondition(BaseModel):

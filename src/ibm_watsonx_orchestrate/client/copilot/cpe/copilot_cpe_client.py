@@ -21,13 +21,15 @@ class CPEClient(BaseAPIClient):
         }
 
 
-    def submit_pre_cpe_chat(self, user_message: str | None =None, tools: Dict[str, Any] = None, agents: Dict[str, Any] = None) -> dict:
+    def submit_pre_cpe_chat(self, user_message: str | None =None, tools: Dict[str, Any] = None, collaborators: Dict[str, Any] = None, knowledge_bases: Dict[str, Any] = None, selected:bool=False) -> dict:
         payload = {
             "message": user_message,
             "tools": tools,
-            "agents": agents,
+            "collaborators": collaborators,
+            "knowledge_bases": knowledge_bases,
             "chat_id": self.chat_id,
-            "chat_model_name": self.chat_model_name
+            "chat_model_name": self.chat_model_name,
+            'selected':selected
         }
 
         response = self._post_nd_json("/wxo-cpe/create-agent", data=payload)

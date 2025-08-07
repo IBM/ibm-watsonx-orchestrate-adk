@@ -10,10 +10,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from requests import ConnectionError
 from typing import List
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -56,9 +58,15 @@ def _get_incomplete_tool_from_name(tool_name: str) -> dict:
                        "input_schema": input_schema, "output_schema": output_schema})
     return spec.model_dump()
 
+
 def _get_incomplete_agent_from_name(agent_name: str) -> dict:
     spec = BaseAgentSpec(**{"name": agent_name, "description": agent_name, "kind": AgentKind.NATIVE})
     return spec.model_dump()
+
+def _get_incomplete_knowledge_base_from_name(kb_name: str) -> dict:
+    spec = KnowledgeBaseSpec(**{"name": kb_name, "description": kb_name})
+    return spec.model_dump()
+
 
 def _get_tools_from_names(tool_names: List[str]) -> List[dict]:
     if not len(tool_names):
@@ -115,6 +123,34 @@ def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
 
     return agents
 
+def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
+    if not len(kb_names):
+        return []
+
+    kb_client = get_knowledge_bases_client()
+
+    try:
+        with _get_progress_spinner() as progress:
+            task = progress.add_task(description="Fetching Knowledge Bases", total=None)
+            knowledge_bases = kb_client.get_by_names(kb_names)
+            found_kbs = {kb.get("name") for kb in knowledge_bases}
+            progress.remove_task(task)
+            progress.refresh()
+            for kb_name in kb_names:
+                if kb_name not in found_kbs:
+                    logger.warning(
+                        f"Failed to find knowledge base named '{kb_name}'. Falling back to incomplete knowledge base definition. Copilot performance maybe effected.")
+                    knowledge_bases.append(_get_incomplete_knowledge_base_from_name(kb_name))
+    except ConnectionError:
+        logger.warning(
+            f"Failed to fetch knowledge bases from server. For optimal results please start the server and import the relevant knowledge bases {', '.join(kb_names)}.")
+        knowledge_bases = []
+        for kb_name in kb_names:
+            knowledge_bases.append(_get_incomplete_knowledge_base_from_name(kb_name))
+
+    return knowledge_bases
+
+
 def get_cpe_client() -> CPEClient:
     url = os.getenv('CPE_URL', "http://localhost:8081")
     return instantiate_client(client=CPEClient, url=url)
@@ -122,6 +158,10 @@ def get_cpe_client() -> CPEClient:
 
 def get_tool_client(*args, **kwargs):
     return instantiate_client(ToolClient)
+
+
+def get_knowledge_bases_client(*args, **kwargs):
+    return instantiate_client(KnowledgeBaseClient)
 
 
 def get_native_client(*args, **kwargs):
@@ -144,18 +184,34 @@ def gather_utterances(max: int) -> list[str]:
     return utterances
 
 
-def get_deployed_tools_agents():
+def get_knowledge_bases(client):
+    with _get_progress_spinner() as progress:
+        task = progress.add_task(description="Fetching Knowledge Bases", total=None)
+        try:
+            knowledge_bases = client.get()
+            progress.remove_task(task)
+        except ConnectionError:
+            knowledge_bases = []
+            progress.remove_task(task)
+            progress.refresh()
+            logger.warning("Failed to contact wxo server to fetch knowledge_bases. Proceeding with empty agent list")
+    return knowledge_bases
+
+
+def get_deployed_tools_agents_and_knowledge_bases():
     all_tools = find_tools_by_description(tool_client=get_tool_client(), description=None)
     # TODO: this brings only the "native" agents. Can external and assistant agents also be collaborators?
     all_agents = find_agents(agent_client=get_native_client())
-    return {"tools": all_tools, "agents": all_agents}
+    all_knowledge_bases = get_knowledge_bases(get_knowledge_bases_client())
+
+    return {"tools": all_tools, "collaborators": all_agents, "knowledge_bases": all_knowledge_bases}
 
 
 def pre_cpe_step(cpe_client):
-    tools_agents = get_deployed_tools_agents()
+    tools_agents_and_knowledge_bases = get_deployed_tools_agents_and_knowledge_bases()
     user_message = ""
     with _get_progress_spinner() as progress:
-        task = progress.add_task(description="Initilizing Prompt Engine", total=None)
+        task = progress.add_task(description="Initializing Prompt Engine", total=None)
         response = cpe_client.submit_pre_cpe_chat(user_message=user_message)
         progress.remove_task(task)
 
@@ -165,15 +221,26 @@ def pre_cpe_step(cpe_client):
             rich.print('\n🤖 Copilot: ' + response["message"])
             user_message = Prompt.ask("\n👤 You").strip()
             message_content = {"user_message": user_message}
-        elif "description" in response and response["description"]:
+        elif "description" in response and response["description"]:  # after we have a description, we pass the all tools
             res["description"] = response["description"]
-            message_content = tools_agents
-        elif "metadata" in response:
-            res["agent_name"] = response["metadata"]["agent_name"]
-            res["agent_style"] = response["metadata"]["style"]
-            res["tools"] = [t for t in tools_agents["tools"] if t["name"] in response["metadata"]["tools"]]
-            res["collaborators"] = [a for a in tools_agents["agents"] if
-                                    a["name"] in response["metadata"]["collaborators"]]
+            message_content = {"tools": tools_agents_and_knowledge_bases['tools']}
+        elif "tools" in response and response[
+            'tools'] is not None:  # after tools were selected, we pass all collaborators
+            res["tools"] = [t for t in tools_agents_and_knowledge_bases["tools"] if
+                            t["name"] in response["tools"]]
+            message_content = {"collaborators": tools_agents_and_knowledge_bases['collaborators']}
+        elif "collaborators" in response and response[
+            'collaborators'] is not None:  # after we have collaborators, we pass all knowledge bases
+            res["collaborators"] = [a for a in tools_agents_and_knowledge_bases["collaborators"] if
+                                    a["name"] in response["collaborators"]]
+            message_content = {"knowledge_bases": tools_agents_and_knowledge_bases['knowledge_bases']}
+        elif "knowledge_bases" in response and response['knowledge_bases'] is not None:  # after we have knowledge bases, we pass selected=True to mark that all selection were done
+            res["knowledge_bases"] = [a for a in tools_agents_and_knowledge_bases["knowledge_bases"] if
+                                      a["name"] in response["knowledge_bases"]]
+            message_content = {"selected": True}
+        elif "agent_name" in response and response['agent_name'] is not None:  # once we have a name and style, this phase has ended
+            res["agent_name"] = response["agent_name"]
+            res["agent_style"] = response["agent_style"]
             return res
         with _get_progress_spinner() as progress:
             task = progress.add_task(description="Thinking...", total=None)
@@ -193,6 +260,7 @@ def find_tools_by_description(description, tool_client):
             progress.refresh()
             logger.warning("Failed to contact wxo server to fetch tools. Proceeding with empty tool list")
     return tools
+
 
 def find_agents(agent_client):
     with _get_progress_spinner() as progress:
@@ -279,16 +347,25 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
     tools = _get_tools_from_names(agent.tools)
 
     collaborators = _get_agents_from_names(agent.collaborators)
+
+    knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
     try:
-        new_prompt = talk_to_cpe(cpe_client=client, samples_file=samples_file,
-                                 context_data={"initial_instruction": instr, 'tools': tools, 'description': agent.description,
-                                               "collaborators": collaborators})
+        new_prompt = talk_to_cpe(cpe_client=client,
+                                samples_file=samples_file,
+                                context_data={
+                                    "initial_instruction": instr,
+                                    'tools': tools,
+                                    'description': agent.description,
+                                    "collaborators": collaborators,
+                                    "knowledge_bases": knowledge_bases
+                                })
     except ConnectionError:
         logger.error(
             "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
     except ClientAPIException:
-        logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
+        logger.error(
+            "An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
 
     if new_prompt:
@@ -316,17 +393,21 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
             "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
     except ClientAPIException:
-        logger.error("An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
+        logger.error(
+            "An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
-        
+
     tools = res["tools"]
     collaborators = res["collaborators"]
+    knowledge_bases = res["knowledge_bases"]
     description = res["description"]
     agent_name = res["agent_name"]
     agent_style = res["agent_style"]
 
     # 4. discuss the instructions
-    instructions = talk_to_cpe(cpe_client, samples_file, {'description': description, 'tools': tools, 'collaborators': collaborators})
+    instructions = talk_to_cpe(cpe_client, samples_file,
+                               {'description': description, 'tools': tools, 'collaborators': collaborators,
+                                'knowledge_bases': knowledge_bases})
 
     # 6. create and save the agent
     llm = llm if llm else DEFAULT_LLM
@@ -334,7 +415,9 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
         'style': agent_style,
         'tools': [t['name'] for t in tools],
         'llm': llm,
-        'collaborators': [c['name'] for c in collaborators]
+        'collaborators': [c['name'] for c in collaborators],
+        'knowledge_base': [k['name'] for k in knowledge_bases]
+        # generate_agent_spec expects knowledge_base and not knowledge_bases
     }
     agent = AgentsController.generate_agent_spec(agent_name, AgentKind.NATIVE, description, **params)
     agent.instructions = instructions
