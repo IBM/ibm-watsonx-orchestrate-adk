@@ -520,7 +520,7 @@ services:
   # IBM AGENT-OPS
   ########################
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.5
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0
     profiles: [ibm-telemetry]
     environment:
       - discovery.type=single-node
