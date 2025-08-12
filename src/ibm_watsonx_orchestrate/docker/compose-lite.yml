@@ -102,6 +102,7 @@ services:
       DISMISS_NOTIFICATION_TIMEOUT: 10000
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
+      WXO_VOICE_URL: http://localhost:9876/v1
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -343,6 +344,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       ES_HOST: http://elasticsearch:9200
+      ORIGIN_HEADER: "internal"
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -1093,6 +1095,17 @@ services:
       /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
       exit 0;
       "
+
+  wxo-server-voice:
+      image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
+      profiles: [voice]
+      restart: unless-stopped
+      ports: 
+        - 9876:8765
+      environment:
+        WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
+        AI_GATEWAY_URL: "http://ai-gateway:8787"
+        WXO_ORIGIN_HEADER: "internal"
 
 volumes:
   tools:

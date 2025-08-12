@@ -75,3 +75,7 @@ sdk/python/ibm_watsonx_orchestrate/ibm_watsonx_orchestrate/utils/__pycache__/
 .idea/
 .vscode/
 coverage/
+
+# Ignore local examples
+examples/local/
+examples/*/local/

@@ -370,9 +370,13 @@ def get_persisted_user_env() -> dict | None:
     user_env = cfg.get(USER_ENV_CACHE_HEADER) if cfg.get(USER_ENV_CACHE_HEADER) else None
     return user_env
 
-def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, experimental_with_ibm_telemetry=False, with_doc_processing=False) -> None:
-    
-    
+def run_compose_lite(
+        final_env_file: Path, 
+        experimental_with_langfuse=False, 
+        experimental_with_ibm_telemetry=False, 
+        with_doc_processing=False,
+        with_voice=False
+    ) -> None:
     compose_path = get_compose_file()
 
     compose_command = ensure_docker_compose_installed()
@@ -408,6 +412,8 @@ def run_compose_lite(final_env_file: Path, experimental_with_langfuse=False, exp
         profiles.append("ibm-telemetry")
     if with_doc_processing:
         profiles.append("docproc")
+    if with_voice:
+        profiles.append("voice")
 
     command = compose_command[:]
     for profile in profiles:
@@ -848,6 +854,11 @@ def server_start(
         '--compose-file', '-f',
         help='Provide the path to a custom docker-compose file to use instead of the default compose file'
     ),  
+    with_voice: bool = typer.Option(
+        False,
+        '--with-voice', '-v',
+        help='Enable voice controller to interact with the chat via voice channels'
+    ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
@@ -889,6 +900,7 @@ def server_start(
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
+
     try:
         dev_edition_source = get_dev_edition_source(merged_env_dict)
         docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
@@ -901,7 +913,8 @@ def server_start(
     run_compose_lite(final_env_file=final_env_file,
                      experimental_with_langfuse=experimental_with_langfuse,
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
-                     with_doc_processing=with_doc_processing)
+                     with_doc_processing=with_doc_processing,
+                     with_voice=with_voice)
     
     run_db_migration()
 
