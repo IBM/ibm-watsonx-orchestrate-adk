@@ -34,8 +34,11 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
+
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 logger = logging.getLogger(__name__)
 
@@ -1165,4 +1168,115 @@ class AgentsController:
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
+
+
+    def deploy_agent(self, name: str):
+        if is_local_dev():
+            logger.error("Agents cannot be deployed in Developer Edition")
+            sys.exit(1)
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        existing_native_agents = native_client.get_draft_by_name(name)
+        existing_external_agents = external_client.get_draft_by_name(name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(name)
+
+        if len(existing_native_agents) == 0 and (len(existing_external_agents) >= 1 or len(existing_assistant_agents) >= 1):
+            logger.error(f"No native agent found with name '{name}'. Only Native Agents can be deployed to a Live Environment")
+            sys.exit(1)
+        if len(existing_native_agents) > 1:
+            logger.error(f"Multiple native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+        if len(existing_native_agents) == 0:
+            logger.error(f"No native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+            
+
+        agent_details = existing_native_agents[0]
+        agent_id = agent_details.get("id")
+
+        environments = native_client.get_environments_for_agent(agent_id)
+
+        live_environment = [env for env in environments if env.get("name") == "live"]
+        if live_environment is None:
+            logger.error("No live environment found for this tenant")
+            sys.exit(1)
+
+        live_env_id = live_environment[0].get("id")
+
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+                    progress.add_task(description="Deploying agent to Live envrionment", total=None)
+
+                    status = native_client.deploy(agent_id, live_env_id)
+
+        if status:
+            logger.info(f"Successfully deployed agent {name}")
+        else:
+            logger.error(f"Error deploying agent {name}")
+
+    def undeploy_agent(self, name: str):
+        if is_local_dev():
+            logger.error("Agents cannot be undeployed in Developer Edition")
+            sys.exit(1)
+        
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        existing_native_agents = native_client.get_draft_by_name(name)
+        existing_external_agents = external_client.get_draft_by_name(name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(name)
+
+        if len(existing_native_agents) == 0 and (len(existing_external_agents) >= 1 or len(existing_assistant_agents) >= 1):
+            logger.error(f"No native agent found with name '{name}'. Only Native Agents can be undeployed from a Live Environment")
+            sys.exit(1)
+        if len(existing_native_agents) > 1:
+            logger.error(f"Multiple native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+        if len(existing_native_agents) == 0:
+            logger.error(f"No native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+
+        agent_details = existing_native_agents[0]
+        agent_id = agent_details.get("id")
+
+        environments = native_client.get_environments_for_agent(agent_id)
+        live_environment = [env for env in environments if env.get("name") == "live"]
+        if live_environment is None:
+            logger.error("No live environment found for this tenant")
+            sys.exit(1)
+        version_id = live_environment[0].get("current_version")
+
+        if version_id is None:
+            agent_name = agent_details.get("name")
+            logger.error(f"Agent {agent_name} does not exist in a Live environment")
+            sys.exit(1)
+
+        draft_environment = [env for env in environments if env.get("name") == "draft"]
+        if draft_environment is None:
+            logger.error("No draft environment found for this tenant")
+            sys.exit(1)
+        draft_env_id = draft_environment[0].get("id")
+
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+                    progress.add_task(description="Undeploying agent to Draft envrionment", total=None)
+
+                    status = native_client.undeploy(agent_id, version_id, draft_env_id)
+        if status:
+            logger.info(f"Successfully undeployed agent {name}")
+        else:
+            logger.error(f"Error undeploying agent {name}")
 

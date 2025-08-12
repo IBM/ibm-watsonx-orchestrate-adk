@@ -6,6 +6,7 @@ import requests
 from unittest import mock
 import sys
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+import logging
 
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     AgentsController,
@@ -1609,3 +1610,107 @@ class TestAgentWebchatCustomizations:
         for p in test_agent.starter_prompts.prompts:
             assert type(p) is AgentPrompt
     
+class TestAgentDeploy:
+    def test_deploy_agent_success(self, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+
+            mock_client = MagicMock()
+            mock_client.get_environments_for_agent.return_value = [
+                {"name": "live", "id": "env_live"}
+            ]
+            mock_client.get_draft_by_name.return_value = [
+                {"id": "agent123"}
+            ]
+            mock_client.deploy.return_value = True
+            mock_get_client.return_value = mock_client
+            external_client_mock.return_value = mock_client
+            assistant_client_mock.return_value = mock_client
+
+            controller = AgentsController()
+
+            with caplog.at_level(logging.INFO):
+                controller.deploy_agent("finance_agent")
+
+            assert "Successfully deployed agent" in caplog.text
+
+    def test_deploy_agent_failure(self, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+
+            mock_client = MagicMock()
+            mock_client.get_environments_for_agent.return_value = [
+                {"name": "live", "id": "env_live"}
+            ]
+            mock_client.get_draft_by_name.return_value = [
+               {"id": "agent123"}
+            ]
+            mock_client.deploy.return_value = False
+            mock_get_client.return_value = mock_client
+            external_client_mock.return_value = mock_client
+            assistant_client_mock.return_value = mock_client
+
+            controller = AgentsController()
+
+            with caplog.at_level(logging.ERROR):
+                controller.deploy_agent("finance_agent")
+
+            assert "Error deploying agent" in caplog.text
+
+    def test_undeploy_agent_success(self, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+
+            mock_client = MagicMock()
+            mock_client.get_environments_for_agent.return_value = [
+                {"name": "live", "current_version": "version456"},
+                {"name": "draft", "id": "env_draft"}
+            ]
+            mock_client.get_draft_by_name.return_value = [
+                {"id": "agent123"}
+            ]
+            mock_client.undeploy.return_value = True
+            mock_get_client.return_value = mock_client
+            external_client_mock.return_value = mock_client
+            assistant_client_mock.return_value = mock_client
+
+            controller = AgentsController()
+
+            with caplog.at_level(logging.INFO):
+                controller.undeploy_agent("finance_agent")
+
+            assert "Successfully undeployed agent" in caplog.text
+
+    def test_undeploy_agent_failure(self, caplog):
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as mock_get_client, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.is_local_dev", return_value=False):
+
+            mock_client = MagicMock()
+            mock_client.get_environments_for_agent.return_value = [
+                {"name": "live", "current_version": "version456"},
+                {"name": "draft", "id": "env_draft"}
+            ]
+            mock_client.get_draft_by_name.return_value = [
+                {"id": "agent123"}
+            ]
+            mock_client.undeploy.return_value = False
+            mock_get_client.return_value = mock_client
+            external_client_mock.return_value = mock_client
+            assistant_client_mock.return_value = mock_client
+
+            controller = AgentsController()
+
+            with caplog.at_level(logging.ERROR):
+                controller.undeploy_agent("finance_agent")
+
+            assert "Error undeploying agent" in caplog.text
+
+

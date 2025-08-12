@@ -1,7 +1,26 @@
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from typing_extensions import List, Optional
+from enum import Enum
+
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from pydantic import BaseModel
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+POLL_INTERVAL = 2
+MAX_RETRIES = 10
+
+class ReleaseMode(str, Enum):
+    DEPLOY = "deploy"
+    UNDEPLOY = "undeploy"
+
+class ReleaseStatus(str, Enum):
+    SUCCESS = "success"
+    NONE = "none"
+    FAILED = "failed"
+    IN_PROGRESS = "in_progress"
 
 def transform_agents_from_flat_agent_spec(agents: dict | list[dict] ) -> dict | list[dict]:
     if isinstance(agents,list):
@@ -83,7 +102,6 @@ class AgentClient(BaseAPIClient):
         super().__init__(*args, **kwargs)
         self.base_endpoint = "/orchestrate/agents" if is_local_dev(self.base_url) else "/agents"
 
-
     def create(self, payload: dict) -> AgentUpsertResponse:
         response = self._post(self.base_endpoint, data=transform_agents_from_flat_agent_spec(payload))
         return AgentUpsertResponse.model_validate(response)
@@ -120,4 +138,49 @@ class AgentClient(BaseAPIClient):
     def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(formatted_agent_ids)}&include_hidden=true"))
+
+    def poll_release_status(self, agent_id: str, environment_id: str, mode: str = "deploy") -> bool:
+        expected_status = {
+            ReleaseMode.DEPLOY: ReleaseStatus.SUCCESS,
+            ReleaseMode.UNDEPLOY: ReleaseStatus.NONE
+        }[mode]
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = self._get(
+                    f"{self.base_endpoint}/{agent_id}/releases/status?environment_id={environment_id}"
+                )
+            except Exception as e:
+                logger.error(f"Polling for Deployment/Undeployment failed on attempt {attempt + 1}: {e}")
+                return False
+
+            if not isinstance(response, dict):
+                logger.warning(f"Invalid response format: {response}")
+                return False
+            
+            status = response.get("deployment_status")
+
+            if status == expected_status:
+                return True
+            elif status == "failed":
+                return False
+            elif status == "in_progress":
+                pass
+
+            time.sleep(POLL_INTERVAL)
+
+        logger.warning(f"{mode.capitalize()} status polling timed out")
+        return False
+
+    def deploy(self, agent_id: str, environment_id: str) -> bool:
+        self._post(f"{self.base_endpoint}/{agent_id}/releases", data={"environment_id": environment_id})
+        return self.poll_release_status(agent_id, environment_id, mode=ReleaseMode.DEPLOY)
+
+    def undeploy(self, agent_id: str, version: str, environment_id: str) -> bool:
+        self._post(f"{self.base_endpoint}/{agent_id}/releases/{version}/undeploy")
+        return self.poll_release_status(agent_id, environment_id, mode=ReleaseMode.UNDEPLOY)
+    
+    def get_environments_for_agent(self, agent_id: str):
+        return self._get(f"{self.base_endpoint}/{agent_id}/environment")
+
     

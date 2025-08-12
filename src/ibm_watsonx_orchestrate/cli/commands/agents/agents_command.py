@@ -253,3 +253,23 @@ def export_agent(
 ):  
     agents_controller = AgentsController()
     agents_controller.export_agent(name=name, kind=kind, output_path=output_file, agent_only_flag=agent_only_flag)
+
+@agents_app.command(name="deploy", help="Deploy Agent")
+def deploy_agent(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent you wish to deploy"),
+    ]
+):
+    agents_controller = AgentsController()
+    agents_controller.deploy_agent(name=name)
+
+@agents_app.command(name="undeploy", help="Undeploy Agent")
+def undeploy_agent(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent you wish to undeploy"),
+    ]
+):
+    agents_controller = AgentsController()
+    agents_controller.undeploy_agent(name=name)
