@@ -6,7 +6,7 @@ from unittest.mock import patch, mock_open, Mock
 import pytest
 import uuid
 from unittest import mock
-from mocks.mock_base_api import MockListConnectionResponse
+from pydantic import BaseModel
 
 knowledge_base_controller = KnowledgeBaseController()
 
@@ -90,6 +90,9 @@ def existing_external_knowledge_base_content() -> dict:
             ]
         }
     }
+
+class MockListConnectionResponse(BaseModel):
+    connection_id: str
 
 class MockSDKResponse:
     def __init__(self, response_obj):
@@ -282,6 +285,27 @@ class TestImportKnowledgeBase:
 
             captured = caplog.text
             assert f"Successfully imported knowledge base 'test_external_knowledge_base'" in captured
+
+    def test_import_external_knowledge_base_no_app_id(self, external_knowledge_base_content):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
+            
+                        
+            knowledge_Base = KnowledgeBase(**external_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_Base
+
+            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
+            knowledge_base_payload["prioritize_built_in_index"] = False
+            
+            client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
+
+            err = None
+            try:
+                knowledge_base_controller.import_knowledge_base("test.json", app_id=None)
+            except ValueError as e:
+                err = e
+
+            assert err is not None and f"{err}" == "Must provide credentials (via --app-id) when using milvus or elastic_search."
 
     def test_update_external_knowledge_base(self, caplog, existing_external_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
