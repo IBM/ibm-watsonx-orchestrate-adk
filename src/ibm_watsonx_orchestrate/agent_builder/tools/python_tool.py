@@ -187,15 +187,27 @@ def _fix_optional(schema):
     replacements = {}
     if schema.required is None:
         schema.required = []
-
     for k, v in schema.properties.items():
+        # Simple null type & required -> not required
         if v.type == 'null' and k in schema.required:
             not_required.append(k)
-        if v.anyOf is not None and next(filter(lambda x: x.type == 'null', v.anyOf)) and k in schema.required:
-            v.anyOf = list(filter(lambda x: x.type != 'null', v.anyOf))
-            if len(v.anyOf) == 1:
-                replacements[k] = v.anyOf[0]
-            not_required.append(k)
+        # Optional with null & required
+        if v.anyOf is not None and [x for x in v.anyOf if x.type == 'null']:
+            if k in schema.required:
+            # required with default -> not required 
+            # required without default -> required & remove null from union
+                if v.default:
+                    not_required.append(k)
+                else:
+                    v.anyOf = list(filter(lambda x: x.type != 'null', v.anyOf))
+                if len(v.anyOf) == 1:
+                    replacements[k] = v.anyOf[0]
+            else:
+            # not required with default -> no change
+            # not required without default -> means default input is 'None'
+                v.default = v.default if v.default else 'null'
+
+
     schema.required = list(filter(lambda x: x not in not_required, schema.required if schema.required is not None else []))
     for k, v in replacements.items():
         combined = {
@@ -204,7 +216,7 @@ def _fix_optional(schema):
         }
         schema.properties[k] = JsonSchemaObject(**combined)
         schema.properties[k].anyOf = None
-
+        
     for k in schema.properties.keys():
         if schema.properties[k].type == 'object':
             schema.properties[k] = _fix_optional(schema.properties[k])
