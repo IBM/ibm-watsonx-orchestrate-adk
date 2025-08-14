@@ -464,6 +464,11 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                     continue
                 
                 model = obj().to_json()
+                # Ensure metadata exists and is correct
+                if "metadata" not in model or not isinstance(model["metadata"], dict):
+                    model["metadata"] = {}
+                if "source_kind" not in model["metadata"]:
+                    model["metadata"]["source_kind"] = "adk/python"
                 break
 
         elif file_path.suffix.lower() == ".json":
