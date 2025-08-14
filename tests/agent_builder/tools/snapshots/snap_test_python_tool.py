@@ -112,7 +112,9 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
                 },
                 'required': [
                     'a',
-                    'd'
+                    'b',
+                    'd',
+                    'e'
                 ],
                 'title': 'SampleParamA',
                 'type': 'object'
@@ -173,14 +175,17 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
                 },
                 'required': [
                     'a',
-                    'd'
+                    'b',
+                    'd',
+                    'e'
                 ],
                 'title': 'SampleParamA',
                 'type': 'object'
             }
         },
         'required': [
-            'sampleA'
+            'sampleA',
+            'b'
         ],
         'type': 'object'
     },
@@ -241,7 +246,9 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
         },
         'required': [
             'a',
-            'd'
+            'b',
+            'd',
+            'e'
         ],
         'title': 'SampleParamA',
         'type': 'object'
@@ -289,6 +296,7 @@ snapshots['test_should_support_typed_optional_args 1'] = {
             }
         },
         'required': [
+            'input'
         ],
         'type': 'object'
     },
@@ -377,7 +385,8 @@ snapshots['test_should_work_with_dicts 1'] = {
             }
         },
         'required': [
-            'sampleA'
+            'sampleA',
+            'b'
         ],
         'type': 'object'
     },
@@ -419,7 +428,8 @@ snapshots['test_should_work_with_lists 1'] = {
             }
         },
         'required': [
-            'sampleA'
+            'sampleA',
+            'b'
         ],
         'type': 'object'
     },

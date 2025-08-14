@@ -796,6 +796,7 @@ services:
       WO_INSTANCE: ${WO_INSTANCE}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      FLOW_CALLBACK_REQUEST_RETRIES: "1"
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
