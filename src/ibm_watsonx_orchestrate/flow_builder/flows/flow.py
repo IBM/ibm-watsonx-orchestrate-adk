@@ -115,6 +115,10 @@ class Flow(Node):
                 # we need a deep compare if the incoming schema and existing_schema is the same
                 # pydantic suppport nested comparison by default
 
+                if isinstance(schema, dict):
+                    # recast schema to support direct access
+                    schema = JsonSchemaObject.model_validate(schema)
+
                 schema.title = title
 
                 if schema == existing_schema:
@@ -199,30 +203,31 @@ class Flow(Node):
         self._refactor_spec_to_schemaref(node.spec)
                 
     def _refactor_spec_to_schemaref(self, spec: NodeSpec):
-        if spec.input_schema and (spec.input_schema.type == "object" or spec.input_schema.type == "array") :
+        if spec.input_schema and not isinstance(spec.input_schema, SchemaRef) and (spec.input_schema.type == "object" or spec.input_schema.type == "array") :
             if isinstance(spec.input_schema, ToolRequestBody):
                 spec.input_schema = self._add_schema_ref(JsonSchemaObject(type = spec.input_schema.type,
                                                                                 properties= spec.input_schema.properties,
                                                                                 required= spec.input_schema.required), 
                                                                 f"{spec.name}_input")
-        if spec.output_schema_object is not None and spec.output_schema_object.type == "object":
-            spec.output_schema = self._add_schema_ref(spec.output_schema_object, spec.output_schema_object.title)
-            spec.output_schema_object = None
-        elif spec.output_schema is not None:
-            if isinstance(spec.output_schema, ToolResponseBody):
-                if spec.output_schema.type == "object":
-                    json_obj = JsonSchemaObject(type = spec.output_schema.type,
-                            description=spec.output_schema.description,
-                            properties= spec.output_schema.properties,
-                            items = spec.output_schema.items,
-                            uniqueItems=spec.output_schema.uniqueItems,
-                            anyOf=spec.output_schema.anyOf,
-                            required= spec.output_schema.required)
-                    spec.output_schema = self._add_schema_ref(json_obj, f"{spec.name}_output")
-                elif spec.output_schema.type == "array":
-                    if hasattr(spec.output_schema, "items") and hasattr(spec.output_schema.items, "type") and spec.output_schema.items.type == "object":
-                        schema_ref = self._add_schema_ref(spec.output_schema.items)
-                        spec.output_schema.items = JsonSchemaObjectRef(ref=f"{schema_ref.ref}")
+        if not isinstance(spec.output_schema, SchemaRef):
+            if spec.output_schema_object is not None and spec.output_schema_object.type == "object":
+                spec.output_schema = self._add_schema_ref(spec.output_schema_object, spec.output_schema_object.title)
+                spec.output_schema_object = None
+            elif spec.output_schema is not None:
+                if isinstance(spec.output_schema, ToolResponseBody):
+                    if spec.output_schema.type == "object":
+                        json_obj = JsonSchemaObject(type = spec.output_schema.type,
+                                description=spec.output_schema.description,
+                                properties= spec.output_schema.properties,
+                                items = spec.output_schema.items,
+                                uniqueItems=spec.output_schema.uniqueItems,
+                                anyOf=spec.output_schema.anyOf,
+                                required= spec.output_schema.required)
+                        spec.output_schema = self._add_schema_ref(json_obj, f"{spec.name}_output")
+                    elif spec.output_schema.type == "array":
+                        if hasattr(spec.output_schema, "items") and hasattr(spec.output_schema.items, "type") and spec.output_schema.items.type == "object":
+                            schema_ref = self._add_schema_ref(spec.output_schema.items)
+                            spec.output_schema.items = JsonSchemaObjectRef(ref=f"{schema_ref.ref}")
 
     # def refactor_datamap_spec_to_schemaref(self, spec: FnDataMapSpec):
     #    '''TODO'''
