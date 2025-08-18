@@ -16,6 +16,7 @@ from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_comman
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import evaluation_app
 from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_command import copilot_app
+from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_command import voice_configurations_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 
 import urllib3
@@ -35,6 +36,7 @@ app.add_typer(tools_app, name="tools", help='Interact with the tools in your act
 app.add_typer(toolkits_app, name="toolkits", help="Interact with the toolkits in your active env")
 app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledge your agents can search through to your active env")
 app.add_typer(connections_app, name="connections", help='Interact with the agents in your active env')
+app.add_typer(voice_configurations_app, name="voice-configs", help="Configure voice providers to enable voice interaction with your agents")
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires entitlement]')
 app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Developer Edition server [requires entitlement]')
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')

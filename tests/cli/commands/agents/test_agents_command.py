@@ -190,3 +190,21 @@ class TestAgentExport:
                 output_path="test_output.zip",
                 agent_only_flag=False
             )
+
+class TestAgentDeploy:
+    def test_agent_deploy(self):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.deploy_agent"
+        ) as mock:
+            agents_command.deploy_agent(name="test_native_agent")
+
+            mock.assert_called_once_with(name="test_native_agent")
+
+class TestAgentUndeploy:
+    def test_agent_deploy(self):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.undeploy_agent"
+        ) as mock:
+            agents_command.undeploy_agent(name="test_native_agent")
+
+            mock.assert_called_once_with(name="test_native_agent")

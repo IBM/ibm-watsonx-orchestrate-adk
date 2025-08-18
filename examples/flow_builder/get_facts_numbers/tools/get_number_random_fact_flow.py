@@ -38,7 +38,7 @@ def get_number_random_fact_flow(aflow: Flow) -> Flow:
     
     get_facts_about_numbers_node = aflow.tool(get_facts_about_numbers, input_schema=InputtedNumber, output_schema=FlowOutput)
 
-    while_loop: Flow = aflow.loop(evaluator = "\"get_request_status\" not in parent or parent.get_request_status.input.attempt.atmp < 5",
+    while_loop: Flow = aflow.loop(evaluator = "not parent.get_request_status.input.attempt.atmp or parent.get_request_status.input.attempt.atmp < 5",
                                                     input_schema=Attempt,
                                                     output_schema=FlowOutput)
     get_request_status_node =  while_loop.tool(get_request_status)

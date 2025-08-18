@@ -77,6 +77,8 @@ class BaseAgentSpec(BaseModel):
     description: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     context_access_enabled: bool = True
     context_variables: Optional[List[str]] = []
+    voice_configuration_id: Optional[str] = None
+    voice_configuration: Optional[str] = None
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)

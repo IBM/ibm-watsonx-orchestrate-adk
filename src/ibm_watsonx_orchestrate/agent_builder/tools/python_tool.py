@@ -216,7 +216,7 @@ def _fix_optional(schema):
         }
         schema.properties[k] = JsonSchemaObject(**combined)
         schema.properties[k].anyOf = None
-
+        
     for k in schema.properties.keys():
         if schema.properties[k].type == 'object':
             schema.properties[k] = _fix_optional(schema.properties[k])

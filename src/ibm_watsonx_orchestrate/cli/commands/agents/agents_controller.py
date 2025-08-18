@@ -29,12 +29,16 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, Agen
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
+
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +201,7 @@ def get_app_id_from_conn_id(conn_id: str) -> str:
         exit(1)
     return app_id
 
+
 def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | AssistantAgentClient) -> dict:
     agent_specs = client.get_draft_by_name(name)
     if len(agent_specs) > 1:
@@ -219,6 +224,7 @@ class AgentsController:
         self.assistant_client = None
         self.tool_client = None
         self.knowledge_base_client = None
+        self.voice_configuration_client = None
 
     def get_native_client(self):
         if not self.native_client:
@@ -244,6 +250,11 @@ class AgentsController:
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
+    
+    def get_voice_configuration_client(self):
+        if not self.voice_configuration_client:
+            self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
+        return self.voice_configuration_client
     
     @staticmethod
     def import_agent(file: str, app_id: str) -> List[Agent | ExternalAgent | AssistantAgent]:
@@ -520,6 +531,38 @@ class AgentsController:
                 guideline.tool = name
 
         return ref_agent
+    
+    def get_voice_config_name_from_id(self, voice_config_id: str) -> str | None:
+        client = self.get_voice_configuration_client()
+        config = client.get_by_id(voice_config_id)
+        return config.name if config else None
+
+    def get_voice_config_id_from_name(self, voice_config_name: str) -> str | None:
+        client = self.get_voice_configuration_client()
+        configs = client.get_by_name(voice_config_name)
+
+        if len(configs) == 0:
+            logger.error(f"No voice_configs with the name '{voice_config_name}' found. Failed to get config")
+            sys.exit(1)
+        
+        if len(configs) > 1:
+            logger.error(f"Multiple voice_configs with the name '{voice_config_name}' found. Failed to get config")
+            sys.exit(1)
+        
+        return configs[0].voice_configuration_id
+
+
+    def reference_voice_config(self,agent: Agent):
+        deref_agent = deepcopy(agent)
+        deref_agent.voice_configuration = self.get_voice_config_name_from_id(agent.voice_configuration_id)
+        del deref_agent.voice_configuration_id
+        return deref_agent
+
+    def dereference_voice_config(self,agent: Agent):
+        ref_agent = deepcopy(agent)
+        ref_agent.voice_configuration_id = self.get_voice_config_id_from_name(agent.voice_configuration)
+        del ref_agent.voice_configuration
+        return ref_agent
 
     @staticmethod
     def dereference_app_id(agent: ExternalAgent | AssistantAgent) -> ExternalAgent | AssistantAgent:
@@ -540,7 +583,18 @@ class AgentsController:
             agent.config.connection_id = None
 
         return agent
+    
+    def dereference_common_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+        if agent.voice_configuration:
+            agent = self.dereference_voice_config(agent)
 
+        return agent  
+
+    def reference_common_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+        if agent.voice_configuration_id:
+            agent = self.reference_voice_config(agent)
+
+        return agent
 
     def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
@@ -584,6 +638,8 @@ class AgentsController:
     
     # Convert all names used in an agent to the corresponding ids
     def dereference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+
+        agent = self.dereference_common_agent_dependencies(agent)
         if isinstance(agent, Agent):
             return self.dereference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
@@ -591,6 +647,8 @@ class AgentsController:
 
     # Convert all ids used in an agent to the corresponding names
     def reference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+
+        agent = self.reference_common_agent_dependencies(agent)
         if isinstance(agent, Agent):
             return self.reference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
@@ -1110,4 +1168,115 @@ class AgentsController:
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
+
+
+    def deploy_agent(self, name: str):
+        if is_local_dev():
+            logger.error("Agents cannot be deployed in Developer Edition")
+            sys.exit(1)
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        existing_native_agents = native_client.get_draft_by_name(name)
+        existing_external_agents = external_client.get_draft_by_name(name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(name)
+
+        if len(existing_native_agents) == 0 and (len(existing_external_agents) >= 1 or len(existing_assistant_agents) >= 1):
+            logger.error(f"No native agent found with name '{name}'. Only Native Agents can be deployed to a Live Environment")
+            sys.exit(1)
+        if len(existing_native_agents) > 1:
+            logger.error(f"Multiple native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+        if len(existing_native_agents) == 0:
+            logger.error(f"No native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+            
+
+        agent_details = existing_native_agents[0]
+        agent_id = agent_details.get("id")
+
+        environments = native_client.get_environments_for_agent(agent_id)
+
+        live_environment = [env for env in environments if env.get("name") == "live"]
+        if live_environment is None:
+            logger.error("No live environment found for this tenant")
+            sys.exit(1)
+
+        live_env_id = live_environment[0].get("id")
+
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+                    progress.add_task(description="Deploying agent to Live envrionment", total=None)
+
+                    status = native_client.deploy(agent_id, live_env_id)
+
+        if status:
+            logger.info(f"Successfully deployed agent {name}")
+        else:
+            logger.error(f"Error deploying agent {name}")
+
+    def undeploy_agent(self, name: str):
+        if is_local_dev():
+            logger.error("Agents cannot be undeployed in Developer Edition")
+            sys.exit(1)
+        
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        existing_native_agents = native_client.get_draft_by_name(name)
+        existing_external_agents = external_client.get_draft_by_name(name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(name)
+
+        if len(existing_native_agents) == 0 and (len(existing_external_agents) >= 1 or len(existing_assistant_agents) >= 1):
+            logger.error(f"No native agent found with name '{name}'. Only Native Agents can be undeployed from a Live Environment")
+            sys.exit(1)
+        if len(existing_native_agents) > 1:
+            logger.error(f"Multiple native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+        if len(existing_native_agents) == 0:
+            logger.error(f"No native agents with the name '{name}' found. Failed to get agent")
+            sys.exit(1)
+
+        agent_details = existing_native_agents[0]
+        agent_id = agent_details.get("id")
+
+        environments = native_client.get_environments_for_agent(agent_id)
+        live_environment = [env for env in environments if env.get("name") == "live"]
+        if live_environment is None:
+            logger.error("No live environment found for this tenant")
+            sys.exit(1)
+        version_id = live_environment[0].get("current_version")
+
+        if version_id is None:
+            agent_name = agent_details.get("name")
+            logger.error(f"Agent {agent_name} does not exist in a Live environment")
+            sys.exit(1)
+
+        draft_environment = [env for env in environments if env.get("name") == "draft"]
+        if draft_environment is None:
+            logger.error("No draft environment found for this tenant")
+            sys.exit(1)
+        draft_env_id = draft_environment[0].get("id")
+
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+                    progress.add_task(description="Undeploying agent to Draft envrionment", total=None)
+
+                    status = native_client.undeploy(agent_id, version_id, draft_env_id)
+        if status:
+            logger.info(f"Successfully undeployed agent {name}")
+        else:
+            logger.error(f"Error undeploying agent {name}")
 
