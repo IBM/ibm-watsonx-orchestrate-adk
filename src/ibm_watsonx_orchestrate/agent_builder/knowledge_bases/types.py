@@ -134,12 +134,13 @@ class MilvusConnection(BaseModel):
     }
     """
     grpc_host: Optional[str] = None
+    grpc_port: Optional[str] = None
+    server_cert: Optional[str] = None
     database: Optional[str] = None
     collection: Optional[str] = None
     index: Optional[str] = None
     embedding_model_id: Optional[str] = None
     limit : Optional[int] = None
-    grpc_port: Optional[str] = None
     filter: Optional[str] = None
     field_mapping: Optional[FieldMapping] = None
 
