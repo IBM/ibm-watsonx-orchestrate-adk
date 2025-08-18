@@ -11,6 +11,7 @@ class SpecVersion(str, Enum):
 class KnowledgeBaseKind(str, Enum):
     KNOWLEDGE_BASE = "knowledge_base"
 class RetrievalConfidenceThreshold(str, Enum):
+    Off = "Off"
     Lowest = "Lowest"
     Low = "Low"
     High = "High"
@@ -24,6 +25,7 @@ class GeneratedResponseLength(str, Enum):
 
 
 class ResponseConfidenceThreshold(str, Enum):
+    Off = "Off"
     Lowest = "Lowest"
     Low = "Low"
     High = "High"
@@ -86,6 +88,8 @@ class GenerationConfiguration(BaseModel):
     {
         "model_id": "meta-llama/llama-3-1-70b-instruct",
         "prompt_instruction": "When the documents are in different languages, you should respond in english.",
+        "max_docs_passed_to_llm": 10,
+        "retrieval_confidence_threshold": "Lowest",
         "generated_response_length": "Moderate",
         "display_text_no_results_found": "no docs found",
         "display_text_connectivity_issue": "conn failed",
@@ -95,6 +99,7 @@ class GenerationConfiguration(BaseModel):
 
     model_id: Optional[str] = None
     prompt_instruction: Optional[str] = None
+    max_docs_passed_to_llm: Optional[int] = None
     generated_response_length: Optional[GeneratedResponseLength] = None
     display_text_no_results_found: Optional[str] = None
     display_text_connectivity_issue: Optional[str] = None
@@ -219,6 +224,10 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None
+
+class FileUpload(BaseModel):
+    path: str
+    url: Optional[str] = None
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
@@ -237,4 +246,4 @@ class KnowledgeBaseSpec(BaseModel):
     created_on: Optional[datetime] = None 
     updated_at: Optional[datetime] = None
     # For import/update
-    documents: list[str] = None
+    documents: list[str] | list[FileUpload] = None

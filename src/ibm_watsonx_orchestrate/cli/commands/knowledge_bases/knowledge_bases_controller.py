@@ -13,6 +13,7 @@ from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,8 @@ def parse_file(file: str) -> List[KnowledgeBase]:
 def to_column_name(col: str):
     return " ".join([word.capitalize() if not word[0].isupper() else word for word in col.split("_")])
 
-def get_file_name(path: str):
+def get_file_name(file: str | FileUpload):
+    path = file.path if isinstance(file, FileUpload) else file
     # This name prettifying currently screws up file type detection on ingestion
     # return to_column_name(path.split("/")[-1].split(".")[0]) 
     return path.split("/")[-1]
@@ -55,7 +57,11 @@ def get_relative_file_path(path, dir):
         return f"{dir}{path.removeprefix('.')}"
     else:
         return f"{dir}/{path}"
-
+    
+def build_file_object(file_dir: str, file: str | FileUpload):
+    if isinstance(file, FileUpload):
+        return ('files', (get_file_name(file.path), open(get_relative_file_path(file.path, file_dir), 'rb')))
+    return ('files', (get_file_name(file), open(get_relative_file_path(file, file_dir), 'rb')))
 
 class KnowledgeBaseController:
     def __init__(self):
@@ -101,13 +107,19 @@ class KnowledgeBaseController:
 
                 kb.validate_documents_or_index_exists()
                 if kb.documents:
-                    files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in kb.documents]
+                    files = [build_file_object(file_dir, file) for file in kb.documents]
+                    file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
                     
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True);
                     payload.pop('documents');
 
-                    client.create_built_in(payload=payload, files=files)
+                    data = {
+                        'knowledge_base': json.dumps(payload),
+                        'file_urls': json.dumps(file_urls)
+                    }
+
+                    client.create_built_in(payload=data, files=files)
                 else:
                     if len(kb.conversational_search_tool.index_config) != 1:
                         raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(kb.conversational_search_tool.index_config)}.")
@@ -118,7 +130,9 @@ class KnowledgeBaseController:
                         raise ValueError(f"Must provide credentials (via --app-id) when using milvus or elastic_search.")
 
                     kb.prioritize_built_in_index = False
-                    client.create(payload=kb.model_dump(exclude_none=True))
+                    data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
+
+                    client.create(payload=data)
                 
                 logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
@@ -151,8 +165,8 @@ class KnowledgeBaseController:
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
             
             removed_docs = existing_docs[:]
-            for filepath in kb.documents:
-                filename = get_file_name(filepath)
+            for file in kb.documents:
+                filename = get_file_name(file)
 
                 if filename in existing_docs:
                     logger.warning(f'Document \"{filename}\" already exists in knowledge base. Updating...')
@@ -162,17 +176,25 @@ class KnowledgeBaseController:
                 logger.warning(f'Document \"{filename}\" removed from knowledge base.')
 
 
-            files = [('files', (get_file_name(file_path), open(get_relative_file_path(file_path, file_dir), 'rb'))) for file_path in kb.documents]
+            files = [build_file_object(file_dir, file) for file in kb.documents]
+            file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
             
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True);
             payload.pop('documents');
 
-            self.get_client().update_with_documents(knowledge_base_id, payload=payload, files=files)
+            data = {
+                'knowledge_base': json.dumps(payload),
+                'file_urls': json.dumps(file_urls)
+            }
+
+            self.get_client().update_with_documents(knowledge_base_id, payload=data, files=files)
         else:
             if kb.conversational_search_tool and kb.conversational_search_tool.index_config:
                 kb.prioritize_built_in_index = False
-            self.get_client().update(knowledge_base_id, kb.model_dump(exclude_none=True))
+
+            data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
+            self.get_client().update(knowledge_base_id, payload=data)
 
         logger.info(f"Knowledge base '{kb.name}' updated successfully")
 

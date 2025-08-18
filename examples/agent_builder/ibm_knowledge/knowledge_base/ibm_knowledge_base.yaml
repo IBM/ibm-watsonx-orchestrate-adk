@@ -3,5 +3,7 @@ kind: knowledge_base
 name: ibm_knowledge_base
 description: General information about IBM and its history
 documents:
- - IBM_wikipedia.pdf
- - history_of_ibm.pdf
+ - path: IBM_wikipedia.pdf
+   url: https://en.wikipedia.org/wiki/IBM
+ - path: history_of_ibm.pdf
+   url: https://en.wikipedia.org/wiki/History_of_IBM
