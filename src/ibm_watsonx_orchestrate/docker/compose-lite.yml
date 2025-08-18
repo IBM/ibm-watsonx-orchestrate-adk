@@ -130,6 +130,7 @@ services:
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
+      ENABLE_EDIT_PROMPTS: "true"
     command: 'npm start'
     ports:
       - "4025:4025"
