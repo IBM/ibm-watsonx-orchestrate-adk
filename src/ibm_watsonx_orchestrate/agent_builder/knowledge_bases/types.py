@@ -203,12 +203,46 @@ class CustomSearchConnection(BaseModel):
     filter: Optional[str] = None
     metadata: Optional[dict] = None
 
+class AstraDBConnection(BaseModel):
+    """
+    example:
+    {
+        "api_endpoint": "https://xxx-us-east-2.apps.astra.datastax.com",
+        "key_space": "default_keyspace",
+        "collection": "search_wa_docs",
+        "embedding_model_id": "sentence-transformers/all-minilm-l12-v2",
+        "port": "443",
+        "filter": "productType: \"boots\"",
+        "limit": 5,
+        "field_mapping": {
+                        "title": "title",
+                        "body": "text",
+                        "url": "some-url"
+                    }
+    }
+    """
+    api_endpoint: str
+    port: Optional[str] = None
+    server_cert: Optional[str] = None
+    keyspace: Optional[str]
+    data_type: str
+    collection: Optional[str]
+    table: Optional[str]
+    index_column: Optional[str]
+    embedding_mode: str
+    embedding_model_id: Optional[str]
+    credentials: dict
+    search_mode: str
+    limit: Optional[int] = 5
+    filter: Optional[str] = None
+    field_mapping: Optional[FieldMapping] = None
+
 class IndexConnection(BaseModel):
     connection_id: Optional[str] = None
     milvus: Optional[MilvusConnection] = None
     elastic_search: Optional[ElasticSearchConnection] = None
     custom_search: Optional[CustomSearchConnection] = None
-
+    astradb: Optional[AstraDBConnection] = None
     
 class ConversationalSearchConfig(BaseModel):
     language: Optional[str] = None
