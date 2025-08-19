@@ -19,7 +19,7 @@ class FetchConfigAuthTypes(str, Enum):
     API_KEY_AUTH = ConnectionType.API_KEY_AUTH.value
     OAUTH2_AUTH_CODE = ConnectionType.OAUTH2_AUTH_CODE.value
     OAUTH2_IMPLICIT = 'oauth2_implicit'
-    OAUTH2_PASSWORD = 'oauth2_password'
+    OAUTH2_PASSWORD = ConnectionType.OAUTH2_PASSWORD.value
     OAUTH2_CLIENT_CREDS = ConnectionType.OAUTH2_CLIENT_CREDS.value
     OAUTH_ON_BEHALF_OF_FLOW = ConnectionType.OAUTH_ON_BEHALF_OF_FLOW.value
     KEY_VALUE = ConnectionType.KEY_VALUE.value
@@ -141,7 +141,8 @@ class ConnectionsClient(BaseAPIClient):
             else:
                 return self._get(f"/connections/applications/runtime_credentials?app_id={app_id}&env={env}")
         except ClientAPIException as e:
-            if e.response.status_code == 404:
+            # Returns 400 when app creds exist but runtime cred don't yet exist
+            if e.response.status_code == 404 or e.response.status_code == 400:
                 return None
             raise e
 

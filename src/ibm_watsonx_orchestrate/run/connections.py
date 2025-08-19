@@ -24,8 +24,8 @@ def oauth2_auth_code(app_id:str) -> OAuth2TokenCredentials:
 # def oauth2_implicit(app_id:str) -> BearerTokenAuthCredentials:
 #     return get_application_connection_credentials(ConnectionType.OAUTH2_IMPLICIT, app_id=app_id)
 
-# def oauth2_password(app_id:str) -> BearerTokenAuthCredentials:
-#     return get_application_connection_credentials(ConnectionType.OAUTH2_PASSWORD, app_id=app_id)
+def oauth2_password(app_id:str) -> OAuth2TokenCredentials:
+    return get_application_connection_credentials(ConnectionType.OAUTH2_PASSWORD, app_id=app_id)
 
 def oauth2_client_creds(app_id:str) -> OAuth2TokenCredentials:
     return get_application_connection_credentials(ConnectionType.OAUTH2_CLIENT_CREDS, app_id=app_id)

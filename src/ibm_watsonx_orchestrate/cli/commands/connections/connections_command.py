@@ -160,7 +160,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--username',
             '-u',
-            help='For basic auth, the username to login with'
+            help='For basic auth and oauth_auth_password_flow, the username to login with'
         )
     ] = None,
     password: Annotated[
@@ -168,7 +168,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--password',
             '-p',
-            help='For basic auth, the password to login with'
+            help='For basic auth and oauth_auth_password_flow, the password to login with'
         )
     ] = None,
     token: Annotated[
@@ -191,14 +191,14 @@ def set_credentials_connection_command(
         typer.Option(
             '--client-id',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_implicit_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
-            help='For oauth_auth_on_behalf_of_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
         )
     ] = None,
     client_secret: Annotated[
         str,
         typer.Option(
             '--client-secret',
-            help='For oauth_auth_client_credentials_flow, the client_secret to authenticate with'
+            help='For oauth_auth_client_credentials_flow and oauth_auth_password_flow, the client_secret to authenticate with'
         )
     ] = None,
     send_via: Annotated[
@@ -213,7 +213,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--token-url',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
-            help='For oauth_auth_on_behalf_of_flow and oauth_auth_client_credentials_flow, the url of the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
         )
     ] = None,
     auth_url: Annotated[
@@ -227,14 +227,14 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--grant-type',
-            help='For oauth_auth_on_behalf_of_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
         )
     ] = None,
     scope: Annotated[
         str,
         typer.Option(
             '--scope',
-            help='For oauth_auth_code_flow and oauth_auth_client_credentials_flow, the optional scopes used by the application token server. Should be in the form of a space seperated string.'
+            help='For oauth_auth_code_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the optional scopes used by the application token server. Should be in the form of a space seperated string.'
         )
     ] = None,
     entries: Annotated[

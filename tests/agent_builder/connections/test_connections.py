@@ -7,10 +7,10 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     BearerTokenAuthCredentials,
     APIKeyAuthCredentials,
     OAuth2TokenCredentials,
-    # OAuth2AuthCodeCredentials,
+    OAuth2AuthCodeCredentials,
     # OAuth2ImplicitCredentials,
-    # OAuth2PasswordCredentials,
-    # OAuth2ClientCredentials,
+    OAuth2PasswordCredentials,
+    OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials,
     ConnectionType,
@@ -25,10 +25,10 @@ ALL_CONNECTION_TYPES = [
         ConnectionType.BASIC_AUTH,
         ConnectionType.BEARER_TOKEN,
         ConnectionType.API_KEY_AUTH,
-        # ConnectionType.OAUTH2_AUTH_CODE,
+        ConnectionType.OAUTH2_AUTH_CODE,
         # ConnectionType.OAUTH2_IMPLICIT,
-        # ConnectionType.OAUTH2_PASSWORD,
-        # ConnectionType.OAUTH2_CLIENT_CREDS,
+        ConnectionType.OAUTH2_PASSWORD,
+        ConnectionType.OAUTH2_CLIENT_CREDS,
         ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
         ]
 
@@ -125,10 +125,10 @@ class TestValidateSchemaType:
                 (ConnectionType.BASIC_AUTH, ConnectionType.BASIC_AUTH),
                 (ConnectionType.BEARER_TOKEN, ConnectionType.BEARER_TOKEN),
                 (ConnectionType.API_KEY_AUTH, ConnectionType.API_KEY_AUTH),
-                # (ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_AUTH_CODE),
+                (ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_AUTH_CODE),
                 # (ConnectionType.OAUTH2_IMPLICIT, ConnectionType.OAUTH2_IMPLICIT),
-                # (ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_PASSWORD),
-                # (ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_CLIENT_CREDS),
+                (ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_PASSWORD),
+                (ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_CLIENT_CREDS),
                 (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW),
                 (ConnectionType.KEY_VALUE, ConnectionType.KEY_VALUE),
             ]
@@ -142,10 +142,10 @@ class TestValidateSchemaType:
                 (ConnectionType.BASIC_AUTH, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BASIC_AUTH]),
                 (ConnectionType.BEARER_TOKEN, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BEARER_TOKEN]),
                 (ConnectionType.API_KEY_AUTH, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.API_KEY_AUTH]),
-                # (ConnectionType.OAUTH2_AUTH_CODE, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_AUTH_CODE]),
+                (ConnectionType.OAUTH2_AUTH_CODE, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_AUTH_CODE]),
                 # (ConnectionType.OAUTH2_IMPLICIT, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_IMPLICIT]),
-                # (ConnectionType.OAUTH2_PASSWORD, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_PASSWORD]),
-                # (ConnectionType.OAUTH2_CLIENT_CREDS, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_CLIENT_CREDS]),
+                (ConnectionType.OAUTH2_PASSWORD, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_PASSWORD]),
+                (ConnectionType.OAUTH2_CLIENT_CREDS, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_CLIENT_CREDS]),
                 (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH_ON_BEHALF_OF_FLOW]),
                 (ConnectionType.KEY_VALUE, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.KEY_VALUE]),
             ]
@@ -237,7 +237,7 @@ class TestGetApplicationConnectionCredentials:
                 (APIKeyAuthCredentials(**{"api_key": "Test API Key", "url": "Test URL"}), ConnectionType.API_KEY_AUTH, TEST_APP_ID, ConnectionSecurityScheme.API_KEY_AUTH),
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_AUTH_CODE, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 # (BearerTokenAuthCredentials(**{"token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_IMPLICIT, TEST_APP_ID),
-                # (BearerTokenAuthCredentials(**{"token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_PASSWORD, TEST_APP_ID),
+                (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_PASSWORD, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_CLIENT_CREDS, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (KeyValueConnectionCredentials({"Foo": "Test Foo", "bar": "Test bar"}), ConnectionType.KEY_VALUE, f"{TEST_APP_ID}_kv", ConnectionSecurityScheme.KEY_VALUE),
@@ -258,20 +258,16 @@ class TestGetApplicationConnectionCredentials:
         assert message in captured
     
     @pytest.mark.parametrize(
-            ("expected_connection", "app_id", "conn_types", "conn_schema"),
+            ("app_id", "conn_types", "conn_schema"),
             [
-                (BasicAuthCredentials(**{"username": "Test Username", "password": "Test Password"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BASIC_AUTH], ConnectionSecurityScheme.BASIC_AUTH),
-                (BearerTokenAuthCredentials(**{"token": "Test Token"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BEARER_TOKEN], ConnectionSecurityScheme.BEARER_TOKEN),
-                (APIKeyAuthCredentials(**{"api_key": "Test API Key"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.API_KEY_AUTH], ConnectionSecurityScheme.API_KEY_AUTH),
-                # (OAuth2AuthCodeCredentials(**{"client_id": "Test Client ID", "client_secret": "Test Client Secret", "token_url": "Token URL", "authorization_url": "Auth URL"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_AUTH_CODE], ConnectionSecurityScheme.OAUTH2),
-                # (OAuth2ImplicitCredentials(**{"client_id": "Test Client ID", "authorization_url": "Auth URL"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_IMPLICIT]),
-                # (OAuth2PasswordCredentials(**{"client_id": "Test Client ID", "client_secret": "Test Client Secret", "token_url": "Token URL", "authorization_url": "Auth URL"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_PASSWORD]),
-                # (OAuth2ClientCredentials(**{"client_id": "Test Client ID", "client_secret": "Test Client Secret", "token_url": "Token URL"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_CLIENT_CREDS], ConnectionSecurityScheme.OAUTH2),
-                (OAuthOnBehalfOfCredentials(**{"client_id": "Test Client ID", "access_token_url": "Token URL", "grant_type": "Grant Type"}), TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH_ON_BEHALF_OF_FLOW], ConnectionSecurityScheme.OAUTH2),
-                (KeyValueConnectionCredentials({"Foo": "Test Foo", "bar": "Test bar"}), f"{TEST_APP_ID}_kv", [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.KEY_VALUE], ConnectionSecurityScheme.KEY_VALUE),
+                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BASIC_AUTH], ConnectionSecurityScheme.BASIC_AUTH),
+                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BEARER_TOKEN], ConnectionSecurityScheme.BEARER_TOKEN),
+                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.API_KEY_AUTH], ConnectionSecurityScheme.API_KEY_AUTH),
+                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn not in {ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW}], ConnectionSecurityScheme.OAUTH2),
+                (f"{TEST_APP_ID}_kv", [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.KEY_VALUE], ConnectionSecurityScheme.KEY_VALUE),
             ]
     )
-    def test_get_application_connection_credentials_invalid_type(self, expected_connection, app_id, conn_types, conn_schema, mock_env, monkeypatch, caplog):
+    def test_get_application_connection_credentials_invalid_type(self, app_id, conn_types, conn_schema, mock_env, monkeypatch, caplog):
         for conn_type in conn_types:
             monkeypatch.setenv(f"WXO_SECURITY_SCHEMA_{app_id}", conn_schema)
             with pytest.raises(BadRequest) as e:
