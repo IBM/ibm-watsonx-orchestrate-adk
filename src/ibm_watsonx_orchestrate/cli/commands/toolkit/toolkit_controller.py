@@ -10,7 +10,7 @@ import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource, ToolkitTransportKind
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
@@ -26,15 +26,16 @@ import json
 
 logger = logging.getLogger(__name__)
 
-def get_connection_id(app_id: str) -> str:
+def get_connection_id(app_id: str, is_local_mcp: bool) -> str:
     connections_client = get_connections_client()
     existing_draft_configuration = connections_client.get_config(app_id=app_id, env='draft')
     existing_live_configuration = connections_client.get_config(app_id=app_id, env='live')
 
     for config in [existing_draft_configuration, existing_live_configuration]:
-        if config and config.security_scheme != 'key_value_creds':
-            logger.error("Only key_value credentials are currently supported")
-            exit(1)
+        if is_local_mcp is True:
+            if config and config.security_scheme != 'key_value_creds':
+                logger.error("Only key_value credentials are currently supported for local MCP")
+                exit(1)
     connection_id = None
     if app_id is not None:
         connection = connections_client.get(app_id=app_id)
@@ -59,6 +60,8 @@ class ToolkitController:
         package_root: str = None,
         language: Language = None,
         command: str = None,
+        url: str = None,
+        transport: ToolkitTransportKind = None
     ):
         self.kind = kind
         self.name = name
@@ -68,6 +71,8 @@ class ToolkitController:
         self.language = language
         self.command = command
         self.client = None
+        self.url = url
+        self.transport = transport
 
         self.source: ToolkitSource = (
             ToolkitSource.FILES if package_root else ToolkitSource.PUBLIC_REGISTRY
@@ -95,15 +100,23 @@ class ToolkitController:
             logger.error(f"Existing toolkit found with name '{self.name}'. Failed to create toolkit.")
             sys.exit(1)
 
-        try:
-            command_parts = json.loads(self.command)
-            if not isinstance(command_parts, list):
-                raise ValueError("JSON command must be a list of strings")
-        except (json.JSONDecodeError, ValueError):
-            command_parts = self.command.split()
+        if not self.command:
+            command_parts = []
+        else:
+            try:
+                command_parts = json.loads(self.command)
+                if not isinstance(command_parts, list):
+                    raise ValueError("JSON command must be a list of strings")
+            except (json.JSONDecodeError, ValueError):
+                command_parts = self.command.split()
 
-        command = command_parts[0]
-        args = command_parts[1:]
+        if command_parts:
+            command = command_parts[0]
+            args = command_parts[1:]
+        else:
+            command = None
+            args = []
+
 
         if self.package_root:
             is_folder = os.path.isdir(self.package_root)
@@ -150,18 +163,31 @@ class ToolkitController:
                     console.print(f"  • {tool}")
 
             # Create toolkit metadata
-            payload = {
-                "name": self.name,
-                "description": self.description,
-                "mcp": {
-                    "source": self.source.value,
-                    "command": command,
-                    "args": args,
-                    "tools": tools,
-                    "connections": remapped_connections,
-                }
-            }
+            payload = {}
 
+            if self.transport is not None and self.url is not None:
+                payload = {
+                    "name": self.name,
+                    "description": self.description,
+                    "mcp": {
+                        "server_url": self.url,
+                        "transport": self.transport.value,
+                        "tools": tools,
+                        "connections": remapped_connections,
+                    }
+                }
+            else:
+                payload = {
+                    "name": self.name,
+                    "description": self.description,
+                    "mcp": {
+                        "source": self.source.value,
+                        "command": command,
+                        "args": args,
+                        "tools": tools,
+                        "connections": remapped_connections,
+                    }
+                }
 
             with Progress(
                 SpinnerColumn(spinner_name="dots"),
@@ -215,7 +241,8 @@ class ToolkitController:
                 raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
 
             runtime_id = sanatize_app_id(runtime_id)
-            app_id_dict[runtime_id] = get_connection_id(local_id)
+            is_local_mcp = self.package is not None or self.package_root is not None
+            app_id_dict[runtime_id] = get_connection_id(local_id, is_local_mcp)
 
         return app_id_dict
 
