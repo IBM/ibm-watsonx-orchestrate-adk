@@ -2,21 +2,24 @@ from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END
 )
-from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigEntity, DocProcInput, File, DocExtInput
+from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField, DocumentProcessingCommonInput
 
 
-class Entities(BaseModel):
-    buyer: DocExtConfigEntity = Field(name="Buyer", default=DocExtConfigEntity(name="Buyer", field_name="buyer"))
-    seller: DocExtConfigEntity = Field(name="Seller", default=DocExtConfigEntity(name="Seller", field_name="seller"))
-    agreement_date: DocExtConfigEntity = Field(name="Agreement date", default=DocExtConfigEntity(name="Agreement Date", field_name="agreement_date"))
+class Fields(BaseModel):
+    buyer: DocExtConfigField = Field(name="Buyer", default=DocExtConfigField(name="Buyer", field_name="buyer"))
+    seller: DocExtConfigField = Field(name="Seller", default=DocExtConfigField(name="Seller", field_name="seller"))
+    agreement_date: DocExtConfigField = Field(name="Agreement date", default=DocExtConfigField(name="Agreement Date", field_name="agreement_date", type="date"))
 
+class Illinoise(BaseModel):
+    social_security_number: DocExtConfigField = Field(name="Social Security Number", default=DocExtConfigField(name="Social Security Number", field_name="social_security_number"))
+    driver_license_number: DocExtConfigField = Field(name="Driver's License Number", default=DocExtConfigField(name="Driver's License Number", field_name="driver_license_number"))
 
 
 @flow(
     name ="custom_flow_docext_example",
     display_name="custom_flow_docext_example",
     description="Extraction of custom fields from a document, specified by the user.",
-    input_schema=DocExtInput
+    input_schema=DocumentProcessingCommonInput
 )
 def build_docext_flow(aflow: Flow = None) -> Flow:
     # aflow.docext return 2 things
@@ -27,8 +30,9 @@ def build_docext_flow(aflow: Flow = None) -> Flow:
         name="contract_extractor",
         display_name="Extract fields from a contract",
         description="Extracts fields from an input contract file",
-        llm="meta-llama/llama-3-2-11b-vision-instruct",
-        input_entities=Entities(),
+        llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        fields=Illinoise(),
+        enable_hw=True
     )
 
     aflow.sequence(START, doc_ext_node, END)

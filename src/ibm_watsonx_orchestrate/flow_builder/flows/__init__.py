@@ -19,6 +19,8 @@ __all__ = [
     "DocProcInput",
 
     "DocProcNode",
+    "DocExtNode",
+    "DocClassifierNode"
     "UserNode",
     "AgentNode",
     "StartNode",

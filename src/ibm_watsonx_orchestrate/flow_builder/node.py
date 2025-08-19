@@ -6,8 +6,8 @@ import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
 from enum import Enum
 
-from .types import EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
-                    DocExtSpec, DocExtConfig, LanguageCode, DecisionsNodeSpec
+from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
+                    DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
 
 from .data_map import DataMap
 
@@ -120,6 +120,24 @@ class DocProcNode(Node):
     def get_spec(self) -> DocProcSpec:
         return cast(DocProcSpec, self.spec)
     
+class DocClassifierNode(Node):
+    def __repr__(self):
+        return f"DocClassifierNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> DocClassifierSpec:
+        return cast(DocClassifierSpec, self.spec)
+
+    @staticmethod
+    def generate_config(llm: str, input_classes: type[BaseModel], min_confidence: float) -> DocClassifierConfig:
+        return DocClassifierConfig(llm=llm, classes=input_classes.__dict__.values(), min_confidence=min_confidence)
+    
+class TimerNode(Node):
+    def __repr__(self):
+        return f"TimerNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> TimerNodeSpec:
+        return cast(TimerNodeSpec, self.spec)
+    
 class DocExtNode(Node):
     def __repr__(self):
         return f"DocExtNode(name='{self.spec.name}', description='{self.spec.description}')"
@@ -128,23 +146,29 @@ class DocExtNode(Node):
         return cast(DocExtSpec, self.spec)
     
     @staticmethod
-    def generate_config(llm: str, input_entites: type[BaseModel]) -> DocExtConfig:
-        entities = input_entites.__dict__.values()
-        return DocExtConfig(llm=llm, entities=entities)
+    def generate_config(llm: str, fields: type[BaseModel]) -> DocExtConfig:
+        return DocExtConfig(llm=llm, fields=fields.__dict__.values())
     
     @staticmethod
-    def generate_docext_field_value_model(input_entities: type[BaseModel]) -> type[BaseModel]:
+    def generate_docext_field_value_model(fields: type[BaseModel]) -> type[BaseModel]:
         create_field_value_description = lambda field_name: "Extracted value for " + field_name
+        field_definitions = {}
 
-        DocExtFieldValue = create_model(
-                "DocExtFieldValue",
-                    **{
-                        name: (str, Field(
-                            title=value['name'], 
-                            description=create_field_value_description(value['name']),
-                            )
-                        )
-                        for name, value in input_entities.model_dump().items()})
+        for name, value in fields.model_dump().items():
+            field_type = str  
+            field_kwargs = {
+                "title": value['name'],
+                "description": create_field_value_description(value['name']),
+                "type": value["type"] if value["type"] != "date" else "string"
+            }
+
+            # Add json_schema_extra if type is 'date'
+            if value["type"] == "date":
+                field_kwargs["json_schema_extra"] = {"format": "date"}
+
+            field_definitions[name] = (field_type, Field(**field_kwargs))
+
+        DocExtFieldValue = create_model("DocExtFieldValue", **field_definitions)
         return DocExtFieldValue
     
 class DecisionsNode(Node):

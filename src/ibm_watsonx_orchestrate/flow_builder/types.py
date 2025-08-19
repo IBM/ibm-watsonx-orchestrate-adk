@@ -4,12 +4,16 @@ from datetime import date
 import numbers
 import inspect
 import logging
+import uuid
+import re
+import time
 from typing import (
     Annotated, Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union, NewType
 )
 from typing_extensions import Doc
 
 import docstring_parser
+from pydantic import computed_field, field_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler, RootModel
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
@@ -124,7 +128,7 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
     return model_spec
 
 class NodeSpec(BaseModel):
-    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc" ] = "node"
+    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "timer", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc", "docext", "docclassifier" ] = "node"
     name: str
     display_name: str | None = None
     description: str | None = None
@@ -170,7 +174,7 @@ class NodeSpec(BaseModel):
 
         return model_spec
 
-class DocExtConfigEntity(BaseModel):
+class DocExtConfigField(BaseModel):
     name: str = Field(description="Entity name")
     type: Literal["string", "date", "number"] = Field(default="string",  description="The type of the entity values")
     description: str = Field(title="Description", description="Description of the entity", default="")
@@ -180,18 +184,89 @@ class DocExtConfigEntity(BaseModel):
     examples: list[str] = Field(title="Examples", description="Examples that help the LLM understand the expected entity mentions", default=[])
 
 class DocExtConfig(BaseModel):
-    domain: str = Field(description="Domiain of the document", default="other")
+    domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
     llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
-    entities: list[DocExtConfigEntity] = Field(default=[])
+    fields: list[DocExtConfigField] = Field(default=[])
 
 class LanguageCode(StrEnum):
     en = auto()
     fr = auto()
 
+class DocProcTask(StrEnum):
+    '''
+    Possible names for the Document processing task parameter
+    '''
+    text_extraction = auto()
+    custom_field_extraction = auto()
+    custom_document_classification = auto()
+
+class CustomClassOutput(BaseModel):
+    class_name: str = Field(
+        title="Class Name",
+        description="Class Name of the Document",
+        default=[],
+    )
+
+class DocumentClassificationResponse(BaseModel):
+    custom_class_response: CustomClassOutput = Field(
+        title="Custom Classification",
+        description="The Class extracted by the llm",
+    )
+
+class DocClassifierClass(BaseModel):
+    class_name: str = Field(title='Class Name', description="The predicted, normalized document class name based on provided name")
+
+    @field_validator("class_name", mode="before")
+    @classmethod
+    def normalize_name(cls, name) -> str:
+        pattern = r'^[a-zA-Z0-9_]{1,29}$'
+        if not re.match(pattern, name): 
+            raise ValueError(f"class_name \"{name}\" is not valid. class_name should contain only letters (a-z, A-Z), digits (0-9), and underscores (_)")
+        return name
+    
+    @computed_field(description="A uuid for identifying classes, For easy filtering of documents classified in a class", return_type=str)
+    def class_id(self) -> str:
+        return str(uuid.uuid5(uuid.uuid1(), self.class_name + str(time.time())))
+
+class DocClassifierConfig(BaseModel):
+    domain: str = Field(description="Domain of the document", default="other",title="Domain")
+    type: Literal["class_configuration"] = Field(description="Document type", default="class_configuration",title="Type")
+    llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-3-2-11b-vision-instruct",title="LLM")
+    min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
+    classes: list[DocClassifierClass] = Field(default=[], description="Classes which are needed to classify provided by user", title="Classes")
+
 class DocProcCommonNodeSpec(NodeSpec):
+    task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
 
+    def __init__(self, **data):
+        super().__init__(**data)
+    
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        model_spec["task"] = self.task
+        model_spec["enable_hw"] = self.enable_hw
+        
+        return model_spec
+    
+
+
+class DocClassifierSpec(DocProcCommonNodeSpec):
+    version : str = Field(description="A version of the spec")
+    config : DocClassifierConfig
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.kind = "docclassifier"
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        model_spec["version"] = self.version
+        model_spec["config"] = self.config.model_dump()
+        model_spec["task"] = DocProcTask.custom_document_classification
+        return model_spec
+    
 class DocExtSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocExtConfig
@@ -204,6 +279,7 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec = super().to_json()
         model_spec["version"] = self.version
         model_spec["config"] = self.config.model_dump()
+        model_spec["task"] = DocProcTask.custom_field_extraction
         return model_spec
     
 class DocProcField(BaseModel):
@@ -251,19 +327,17 @@ class DocProcKVP(BaseModel):
     table_name: Optional[str] = Field(default=None, description="The name of the table the key-value pair belongs to. This is used to group key-value pairs together in a table.")
     table_row_index: Optional[int] = Field(default=None, description="The index of the row in the table the key-value pair belongs to. This is used to group key-value pairs together in a table.")
 
-class DocProcTask(StrEnum):
-    '''
-    Possible names for the Document processing task parameter
-    '''
-    text_extraction = auto()
+class PlainTextReadingOrder(StrEnum):
+    block_structure = auto()
+    simple_line = auto()
 
 class DocProcSpec(DocProcCommonNodeSpec):
-    task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     kvp_schema: List[DocProcKVPSchema] | None = Field(
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
-    
+    plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
+
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
@@ -271,8 +345,10 @@ class DocProcSpec(DocProcCommonNodeSpec):
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
         model_spec["task"] = self.task
+        if self.plain_text_reading_order != PlainTextReadingOrder.block_structure:
+            model_spec["plain_text_reading_order"] = self.plain_text_reading_order
         return model_spec
-    
+
 class StartNodeSpec(NodeSpec):
     def __init__(self, **data):
         super().__init__(**data)
@@ -607,6 +683,18 @@ class PromptNodeSpec(NodeSpec):
 
         return model_spec
     
+class TimerNodeSpec(NodeSpec):
+    delay: int 
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.kind = "timer"
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = super().to_json()
+        if self.delay:
+            model_spec["delay"] = self.delay
+        return model_spec
 
 class Expression(BaseModel):
     '''An expression could return a boolean or a value'''
@@ -866,24 +954,25 @@ class File(str):
             "wrap_data": False,
             "required": []
         }
-    
-class DocExtInput(BaseModel):
+class DocumentProcessingCommonInput(BaseModel):
+    '''
+    This class represents the common input of docext, docproc and docclassifier node 
+
+    Attributes:
+        document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
+    '''
     document_ref: bytes | File = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
 
-
-class DocProcInput(BaseModel):
+class DocProcInput(DocumentProcessingCommonInput):
     '''
     This class represents the input of a Document processing task. 
 
     Attributes:
-        document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
-        language (LanguageCode): Optional language code used when processing the input document
         kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPS.
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
-    document_ref: bytes | File = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
-    kvp_schemas: Optional[List[DocProcKVPSchema]] = Field(
+    kvp_schemas: Optional[List[DocProcKVPSchema]] | str = Field(
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
@@ -892,11 +981,9 @@ class TextExtractionResponse(BaseModel):
     '''
     The text extraction operation response.
     Attributes:
-        text (str): the text extracted from the input document.
-        kvps (Optional[list[DocProcKVP]]): A list of key-value pairs extracted from the document. If no KVPs were extracted, this will be None.
+        output_file_ref (str): The url to the file that contains the extracted text and kvps. 
     '''
-    text: str = Field(description='The text extracted from the input document', title='text')
-    kvps: Optional[list[DocProcKVP]] = Field(description="A list of key-value pairs extracted from the document.", default=None)
+    output_file_ref: str = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
 
 
 class DecisionsCondition(BaseModel):
