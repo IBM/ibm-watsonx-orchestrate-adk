@@ -18,7 +18,7 @@ async def main():
     flow_name = my_flow_definition.flow.spec.display_name
     generated_folder = f"{Path(__file__).resolve().parent}/generated"
     my_flow_definition.dump_spec(f"{generated_folder}/get_number_random_fact_flow.json")
-    await my_flow_definition.invoke(input_data={"number": 22},debug=True, on_flow_end_handler=on_event_end, on_flow_error_handler=on_event_error)
+    await my_flow_definition.invoke(input_data={"number": 28},debug=True, on_flow_end_handler=on_event_end, on_flow_error_handler=on_event_error)
 
 if __name__ == "__main__":
     asyncio.run(main())

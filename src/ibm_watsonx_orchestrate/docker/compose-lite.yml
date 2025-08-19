@@ -128,6 +128,7 @@ services:
       IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
+      DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
       ENABLE_EDIT_PROMPTS: "true"
@@ -1003,9 +1004,11 @@ services:
       SERVICE_NAME: wxo-doc-processing-llm-service
       LOG_LEVEL: info
       WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
-      WATSONX_API_KEY: ${WATSONX_APIKEY}
-      WATSONX_PROJECT_ID: ${WATSONX_PROJECT_ID}
-      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      AI_GATEWAY_BASE_URL : http://ai-gateway:8787
+      WO_API_KEY: ${WO_API_KEY}
+      WO_INSTANCE : ${WO_INSTANCE}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      SAAS_ENVIRONMENT: "false"
       IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
     profiles:
       - docproc

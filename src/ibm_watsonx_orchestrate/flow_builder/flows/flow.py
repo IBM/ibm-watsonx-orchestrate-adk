@@ -25,13 +25,13 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PromptLLMParameters, PromptNodeSpec, 
+    EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PlainTextReadingOrder, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File
+    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode
+    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
@@ -438,23 +438,95 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
-    def docext(self, 
+    def docclassfier(self, 
             name: str, 
-            llm : str = "meta-llama/llama-3-2-11b-vision-instruct",
+            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
             version: str = "TIP",
             display_name: str| None = None,
-            input_entities: type[BaseModel]| None = None, 
+            classes: type[BaseModel]| None = None, 
             description: str | None = None,
-            input_map: DataMap = None) -> tuple[DocExtNode, type[BaseModel]]:
+            min_confidence: float = 0.0,
+            input_map: DataMap = None) -> DocClassifierNode:
+        
+        if name is None :
+            raise ValueError("name must be provided.")
+        
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence,input_classes=classes)
+
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
+        output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
+        
+        if "$defs" in output_schema_obj.model_extra:
+            output_schema_obj.model_extra.pop("$defs")
+        # Create the docclassifier spec
+        task_spec = DocClassifierSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            input_schema=_get_tool_request_body(input_schema_obj),
+            output_schema=_get_tool_response_body(output_schema_obj),
+            output_schema_object = output_schema_obj,
+            config=doc_classifier_config,
+            version=version
+        )
+        node = DocClassifierNode(spec=task_spec)
+
+        # setup input map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+        
+        # add the node to the list of node
+        
+        node = self._add_node(node)
+        return cast(DocClassifierNode, node)
+        
+        
+    def timer(self,
+          name: str,
+          delay: int,
+          display_name: str | None = None,
+          description: str | None = None,
+          input_map: DataMap = None) -> Node:
+
+        if name is None:
+            raise ValueError("name must be provided.")
+        if delay < 0:
+            raise ValueError("delay must be non-negative.")
+
+        timer_spec = TimerNodeSpec(
+            name=name,
+            display_name=display_name if display_name is not None else name,
+            description=description,
+            delay=delay
+        )
+
+        node = Node(spec=timer_spec)
+
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+
+        node = self._add_node(node)
+        return node
+
+    
+    def docext(self, 
+            name: str, 
+            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+            version: str = "TIP",
+            display_name: str| None = None,
+            fields: type[BaseModel]| None = None, 
+            description: str | None = None,
+            input_map: DataMap = None,
+            enable_hw: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
 
-        doc_ext_config = DocExtNode.generate_config(llm=llm, input_entites=input_entities)
+        doc_ext_config = DocExtNode.generate_config(llm=llm, fields=fields)
 
-        DocExtFieldValue = DocExtNode.generate_docext_field_value_model(input_entities=input_entities)
+        DocExtFieldValue = DocExtNode.generate_docext_field_value_model(fields=fields)
         
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = File)
+        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj("output", DocExtFieldValue)
 
         if "$defs" in output_schema_obj.model_extra:
@@ -469,7 +541,8 @@ class Flow(Node):
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj,
             config=doc_ext_config,
-            version=version
+            version=version,
+            enable_hw=enable_hw
         )
         node = DocExtNode(spec=task_spec)
 
@@ -528,9 +601,11 @@ class Flow(Node):
     def docproc(self, 
             name: str, 
             task: str,
+            plain_text_reading_order : PlainTextReadingOrder = PlainTextReadingOrder.block_structure,
             display_name: str|None=None,
             description: str | None = None,
-            input_map: DataMap = None) -> DocProcNode:
+            input_map: DataMap = None,
+            enable_hw: bool = False) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -552,7 +627,9 @@ class Flow(Node):
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj,
-            task=task
+            task=task,
+            plain_text_reading_order=plain_text_reading_order,
+            enable_hw=enable_hw
         )
 
         node = DocProcNode(spec=task_spec)

@@ -4,10 +4,9 @@ name: text_extraction_agent
 description: >
     You are an agent to create a summary of the text extracted from a document. 
 instructions: >
-    Do not put "null" as a value for "kvp_schemas", instead the request would be {"document_ref": , "kvp_schema": null}
-    Run the 'text_extraction_flow_example' tool. Ignore the kvp_schemas input.
+    Run the 'text_extaction_flow_example' tool. 
 
-    Output the extracted text returned by the tool.
+    Output the output file reference returned by the tool.
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
