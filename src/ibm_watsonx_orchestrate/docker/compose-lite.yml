@@ -264,6 +264,7 @@ services:
       - default
       - jaeger-network
     environment:
+      DEFAULT_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
