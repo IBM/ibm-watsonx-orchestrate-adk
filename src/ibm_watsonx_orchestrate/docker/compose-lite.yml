@@ -1012,11 +1012,7 @@ services:
       SERVICE_NAME: wxo-doc-processing-llm-service
       LOG_LEVEL: info
       WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
-      AI_GATEWAY_BASE_URL : http://ai-gateway:8787
-      WO_API_KEY: ${WO_API_KEY}
-      WO_INSTANCE : ${WO_INSTANCE}
-      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
-      SAAS_ENVIRONMENT: "false"
+      WXO_SERVER_BASE_URL : http://wxo-server:4321
       IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
     profiles:
       - docproc
