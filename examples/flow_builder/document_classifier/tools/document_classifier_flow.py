@@ -6,9 +6,7 @@ from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass, Docum
 
 
 class CustomClasses(BaseModel):
-    buyer: DocClassifierClass = Field(default=DocClassifierClass(class_name="Buyer"))
-    seller: DocClassifierClass = Field(default=DocClassifierClass(class_name="Seller"))
-    agreement_date: DocClassifierClass = Field(default=DocClassifierClass(class_name="Agreement_Date"))
+    invoice: DocClassifierClass = Field(default=DocClassifierClass(class_name="Invoice"))
 
 
 @flow(
