@@ -50,7 +50,7 @@ class GetConfigResponse(BaseModel):
 class GetConnectionResponse(BaseModel):
     connection_id: str = None
     app_id: str = None
-    tenant_id: str = None
+    tenant_id: Optional[str] = None
 
 
 
