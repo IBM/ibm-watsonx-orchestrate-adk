@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PlainTextReadingOrder, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
+    DocProcKVPSchema, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PlainTextReadingOrder, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
@@ -605,6 +605,7 @@ class Flow(Node):
             display_name: str|None=None,
             description: str | None = None,
             input_map: DataMap = None,
+            kvp_schemas: list[DocProcKVPSchema] = None,
             enable_hw: bool = False) -> DocProcNode:
 
         if name is None :
@@ -629,7 +630,8 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             task=task,
             plain_text_reading_order=plain_text_reading_order,
-            enable_hw=enable_hw
+            enable_hw=enable_hw,
+            kvp_schemas=kvp_schemas
         )
 
         node = DocProcNode(spec=task_spec)

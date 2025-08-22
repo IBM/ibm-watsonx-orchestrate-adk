@@ -10,10 +10,6 @@ class Fields(BaseModel):
     seller: DocExtConfigField = Field(name="Seller", default=DocExtConfigField(name="Seller", field_name="seller"))
     agreement_date: DocExtConfigField = Field(name="Agreement date", default=DocExtConfigField(name="Agreement Date", field_name="agreement_date", type="date"))
 
-class Illinoise(BaseModel):
-    social_security_number: DocExtConfigField = Field(name="Social Security Number", default=DocExtConfigField(name="Social Security Number", field_name="social_security_number"))
-    driver_license_number: DocExtConfigField = Field(name="Driver's License Number", default=DocExtConfigField(name="Driver's License Number", field_name="driver_license_number"))
-
 
 @flow(
     name ="custom_flow_docext_example",
@@ -31,7 +27,7 @@ def build_docext_flow(aflow: Flow = None) -> Flow:
         display_name="Extract fields from a contract",
         description="Extracts fields from an input contract file",
         llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
-        fields=Illinoise(),
+        fields=Fields(),
         enable_hw=True
     )
 
