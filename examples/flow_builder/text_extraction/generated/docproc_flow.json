@@ -23,7 +23,8 @@
           "$ref": "#/schemas/TextExtractionResponse"
         },
         "task": "text_extraction",
-        "enable_hw": false
+        "enable_hw": true,
+        "kvp_schemas": []
       }
     },
     "__start__": {
@@ -394,6 +395,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-14T21:27:37.411590+00:00"
+    "compiled_on": "2025-08-19T22:07:01.783843+00:00"
   }
 }

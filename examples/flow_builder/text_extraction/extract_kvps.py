@@ -23,30 +23,34 @@ def on_flow_error(error):
     print(f"Custom Handler: flow `{flow_run.name}` failed: {error}")
 
 
-async def main(doc_ref: str, kvp_schema_path):
+async def main(doc_ref: str, kvp_schema_path=None):
     '''A function demonstrating how to build a flow and save it to a file.'''
     my_flow_definition = await build_docproc_flow().compile_deploy()
     global flow_name
     flow_name = my_flow_definition.flow.spec.display_name
     generated_folder = f"{Path(__file__).resolve().parent}/generated"
     my_flow_definition.dump_spec(f"{generated_folder}/docproc_flow_spec.json")
-
-    with open(kvp_schema_path, 'r') as file:
-        # Load the JSON data from the file into a Python dictionary
-        schema_json = json.load(file)
+    
+    if kvp_schema_path is not None:
+        with open(kvp_schema_path, 'r') as file:
+            # Load the JSON data from the file into a Python dictionary
+            schema_json = json.load(file)
 
     global flow_run
     flow_run = await my_flow_definition.invoke(
         {
           "document_ref": doc_ref, 
-          "language": "en",
-          "kvp_schemas": [ schema_json ]
+          "enable_hw": False,
+          "kvp_schemas": [ schema_json ] if kvp_schema_path is not None else []
         }, 
         on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 2:
         logger.error(f"Usage: {sys.argv[0]} file_store_path kvp_schema_path")
     else:
-        asyncio.run(main(sys.argv[1], sys.argv[2]))
+        if len(sys.argv) == 2:
+            asyncio.run(main(sys.argv[1]))
+        else:
+            asyncio.run(main(sys.argv[1], sys.argv[2]))

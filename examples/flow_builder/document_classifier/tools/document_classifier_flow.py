@@ -12,7 +12,7 @@ class CustomClasses(BaseModel):
 @flow(
     name ="custom_flow_docclassifier_example",
     display_name="custom_flow_docclassifier_example",
-    description="Extraction of custom classes from a document, specified by the user.",
+    description="Classifies documents into custom classes.",
     input_schema=DocumentProcessingCommonInput
 )
 def build_docclassifier_flow(aflow: Flow = None) -> Flow:
@@ -22,7 +22,7 @@ def build_docclassifier_flow(aflow: Flow = None) -> Flow:
     doc_classifier_node = aflow.docclassfier(
         name="document_classifier_node",
         display_name="document_classifier_node",
-        description="Classify custom classes from a document",
+        description="Classifies documents into one custom class.",
         llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
         classes=CustomClasses(),
     )

@@ -332,7 +332,7 @@ class PlainTextReadingOrder(StrEnum):
     simple_line = auto()
 
 class DocProcSpec(DocProcCommonNodeSpec):
-    kvp_schema: List[DocProcKVPSchema] | None = Field(
+    kvp_schemas: List[DocProcKVPSchema] | None = Field(
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
@@ -347,6 +347,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
         model_spec["task"] = self.task
         if self.plain_text_reading_order != PlainTextReadingOrder.block_structure:
             model_spec["plain_text_reading_order"] = self.plain_text_reading_order
+        if self.kvp_schemas is not None:
+            model_spec["kvp_schemas"] = self.kvp_schemas
         return model_spec
 
 class StartNodeSpec(NodeSpec):
