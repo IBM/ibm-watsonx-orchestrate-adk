@@ -32,6 +32,7 @@ services:
       - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
     command: -c shared_preload_libraries=pgsodium
 
+
   wxo-server-connection-manager:
     image: ${CM_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
     platform: linux/amd64
@@ -128,8 +129,11 @@ services:
       IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
+      DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
+      ENABLE_EDIT_PROMPTS: "true"
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -262,6 +266,7 @@ services:
       - default
       - jaeger-network
     environment:
+      DEFAULT_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -345,6 +350,7 @@ services:
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -442,6 +448,7 @@ services:
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -483,7 +490,8 @@ services:
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
+      TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044      
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -515,6 +523,7 @@ services:
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
 
   ########################
   # IBM AGENT-OPS
@@ -794,6 +803,7 @@ services:
       LOG_LEVEL: info
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
+      DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
@@ -874,6 +884,19 @@ services:
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
       RUNTIME_LIBRARY: "watson_doc_understanding"
+      WXAI_API_KEY: ${WXAI_API_KEY:-}
+      WXAI_IMAGE_DESCRIPTION_MODEL_ID: ${WXAI_IMAGE_DESCRIPTION_MODEL_ID:-mistralai/pixtral-12b}
+      WXAI_IMAGE_DESCRIPTION_PROJECT_ID: ${WXAI_IMAGE_DESCRIPTION_PROJECT_ID:-}
+      WXAI_KVP_MODEL_ID: ${WXAI_KVP_MODEL_ID:-}
+      WXAI_KVP_PROJECT_ID: ${WXAI_KVP_PROJECT_ID:-}
+      WXAI_SEMANTIC_KVP_PROJECT_ID: ${WXAI_SEMANTIC_KVP_PROJECT_ID:-}
+      WXAI_SEMANTIC_KVP_MODEL_ID: ${WXAI_SEMANTIC_KVP_MODEL_ID:-mistralai/pixtral-12b}
+      WXAI_SEMANTIC_KVP_SPACE_ID: ${WXAI_SEMANTIC_KVP_SPACE_ID:-}
+      WXAI_URL: ${WXAI_URL:-}
+      WXAI_USERNAME: ${WXAI_USERNAME:-}
+      WXAI_INSTANCE_ID: ${WXAI_INSTANCE_ID:-}
+      WXAI_VERSION: ${WXAI_VERSION:-5.1}
+      
     profiles:
       - docproc
     ports:
@@ -1002,9 +1025,7 @@ services:
       SERVICE_NAME: wxo-doc-processing-llm-service
       LOG_LEVEL: info
       WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
-      WATSONX_API_KEY: ${WATSONX_APIKEY}
-      WATSONX_PROJECT_ID: ${WATSONX_PROJECT_ID}
-      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      WXO_SERVER_BASE_URL : http://wxo-server:4321
       IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
     profiles:
       - docproc
@@ -1098,15 +1119,28 @@ services:
       "
 
   wxo-server-voice:
-      image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
-      profiles: [voice]
-      restart: unless-stopped
-      ports: 
-        - 9876:8765
-      environment:
-        WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
-        AI_GATEWAY_URL: "http://ai-gateway:8787"
-        WXO_ORIGIN_HEADER: "internal"
+    image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
+    profiles: [voice]
+    restart: unless-stopped
+    ports: 
+      - 9876:8765
+    environment:
+      WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
+      AI_GATEWAY_URL: "http://ai-gateway:8787"
+      WXO_ORIGIN_HEADER: "internal"
+
+  langflow:
+    image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
+    profiles: [langflow]
+    ports:
+      - 7861:7861
+    environment:
+      LANGFLOW_PORT: 7861
+      LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
+      LANGFLOW_CONFIG_DIR: app/langflow
+    volumes:
+      - langflow-data:/app/langflow
+
 
 volumes:
   tools:
@@ -1140,6 +1174,7 @@ volumes:
   wdu-models:
     driver: local
   es_data:
+  langflow-data:
 
 networks:
   default:

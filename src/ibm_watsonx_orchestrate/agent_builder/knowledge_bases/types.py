@@ -11,6 +11,7 @@ class SpecVersion(str, Enum):
 class KnowledgeBaseKind(str, Enum):
     KNOWLEDGE_BASE = "knowledge_base"
 class RetrievalConfidenceThreshold(str, Enum):
+    Off = "Off"
     Lowest = "Lowest"
     Low = "Low"
     High = "High"
@@ -24,6 +25,7 @@ class GeneratedResponseLength(str, Enum):
 
 
 class ResponseConfidenceThreshold(str, Enum):
+    Off = "Off"
     Lowest = "Lowest"
     Low = "Low"
     High = "High"
@@ -86,6 +88,8 @@ class GenerationConfiguration(BaseModel):
     {
         "model_id": "meta-llama/llama-3-1-70b-instruct",
         "prompt_instruction": "When the documents are in different languages, you should respond in english.",
+        "max_docs_passed_to_llm": 10,
+        "retrieval_confidence_threshold": "Lowest",
         "generated_response_length": "Moderate",
         "display_text_no_results_found": "no docs found",
         "display_text_connectivity_issue": "conn failed",
@@ -95,6 +99,7 @@ class GenerationConfiguration(BaseModel):
 
     model_id: Optional[str] = None
     prompt_instruction: Optional[str] = None
+    max_docs_passed_to_llm: Optional[int] = None
     generated_response_length: Optional[GeneratedResponseLength] = None
     display_text_no_results_found: Optional[str] = None
     display_text_connectivity_issue: Optional[str] = None
@@ -134,12 +139,13 @@ class MilvusConnection(BaseModel):
     }
     """
     grpc_host: Optional[str] = None
+    grpc_port: Optional[str] = None
+    server_cert: Optional[str] = None
     database: Optional[str] = None
     collection: Optional[str] = None
     index: Optional[str] = None
     embedding_model_id: Optional[str] = None
     limit : Optional[int] = None
-    grpc_port: Optional[str] = None
     filter: Optional[str] = None
     field_mapping: Optional[FieldMapping] = None
 
@@ -197,12 +203,46 @@ class CustomSearchConnection(BaseModel):
     filter: Optional[str] = None
     metadata: Optional[dict] = None
 
+class AstraDBConnection(BaseModel):
+    """
+    example:
+    {
+        "api_endpoint": "https://xxx-us-east-2.apps.astra.datastax.com",
+        "key_space": "default_keyspace",
+        "collection": "search_wa_docs",
+        "embedding_model_id": "sentence-transformers/all-minilm-l12-v2",
+        "port": "443",
+        "filter": "productType: \"boots\"",
+        "limit": 5,
+        "field_mapping": {
+                        "title": "title",
+                        "body": "text",
+                        "url": "some-url"
+                    }
+    }
+    """
+    api_endpoint: str
+    port: Optional[str] = None
+    server_cert: Optional[str] = None
+    keyspace: Optional[str]
+    data_type: str
+    collection: Optional[str]
+    table: Optional[str]
+    index_column: Optional[str]
+    embedding_mode: str
+    embedding_model_id: Optional[str]
+    credentials: dict
+    search_mode: str
+    limit: Optional[int] = 5
+    filter: Optional[str] = None
+    field_mapping: Optional[FieldMapping] = None
+
 class IndexConnection(BaseModel):
     connection_id: Optional[str] = None
     milvus: Optional[MilvusConnection] = None
     elastic_search: Optional[ElasticSearchConnection] = None
     custom_search: Optional[CustomSearchConnection] = None
-
+    astradb: Optional[AstraDBConnection] = None
     
 class ConversationalSearchConfig(BaseModel):
     language: Optional[str] = None
@@ -218,6 +258,10 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None
+
+class FileUpload(BaseModel):
+    path: str
+    url: Optional[str] = None
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
@@ -236,4 +280,4 @@ class KnowledgeBaseSpec(BaseModel):
     created_on: Optional[datetime] = None 
     updated_at: Optional[datetime] = None
     # For import/update
-    documents: list[str] = None
+    documents: list[str] | list[FileUpload] = None

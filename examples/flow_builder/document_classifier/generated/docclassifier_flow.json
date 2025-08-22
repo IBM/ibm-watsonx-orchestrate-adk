@@ -1,55 +1,49 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "custom_flow_docext_example",
-    "display_name": "custom_flow_docext_example",
-    "description": "Extraction of custom fields from a document, specified by the user.",
+    "name": "custom_flow_docclassifier_example",
+    "display_name": "custom_flow_docclassifier_example",
+    "description": "Extraction of custom classes from a document, specified by the user.",
     "input_schema": {
-      "$ref": "#/schemas/custom_flow_docext_example_input"
+      "$ref": "#/schemas/custom_flow_docclassifier_example_input"
     },
     "schedulable": false
   },
   "nodes": {
-    "contract_extractor": {
+    "document_classifier_node": {
       "spec": {
-        "kind": "docext",
-        "name": "contract_extractor",
-        "display_name": "Extract fields from a contract",
-        "description": "Extracts fields from an input contract file",
+        "kind": "docclassifier",
+        "name": "document_classifier_node",
+        "display_name": "document_classifier_node",
+        "description": "Classify custom classes from a document",
         "input_schema": {
-          "$ref": "#/schemas/contract_extractor_input"
+          "$ref": "#/schemas/document_classifier_node_input"
         },
         "output_schema": {
-          "$ref": "#/schemas/DocExtFieldValue"
+          "$ref": "#/schemas/DocumentClassificationResponse"
         },
-        "task": "custom_field_extraction",
-        "enable_hw": true,
         "version": "TIP",
         "config": {
           "domain": "other",
-          "type": "agreement",
-          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
-          "fields": [
+          "type": "class_configuration",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
+          "min_confidence": 0.0,
+          "classes": [
             {
-              "name": "Social Security Number",
-              "type": "string",
-              "description": "",
-              "field_name": "social_security_number",
-              "multiple_mentions": false,
-              "example_value": "",
-              "examples": []
+              "class_name": "Buyer",
+              "class_id": "b96c4253-0313-57fb-9849-8ad1652763e9"
             },
             {
-              "name": "Driver's License Number",
-              "type": "string",
-              "description": "",
-              "field_name": "driver_license_number",
-              "multiple_mentions": false,
-              "example_value": "",
-              "examples": []
+              "class_name": "Seller",
+              "class_id": "36523c04-5a39-5b77-81b1-eed40628c248"
+            },
+            {
+              "class_name": "Agreement_Date",
+              "class_id": "50099c0f-34ac-545d-89ad-8f9b4154c0f0"
             }
           ]
-        }
+        },
+        "task": "custom_document_classification"
       }
     },
     "__start__": {
@@ -70,17 +64,17 @@
   "edges": [
     {
       "start": "__start__",
-      "end": "contract_extractor"
+      "end": "document_classifier_node"
     },
     {
-      "start": "contract_extractor",
+      "start": "document_classifier_node",
       "end": "__end__"
     }
   ],
   "schemas": {
-    "custom_flow_docext_example_input": {
+    "custom_flow_docclassifier_example_input": {
       "type": "object",
-      "title": "custom_flow_docext_example_input",
+      "title": "custom_flow_docclassifier_example_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -103,9 +97,9 @@
         }
       }
     },
-    "contract_extractor_input": {
+    "document_classifier_node_input": {
       "type": "object",
-      "title": "contract_extractor_input",
+      "title": "document_classifier_node_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -128,29 +122,34 @@
         }
       }
     },
-    "DocExtFieldValue": {
+    "CustomClassOutput": {
       "type": "object",
-      "title": "DocExtFieldValue",
+      "title": "CustomClassOutput",
+      "properties": {
+        "class_name": {
+          "type": "string",
+          "title": "Class Name",
+          "description": "Class Name of the Document",
+          "default": []
+        }
+      }
+    },
+    "DocumentClassificationResponse": {
+      "type": "object",
+      "title": "DocumentClassificationResponse",
       "required": [
-        "social_security_number",
-        "driver_license_number"
+        "custom_class_response"
       ],
       "properties": {
-        "social_security_number": {
-          "type": "string",
-          "title": "Social Security Number",
-          "description": "Extracted value for Social Security Number"
-        },
-        "driver_license_number": {
-          "type": "string",
-          "title": "Driver's License Number",
-          "description": "Extracted value for Driver's License Number"
+        "custom_class_response": {
+          "title": "CustomClassOutput",
+          "$ref": "#/schemas/CustomClassOutput"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-15T08:10:30.211424+00:00"
+    "compiled_on": "2025-08-06T19:08:13.105889+00:00"
   }
 }

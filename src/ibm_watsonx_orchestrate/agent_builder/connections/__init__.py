@@ -18,7 +18,7 @@ from .types import (
     OAuth2AuthCodeCredentials,
     OAuth2ClientCredentials,
     # OAuth2ImplicitCredentials,
-    # OAuth2PasswordCredentials,
+    OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials,
     CONNECTION_KIND_SCHEME_MAPPING,

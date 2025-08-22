@@ -1,0 +1,213 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "custom_flow_docclassifier_test",
+    "display_name": "custom_flow_docclassifier_test",
+    "description": "Extraction of custom classes from a document, specified by the user.",
+    "input_schema": {
+      "$ref": "#/schemas/custom_flow_docclassifier_test_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "document_classifier_node": {
+      "spec": {
+        "kind": "docclassifier",
+        "name": "document_classifier_node",
+        "display_name": "document_classifier_node",
+        "description": "Classify custom classes from a document",
+        "input_schema": {
+          "$ref": "#/schemas/document_classifier_node_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/DocumentClassificationResponse"
+        },
+        "version": "TIP",
+        "config": {
+          "domain": "other",
+          "type": "class_configuration",
+          "llm": "meta-llama/llama-3-2-11b-vision-instruct",
+          "min_confidence": 0.0,
+          "classes": [
+            {
+              "class_name": "Buyer",
+              "class_description": "",
+              "type": "custom_class",
+              "class_id": "16755cfc-51ce-5ce6-aeb3-a201893d7bd1"
+            },
+            {
+              "class_name": "Seller",
+              "class_description": "",
+              "type": "custom_class",
+              "class_id": "7351fe1b-e304-511c-86c7-587e88b479de"
+            },
+            {
+              "class_name": "Agreement_Date",
+              "class_description": "",
+              "type": "custom_class",
+              "class_id": "b6f67007-a681-57c0-a8fc-7440429a0877"
+            }
+          ]
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "document_classifier_node"
+    },
+    {
+      "start": "document_classifier_node",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "custom_flow_docclassifier_test_input": {
+      "type": "object",
+      "title": "custom_flow_docclassifier_test_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "document_classifier_node_input": {
+      "type": "object",
+      "title": "document_classifier_node_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "language": {
+          "title": "Document language code",
+          "description": "Optional language code of the document, defaults to \"en\"",
+          "default": "en",
+          "anyOf": [
+            {
+              "type": "string",
+              "title": "LanguageCode",
+              "description": "The ISO-639 language codes understood by Document Processing functions.\nA special 'en_hw' code is used to enable an English handwritten model.",
+              "enum": [
+                "en",
+                "fr",
+                "en_hw"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DocumentClassification": {
+      "type": "object",
+      "title": "DocumentClassification",
+      "required": [
+        "class_name",
+        "confidence"
+      ],
+      "properties": {
+        "class_name": {
+          "type": "string",
+          "title": "DocumentClassificationName",
+          "enum": [
+            "bill_of_lading",
+            "contract",
+            "invoice",
+            "purchase_order",
+            "utility_bill",
+            "tax_form"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "title": "Confidence",
+          "description": "The confidence of the classification"
+        }
+      }
+    },
+    "DocumentClassificationResponse": {
+      "type": "object",
+      "title": "DocumentClassificationResponse",
+      "required": [
+        "classes"
+      ],
+      "properties": {
+        "classes": {
+          "type": "array",
+          "title": "Classifications",
+          "description": "A list of classification labels",
+          "items": {
+            "title": "Classifications",
+            "$ref": "#/schemas/DocumentClassification"
+          }
+        }
+      },
+      "x-ibm-parameter-wrapper": true
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-07-29T17:30:16.824413+00:00"
+  }
+}

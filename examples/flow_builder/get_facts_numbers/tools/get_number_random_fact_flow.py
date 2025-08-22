@@ -8,43 +8,54 @@ from .get_facts_about_numbers import get_facts_about_numbers
 from .get_request_status import get_request_status
 
 class InputtedNumber(BaseModel):
-    number : int = Field(description="Inputted number from user")
+    number: int = Field(description="Inputted number from user")
 
 class Attempt(BaseModel):
-    atmp : int = Field(description="Represent each attemp to check if the request is finish", default=0)
-
+    atmp: int = Field(description="Represent each attemp to check if the request is finish", default=0)
 
 class FlowOutput(BaseModel):
     info: str = Field(description="Fact about a number")
 
 @flow(
-    name = "get_number_random_fact_flow",
+    name="get_number_random_fact_flow",
     input_schema=InputtedNumber,
     output_schema=FlowOutput,
     description="A flow to get a random fact about a number"
-
 )
 def get_number_random_fact_flow(aflow: Flow) -> Flow:
     # This flow will take a number as an input and find a fact about that number.
+    #
+    # First, the flow executes the get_facts_about_numbers_node, which retrieves a fact
+    # about the number via a fast external API call.
+    #
+    # In a real-world scenario, external calls may take time to complete (e.g., when made
+    # through your own agent), so polling might be necessary.
+    #
+    # To demonstrate this polling pattern, the flow uses a while_loop that iterates 5 times.
+    # On each iteration, it calls the get_request_status node and waits 1 second using a
+    # timer node (instead of using sleep directly).
+    #
+    # After 5 polling attempts, the flow proceeds to display the fact.
+    get_facts_about_numbers_node = aflow.tool(
+        get_facts_about_numbers,
+        input_schema=InputtedNumber,
+        output_schema=FlowOutput
+    )
 
-    # First, the flow will go to get_facts_about_numbers_node to get the fact of the number by making a request
-    # to an external API. The request to an external only take some ms to complete.
+    while_loop: Flow = aflow.loop(
+        evaluator="not parent.get_request_status.input.attempt.atmp or parent.get_request_status.input.attempt.atmp < 5",
+        input_schema=Attempt,
+        output_schema=FlowOutput
+    )
 
-    # There is one scenario when you have your own agent and make an external call to a source which takes sometime to complete.
-    # So you might want to use the while loop to query the tool which is used to make that external call until it is completed.
-    # For demonstration purpose of the scenario above and show how while loop works,
-    # we mimic the behavior by get the flow executes the while_loop node to loop 5 times. Each time, it will go to get_request_status node and sleep for 1s.
-    # After 5 attempts, the flow will display the fact of the number
-    
-    get_facts_about_numbers_node = aflow.tool(get_facts_about_numbers, input_schema=InputtedNumber, output_schema=FlowOutput)
+    timer_node = while_loop.timer(
+        name="wait_1_sec",
+        delay=1000,
+        description="Wait for 1 second before polling again"
+    )
 
-    while_loop: Flow = aflow.loop(evaluator = "not parent.get_request_status.input.attempt.atmp or parent.get_request_status.input.attempt.atmp < 5",
-                                                    input_schema=Attempt,
-                                                    output_schema=FlowOutput)
-    get_request_status_node =  while_loop.tool(get_request_status)
-    
-    while_loop.sequence(START, get_request_status_node, END)
-
+    get_request_status_node = while_loop.tool(get_request_status)
+    while_loop.sequence(START, get_request_status_node, timer_node, END)
     aflow.sequence(START, get_facts_about_numbers_node, while_loop, END)
 
     return aflow

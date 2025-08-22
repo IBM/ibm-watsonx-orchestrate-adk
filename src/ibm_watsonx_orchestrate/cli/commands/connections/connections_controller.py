@@ -19,15 +19,15 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     BasicAuthCredentials,
     BearerTokenAuthCredentials,
     APIKeyAuthCredentials,
-    # OAuth2AuthCodeCredentials,
+    OAuth2AuthCodeCredentials,
     OAuth2ClientCredentials,
     # OAuth2ImplicitCredentials,
-    # OAuth2PasswordCredentials,
+    OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
-    OAUTH_CONNECTION_TYPES, OAuth2AuthCodeCredentials
+    OAUTH_CONNECTION_TYPES
 
 )
 
@@ -115,7 +115,7 @@ def _format_token_headers(header_list: List) -> dict:
 
 def _validate_connection_params(type: ConnectionType, **args) -> None:
 
-    if type == ConnectionType.BASIC_AUTH and (
+    if type in {ConnectionType.BASIC_AUTH, ConnectionType.OAUTH2_PASSWORD} and (
             args.get('username') is None or args.get('password') is None
     ):
         raise typer.BadParameter(
@@ -136,7 +136,7 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --api-key is required for type {type}"
         )
 
-    if type in {ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and args.get('client_secret') is None:
+    if type in {ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and args.get('client_secret') is None:
         raise typer.BadParameter(
             f"Missing flags --client-secret is required for type {type}"
         )
@@ -146,14 +146,14 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --auth-url is required for type {type}"
         )
 
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
             args.get('client_id') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --client-id is required for type {type}"
         )
     
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
             args.get('token_url') is None
     ):
         raise typer.BadParameter(
@@ -209,13 +209,11 @@ def _get_credentials(type: ConnectionType, **kwargs):
         #         authorization_url=kwargs.get("auth_url"),
         #         client_id=kwargs.get("client_id"),
         #     )
-        # case ConnectionType.OAUTH2_PASSWORD:
-        #     return OAuth2PasswordCredentials(
-        #         authorization_url=kwargs.get("auth_url"),
-        #         client_id=kwargs.get("client_id"),
-        #         client_secret=kwargs.get("client_secret"),
-        #         token_url=kwargs.get("token_url")
-        #     )
+        case ConnectionType.OAUTH2_PASSWORD:
+            keys = ["username", "password", "client_id","client_secret","token_url","grant_type", "scope"]
+            filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
+            return OAuth2PasswordCredentials(**filtered_args)
+        
         case ConnectionType.OAUTH_ON_BEHALF_OF_FLOW:
             return OAuthOnBehalfOfCredentials(
                 client_id=kwargs.get("client_id"),
@@ -283,25 +281,24 @@ def add_configuration(config: ConnectionConfiguration) -> None:
         logger.error(response_text)
         exit(1)
 
-def add_credentials(app_id: str, environment: ConnectionEnvironment, use_app_credentials: bool, credentials: CREDENTIALS) -> None:
+def add_credentials(app_id: str, environment: ConnectionEnvironment, use_app_credentials: bool, credentials: CREDENTIALS, payload: dict = None) -> None:
     client = get_connections_client()
     try:
         existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials)
-        if use_app_credentials:
-            payload = {
-                "app_credentials": credentials.model_dump(exclude_none=True)
-            }
-        else:
-            payload = {
-                "runtime_credentials": credentials.model_dump(exclude_none=True)
-            }
+        if not payload:
+            if use_app_credentials:
+                payload = {
+                    "app_credentials": credentials.model_dump(exclude_none=True)
+                }
+            else:
+                payload = {
+                    "runtime_credentials": credentials.model_dump(exclude_none=True)
+                }
         
-        logger.info(f"Setting credentials for environment '{environment}' on connection '{app_id}'")
         if existing_credentials:
             client.update_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials, payload=payload)
         else:
             client.create_credentials(app_id=app_id,env=environment, use_app_credentials=use_app_credentials, payload=payload)
-        logger.info(f"Credentials successfully set for '{environment}' environment of connection '{app_id}'")
     except requests.HTTPError as e:
         response = e.response
         response_text = response.text
@@ -489,7 +486,20 @@ def set_credentials_connection(
     _validate_connection_params(type=conn_type, **kwargs)
     credentials = _get_credentials(type=conn_type, **kwargs)
 
-    add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
+    # Special handling for oauth2 password flow as it sends both app_creds and runtime_creds
+    logger.info(f"Setting credentials for environment '{environment}' on connection '{app_id}'")
+    if conn_type == ConnectionType.OAUTH2_PASSWORD:
+        credentials_model = credentials.model_dump(exclude_none=True)
+        runtime_cred_keys = {"username", "password"}
+        app_creds = {"app_credentials": {k: credentials_model[k] for k in credentials_model if k not in runtime_cred_keys}}
+        runtime_creds = {"runtime_credentials": {k: credentials_model[k] for k in credentials_model if k in runtime_cred_keys}}
+
+        add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=credentials, payload=app_creds)
+        add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=credentials, payload=runtime_creds)
+    else:
+        add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
+    
+    logger.info(f"Credentials successfully set for '{environment}' environment of connection '{app_id}'")
 
 def set_identity_provider_connection(
     app_id: str,

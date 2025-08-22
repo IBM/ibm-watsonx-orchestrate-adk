@@ -22,7 +22,9 @@
         "output_schema": {
           "$ref": "#/schemas/TextExtractionResponse"
         },
-        "task": "text_extraction"
+        "task": "text_extraction",
+        "enable_hw": true,
+        "kvp_schemas": []
       }
     },
     "__start__": {
@@ -204,6 +206,9 @@
               }
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ]
@@ -363,6 +368,9 @@
               }
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ]
@@ -372,292 +380,21 @@
     "TextExtractionResponse": {
       "type": "object",
       "title": "TextExtractionResponse",
-      "description": "The text extraction operation response.\nAttributes:\n    text (str): the text extracted from the input document.\n    kvps (Optional[list[DocProcKVP]]): A list of key-value pairs extracted from the document. If no KVPs were extracted, this will be None.",
+      "description": "The text extraction operation response.\nAttributes:\n    output_file_ref (str): The url to the file that contains the extracted text and kvps. ",
       "required": [
-        "text"
+        "output_file_ref"
       ],
       "properties": {
-        "text": {
+        "output_file_ref": {
           "type": "string",
-          "title": "text",
-          "description": "The text extracted from the input document"
-        },
-        "kvps": {
-          "title": "Kvps",
-          "description": "A list of key-value pairs extracted from the document.",
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "title": "DocProcKVP",
-                "required": [
-                  "id",
-                  "type",
-                  "key",
-                  "value"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "title": "Id",
-                    "description": "A unique identifier for the key-value pair."
-                  },
-                  "type": {
-                    "type": "string",
-                    "title": "Type",
-                    "enum": [
-                      "key_value",
-                      "only_value"
-                    ]
-                  },
-                  "key": {
-                    "type": "object",
-                    "title": "DocProcKey",
-                    "required": [
-                      "id",
-                      "raw_text",
-                      "semantic_label"
-                    ],
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "title": "Id",
-                        "description": "A unique identifier."
-                      },
-                      "raw_text": {
-                        "type": "string",
-                        "title": "Raw Text",
-                        "description": "The raw text."
-                      },
-                      "normalized_text": {
-                        "title": "Normalized Text",
-                        "description": "The normalized text.",
-                        "anyOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "confidence_score": {
-                        "title": "Confidence Score",
-                        "description": "The confidence score.",
-                        "anyOf": [
-                          {
-                            "type": "number"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "bbox": {
-                        "description": "The bounding box in the document.",
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "title": "DocProcBoundingBox",
-                            "required": [
-                              "x",
-                              "y",
-                              "width",
-                              "height",
-                              "page_number"
-                            ],
-                            "properties": {
-                              "x": {
-                                "type": "number",
-                                "title": "X",
-                                "description": "The x coordinate of the bounding box."
-                              },
-                              "y": {
-                                "type": "number",
-                                "title": "Y",
-                                "description": "The y coordinate of the bounding box."
-                              },
-                              "width": {
-                                "type": "number",
-                                "title": "Width",
-                                "description": "The width of the bounding box."
-                              },
-                              "height": {
-                                "type": "number",
-                                "title": "Height",
-                                "description": "The height of the bounding box."
-                              },
-                              "page_number": {
-                                "type": "integer",
-                                "title": "Page Number",
-                                "description": "The page number of the bounding box in the document."
-                              }
-                            }
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "semantic_label": {
-                        "type": "string",
-                        "title": "Semantic Label",
-                        "description": "A semantic label for the key."
-                      }
-                    }
-                  },
-                  "value": {
-                    "type": "object",
-                    "title": "DocProcValue",
-                    "required": [
-                      "id",
-                      "raw_text"
-                    ],
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "title": "Id",
-                        "description": "A unique identifier."
-                      },
-                      "raw_text": {
-                        "type": "string",
-                        "title": "Raw Text",
-                        "description": "The raw text."
-                      },
-                      "normalized_text": {
-                        "title": "Normalized Text",
-                        "description": "The normalized text.",
-                        "anyOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "confidence_score": {
-                        "title": "Confidence Score",
-                        "description": "The confidence score.",
-                        "anyOf": [
-                          {
-                            "type": "number"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "bbox": {
-                        "description": "The bounding box in the document.",
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "title": "DocProcBoundingBox",
-                            "required": [
-                              "x",
-                              "y",
-                              "width",
-                              "height",
-                              "page_number"
-                            ],
-                            "properties": {
-                              "x": {
-                                "type": "number",
-                                "title": "X",
-                                "description": "The x coordinate of the bounding box."
-                              },
-                              "y": {
-                                "type": "number",
-                                "title": "Y",
-                                "description": "The y coordinate of the bounding box."
-                              },
-                              "width": {
-                                "type": "number",
-                                "title": "Width",
-                                "description": "The width of the bounding box."
-                              },
-                              "height": {
-                                "type": "number",
-                                "title": "Height",
-                                "description": "The height of the bounding box."
-                              },
-                              "page_number": {
-                                "type": "integer",
-                                "title": "Page Number",
-                                "description": "The page number of the bounding box in the document."
-                              }
-                            }
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "group_id": {
-                    "title": "Group Id",
-                    "description": "The group id of the key-value pair. This is used to group key-value pairs together.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "table_id": {
-                    "title": "Table Id",
-                    "description": "The table id of the key-value pair. This is used to group key-value pairs together in a table.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "table_name": {
-                    "title": "Table Name",
-                    "description": "The name of the table the key-value pair belongs to. This is used to group key-value pairs together in a table.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "table_row_index": {
-                    "title": "Table Row Index",
-                    "description": "The index of the row in the table the key-value pair belongs to. This is used to group key-value pairs together in a table.",
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                }
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "title": "output_file_ref",
+          "description": "The url to the file that contains the extracted text and kvps."
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-04T22:22:38.774913+00:00"
+    "compiled_on": "2025-08-19T22:07:01.783843+00:00"
   }
 }
