@@ -2,16 +2,16 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     FlowFactory
 )
 from pydantic import BaseModel, Field
-from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigEntity
+from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField
 import os
 import json
 class UserInput(BaseModel):
-    buyer: DocExtConfigEntity = Field(name="Buyer", default=DocExtConfigEntity(name="Buyer", field_name="buyer"))
-    seller: DocExtConfigEntity = Field(name="Seller", default=DocExtConfigEntity(name="Seller", field_name="seller"))
-    agreement_date: DocExtConfigEntity = Field(name="Agreement date", default=DocExtConfigEntity(name="Agreement Date", field_name="agreement_name"))
+    buyer: DocExtConfigField = Field(name="Buyer", default=DocExtConfigField(name="Buyer", field_name="buyer"))
+    seller: DocExtConfigField = Field(name="Seller", default=DocExtConfigField(name="Seller", field_name="seller"))
+    agreement_date: DocExtConfigField = Field(name="Agreement date", default=DocExtConfigField(name="Agreement Date", field_name="agreement_name"))
 
 
-class TestDocExtNodes():
+class TestDocExtNode():
     
     def setup_method(self):
         self.parent_dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -25,8 +25,8 @@ class TestDocExtNodes():
             name="contract_extractor",
             display_name="Extract fields from a contract",
             description="Extracts fields from an input contract file",
-            llm="meta-llama/llama-3-2-11b-vision-instruct",
-            input_entities=UserInput(),
+            llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
+            fields=UserInput(),
         )
         expected_extraction_spec = json.loads(open(self.parent_dir_path + "/resources/docext_spec.json").read())
         actual_extraction_spec = doc_ext_node.get_spec().to_json()

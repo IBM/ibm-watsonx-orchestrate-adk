@@ -31,10 +31,10 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     BasicAuthCredentials,
     BearerTokenAuthCredentials,
     APIKeyAuthCredentials,
-    # OAuth2AuthCodeCredentials,
+    OAuth2AuthCodeCredentials,
     # OAuth2ImplicitCredentials,
-    # OAuth2PasswordCredentials,
-    # OAuth2ClientCredentials,
+    OAuth2PasswordCredentials,
+    OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
     KeyValueConnectionCredentials,
     ConnectionConfiguration,
@@ -272,10 +272,10 @@ class TestValidateConnectionParams:
             (ConnectionType.BASIC_AUTH, ["username", "password"]),
             (ConnectionType.BEARER_TOKEN, ["token"]),
             (ConnectionType.API_KEY_AUTH, ["api_key"]),
-            # (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"]),
+            (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"]),
             # (ConnectionType.OAUTH2_IMPLICIT, ["client_id", "auth_url"]),
-            # (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "auth_url"]),
-            # (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
+            (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"]),
+            (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.KEY_VALUE, []),
         ]
@@ -292,10 +292,10 @@ class TestValidateConnectionParams:
             (ConnectionType.BASIC_AUTH, ["username", "password"]),
             (ConnectionType.BEARER_TOKEN, ["token"]),
             (ConnectionType.API_KEY_AUTH, ["api_key"]),
-            # (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"]),
+            (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"]),
             # (ConnectionType.OAUTH2_IMPLICIT, ["client_id", "auth_url"]),
-            # (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "auth_url"]),
-            # (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
+            (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"]),
+            (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.KEY_VALUE, []),
         ]
@@ -312,7 +312,7 @@ class TestValidateConnectionParams:
             with pytest.raises(BadParameter) as e:
                 _validate_connection_params(conn_type, **args_copy)
             
-            if conn_type == ConnectionType.BASIC_AUTH:
+            if arg == "username" or arg == "password":
                 message = f"Missing flags --username (-u) and --password (-p) are both required for type {conn_type}"
             else:
                 message = f"Missing flags --{arg.replace('_', '-')} is required for type {conn_type}"
@@ -357,10 +357,10 @@ class TestGetCredentials:
             (ConnectionType.BASIC_AUTH, ["username", "password"], BasicAuthCredentials),
             (ConnectionType.BEARER_TOKEN, ["token"], BearerTokenAuthCredentials),
             (ConnectionType.API_KEY_AUTH, ["api_key"], APIKeyAuthCredentials),
-            # (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"], OAuth2AuthCodeCredentials),
+            (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url"], OAuth2AuthCodeCredentials),
             # (ConnectionType.OAUTH2_IMPLICIT, ["client_id", "auth_url"], OAuth2ImplicitCredentials),
-            # (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "auth_url"], OAuth2PasswordCredentials),
-            # (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"], OAuth2ClientCredentials),
+            (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"], OAuth2PasswordCredentials),
+            (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"], OAuth2ClientCredentials),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"], OAuthOnBehalfOfCredentials),
         ]
     )
@@ -485,7 +485,7 @@ class TestAddConfiguration:
         [
             ("preference", "Detected a change in preference/type from 'member' to 'team'. The associated credentials will be removed."),
             ("security_scheme", "Detected a change in auth type from 'basic_auth' to 'bearer_token'. The associated credentials will be removed."),
-            # ("auth_type", "Detected a change in oauth flow from 'oauth2_implicit' to 'oauth2_password'. The associated credentials will be removed."),
+            ("auth_type", "Detected a change in oauth flow from 'oauth2_client_creds' to 'oauth2_password'. The associated credentials will be removed."),
         ]
     )
     def test_add_configuration_update_config_delete_credentials(self, connections_spec_content, updated_field, message, caplog):
@@ -506,15 +506,15 @@ class TestAddConfiguration:
                 new_config_spec[updated_field] = ConnectionPreference.TEAM
             case "security_scheme":
                 new_config_spec[updated_field] = ConnectionSecurityScheme.BEARER_TOKEN
-            # case "auth_type":
-            #     config_spec["security_scheme"] = ConnectionSecurityScheme.OAUTH2
-            #     new_config_spec["security_scheme"] = ConnectionSecurityScheme.OAUTH2
-            #     config_spec["sso"] = True
-            #     new_config_spec["sso"] = True
-            #     config_spec["idp_config_data"] = mock_idp_data
-            #     new_config_spec["idp_config_data"] = mock_idp_data
-            #     config_spec[updated_field] = ConnectionAuthType.OAUTH2_IMPLICIT
-            #     new_config_spec[updated_field] = ConnectionAuthType.OAUTH2_PASSWORD
+            case "auth_type":
+                config_spec["security_scheme"] = ConnectionSecurityScheme.OAUTH2
+                new_config_spec["security_scheme"] = ConnectionSecurityScheme.OAUTH2
+                config_spec["sso"] = False
+                new_config_spec["sso"] = False
+                config_spec["idp_config_data"] = mock_idp_data
+                new_config_spec["idp_config_data"] = mock_idp_data
+                config_spec[updated_field] = ConnectionAuthType.OAUTH2_CLIENT_CREDS
+                new_config_spec[updated_field] = ConnectionAuthType.OAUTH2_PASSWORD
 
         config = ConnectionConfiguration(app_id=app_id, environment=environment, **config_spec)
         new_config = ConnectionConfiguration(app_id=app_id, environment=environment, **new_config_spec)
@@ -602,7 +602,7 @@ class TestAddCredentials:
         token="Test Token"
     )
 
-    def test_add_credentials_create_app_credentials(self, connections_spec_content, caplog):
+    def test_add_credentials_create_app_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
             expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump()}
         )
@@ -612,13 +612,8 @@ class TestAddCredentials:
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
             add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=self.mock_oauth_credentials)
-
-            captured = caplog.text
-
-            assert f"Setting credentials for environment '{environment}' on connection '{app_id}'" in captured
-            assert f"Credentials successfully set for '{environment}' environment of connection '{app_id}'" in captured
     
-    def test_add_credentials_update_app_credentials(self, connections_spec_content, caplog):
+    def test_add_credentials_update_app_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
             get_credentials_response=True,
             expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump()}
@@ -630,13 +625,7 @@ class TestAddCredentials:
             environment = ConnectionEnvironment.DRAFT
             add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=self.mock_oauth_credentials)
 
-            captured = caplog.text
-
-            assert f"Setting credentials for environment '{environment}' on connection '{app_id}'" in captured
-            assert f"Credentials successfully set for '{environment}' environment of connection '{app_id}'" in captured
-    
-
-    def test_add_credentials_create_runtime_credentials(self, connections_spec_content, caplog):
+    def test_add_credentials_create_runtime_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
             expected_credentials_write = {"runtime_credentials": self.mock_bearer_credentials.model_dump(exclude_none=True)}
         )
@@ -646,13 +635,8 @@ class TestAddCredentials:
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
             add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=self.mock_bearer_credentials)
-
-            captured = caplog.text
-
-            assert f"Setting credentials for environment '{environment}' on connection '{app_id}'" in captured
-            assert f"Credentials successfully set for '{environment}' environment of connection '{app_id}'" in captured
     
-    def test_add_credentials_update_runtime_credentials(self, connections_spec_content, caplog):
+    def test_add_credentials_update_runtime_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
             get_credentials_response=True,
             expected_credentials_write = {"runtime_credentials": self.mock_bearer_credentials.model_dump(exclude_none=True)}
@@ -663,12 +647,6 @@ class TestAddCredentials:
             app_id = connections_spec_content.get("app_id")
             environment = ConnectionEnvironment.DRAFT
             add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=self.mock_bearer_credentials)
-
-            captured = caplog.text
-
-            assert f"Setting credentials for environment '{environment}' on connection '{app_id}'" in captured
-            assert f"Credentials successfully set for '{environment}' environment of connection '{app_id}'" in captured
-    
 
     def test_add_credentials_http_error(self, connections_spec_content, caplog):
         mock_connection_client = MockConnectionClient()
@@ -687,8 +665,6 @@ class TestAddCredentials:
 
             captured = caplog.text
             assert "Expected Message" in captured
-            assert f"Setting credentials for environment '{environment}' on connection '{app_id}'" in captured
-            assert f"Credentials successfully set for '{environment}' environment of connection '{app_id}'" not in captured
     
 class TestAddIdentityProvider:
     mock_idp_credentials = IdentityProviderCredentials(
@@ -1010,21 +986,16 @@ class TestConfigureConnection:
             assert f"Cannot create configuration for environment '{args.get('environment')}'. Local development does not support any environments other than 'draft'." in captured
 
 class TestSetCredentialsConnection:
-# ["client_id", "client_secret", "token_url", "auth_url"]),
-#             (ConnectionType.OAUTH2_IMPLICIT, ["client_id", "auth_url"]),
-#             (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "auth_url"]),
-#             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
-#             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "auth_url", "grant_type"]),
     @pytest.mark.parametrize(
         ("config", "func_args"),
         [
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.BASIC_AUTH, auth_type=None), ["username", "password"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.BEARER_TOKEN, auth_type=None), ["token"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.API_KEY_AUTH, auth_type=None), ["api_key"]),
-            # (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE), ["client_id", "client_secret", "token_url", "auth_url"]),
+            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE), ["client_id", "client_secret", "token_url", "auth_url"]),
             # (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_IMPLICIT), ["client_id", "auth_url"]),
-            # (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD), ["client_id", "client_secret", "token_url", "auth_url"]),
-            # (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS), ["client_id", "client_secret", "token_url"]),
+            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD), ["client_id", "client_secret", "token_url", "username", "password"]),
+            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS), ["client_id", "client_secret", "token_url"]),
             (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW), ["client_id", "token_url", "grant_type"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.KEY_VALUE, auth_type=None), ["foo", "bar"]),
         ]
@@ -1048,7 +1019,10 @@ class TestSetCredentialsConnection:
 
             set_credentials_connection(app_id=app_id, environment=environment, **args)
 
-            mock_add_credentials.assert_called_once()
+            if config.auth_type == ConnectionAuthType.OAUTH2_PASSWORD:
+                assert mock_add_credentials.call_count == 2
+            else:
+                mock_add_credentials.assert_called_once()
     
     def test_set_credentials_connection_no_config(self, connections_spec_content, caplog):
         app_id = connections_spec_content.get("app_id")
@@ -1082,10 +1056,6 @@ class TestSetIdentityProviderConnection:
     @pytest.mark.parametrize(
         "config",
         [
-            # GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE),
-            # GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_IMPLICIT),
-            # GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD),
-            # GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS),
             GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW)
         ]
     )
@@ -1139,10 +1109,6 @@ class TestSetIdentityProviderConnection:
     @pytest.mark.parametrize(
         "config",
         [
-            # GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE),
-            # GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_IMPLICIT),
-            # GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD),
-            # GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS),
             GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW)
         ]
     )

@@ -332,7 +332,6 @@ def write_merged_env_file(merged_env: dict, target_path: str = None) -> Path:
             file.write(f"{key}={val}\n")
     return Path(file.name)
 
-
 def get_dbtag_from_architecture(merged_env_dict: dict) -> str:
     """Detects system architecture and returns the corresponding DBTAG."""
     arch = platform.machine()
@@ -375,7 +374,8 @@ def run_compose_lite(
         experimental_with_langfuse=False, 
         experimental_with_ibm_telemetry=False, 
         with_doc_processing=False,
-        with_voice=False
+        with_voice=False,
+        experimental_with_langflow=False,
     ) -> None:
     compose_path = get_compose_file()
 
@@ -404,7 +404,11 @@ def run_compose_lite(
     logger.info("Database container started successfully. Now starting other services...")
 
 
-    # Step 2: Start all remaining services (except DB)
+    # Step 2: Create Langflow DB (if enabled)
+    if experimental_with_langflow:
+        create_langflow_db()
+
+    # Step 3: Start all remaining services (except DB)
     profiles = []
     if experimental_with_langfuse:
         profiles.append("langfuse")
@@ -414,6 +418,8 @@ def run_compose_lite(
         profiles.append("docproc")
     if with_voice:
         profiles.append("voice")
+    if experimental_with_langflow:
+        profiles.append("langflow")
 
     command = compose_command[:]
     for profile in profiles:
@@ -658,7 +664,6 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
         )
         sys.exit(1)
 
-
 def run_compose_lite_logs(final_env_file: Path, is_reset: bool = False) -> None:
     compose_path = get_compose_file()
     compose_command = ensure_docker_compose_installed()
@@ -859,6 +864,12 @@ def server_start(
         '--with-voice', '-v',
         help='Enable voice controller to interact with the chat via voice channels'
     ),
+    experimental_with_langflow: bool = typer.Option(
+        False,
+        '--experimental-with-langflow',
+        help='(Experimental) Enable Langflow UI, available at http://localhost:7861',
+        hidden=True
+    ),
 ):
     confirm_accepts_license_agreement(accept_terms_and_conditions)
 
@@ -900,6 +911,9 @@ def server_start(
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
+    if experimental_with_langflow:
+        merged_env_dict['LANGFLOW_ENABLED'] = 'true'
+    
 
     try:
         dev_edition_source = get_dev_edition_source(merged_env_dict)
@@ -914,7 +928,8 @@ def server_start(
                      experimental_with_langfuse=experimental_with_langfuse,
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
                      with_doc_processing=with_doc_processing,
-                     with_voice=with_voice)
+                     with_voice=with_voice,
+                     experimental_with_langflow=experimental_with_langflow)
     
     run_db_migration()
 
@@ -944,6 +959,8 @@ def server_start(
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
+    if experimental_with_langflow:
+        logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
 
 @server_app.command(name="stop")
 def server_stop(
@@ -1024,15 +1041,11 @@ def run_db_migration() -> None:
     merged_env_dict['ROUTING_LLM_API_KEY'] = ''
     merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
     final_env_file = write_merged_env_file(merged_env_dict)
+    
 
-    command = compose_command + [
-        "-f", str(compose_path),
-        "--env-file", str(final_env_file),
-        "exec",
-        "wxo-server-db",
-        "bash",
-        "-c",
-        '''
+    pg_user = merged_env_dict.get("POSTGRES_USER","postgres")
+
+    migration_command = f'''
         APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
         touch "$APPLIED_MIGRATIONS_FILE"
 
@@ -1043,7 +1056,7 @@ def run_db_migration() -> None:
                 echo "Skipping already applied migration: $filename"
             else
                 echo "Applying migration: $filename"
-                if psql -U postgres -d postgres -q -f "$file" > /dev/null 2>&1; then
+                if psql -U {pg_user} -d postgres -q -f "$file" > /dev/null 2>&1; then
                     echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
                 else
                     echo "Error applying $filename. Stopping migrations."
@@ -1052,6 +1065,15 @@ def run_db_migration() -> None:
             fi
         done
         '''
+
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "exec",
+        "wxo-server-db",
+        "bash",
+        "-c",
+        migration_command
     ]
 
     logger.info("Running Database Migration...")
@@ -1066,6 +1088,65 @@ def run_db_migration() -> None:
         )
         sys.exit(1)
 
+def create_langflow_db() -> None:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+    default_env_path = get_default_env_file()
+    merged_env_dict = merge_env(default_env_path, user_env_path=None)
+    merged_env_dict['WATSONX_SPACE_ID']='X'
+    merged_env_dict['WATSONX_APIKEY']='X'
+    merged_env_dict['WXAI_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_EMBEDDINGS_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_LLM_SPACE_ID'] = ''
+    merged_env_dict['ROUTING_LLM_SPACE_ID'] = ''
+    merged_env_dict['USE_SAAS_ML_TOOLS_RUNTIME'] = ''
+    merged_env_dict['BAM_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_EMBEDDINGS_SPACE_ID'] = ''
+    merged_env_dict['ROUTING_LLM_API_KEY'] = ''
+    merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
+    final_env_file = write_merged_env_file(merged_env_dict)
+
+    pg_timeout = merged_env_dict.get('POSTGRES_READY_TIMEOUT','10')
+
+    pg_user = merged_env_dict.get("POSTGRES_USER","postgres")
+
+    creation_command = f"""
+    echo 'Waiting for pg to initialize...'
+
+    timeout={pg_timeout}
+    while [[ -z `pg_isready | grep 'accepting connections'` ]] && (( timeout > 0 )); do
+      ((timeout-=1)) && sleep 1;
+    done
+
+    if psql -U {pg_user} -lqt | cut -d \\| -f 1 | grep -qw langflow; then
+        echo 'Existing Langflow DB found'
+    else
+        echo 'Creating Langflow DB'
+        createdb -U "{pg_user}" -O "{pg_user}" langflow;
+        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE langflow TO {pg_user}";
+    fi
+    """
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "exec",
+        "wxo-server-db",
+        "bash",
+        "-c",
+        creation_command
+    ]
+
+    logger.info("Preparing Langflow resources...")
+    result = subprocess.run(command, capture_output=False)
+
+    if result.returncode == 0:
+        logger.info("Langflow resources sucessfully created")
+    else:
+        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        logger.error(
+            f"Failed to create Langflow resources\n{error_message}"
+        )
+        sys.exit(1)
 
 def bump_file_iteration(filename: str) -> str:
     regex = re.compile(f"^(?P<name>[^\\(\\s\\.\\)]+)(\\((?P<num>\\d+)\\))?(?P<type>\\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")

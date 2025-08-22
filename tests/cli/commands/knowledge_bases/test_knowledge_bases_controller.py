@@ -23,6 +23,18 @@ def built_in_knowledge_base_content() -> dict:
     }
 
 @pytest.fixture
+def built_in_knowledge_base_content_with_url() -> dict:
+    return {
+        "spec_version": SpecVersion.V1,
+        "name": "test_built_in_knowledge_base",
+        "description": "Test Object for builtin knowledge_base",
+        "documents": [
+            { "path": "document_1.pdf", "url": "http://www.document1.com" },
+            { "path": "document_2.pdf" }
+        ]
+    }
+
+@pytest.fixture
 def existing_built_in_knowledge_base_content() -> dict:
     return {
         "spec_version": SpecVersion.V1,
@@ -215,12 +227,42 @@ class TestImportKnowledgeBase:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
-            knowledge_Base = KnowledgeBase(**built_in_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_Base
+            knowledge_base = KnowledgeBase(**built_in_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
 
-            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
-            knowledge_base_payload["prioritize_built_in_index"] = True
-            knowledge_base_payload.pop("documents")
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = True
+            knowledge_base_json.pop("documents")
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json), "file_urls": "{}" }
+
+            client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
+
+            mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
+
+            knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
+
+            mock_file.assert_has_calls([ mock.call("my_dir/document_1.pdf", "rb"), mock.call("my_dir/document_2.pdf", "rb") ])
+
+            captured = caplog.text
+            assert f"Successfully imported knowledge base 'test_built_in_knowledge_base'" in captured
+
+    def test_import_built_in_knowledge_base_with_url(self, caplog, built_in_knowledge_base_content_with_url):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("builtins.open", mock_open()) as mock_file:
+
+            expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
+                        
+            knowledge_base = KnowledgeBase(**built_in_knowledge_base_content_with_url)
+            from_spec_mock.return_value = knowledge_base
+
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = True
+            knowledge_base_json.pop("documents")
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json), "file_urls": '{"document_1.pdf": "http://www.document1.com"}' }
+
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
 
             mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
@@ -239,12 +281,14 @@ class TestImportKnowledgeBase:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
-            knowledge_Base = KnowledgeBase(**existing_built_in_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_Base
+            knowledge_base = KnowledgeBase(**existing_built_in_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
 
-            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
-            knowledge_base_payload["prioritize_built_in_index"] = True
-            knowledge_base_payload.pop("documents")
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = True
+            knowledge_base_json.pop("documents")
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json), "file_urls": "{}" }
 
             fakeStatus = {
                 "documents": [{ "metadata" : { 'original_file_name': "document_1.pdf" } }, { "metadata" : { 'original_file_name': "document_3.pdf" } } ]
@@ -272,12 +316,14 @@ class TestImportKnowledgeBase:
             mock_response = MockListConnectionResponse(connection_id="12345")
             conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
                         
-            knowledge_Base = KnowledgeBase(**external_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_Base
+            knowledge_base = KnowledgeBase(**external_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
 
-            knowledge_Base.conversational_search_tool.index_config[0].connection_id = "12345"
-            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
-            knowledge_base_payload["prioritize_built_in_index"] = False
+            knowledge_base.conversational_search_tool.index_config[0].connection_id = "12345"
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = False
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json) }
             
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
 
@@ -291,11 +337,13 @@ class TestImportKnowledgeBase:
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
             
                         
-            knowledge_Base = KnowledgeBase(**external_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_Base
+            knowledge_base = KnowledgeBase(**external_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
 
-            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
-            knowledge_base_payload["prioritize_built_in_index"] = False
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = False
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json) }
             
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload)
 
@@ -315,12 +363,14 @@ class TestImportKnowledgeBase:
             mock_response = MockListConnectionResponse(connection_id="12345")
             conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
                         
-            knowledge_Base = KnowledgeBase(**existing_external_knowledge_base_content)
-            from_spec_mock.return_value = knowledge_Base
+            knowledge_base = KnowledgeBase(**existing_external_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
 
-            knowledge_Base.conversational_search_tool.index_config[0].connection_id = "12345"
-            knowledge_base_payload = knowledge_Base.model_dump(exclude_none=True)
-            knowledge_base_payload["prioritize_built_in_index"] = False
+            knowledge_base.conversational_search_tool.index_config[0].connection_id = "12345"
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = False
+
+            knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json) }
             client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_id=uuid.uuid4())
 
             knowledge_base_controller.import_knowledge_base("test.json", "my-app-id")

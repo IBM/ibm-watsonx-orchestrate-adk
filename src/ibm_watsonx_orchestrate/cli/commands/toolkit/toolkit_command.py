@@ -1,7 +1,7 @@
 import typer
 from typing import List
 from typing_extensions import Annotated, Optional
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController
 import logging
 import sys
@@ -45,6 +45,14 @@ def import_toolkit(
                 "The first argument will be used as the executable, the rest as its arguments."
         ),
     ] = None,
+    url: Annotated[
+        Optional[str],
+        typer.Option("--url", "-u", help="The URL of the remote MCP server", hidden=True),
+    ] = None,
+    transport: Annotated[
+        ToolkitTransportKind,
+        typer.Option("--transport", help="The communication protocol to use for the remote MCP server. Only \"sse\" or \"streamable_http\" supported", hidden=True),
+    ] = None,
     tools: Annotated[
         Optional[str],
         typer.Option("--tools", "-t", help="Comma-separated list of tools to import. Or you can use \"*\" to use all tools"),
@@ -64,17 +72,40 @@ def import_toolkit(
     else:
         tool_list = None
 
-    if not package and not package_root and not command:
-        logger.error("You must provide either '--package', '--package-root' or '--command'.")
+    if not url and not transport:
+        if not package and not package_root and not command:
+            logger.error("You must provide either '--package', '--package-root' or '--command'.")
+            sys.exit(1)
+
+        if package_root and not command:
+            logger.error("Error: '--command' flag must be provided when '--package-root' is specified.")
+            sys.exit(1)
+        
+        if package_root and package:
+            logger.error("Please choose either '--package-root' or '--package' but not both.")
+            sys.exit(1)
+
+    if (url and not transport) or (transport and not url):
+        logger.error("Both '--url' and '--transport' must be provided together for remote MCP.")
         sys.exit(1)
 
-    if package_root and not command:
-        logger.error("Error: '--command' flag must be provided when '--package-root' is specified.")
-        sys.exit(1)
-    
-    if package_root and package:
-        logger.error("Please choose either '--package-root' or '--package' but not both.")
-        sys.exit(1)
+    if url and transport:
+        forbidden_local_opts = []
+        if package:
+            forbidden_local_opts.append("--package")
+        if package_root:
+            forbidden_local_opts.append("--package-root")
+        if language:
+            forbidden_local_opts.append("--language")
+        if command:
+            forbidden_local_opts.append("--command")
+        
+        if forbidden_local_opts:
+            logger.error(
+                f"When using '--url' and '--transport' for a remote MCP, you cannot specify: "
+                f"{', '.join(forbidden_local_opts)}"
+            )
+            sys.exit(1)
 
     if package and not package_root:
         if not command:
@@ -97,6 +128,8 @@ def import_toolkit(
     package_root=package_root,
     language=language,
     command=command,
+    url=url,
+    transport=transport
 )
     toolkit_controller.import_toolkit(tools=tool_list, app_id=app_id)
 

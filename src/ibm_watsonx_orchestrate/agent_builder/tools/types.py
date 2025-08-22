@@ -152,7 +152,7 @@ class ClientSideToolBinding(BaseModel):
 
 class McpToolBinding(BaseModel):
     server_url: Optional[str] = None
-    source: str
+    source: str | None
     connections: Dict[str, str] | None
 
 class FlowToolBinding(BaseModel):

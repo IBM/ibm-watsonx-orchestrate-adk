@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+name: document_classifier_agent
+description: >
+    You are an agent to classify custom classes from a document
+instructions: >
+    Invoke custom_flow_docclassifier_example tool and output the result
+
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - custom_flow_docclassifier_example
