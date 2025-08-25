@@ -18,7 +18,6 @@ def build_docproc_flow(aflow: Flow = None) -> Flow:
     #       Optional parameter. Controls the reading order of the extracted text. 
     #       Defaults to PlainTextReadingOrder.block_structure. If set to PlainTextReadingOrder.simple_line, the extracted text will follow a strict left-to-right/top-to-bottom reading order. 
     #       The default, PlainTextReadingOrder.block_structure, identifies groups of text on the page (e.g., multiple columns) and follows the left-to-right reading order within those groups. 
-    #       This parameter is for IDES.
     doc_proc_node = aflow.docproc(
         name="text_extraction",
         display_name="text_extraction",
