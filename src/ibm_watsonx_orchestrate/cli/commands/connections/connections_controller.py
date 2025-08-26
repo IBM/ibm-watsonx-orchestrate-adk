@@ -27,7 +27,10 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
-    OAUTH_CONNECTION_TYPES
+    OAUTH_CONNECTION_TYPES,
+    ConnectionCredentialsEntryLocation,
+    ConnectionCredentialsEntry,
+    ConnectionCredentialsCustomFields
 
 )
 
@@ -167,6 +170,13 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --grant-type is required for type {type}"
         )
     
+    if type != ConnectionType.OAUTH2_AUTH_CODE and (
+        args.get('auth_entries')
+    ):
+        raise typer.BadParameter(
+            f"The flag --auth-entries is only supported by type {type}"
+        )
+    
 
 def _parse_entry(entry: str) -> dict[str,str]:
     split_entry = entry.split('=', 1)
@@ -175,6 +185,19 @@ def _parse_entry(entry: str) -> dict[str,str]:
         logger.error(message)
         exit(1)
     return {split_entry[0]: split_entry[1]}
+
+def _get_oauth_custom_fields(token_entries: List[ConnectionCredentialsEntry] | None, auth_entries: List[ConnectionCredentialsEntry] | None) -> dict:
+    custom_fields = ConnectionCredentialsCustomFields()
+
+    if token_entries:
+        for entry in token_entries:
+            custom_fields.add_field(entry, is_token=True)
+    
+    if auth_entries:
+        for entry in auth_entries:
+            custom_fields.add_field(entry, is_token=False)
+    
+    return custom_fields.model_dump(exclude_none=True)
 
 def _get_credentials(type: ConnectionType, **kwargs):
     match type:
@@ -192,18 +215,21 @@ def _get_credentials(type: ConnectionType, **kwargs):
                 api_key=kwargs.get("api_key")
             )
         case ConnectionType.OAUTH2_AUTH_CODE:
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
             return OAuth2AuthCodeCredentials(
                 authorization_url=kwargs.get("auth_url"),
                 client_id=kwargs.get("client_id"),
                 client_secret=kwargs.get("client_secret"),
                 token_url=kwargs.get("token_url"),
-                scope=kwargs.get("scope")
+                scope=kwargs.get("scope"),
+                **custom_fields
             )
         case ConnectionType.OAUTH2_CLIENT_CREDS:
             # using filtered args as default values will not be set if 'None' is passed, causing validation errors
             keys = ["client_id","client_secret","token_url","grant_type","send_via", "scope"]
             filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
-            return OAuth2ClientCredentials(**filtered_args)
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
+            return OAuth2ClientCredentials(**filtered_args, **custom_fields)
         # case ConnectionType.OAUTH2_IMPLICIT:
         #     return OAuth2ImplicitCredentials(
         #         authorization_url=kwargs.get("auth_url"),
@@ -212,13 +238,16 @@ def _get_credentials(type: ConnectionType, **kwargs):
         case ConnectionType.OAUTH2_PASSWORD:
             keys = ["username", "password", "client_id","client_secret","token_url","grant_type", "scope"]
             filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
-            return OAuth2PasswordCredentials(**filtered_args)
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
+            return OAuth2PasswordCredentials(**filtered_args, **custom_fields)
         
         case ConnectionType.OAUTH_ON_BEHALF_OF_FLOW:
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
             return OAuthOnBehalfOfCredentials(
                 client_id=kwargs.get("client_id"),
                 access_token_url=kwargs.get("token_url"),
-                grant_type=kwargs.get("grant_type")
+                grant_type=kwargs.get("grant_type"),
+                **custom_fields
             )
         case ConnectionType.KEY_VALUE:
             env = {}
@@ -231,6 +260,23 @@ def _get_credentials(type: ConnectionType, **kwargs):
         case _:
             raise ValueError(f"Invalid type '{type}' selected")
 
+def _connection_credentials_parse_entry(text: str, default_location: ConnectionCredentialsEntryLocation) -> ConnectionCredentialsEntry:
+    location_kv_pair = text.split(":", 1)
+    key_value = location_kv_pair[-1]
+    location = location_kv_pair[0] if len(location_kv_pair)>1 else default_location
+
+    valid_locations = [item.value for item in ConnectionCredentialsEntryLocation]
+    if location not in valid_locations:
+        raise typer.BadParameter(f"The provided location '{location}' is not in the allowed values {valid_locations}.")
+
+    key_value_pair = key_value.split('=', 1)
+    if len(key_value_pair) != 2:
+        message = f"The entry '{text}' is not in the expected form '<location>:<key>=<value>' or '<key>=<value>'"
+        raise typer.BadParameter(message)
+    key, value = key_value_pair[0], key_value_pair[1]
+    
+    return ConnectionCredentialsEntry(key=key, value=value, location=location)
+    
 
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
@@ -524,5 +570,15 @@ def set_identity_provider_connection(
         logger.error(f"Cannot set Identity Provider when 'sso' is false in configuration. Please enable sso for connection '{app_id}' in environment '{environment}' and try again.")
         sys.exit(1)
 
-    idp = IdentityProviderCredentials.model_validate(kwargs)
+    custom_fields = _get_oauth_custom_fields(token_entries=kwargs.get("token_entries"), auth_entries=None)
+    idp = IdentityProviderCredentials(**kwargs, **custom_fields)
     add_identity_provider(app_id=app_id, environment=environment, idp=idp)
+
+def token_entry_connection_credentials_parse(text: str) -> ConnectionCredentialsEntry:
+    return _connection_credentials_parse_entry(text=text, default_location=ConnectionCredentialsEntryLocation.HEADER)
+    
+def auth_entry_connection_credentials_parse(text: str) -> ConnectionCredentialsEntry:
+    entry = _connection_credentials_parse_entry(text=text, default_location=ConnectionCredentialsEntryLocation.QUERY)
+    if entry.location != ConnectionCredentialsEntryLocation.QUERY:
+        raise typer.BadParameter(f"Only location '{ConnectionCredentialsEntryLocation.QUERY}' is supported for --auth-entry")
+    return entry
