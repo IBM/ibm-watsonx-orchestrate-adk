@@ -1,0 +1,360 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "user_flow_example",
+    "display_name": "user_flow_example",
+    "description": "Example user flow.",
+    "input_schema": {
+      "$ref": "#/schemas/user_flow_example_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "userflow_1",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
+      },
+      "nodes": {
+        "upload": {
+          "spec": {
+            "kind": "user",
+            "name": "upload",
+            "display_name": "File upload 1",
+            "input_schema": {
+              "$ref": "#/schemas/upload_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/upload"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "upload",
+                "kind": "file",
+                "direction": "input",
+                "display_name": "File upload 1"
+              }
+            ]
+          }
+        },
+        "download": {
+          "spec": {
+            "kind": "user",
+            "name": "download",
+            "display_name": "Download file",
+            "input_schema": {
+              "$ref": "#/schemas/download_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/download"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "download",
+                "kind": "file",
+                "direction": "output",
+                "input_map": {
+                  "spec": {
+                    "maps": [
+                      {
+                        "target_variable": "self.input.value",
+                        "value_expression": "flow[\"userflow_1\"][\"File upload 1\"].output.value",
+                        "has_no_value": false,
+                        "default_value": null,
+                        "metadata": {}
+                      }
+                    ]
+                  }
+                },
+                "display_name": "Download file"
+              }
+            ]
+          }
+        },
+        "display_first_name": {
+          "spec": {
+            "kind": "user",
+            "name": "display_first_name",
+            "display_name": "Display first name",
+            "input_schema": {
+              "$ref": "#/schemas/display_first_name_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/display_first_name"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "text": "Display of first name is {flow.input.first_name}",
+            "fields": [
+              {
+                "name": "display_first_name",
+                "kind": "text",
+                "direction": "output",
+                "text": "Display of first name is {flow.input.first_name}",
+                "display_name": "Display first name"
+              }
+            ]
+          }
+        },
+        "last_name": {
+          "spec": {
+            "kind": "user",
+            "name": "last_name",
+            "display_name": "Last name",
+            "input_schema": {
+              "$ref": "#/schemas/last_name_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/last_name"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "text": "Enter last name",
+            "fields": [
+              {
+                "name": "last_name",
+                "kind": "text",
+                "direction": "input",
+                "text": "Enter last name",
+                "display_name": "Last name"
+              }
+            ]
+          }
+        },
+        "age": {
+          "spec": {
+            "kind": "user",
+            "name": "age",
+            "display_name": "Age",
+            "input_schema": {
+              "$ref": "#/schemas/age_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/age"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "text": "Enter Age",
+            "fields": [
+              {
+                "name": "age",
+                "kind": "number",
+                "direction": "input",
+                "text": "Enter Age",
+                "display_name": "Age"
+              }
+            ]
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "upload"
+        },
+        {
+          "start": "upload",
+          "end": "download"
+        },
+        {
+          "start": "download",
+          "end": "display_first_name"
+        },
+        {
+          "start": "display_first_name",
+          "end": "last_name"
+        },
+        {
+          "start": "last_name",
+          "end": "age"
+        },
+        {
+          "start": "age",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "user_flow_example_input": {
+      "type": "object",
+      "title": "user_flow_example_input",
+      "required": [],
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "First name",
+          "default": "John Doe"
+        }
+      }
+    },
+    "upload_input": {
+      "type": "object",
+      "title": "upload_input",
+      "properties": {
+        "upload": {
+          "type": "string",
+          "title": "upload",
+          "format": "wxo-file"
+        }
+      }
+    },
+    "upload": {
+      "type": "object",
+      "title": "upload",
+      "properties": {
+        "upload": {
+          "type": "string",
+          "title": "upload",
+          "format": "wxo-file"
+        }
+      }
+    },
+    "download_input": {
+      "type": "object",
+      "title": "download_input",
+      "properties": {
+        "download": {
+          "type": "string",
+          "title": "download",
+          "format": "wxo-file"
+        }
+      }
+    },
+    "download": {
+      "type": "object",
+      "title": "download",
+      "properties": {
+        "download": {
+          "type": "string",
+          "title": "download",
+          "format": "wxo-file"
+        }
+      }
+    },
+    "display_first_name_input": {
+      "type": "object",
+      "title": "display_first_name_input",
+      "properties": {
+        "display_first_name": {
+          "type": "string",
+          "title": "display_first_name"
+        }
+      }
+    },
+    "display_first_name": {
+      "type": "object",
+      "title": "display_first_name",
+      "properties": {
+        "display_first_name": {
+          "type": "string",
+          "title": "display_first_name"
+        }
+      }
+    },
+    "last_name_input": {
+      "type": "object",
+      "title": "last_name_input",
+      "properties": {
+        "last_name": {
+          "type": "string",
+          "title": "last_name"
+        }
+      }
+    },
+    "last_name": {
+      "type": "object",
+      "title": "last_name",
+      "properties": {
+        "last_name": {
+          "type": "string",
+          "title": "last_name"
+        }
+      }
+    },
+    "age_input": {
+      "type": "object",
+      "title": "age_input",
+      "properties": {
+        "age": {
+          "type": "string",
+          "title": "age",
+          "format": "number"
+        }
+      }
+    },
+    "age": {
+      "type": "object",
+      "title": "age",
+      "properties": {
+        "age": {
+          "type": "string",
+          "title": "age",
+          "format": "number"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-08-19T18:23:49.928131+00:00"
+  }
+}

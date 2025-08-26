@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    DocProcKVPSchema, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, PlainTextReadingOrder, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
+    DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
@@ -64,7 +64,7 @@ class FlowEdge(BaseModel):
 
 class Flow(Node):
     '''Flow represents a flow that will be run by wxO Flow engine.'''
-    output_map: DataMap | None = None
+    output_map: dict[str, DataMap] | None = None
     nodes: dict[str, SerializeAsAny[Node]] = {}
     edges: List[FlowEdge] = []
     schemas: dict[str, JsonSchemaObject] = {}
@@ -401,6 +401,7 @@ class Flow(Node):
             display_name: str|None=None,
             system_prompt: str | list[str] | None = None,
             user_prompt: str | list[str] | None = None,
+            prompt_examples: list[PromptExample] | None = None,
             llm: str | None = None,
             llm_parameters: PromptLLMParameters | None = None,
             description: str | None = None,
@@ -422,6 +423,7 @@ class Flow(Node):
             description=description,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
+            prompt_examples=prompt_examples,
             llm=llm,
             llm_parameters=llm_parameters,
             input_schema=_get_tool_request_body(input_schema_obj),
@@ -721,7 +723,7 @@ class Flow(Node):
         '''Create a single node flow with an automatic START and END node.'''
         return self.sequence(START, node, END)
 
-    def branch(self, evaluator: Union[Callable, Expression]) -> "Branch":
+    def branch(self, evaluator: Union[Callable, Expression, Conditions]) -> 'Branch':
         '''Create a BRANCH node'''
         e = evaluator
         if isinstance(evaluator, Callable):
@@ -735,10 +737,18 @@ class Flow(Node):
             # e = new_script_spec
         elif isinstance(evaluator, str):
             e = Expression(expression=evaluator)
+        elif isinstance(evaluator, list):
+            e = Conditions(conditions=evaluator)
 
         spec = BranchNodeSpec(name = "branch_" + str(self._next_sequence_id()), evaluator=e)
         branch_node = Branch(spec = spec, containing_flow=self)
         return cast(Branch, self._add_node(branch_node))
+    
+    def conditions(self) -> 'Branch':
+        '''Create a Branch node with empty Conditions evaluator (if-else)'''
+        spec = BranchNodeSpec(name = "branch_" + str(self._next_sequence_id()), evaluator=Conditions(conditions=[]))
+        branch_conditions_node = Branch(spec = spec, containing_flow=self)
+        return cast(Branch, self._add_node(branch_conditions_node))
     
     def wait_for(self, *args) -> "Wait":
         '''Wait for all incoming nodes to complete.'''
@@ -754,6 +764,77 @@ class Flow(Node):
             
         # return cast(Wait, self.node(wait_node))
             
+    def map_flow_output_with_variable(self, target_output_variable: str, variable: str, default_value: str = None) -> Self:
+        if self.output_map and "spec" in self.output_map:
+            maps = self.output_map["spec"].maps or []
+        else:
+            maps = []
+        
+        curr_map_metadata = {
+            "assignmentType": "variable"
+        }
+
+        target_variable = "flow.output." + target_output_variable
+        value_expression = "flow." + variable
+
+        if default_value:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, default_value=default_value, metadata=curr_map_metadata))
+        else:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
+
+        flow_output_map_spec = DataMap(maps=maps)
+
+        if self.output_map and "spec" in self.output_map:
+            self.output_map["spec"] = flow_output_map_spec
+        else:
+            self.output_map = {"spec": flow_output_map_spec}
+        return self
+    
+    def map_output(self, output_variable: str, expression: str, default_value: str = None) -> Self:
+        if self.output_map and "spec" in self.output_map:
+            maps = self.output_map["spec"].maps or []
+        else:
+            maps = []
+        
+        curr_map_metadata = {
+            "assignmentType": "pyExpression"
+        }
+
+        target_variable = "flow.output." + output_variable
+        value_expression = expression
+
+        if default_value:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, default_value=default_value, metadata=curr_map_metadata))
+        else:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
+
+        flow_output_map_spec = DataMap(maps=maps)
+
+        if self.output_map and "spec" in self.output_map:
+            self.output_map["spec"] = flow_output_map_spec
+        else:
+            self.output_map = {"spec": flow_output_map_spec}
+        return self
+    
+    def map_flow_output_with_none(self, target_output_variable: str) -> Self:
+        if self.output_map and "spec" in self.output_map:
+            maps = self.output_map["spec"].maps or []
+        else:
+            maps = []
+        
+
+        target_variable = "flow.output." + target_output_variable
+
+        maps.append(Assignment(target_variable=target_variable, value_expression=None))
+
+        flow_output_map_spec = DataMap(maps=maps)
+
+        if self.output_map and "spec" in self.output_map:
+            self.output_map["spec"] = flow_output_map_spec
+        else:
+            self.output_map = {"spec": flow_output_map_spec}
+        return self
+
 
     def foreach(self, item_schema: type[BaseModel],
                 input_schema: type[BaseModel] |None=None,
@@ -813,8 +894,6 @@ class Flow(Node):
                  owners: Sequence[str] = [],
                  input_schema: type[BaseModel] |None=None,
                  output_schema: type[BaseModel] |None=None) -> "UserFlow": # return a UserFlow object
-
-        raise ValueError("userflow is NOT supported yet and it's interface will change.")
 
         output_schema_obj = _get_json_schema_obj("output", output_schema)
         input_schema_obj = _get_json_schema_obj("input", input_schema)
@@ -917,6 +996,11 @@ class Flow(Node):
         for key, value in self.metadata.items():
             metadata_dict[key] = value
         flow_dict["metadata"] = metadata_dict
+
+        if self.output_map and "spec" in self.output_map:
+            flow_dict["output_map"] = {
+                "spec": self.output_map["spec"].to_json()
+            }
         return flow_dict
 
     def _get_node_id(self, node: Union[str, Node]) -> str:
@@ -1226,6 +1310,27 @@ class Branch(FlowControl):
             raise ValueError("Cannot have custom label __default__. Use default() instead.")
 
         return self._add_case(label, node)
+    
+    def condition(self, to_node: Node, expression: str="", default: bool=False) -> Self:
+        '''
+        Add a condition to this branch node. 
+
+        Parameters:
+        expression (str): The expression of this condition.
+        to_node (Node): The node to go to when expression is evaluated to true.
+        default (bool): The condition is the default (else) case.
+        '''
+
+        node_id = self.containing_flow._get_node_id(to_node)
+        if default:
+            condition = NodeIdCondition(node_id=node_id, default=default)
+        else:
+            condition = NodeIdCondition(expression=expression, node_id=node_id, default=default)
+
+        self.spec.evaluator.conditions.append(condition)
+        self.containing_flow.edge(self, to_node)
+
+        return self
 
     def default(self, node: Node) -> Self:
         '''
@@ -1445,13 +1550,14 @@ class UserFlow(Flow):
               kind: UserFieldKind = UserFieldKind.Text,
               display_name: str | None = None,
               description: str | None = None,
+              direction: str | None = None,
               default: Any | None = None,
               text: str = None, # The text used to ask question to the user, e.g. 'what is your name?'
               option: UserFieldOption | None = None,
               is_list: bool = False,
               min: Any | None = None,
               max: Any | None = None,
-              input_map: DataMap = None,
+              input_map: DataMap | None= None,
               custom: dict[str, Any] = {}) -> UserNode:
         '''create a node in the flow'''
         # create a json schema object based on the single field
@@ -1483,6 +1589,8 @@ class UserFlow(Flow):
                    description = description,
                    default = default,
                    text = text,
+                   direction = direction,
+                   input_map = input_map,
                    option = option,
                    is_list = is_list,
                    min = min,
