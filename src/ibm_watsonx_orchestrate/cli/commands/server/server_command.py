@@ -191,9 +191,6 @@ def get_default_registry_env_vars_by_dev_edition_source(default_env: dict, user_
             parsed = urlparse(wo_url)
             hostname = parsed.hostname
             
-            if not hostname or not hostname.startswith("api."):
-                raise ValueError(f"Invalid WO_INSTANCE URL: '{wo_url}'. It should starts with 'api.'")
-            
             registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
         else:
             raise ValueError(f"Unknown value for developer edition source: {source}. Must be one of ['internal', 'myibm', 'orchestrate'].")
