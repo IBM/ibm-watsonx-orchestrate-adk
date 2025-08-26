@@ -1,0 +1,118 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "agent_run",
+    "display_name": "agent_run",
+    "description": "This flow will take an agent id and a request and run the agent with the request.",
+    "input_schema": {
+      "$ref": "#/schemas/agent_run_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/AgentResponse"
+    },
+    "schedulable": true
+  },
+  "nodes": {
+    "run_an_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "run_an_agent",
+        "display_name": "run_an_agent",
+        "description": "Running the agent with the specified request.",
+        "input_schema": {
+          "$ref": "#/schemas/run_an_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/AgentResponse"
+        },
+        "message": "Here is the request: {request}",
+        "agent": "{agent_id}",
+        "title": "Running the agent"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "run_an_agent"
+    },
+    {
+      "start": "run_an_agent",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "agent_run_input": {
+      "type": "object",
+      "title": "agent_run_input",
+      "required": [
+        "agent_id",
+        "request"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "title": "Agent Id",
+          "description": "The agent id."
+        },
+        "request": {
+          "type": "string",
+          "title": "Request",
+          "description": "The request to the agent."
+        }
+      }
+    },
+    "AgentResponse": {
+      "type": "object",
+      "title": "AgentResponse",
+      "required": [
+        "response"
+      ],
+      "properties": {
+        "response": {
+          "type": "string",
+          "title": "Response",
+          "description": "The response from the agent"
+        }
+      }
+    },
+    "run_an_agent_input": {
+      "type": "object",
+      "title": "run_an_agent_input",
+      "required": [
+        "agent_id",
+        "request"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "title": "Agent Id",
+          "description": "The agent id."
+        },
+        "request": {
+          "type": "string",
+          "title": "Request",
+          "description": "The request to the agent."
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-08-25T18:52:59.684896+00:00"
+  }
+}
