@@ -186,7 +186,9 @@ class TestConnectionsSetCredentials:
         "auth_url": "test_auth_url",
         "scope": "test_scope test_scope2",
         "grant_type": "test_grant_type",
-        "entries": ["testentry1=testentry"]
+        "entries": ["testentry1=testentry"],
+        "token_entries": [],
+        "auth_entries": []
     }
 
     def test_set_credentials_connection_command(self):
@@ -247,6 +249,7 @@ class TestConnectionsSetIdentityProvider:
         "client_secret": "test_client_secret",
         "scope": "test_scope",
         "grant_type": "test_grant_type",
+        "token_entries": []
     }
 
     def test_set_identity_provider_connection_command(self):

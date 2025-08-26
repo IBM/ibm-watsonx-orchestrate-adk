@@ -604,7 +604,7 @@ class TestAddCredentials:
 
     def test_add_credentials_create_app_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
-            expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump()}
+            expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump(exclude_none=True)}
         )
         with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
             mock_client.return_value = mock_connection_client
@@ -616,7 +616,7 @@ class TestAddCredentials:
     def test_add_credentials_update_app_credentials(self, connections_spec_content):
         mock_connection_client = MockConnectionClient(
             get_credentials_response=True,
-            expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump()}
+            expected_credentials_write = {"app_credentials": self.mock_oauth_credentials.model_dump(exclude_none=True)}
         )
         with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
             mock_client.return_value = mock_connection_client

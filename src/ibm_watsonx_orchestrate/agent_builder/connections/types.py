@@ -165,6 +165,53 @@ class ConnectionConfiguration(BaseModel):
             raise ValueError("Connection of type 'key_value' cannot be configured at the 'member' level. Key value connections must be of type 'team'")
         return self
 
+class ConnectionCredentialsEntryLocation(str, Enum):
+    BODY = 'body'
+    HEADER = 'header',
+    QUERY = 'query'
+
+    def __str__(self):
+        return self.value
+
+class ConnectionCredentialsEntry(BaseModel):
+    key: str
+    value: str
+    location: ConnectionCredentialsEntryLocation
+
+    def __str__(self):
+        return f"<ConnectionCredentialsEntry: {self.location}:{self.key}={self.value}>"
+
+class BaseOAuthCredentials(BaseModel):
+    custom_token_query: Optional[dict] = None
+    custom_token_header: Optional[dict] = None
+    custom_token_body: Optional[dict] = None
+    custom_auth_query: Optional[dict] = None
+
+class ConnectionCredentialsCustomFields(BaseOAuthCredentials):
+    def add_field(self, entry: ConnectionCredentialsEntry, is_token:bool=True) -> None:
+        match entry.location:
+            case ConnectionCredentialsEntryLocation.HEADER:
+                if not is_token:
+                    return
+                attribute = "custom_token_header"
+            case ConnectionCredentialsEntryLocation.BODY:
+                if not is_token:
+                    return
+                attribute = "custom_token_body"
+            case ConnectionCredentialsEntryLocation.QUERY:
+                if is_token:
+                     attribute = "custom_token_query"
+                else:
+                    attribute = "custom_auth_query"
+            case _:
+                return
+        
+        fields = getattr(self, attribute)
+        if not fields:
+            setattr(self, attribute, {})
+            fields = getattr(self, attribute)
+        fields[entry.key] = entry.value
+
 class BasicAuthCredentials(BaseModel):
     username: str
     password: str
@@ -182,7 +229,7 @@ class OAuth2TokenCredentials(BaseModel):
     access_token: str
     url: Optional[str] = None
 
-class OAuth2AuthCodeCredentials(BaseModel):
+class OAuth2AuthCodeCredentials(BaseOAuthCredentials):
     client_id: str
     client_secret: str
     token_url: str
@@ -193,7 +240,7 @@ class OAuth2AuthCodeCredentials(BaseModel):
 #     client_id: str
 #     authorization_url: str
 
-class OAuth2PasswordCredentials(BaseModel):
+class OAuth2PasswordCredentials(BaseOAuthCredentials):
     username: str
     password: str
     client_id: str
@@ -203,7 +250,7 @@ class OAuth2PasswordCredentials(BaseModel):
     grant_type: str = "password"
     
 
-class OAuth2ClientCredentials(BaseModel):
+class OAuth2ClientCredentials(BaseOAuthCredentials):
     client_id: str
     client_secret: str
     token_url: str
@@ -211,7 +258,7 @@ class OAuth2ClientCredentials(BaseModel):
     send_via: ConnectionSendVia = ConnectionSendVia.HEADER
     grant_type: str = "client_credentials"
 
-class OAuthOnBehalfOfCredentials(BaseModel):
+class OAuthOnBehalfOfCredentials(BaseOAuthCredentials):
     client_id: str
     access_token_url: str
     grant_type: str
@@ -267,7 +314,7 @@ CONNECTION_TYPE_CREDENTIAL_MAPPING = {
     ConnectionSecurityScheme.KEY_VALUE: KeyValueConnectionCredentials,
 }
 
-class IdentityProviderCredentials(BaseModel):
+class IdentityProviderCredentials(BaseOAuthCredentials):
     idp_url: str = Field(validation_alias=AliasChoices('idp_url', 'url'), serialization_alias='idp_url')
     client_id: str
     client_secret: str
