@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools.types import (
 )
 from .utils import get_valid_name
 
+
 logger = logging.getLogger(__name__)
 
 class JsonSchemaObjectRef(JsonSchemaObject):
@@ -360,7 +361,6 @@ class EndNodeSpec(NodeSpec):
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "end"
-
 class ToolNodeSpec(NodeSpec):
     tool: Union[str, ToolSpec] = Field(default = None, description="the tool to use")
 
@@ -421,9 +421,10 @@ class UserFieldKind(str, Enum):
     DateTime: str = "datetime"
     Time: str = "time"
     Number: str = "number"
-    Document: str = "document"
+    File: str = "file"
     Boolean: str = "boolean"
     Object: str = "object"
+    Choice: str = "any"
 
     def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
         if inspect.isclass(python_type):
@@ -463,8 +464,8 @@ class UserFieldKind(str, Enum):
             model_spec["format"] = "number"
         elif kind == UserFieldKind.Boolean:
             model_spec["type"] = "boolean"
-        elif kind == UserFieldKind.Document:
-            model_spec["format"] = "uri"
+        elif kind == UserFieldKind.File:
+            model_spec["format"] = "wxo-file"
         elif kind == UserFieldKind.Object:
             raise ValueError("Object user fields are not supported.")
         
@@ -483,6 +484,8 @@ class UserField(BaseModel):
     text: str | None = Field(default=None, description="A descriptive text that can be used to ask user about this field.")
     display_name: str | None = None
     description: str | None = None
+    direction: str | None = None
+    input_map: Any | None = None,
     default: Any | None = None
     option: UserFieldOption | None = None
     min: Any | None = None,
@@ -497,6 +500,15 @@ class UserField(BaseModel):
             model_spec["name"] = self.name
         if self.kind:
             model_spec["kind"] = self.kind.value
+        if self.direction:
+            model_spec["direction"] = self.direction  
+        if self.input_map:
+            # workaround for circular dependency related to Assigments in the Datamap module
+            from .data_map import DataMap
+            if self.input_map and not isinstance(self.input_map, DataMap):
+                raise TypeError("input_map must be an instance of DataMap")
+            #model_spec["input_map"] = self.input_map.to_json() 
+            model_spec["input_map"] = {"spec": self.input_map.to_json()}        
         if self.text:
             model_spec["text"] = self.text
         if self.display_name:
@@ -556,7 +568,15 @@ class UserNodeSpec(NodeSpec):
               max: Any | None = None,
               is_list: bool = False,
               custom: dict[str, Any] | None = None,
-              widget: str | None = None):
+              widget: str | None = None,
+              input_map: Any | None = None,
+              direction: str | None = None):
+        
+        # workaround for circular dependency related to Assigments in the Datamap module
+        from .data_map import DataMap
+        if input_map and not isinstance(input_map, DataMap):
+            raise TypeError("input_map must be an instance of DataMap")
+        
         userfield = UserField(name=name, 
                               kind=kind, 
                               text=text,
@@ -568,7 +588,9 @@ class UserNodeSpec(NodeSpec):
                               max=max,
                               is_list=is_list,
                               custom=custom,
-                              widget=widget)
+                              widget=widget,
+                              direction=direction,
+                              input_map=input_map)
         
         # find the index of the field
         i = 0
@@ -660,11 +682,28 @@ class PromptLLMParameters(BaseModel):
         if self.stop_sequences:
             model_spec["stop_sequences"] = self.stop_sequences
         return model_spec
+    
+class PromptExample(BaseModel):
+    input: Optional[str] = None
+    expected_output: Optional[str] = None
+    enabled: bool
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.input:
+            model_spec["input"] = self.input
+        if self.expected_output:
+            model_spec["expected_output"] = self.expected_output
+        if self.enabled:
+            model_spec["enabled"] = self.enabled
+        return model_spec
+
 
 
 class PromptNodeSpec(NodeSpec):
     system_prompt: str | list[str]
     user_prompt: str | list[str]
+    prompt_examples: Optional[list[PromptExample]]
     llm: Optional[str] 
     llm_parameters: Optional[PromptLLMParameters] 
 
@@ -682,7 +721,10 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm"] = self.llm
         if self.llm_parameters:
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
-
+        if self.prompt_examples:
+            model_spec["prompt_examples"] = []
+            for example in self.prompt_examples:
+                model_spec["prompt_examples"].append(example.to_json())
         return model_spec
     
 class TimerNodeSpec(NodeSpec):
@@ -707,6 +749,47 @@ class Expression(BaseModel):
         model_spec["expression"] = self.expression;
         return model_spec
     
+class NodeIdCondition(BaseModel):
+    '''One Condition contains an expression, a node_id that branch should go to when expression is true, and a default indicator. '''
+    expression: Optional[str] = Field(description="A python expression to be run by the flow engine", default=None)
+    node_id: str = Field(description="ID of the node in the flow that branch node should go to")
+    default: bool = Field(description="Boolean indicating if the condition is default case")
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.expression:
+            model_spec["expression"] = self.expression
+        model_spec["node_id"] = self.node_id
+        model_spec["default"] = self.default
+        return model_spec
+
+
+class EdgeIdCondition(BaseModel):
+    '''One Condition contains an expression, an edge_id that branch should go to when expression is true, and a default indicator. '''
+    expression: Optional[str] = Field(description="A python expression to be run by the flow engine")
+    edge_id: str = Field(description="ID of the edge in the flow that branch node should go to")
+    default: bool = Field(description="Boolean indicating if the condition is default case")
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.expression:
+            model_spec["expression"] = self.expression
+        model_spec["edge_id"] = self.edge_id
+        model_spec["default"] = self.default
+        return model_spec
+
+class Conditions(BaseModel):
+    '''One Conditions is an array represents the if-else conditions of a complex branch'''
+    conditions: list = List[Union[NodeIdCondition, EdgeIdCondition]]
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        condition_list = []
+        for condition in self.conditions:
+            condition_list.append(NodeIdCondition.model_validate(condition).to_json())
+        model_spec["conditions"] = condition_list
+        return model_spec
+    
 class MatchPolicy(Enum):
  
     FIRST_MATCH = 1
@@ -724,7 +807,7 @@ class BranchNodeSpec(FlowControlNodeSpec):
     cases (dict[str | bool, str]): A dictionary of labels to node names. The keys can be strings or booleans.
     match_policy (MatchPolicy): The policy to use when evaluating the expression.
     '''
-    evaluator: Expression
+    evaluator: Expression | Conditions
     cases: dict[str | bool, str] = Field(default = {},
                                          description="A dictionary of labels to node names.")
     match_policy: MatchPolicy = Field(default = MatchPolicy.FIRST_MATCH)
@@ -808,7 +891,7 @@ class UserFlowSpec(FlowSpec):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.kind = "userflow"
+        self.kind = "user_flow"
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()

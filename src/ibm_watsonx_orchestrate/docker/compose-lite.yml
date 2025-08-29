@@ -62,6 +62,7 @@ services:
       WATSONX_API_KEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      NODE_TLS_REJECT_UNAUTHORIZED: ${AI_GATEWAY_TLS_REJECT_UNAUTHORIZED}
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -328,6 +329,7 @@ services:
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       WXO_DEPLOYMENT_PLATFORM: saas
+      CPD_VERIFY: ${CPD_VERIFY}
       CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
       CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
       WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
@@ -447,6 +449,7 @@ services:
       IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
+      CPD_VERIFY: ${CPD_VERIFY}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
   
@@ -655,6 +658,7 @@ services:
       - WATSONX_URL=${WATSONX_URL}
       - PROXY_SERVER_URL=http://jaeger-proxy:9201
       - WXO_DEPLOYMENT_PLATFORM=saas
+      - CPD_VERIFY=${CPD_VERIFY}      
       - TENANT_API_KEY=${AGENTOPS_API_KEY}
       - TENANT_CONFIG_URL=http://wxo-server:4321
       - TENANT_DEFAULT_USERNAME=elastic
