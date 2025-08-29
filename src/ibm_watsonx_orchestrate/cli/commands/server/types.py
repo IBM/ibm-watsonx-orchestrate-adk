@@ -1,5 +1,6 @@
 import logging
 import sys
+import uuid
 from enum import Enum
 from pydantic import BaseModel, model_validator, ConfigDict
 
@@ -43,9 +44,6 @@ class WatsonXAIEnvConfig(BaseModel):
         if not config.get("WATSONX_SPACE_ID") and not config.get("WATSONX_APIKEY"):
              raise ValueError("Missing configuration requirements 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
         
-        if config.get("WATSONX_SPACE_ID") and not config.get("WATSONX_APIKEY"):
-            logger.error("Cannot use env var 'WATSONX_SPACE_ID' without setting the corresponding 'WATSONX_APIKEY'")
-            sys.exit(1)
         
         if not config.get("WATSONX_SPACE_ID") and config.get("WATSONX_APIKEY"):
             logger.error("Cannot use env var 'WATSONX_APIKEY' without setting the corresponding 'WATSONX_SPACE_ID'")
@@ -54,6 +52,12 @@ class WatsonXAIEnvConfig(BaseModel):
         config["USE_SAAS_ML_TOOLS_RUNTIME"] = False
         return config
 
+def is_valid_uuid(value) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 class ModelGatewayEnvConfig(BaseModel):
     WO_API_KEY: str | None = None
@@ -84,7 +88,10 @@ class ModelGatewayEnvConfig(BaseModel):
         if not config.get("AUTHORIZATION_URL"):
             inferred_auth_url = AUTH_TYPE_DEFAULT_URL_MAPPING.get(auth_type)
             if not inferred_auth_url:
-                logger.error(f"No 'AUTHORIZATION_URL' found. Auth type '{auth_type}' does not support defaulting. Please set the 'AUTHORIZATION_URL' explictly")
+                if auth_type == WoAuthType.CPD:
+                    inferred_auth_url = config.get("WO_INSTANCE") + '/icp4d-api/v1/authorize'   
+                else: 
+                    logger.error(f"No 'AUTHORIZATION_URL' found. Auth type '{auth_type}' does not support defaulting. Please set the 'AUTHORIZATION_URL' explictly")
                 sys.exit(1)
             config["AUTHORIZATION_URL"] = inferred_auth_url
         
@@ -101,6 +108,7 @@ class ModelGatewayEnvConfig(BaseModel):
                 sys.exit(1)
         
         config["USE_SAAS_ML_TOOLS_RUNTIME"] = True
-        # Fake (but valid) UUIDv4 for knowledgebase check
-        config["WATSONX_SPACE_ID"] = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+        if not is_valid_uuid(config.get("WATSONX_SPACE_ID")):
+            # Fake (but valid) UUIDv4 for knowledgebase check
+            config["WATSONX_SPACE_ID"] = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
         return config

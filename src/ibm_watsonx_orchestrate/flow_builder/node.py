@@ -6,14 +6,14 @@ import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
 from enum import Enum
 
-from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
+from .types import Assignment, DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
 
 from .data_map import DataMap
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
-    input_map: DataMap | None = None
+    input_map: dict[str, DataMap] | None = None
 
     def __call__(self, **kwargs):
         pass
@@ -40,10 +40,77 @@ class Node(BaseModel):
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
         model_spec["spec"] = self.spec.to_json()
-        if self.input_map is not None:
-            model_spec['input_map'] = self.input_map.to_json()
+        if self.input_map is not None and "spec" in self.input_map:
+            model_spec['input_map'] = {
+                "spec": self.input_map["spec"].to_json()
+            }
 
         return model_spec
+    
+    def map_node_input_with_variable(self, target_input_variable: str, variable: str, default_value: str = None) -> None:
+        if self.input_map and "spec" in self.input_map:
+            maps = self.input_map["spec"].maps or []
+        else:
+            maps = []
+        
+        curr_map_metadata = {
+            "assignmentType": "variable"
+        }
+
+        target_variable = "self.input." + target_input_variable
+        value_expression = "flow." + variable
+
+        if default_value:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, default_value=default_value, metadata=curr_map_metadata))
+        else:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
+
+        node_input_map_spec = DataMap(maps=maps)
+        if self.input_map and "spec" in self.input_map:
+            self.input_map["spec"] = node_input_map_spec
+        else:
+            self.input_map = {"spec": node_input_map_spec}
+
+    def map_input(self, input_variable: str, expression: str, default_value: str = None) -> None:
+        if self.input_map and "spec" in self.input_map:
+            maps = self.input_map["spec"].maps or []
+        else:
+            maps = []
+        
+        curr_map_metadata = {
+            "assignmentType": "pyExpression"
+        }
+
+        target_variable = "self.input." + input_variable
+        value_expression = expression
+
+        if default_value:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, default_value=default_value, metadata=curr_map_metadata))
+        else:
+            maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
+
+        node_input_map_spec = DataMap(maps=maps)
+        if self.input_map and "spec" in self.input_map:
+            self.input_map["spec"] = node_input_map_spec
+        else:
+            self.input_map = {"spec": node_input_map_spec}
+
+    def map_node_input_with_none(self, target_input_variable: str) -> None:
+        if self.input_map and "spec" in self.input_map:
+            maps = self.input_map["spec"].maps or []
+        else:
+            maps = []
+        
+
+        target_variable = "self.input." + target_input_variable
+
+        maps.append(Assignment(target_variable=target_variable, value_expression=None))
+
+        node_input_map_spec = DataMap(maps=maps)
+        if self.input_map and "spec" in self.input_map:
+            self.input_map["spec"] = node_input_map_spec
+        else:
+            self.input_map = {"spec": node_input_map_spec}
 
 class StartNode(Node):
     def __repr__(self):
@@ -83,6 +150,8 @@ class UserNode(Node):
               option: UserFieldOption | None = None,
               min: Any | None = None,
               max: Any | None = None,
+              direction: str | None = None,
+              input_map: DataMap | None = None,
               is_list: bool = False,
               custom: dict[str, Any] | None = None,
               widget: str | None = None):
@@ -97,7 +166,9 @@ class UserNode(Node):
                               max=max,
                               is_list=is_list,
                               custom=custom,
-                              widget=widget)
+                              widget=widget,
+                              direction=direction,
+                              input_map=input_map)
 
 class AgentNode(Node):
     def __repr__(self):

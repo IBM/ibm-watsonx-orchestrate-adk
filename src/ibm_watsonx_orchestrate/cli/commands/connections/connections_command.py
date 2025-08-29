@@ -1,6 +1,6 @@
 import typer
 from typing_extensions import Annotated, List
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import (
     add_connection,
     remove_connection,
@@ -8,7 +8,9 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     import_connection,
     configure_connection,
     set_credentials_connection,
-    set_identity_provider_connection
+    set_identity_provider_connection,
+    token_entry_connection_credentials_parse,
+    auth_entry_connection_credentials_parse
 )
 
 connections_app = typer.Typer(no_args_is_help=True)
@@ -244,6 +246,22 @@ def set_credentials_connection_command(
             help="For key_value, a key value pair in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
         )
     ] = None,
+    token_entries: Annotated[
+        List[ConnectionCredentialsEntry],
+        typer.Option(
+            '--token-entries', "-t",
+            parser=token_entry_connection_credentials_parse,
+            help="Custom field options for oauth types token request, a key value location option in the form 'location:<key>=<value>' or '<key>=<value>' with location defaulting to 'header'. Multiple values can be passed using `-t key1=value1 -t location:key2=value2`"
+        )
+    ] = None,
+    auth_entries: Annotated[
+        List[ConnectionCredentialsEntry],
+        typer.Option(
+            '--auth-entries',
+            parser=auth_entry_connection_credentials_parse,
+            help="Custom field options for oauth_auth_code_flow auth server request, a key value location option in the form 'location:<key>=<value>' or '<key>=<value>' with location defaulting to 'query'. Note only 'query' is a valid location. Multiple values can be passed using `--auth-entries key1=value1 --auth-entries location:key2=value2`"
+        )
+    ] = None,
 ):
     set_credentials_connection(
         app_id=app_id,
@@ -259,7 +277,9 @@ def set_credentials_connection_command(
         auth_url=auth_url,
         grant_type=grant_type,
         scope=scope,
-        entries=entries
+        entries=entries,
+        token_entries=token_entries,
+        auth_entries=auth_entries
     )
 
 @connections_app.command(name="set-identity-provider")
@@ -311,6 +331,14 @@ def set_identity_provider_connection_command(
             help='The grant-type of the the identity provider'
         )
     ],
+    token_entries: Annotated[
+        List[ConnectionCredentialsEntry],
+        typer.Option(
+            '--token-entries', "-t",
+            parser=token_entry_connection_credentials_parse,
+            help="Custom field options for oauth types token request, a key value location option in the form 'location:<key>=<value>' or '<key>=<value>' with location defaulting to 'header'. Multiple values can be passed using `-t key1=value1 -t location:key2=value2`"
+        )
+    ] = None,
 ):
     set_identity_provider_connection(
         app_id=app_id,
@@ -319,5 +347,6 @@ def set_identity_provider_connection_command(
         client_id=client_id,
         client_secret=client_secret,
         scope=scope,
-        grant_type=grant_type
+        grant_type=grant_type,
+        token_entries=token_entries
     )

@@ -24,6 +24,11 @@ def get_weather_data(city: str) -> WeatherData:
         "San Jose" : {"latitude" : "37.7749","longitude" : "122.4194"},
         "Fremont" : {"latitude" : "37.5485","longitude" : "121.9886"},
     }
+    city = city.title()
+    if city not in cities.keys():
+        city = "San Jose"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={cities[city]['latitude']}&longitude={cities[city]['longitude']}&current_weather=true"
+
     weather_conditions = {
         0: "Clear sky",
         1: "Mainly clear",
@@ -54,9 +59,6 @@ def get_weather_data(city: str) -> WeatherData:
         96: "Thunderstorm with slight hail",
         99: "Thunderstorm with heavy hail"
     }
-    if city not in cities.keys(): 
-        city =cities['San Jose']
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={cities[city]['latitude']}&longitude={cities[city]['longitude']}&current_weather=true"
 
     response = requests.get(url)
 
