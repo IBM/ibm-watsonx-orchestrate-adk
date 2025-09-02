@@ -133,7 +133,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
-      ENABLE_EDIT_PROMPTS: "true"
+      ENABLE_EDIT_PROMPTS: "false"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
     command: 'npm start'
     ports:
