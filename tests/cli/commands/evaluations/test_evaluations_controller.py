@@ -8,7 +8,7 @@ import shutil
 import json
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
 from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
-from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig
 
 @pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
@@ -244,3 +244,49 @@ def tool2():
                 test_data=[("dummy story", "dummy_response")]
             )
                 
+    def test_generate_red_teaming_attacks(self, controller):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.attack_generator.main") as mock_gen:
+            mock_gen.return_value = ["attack1"]
+
+            controller.generate_red_teaming_attacks(
+                attacks_list="attackA,attackB",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                max_variants=2,
+            )
+
+            mock_gen.assert_called_once()
+            passed_cfg = mock_gen.call_args[0][0]
+
+            assert isinstance(passed_cfg, AttackGeneratorConfig)
+            assert passed_cfg.attacks_list == ["attackA", "attackB"]
+            assert passed_cfg.datasets_path == ["datasets"]
+            assert passed_cfg.agents_path == "agents"
+            assert passed_cfg.target_agent_name == "target_agent"
+            assert passed_cfg.output_dir == "test_output"
+            assert passed_cfg.max_variants == 2
+
+    def test_run_red_teaming_attacks(self, controller, monkeypatch):
+        # Using wx.ai provider
+        monkeypatch.setenv("WATSONX_SPACE_ID", "id")
+        monkeypatch.setenv("WATSONX_APIKEY", "key")
+
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.run_attacks"
+        ) as mock_run, patch.object(
+            controller,
+            "_get_env_config",
+            return_value=("test-url", "test-tenant", "test-token"),
+        ):
+            controller.run_red_teaming_attacks(
+                attack_paths="att1,att2", output_dir="test_output"
+            )
+
+            mock_run.assert_called_once()
+            passed_cfg = mock_run.call_args[0][0]
+
+            assert isinstance(passed_cfg, AttackConfig)
+            assert passed_cfg.attack_paths == ["att1", "att2"]
+            assert passed_cfg.output_dir == "test_output"
