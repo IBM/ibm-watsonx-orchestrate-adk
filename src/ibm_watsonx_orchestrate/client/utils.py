@@ -66,7 +66,7 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
     if url is None:
         url = get_current_env_url()
 
-    if url.__contains__("cloud.ibm.com"):
+    if ".cloud.ibm.com" in url:
         return True
     return False
 
