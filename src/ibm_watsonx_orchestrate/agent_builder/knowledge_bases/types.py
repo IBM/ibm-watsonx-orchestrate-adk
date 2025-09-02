@@ -3,7 +3,8 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
 
 class SpecVersion(str, Enum):
     V1 = "v1"
@@ -104,6 +105,7 @@ class GenerationConfiguration(BaseModel):
     display_text_no_results_found: Optional[str] = None
     display_text_connectivity_issue: Optional[str] = None
     idk_message: Optional[str] = None
+    enabled: bool = True
 
 class FieldMapping(BaseModel):
     """
@@ -242,7 +244,13 @@ class IndexConnection(BaseModel):
     elastic_search: Optional[ElasticSearchConnection] = None
     custom_search: Optional[CustomSearchConnection] = None
     astradb: Optional[AstraDBConnection] = None
-    
+
+
+class QuerySource(str, Enum):
+    SessionHistory = "SessionHistory"
+    Agent = "Agent"
+
+
 class ConversationalSearchConfig(BaseModel):
     language: Optional[str] = None
     index_config: list[IndexConnection] = None
@@ -251,6 +259,14 @@ class ConversationalSearchConfig(BaseModel):
     citations: Optional[CitationsConfig] = None
     hap_filtering: Optional[HAPFiltering] = None
     confidence_thresholds: Optional[ConfidenceThresholds] = None
+    query_source: QuerySource = QuerySource.SessionHistory
+    agent_query_description: str = "The query to search for in the knowledge base"
+
+    @model_validator(mode="after")
+    def validate_agent_query_description(self) -> 'ConversationalSearchConfig':
+        if self.query_source == QuerySource.Agent and len(self.agent_query_description) == 0:
+            raise ValueError("Provide a non-empty agent_query_description when query source is `Agent`")
+        return self
 
 class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     embeddings_model_name: Optional[str] = None
