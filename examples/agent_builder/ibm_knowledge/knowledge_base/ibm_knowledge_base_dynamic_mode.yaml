@@ -1,0 +1,13 @@
+spec_version: v1
+kind: knowledge_base
+name: ibm_knowledge_base_dynamic_mode
+description: General information about IBM and its history
+documents:
+ - path: IBM_wikipedia.pdf
+   url: https://en.wikipedia.org/wiki/IBM
+ - path: history_of_ibm.pdf
+   url: https://en.wikipedia.org/wiki/History_of_IBM
+conversational_search_tool:
+  query_source: Agent
+  generation:
+    enabled: False
