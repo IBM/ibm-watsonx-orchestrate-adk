@@ -385,3 +385,105 @@ def validate_external(
             msg = f"[dark_orange]Schema validation did not succeed. See '{str(validation_folder)}' for failures.[/dark_orange]"
 
         rich.print(Panel(msg))
+
+
+red_teaming_app = typer.Typer(no_args_is_help=True)
+evaluation_app.add_typer(red_teaming_app, name="red-teaming")
+
+
+@red_teaming_app.command("list", help="List available red-teaming attack plans")
+def list_plans():
+    controller = EvaluationsController()
+    controller.list_red_teaming_attacks()
+
+
+@red_teaming_app.command("plan", help="Generate red-teaming attacks")
+def plan(
+    attacks_list: Annotated[
+        str,
+        typer.Option(
+            "--attacks-list",
+            "-a",
+            help="Comma-separated list of red-teaming attacks to generate.",
+        ),
+    ],
+    datasets_path: Annotated[
+        str,
+        typer.Option(
+            "--datasets-path",
+            "-d",
+            help="Path to datasets for red-teaming. This can also be a comma-separated list of files or directories.",
+        ),
+    ],
+    agents_path: Annotated[
+        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions.")
+    ],
+    target_agent_name: Annotated[
+        str,
+        typer.Option(
+            "--target-agent-name",
+            "-t",
+            help="Name of the target agent to attack (should be present in agents-path).",
+        ),
+    ],
+    output_dir: Annotated[
+        Optional[str],
+        typer.Option("--output-dir", "-o", help="Directory to save generated attacks."),
+    ] = None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file that overrides default.env. Then environment variables override both.",
+        ),
+    ] = None,
+    max_variants: Annotated[
+        Optional[int],
+        typer.Option(
+            "--max_variants",
+            "-n",
+            help="Number of variants to generate per attack type.",
+        ),
+    ] = None,
+
+):
+    validate_watsonx_credentials(user_env_file)
+    controller = EvaluationsController()
+    controller.generate_red_teaming_attacks(
+        attacks_list=attacks_list,
+        datasets_path=datasets_path,
+        agents_path=agents_path,
+        target_agent_name=target_agent_name,
+        output_dir=output_dir,
+        max_variants=max_variants,
+    )
+
+
+@red_teaming_app.command("run", help="Run red-teaming attacks")
+def run(
+    attack_paths: Annotated[
+        str,
+        typer.Option(
+            "--attack-paths",
+            "-a",
+            help="Path or list of paths (comma-separated) to directories containing attack files.",
+        ),
+    ],
+    output_dir: Annotated[
+        Optional[str],
+        typer.Option("--output-dir", "-o", help="Directory to save attack results."),
+    ] = None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file that overrides default.env. Then environment variables override both.",
+        ),
+    ] = None,
+):
+    validate_watsonx_credentials(user_env_file)
+    controller = EvaluationsController()
+    controller.run_red_teaming_attacks(attack_paths=attack_paths, output_dir=output_dir)
+

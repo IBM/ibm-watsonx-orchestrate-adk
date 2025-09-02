@@ -36,6 +36,6 @@
       ]
     }
   ],
-  "story": "Your username is nwaters. Your assignment_id can be retrieved from your username. You need your assignment_id to get your timeoff schedule. You want to find out your timeoff schedule from: 2025-01-01 to: 2025-03-03.",
-  "starting_sentence": "I want to know my timeoff schedule for a certain period"
+  "story": "My username is nwaters. I want to find out my timeoff schedule from: 2025-01-01 to: 2025-03-03.",
+  "starting_sentence": "I want to know my timeoff schedule for a certain period."
 }

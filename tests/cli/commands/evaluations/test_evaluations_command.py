@@ -232,3 +232,41 @@ class TestValidateExternal:
                     )
             finally:
                 Path(csv_path).unlink()
+
+
+class TestRedTeaming:
+    def test_list_plans_calls_controller(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.list_red_teaming_attacks") as mock_list:
+            evaluations_command.list_plans()
+            mock_list.assert_called_once()
+
+    def test_plan_calls_generate_red_teaming_attacks(self, user_env_file):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.generate_red_teaming_attacks") as mock_generate:
+            evaluations_command.plan(
+                attacks_list="attack1,attack2",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                user_env_file=user_env_file,
+                max_variants=5,
+            )
+
+            mock_generate.assert_called_once_with(
+                attacks_list="attack1,attack2",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                max_variants=5,
+            )
+
+    def test_run_calls_run_red_teaming_attacks(self, user_env_file):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.run_red_teaming_attacks") as mock_run:
+            evaluations_command.run(
+                attack_paths="attacks",
+                output_dir="test_output",
+                user_env_file=user_env_file,
+            )
+
+            mock_run.assert_called_once_with(attack_paths="attacks", output_dir="test_output")
