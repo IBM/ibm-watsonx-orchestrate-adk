@@ -338,13 +338,15 @@ class DocProcSpec(DocProcCommonNodeSpec):
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
     plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
-
+    document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
+    
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        model_spec["document_structure"] = self.document_structure
         model_spec["task"] = self.task
         if self.plain_text_reading_order != PlainTextReadingOrder.block_structure:
             model_spec["plain_text_reading_order"] = self.plain_text_reading_order
@@ -999,6 +1001,255 @@ class Assignment(BaseModel):
     has_no_value: bool = False
     default_value: Any | None = None
     metadata: dict = Field(default_factory=dict[str, Any])
+
+class Style(BaseModel):
+    style_id: str = Field(default="", description="Style Identifier which will be used for reference in other objects")
+    font_size: str = Field(default="", description="Font size")
+    font_name: str = Field(default="", description="Font name")
+    is_bold: str = Field(default="", description="Whether or not the the font is bold")
+    is_italic: str = Field(default="", description="Whether or not the the font is italic")
+
+class PageMetadata(BaseModel):
+    page_number: Optional[int] = Field(default=None, description="Page number, starting from 1")
+    page_image_width: Optional[int] = Field(default=None, description="Width of the page in pixels, assuming the page is an image with default 72 DPI")
+    page_image_height: Optional[int] = Field(default=None, description="Height of the page in pixels, assuming the page is an image with default 72 DPI")
+    dpi: Optional[int] = Field(default=None, description="The DPI to use for the page image, as specified in the input to the API")
+    document_type: Optional[str] = Field(default="", description="Document type")
+
+class Metadata(BaseModel):
+    num_pages: int = Field(description="Total number of pages in the document")
+    title: Optional[str] = Field(default=None, description="Document title as obtained from source document")
+    language: Optional[str] = Field(default=None, description="Determined by the lang specifier in the <html> tag, or <meta> tag")
+    url: Optional[str] = Field(default=None, description="URL of the document")
+    keywords: Optional[str] = Field(default=None, description="Keywords associated with document")
+    author: Optional[str] = Field(default=None, description="Author of the document")
+    publication_date: Optional[str] = Field(default=None, description="Best effort bases for a publication date (may be the creation date)")
+    subject: Optional[str] = Field(default=None, description="Subject as obtained from the source document")
+    charset: str = Field(default="", description="Character set used for the output")
+    output_tokens_flag: Optional[bool] = Field(default=None, description="Whether individual tokens are output, as specified in the input to the API")
+    output_bounding_boxes_flag: Optional[bool] = Field(default=None, description="Whether bounding boxes are output, as requested in the input to the API")
+    pages_metadata: Optional[List[PageMetadata]] = Field(default=[], description="List of page-level metadata objects")
+
+class Section(BaseModel):
+    id: str = Field(default="", description="Unique identifier for the section")
+    parent_id: str = Field(default="", description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default="", description="Unique Ids of first level children structures under this structure in correct sequence")
+    section_number: str = Field(default="", description="Section identifier identified in the document")
+    section_level: str = Field(default="", description="Nesting level of section identified in the document")
+    bbox_list: Optional[List[DocProcBoundingBox]] = Field(default=None, description="Cross-pages bounding boxes of that section")
+
+
+class SectionTitle(BaseModel):
+    id: str = Field(default="", description="Unique identifier for the section")
+    parent_id: str = Field(default="", description="Unique identifier which denotes parent of this structure")
+    children_ids: Optional[List[str]] = Field(default=None, description="Unique Ids of first level children structures under this structure in correct sequence")
+    text_alignment: Optional[str] = Field(default="", description="Text alignment of the section title")
+    text: str = Field(default="", description="Text property added to all objects")
+    bbox: Optional[DocProcBoundingBox] = Field(default=None, description="The bounding box of the section title")
+
+class List_(BaseModel):
+    id: str = Field(..., description="Unique identifier for the list")
+    title: Optional[str] = Field(None, description="List title")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(..., description="Unique Ids of first level children structures under this structure in correct sequence")
+    bbox_list: Optional[List[DocProcBoundingBox]] = Field(None, description="Cross-pages bounding boxes of that table")
+
+
+class ListItem(BaseModel):
+    id: str = Field(..., description="Unique identifier for the list item")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: Optional[List[str]] = Field(None, description="Unique Ids of first level children structures under this structure in correct sequence")
+    text: str = Field(..., description="Text property added to all objects")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the list item")
+
+
+class ListIdentifier(BaseModel):
+    id: str = Field(..., description="Unique identifier for the list item")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(..., description="Unique Ids of first level children structures under this structure in correct sequence")
+
+class Table(BaseModel):
+    id: str = Field(..., description="Unique identifier for the table")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(..., description="Unique Ids of first level children structures under this structure in correct sequence, in this case, table rows")
+    bbox_list: Optional[List[DocProcBoundingBox]] = Field(None, description="Cross-pages bounding boxes of that table")
+
+
+class TableRow(BaseModel):
+    id: str = Field(..., description="Unique identifier for the table row")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(..., description="Unique Ids of first level children structures under this structure in correct sequence, in this case, table cells")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the table row")
+
+
+class TableCell(BaseModel):
+    id: str = Field(..., description="Unique identifier for the table cell")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    is_row_header: bool = Field(..., description="Whether the cell is part of row header or not")
+    is_col_header: bool = Field(..., description="Whether the cell is part of column header or not")
+    col_span: int = Field(..., description="Column span of the cell")
+    row_span: int = Field(..., description="Row span of the cell")
+    col_start: int = Field(..., description="Column start of the cell within the table")
+    row_start: int = Field(..., description="Row start of the cell within the table")
+    children_ids: Optional[List[str]] = Field(None, description="Children structures, e.g., paragraphs")
+    text: str = Field(..., description="Text property added to all objects")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the table cell")
+
+class Subscript(BaseModel):
+    id: str = Field(..., description="Unique identifier for the subscript")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence")
+    token_id_ref: Optional[str] = Field(None, description="Id of the token to which the subscript belongs")
+    text: str = Field(..., description="Text property added to all objects")
+
+
+class Superscript(BaseModel):
+    id: str = Field(..., description="Unique identifier for the superscript")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    footnote_ref: str = Field(..., description="Matching footnote id found on the page")
+    token_id_ref: Optional[str] = Field(None, description="Id of the token to which the superscript belongs")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence")
+    text: str = Field(..., description="Text property added to all objects")
+
+
+class Footnote(BaseModel):
+    id: str = Field(..., description="Unique identifier for the footnote")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence")
+    text: str = Field(..., description="Text property added to all objects")
+
+
+class Paragraph(BaseModel):
+    id: str = Field(..., description="Unique identifier for the paragraph")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence, in this case, tokens")
+    text_alignment: Optional[str] = Field(None, description="Text alignment of the paragraph")
+    indentation: Optional[int] = Field(None, description="Paragraph indentation")
+    text: str = Field(..., description="Text property added to all objects")
+    bbox_list: Optional[DocProcBoundingBox] = Field(default=None, description="Cross-pages bounding boxes of that Paragraph")
+
+
+class CodeSnippet(BaseModel):
+    id: str = Field(..., description="Unique identifier for the code snippet")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence, in this case, tokens")
+    text: str = Field(..., description="Text of the code snippet. It can contain multiple lines, including empty lines or lines with leading spaces.")
+
+
+class Picture(BaseModel):
+    id: str = Field(..., description="Unique identifier for the picture")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    children_ids: List[str] = Field(default_factory=list, description="Unique identifiers of the tokens extracted from this picture, if any")
+    text: Optional[str] = Field(None, description="Text extracted from this picture")
+    verbalization: Optional[str] = Field(None, description="Verbalization of this picture")
+    path: Optional[str] = Field(None, description="Path in the output location where the picture itself was saved")
+    picture_class: Optional[str] = Field(None, description="The classification result of the picture")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the picture in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
+
+
+class PageHeader(BaseModel):
+    id: str = Field(..., description="Unique identifier for the page header")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    text: Optional[str] = Field(None, description="The page header text")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the page header")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence, in this case, tokens")
+
+
+class PageFooter(BaseModel):
+    id: str = Field(..., description="Unique identifier for the page footer")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    text: Optional[str] = Field(None, description="The page footer text")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the page footer")
+    children_ids: List[str] = Field(default_factory=list, description="Unique Ids of first level children structures under this structure in correct sequence, in this case, tokens")
+
+
+class BarCode(BaseModel):
+    id: str = Field(..., description="Unique identifier for the bar code")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    text: Optional[str] = Field(None, description="The value of the bar code")
+    format: Optional[str] = Field(None, description="The format of the bar code")
+    path: Optional[str] = Field(None, description="Path in the output location where the var code picture is saved")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the bar code in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
+
+
+class QRCode(BaseModel):
+    id: str = Field(..., description="Unique identifier for the QR code")
+    parent_id: str = Field(..., description="Unique identifier which denotes parent of this structure")
+    text: Optional[str] = Field(None, description="The value of the QR code")
+    path: Optional[str] = Field(None, description="Path in the output location where the var code picture is saved")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the bar code in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
+
+
+class Token(BaseModel):
+    id: str = Field(..., description="Unique identifier for the list identifier")
+    parent_id: Optional[str] = Field(None, description="Unique identifier which denotes parent of this structure")
+    style_id: Optional[str] = Field(None, description="Identifier of the style object associated with this token")
+    text: str = Field(..., description="Actual text of the token")
+    bbox: Optional[DocProcBoundingBox] = Field(None, description="The bounding box of the token in the context of the page, expressed as pixel coordinates with respect to pages_metadata.page_image_height and pages_metadata.page_image_width")
+    confidence: Optional[float] = Field(None, description="Confidence score for the token")
+
+class Structures(BaseModel):
+    sections: Optional[List[Section]] = Field(
+        default=None, description="All Section objects found in the document"
+    )
+    section_titles: Optional[List[SectionTitle]] = Field(
+        default=None, description="All SectionTitle objects found in the document"
+    )
+    lists: Optional[List[List_]] = Field(
+        default=None, description="All List objects found in the document"
+    )
+    list_items: Optional[List[ListItem]] = Field(
+        default=None, description="All ListItem objects found in the document"
+    )
+    list_identifiers: Optional[List[ListIdentifier]] = Field(
+        default=None, description="All ListIdentifier objects found in the document"
+    )
+    tables: Optional[List[Table]] = Field(
+        default=None, description="All Table objects found in the document"
+    )
+    table_rows: Optional[List[TableRow]] = Field(
+        default=None, description="All TableRow objects found in the document"
+    )
+    table_cells: Optional[List[TableCell]] = Field(
+        default=None, description="All TableCell objects found in the document"
+    )
+    subscripts: Optional[List[Subscript]] = Field(
+        default=None, description="All Subscript objects found in the document"
+    )
+    superscripts: Optional[List[Superscript]] = Field(
+        default=None, description="All Superscript objects found in the document"
+    )
+    footnotes: Optional[List[Footnote]] = Field(
+        default=None, description="All Footnote objects found in the document"
+    )
+    paragraphs: Optional[List[Paragraph]] = Field(
+        default=None, description="All Paragraph objects found in the document"
+    )
+    code_snippets: Optional[List[CodeSnippet]] = Field(
+        default=None, description="All CodeSnippet objects found in the document"
+    )
+    pictures: Optional[List[Picture]] = Field(
+        default=None, description="All Picture objects found in the document"
+    )
+    page_headers: Optional[List[PageHeader]] = Field(
+        default=None, description="All PageHeader objects found in the document"
+    )
+    page_footers: Optional[List[PageFooter]] = Field(
+        default=None, description="All PageFooter objects found in the document"
+    )
+    bar_codes: Optional[List[BarCode]] = Field(
+        default=None, description="All BarCode objects found in the document"
+    )
+    tokens: Optional[List[Token]] = Field(
+        default=None, description="All Token objects found in the document"
+    )
+
+class AssemblyJsonOutput(BaseModel):
+    metadata: Metadata = Field(description="Metadata about this document")
+    styles: Optional[List[Style]] = Field(description="Font styles used in this document")
+    kvps: Optional[DocProcKVP] = Field(description="Key value pairs found in the document")
+    top_level_structures: List[str] = Field(default=[], description="Array of ids of the top level structures which belong directly under the document")
+    all_structures: Structures = Field(default=None, description="An object containing of all flattened structures identified in the document")
 
 class LanguageCode(StrEnum):
     '''
