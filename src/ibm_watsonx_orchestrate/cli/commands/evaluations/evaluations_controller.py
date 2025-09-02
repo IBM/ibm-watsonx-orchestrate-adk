@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from wxo_agentic_evaluation import main as evaluate
 from wxo_agentic_evaluation.tool_planner import build_snapshot
-from wxo_agentic_evaluation.analyze_run import analyze
+from wxo_agentic_evaluation.analyze_run import Analyzer
 from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
 from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig
 from wxo_agentic_evaluation.record_chat import record_chats
@@ -160,9 +160,13 @@ class EvaluationsController:
 
         logger.info("Test cases stored at: %s", output_dir)
 
-    def analyze(self, data_path: str) -> None:
-        config = AnalyzeConfig(data_path=data_path)
-        analyze(config)
+    def analyze(self, data_path: str, tool_definition_path: str) -> None:
+        config = AnalyzeConfig(
+            data_path=data_path,
+            tool_definition_path=tool_definition_path
+            )
+        analyzer = Analyzer()
+        analyzer.analyze(config)
 
     def summarize(self) -> None:
         pass

@@ -220,6 +220,13 @@ def analyze(data_path: Annotated[
             help="Path to the directory that has the saved results"
         )
     ],
+    tool_definition_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--tools-path", "-t",
+            help="Path to the directory containing tool definitions."
+        )
+    ] = None,
     user_env_file: Annotated[
         Optional[str],
         typer.Option(
@@ -230,7 +237,10 @@ def analyze(data_path: Annotated[
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
-    controller.analyze(data_path=data_path)
+    controller.analyze(
+        data_path=data_path,
+        tool_definition_path=tool_definition_path
+        )
 
 @evaluation_app.command(name="validate-external", help="Validate an external agent against a set of inputs")
 def validate_external(
