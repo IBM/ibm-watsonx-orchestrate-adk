@@ -224,15 +224,14 @@ class AstraDBConnection(BaseModel):
     api_endpoint: str
     port: Optional[str] = None
     server_cert: Optional[str] = None
-    keyspace: Optional[str]
+    keyspace: Optional[str] = None
     data_type: str
-    collection: Optional[str]
-    table: Optional[str]
-    index_column: Optional[str]
+    collection: Optional[str] = None
+    table: Optional[str] = None
+    index_column: Optional[str] = None
     embedding_mode: str
-    embedding_model_id: Optional[str]
-    credentials: dict
-    search_mode: str
+    embedding_model_id: Optional[str] = None
+    search_mode: Optional[str] = None
     limit: Optional[int] = 5
     filter: Optional[str] = None
     field_mapping: Optional[FieldMapping] = None
