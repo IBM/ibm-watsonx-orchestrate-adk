@@ -150,7 +150,7 @@ class TestAnalyze:
             mock_analyze.return_value = {"metrics": {"accuracy": 0.95}}
             data_path = "test_data"
             evaluations_command.analyze(data_path=data_path, user_env_file=user_env_file)
-            mock_analyze.assert_called_once_with(data_path=data_path)
+            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None)
 
     def test_analyze_with_empty_data_path(self, user_env_file):
         with pytest.raises(ValueError):

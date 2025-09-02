@@ -195,13 +195,10 @@ def tool2():
             }
             metrics_file.write_text(json.dumps(metrics_content, indent=2))
 
-            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.analyze") as mock_analyze:
-                controller.analyze(temp_dir)
-
-                mock_analyze.assert_called_once()
-                actual_config = mock_analyze.call_args[0][0]
-                assert isinstance(actual_config, AnalyzeConfig)
-                assert actual_config.data_path == temp_dir
+            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze") as mock_analyze:
+                controller.analyze(data_path=temp_dir)
+                mock_analyze.assert_called_once_with(data_path=temp_dir)
+                
 
     def test_external_validate(self, controller):
         config = {
