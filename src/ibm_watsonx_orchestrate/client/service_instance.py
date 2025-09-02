@@ -21,14 +21,6 @@ from ibm_watsonx_orchestrate.client.client_errors import (
 import logging
 logger = logging.getLogger(__name__)
 
-from ibm_watsonx_orchestrate.cli.config import (
-    Config,
-    CONTEXT_SECTION_HEADER,
-    CONTEXT_ACTIVE_ENV_OPT,
-    ENVIRONMENTS_SECTION_HEADER,
-    ENV_WXO_URL_OPT
-)
-
 class ServiceInstance(BaseServiceInstance):
     """Connect, get details, and check usage of a Watson Machine Learning service instance."""
 
@@ -99,13 +91,7 @@ class ServiceInstance(BaseServiceInstance):
                     if self._credentials.iam_url is not None: 
                         url = self._credentials.iam_url
                     else: 
-                        cfg = Config()
-                        env_cfg = cfg.get(ENVIRONMENTS_SECTION_HEADER)
-                        matching_wxo_url = next(
-                            (env_config['wxo_url'] for env_config in env_cfg.values() if 'bypass_ssl' in env_config and 'verify' in env_config),
-                            None
-                        )
-                        base_url = matching_wxo_url.split("/orchestrate")[0]
+                        base_url = self._credentials.url.split("/orchestrate")[0]
                         url = f"{base_url}/icp4d-api"
 
                     password = self._credentials.password if self._credentials.password is not None else None
