@@ -1,0 +1,7 @@
+{
+  "agent": "hr_agent",
+  "goals": {},
+  "goal_details": [],
+  "story": "My username is nwaters. I want to find out my timeoff schedule from: 2025-01-01 to: 2025-03-03.",
+  "starting_sentence": "I want to know my timeoff schedule for a certain period."
+}

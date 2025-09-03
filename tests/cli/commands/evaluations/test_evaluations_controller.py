@@ -6,9 +6,9 @@ import yaml
 import csv
 import shutil
 import json
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
-from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
 
 @pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
@@ -79,6 +79,57 @@ class TestEvaluationsController:
                 assert actual_config.output_dir == "test_output"
         finally:
             Path(config_file_path).unlink()
+    
+    def test_quick_eval_with_config_file(self, controller):
+        config_content = {
+            "test_paths": ["test/path1", "test/path2"],
+            "output_dir": "test_output",
+            "auth_config": {
+                "url": "test-url",
+                "tenant_name": "test-tenant",
+                "token": "test-token"
+            },
+            "llm_user_config": {
+                "model_id": "test-model"
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+            yaml.dump(config_content, tmp)
+            tmp.flush()
+            config_file_path = tmp.name
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".py", delete=False) as tmp:
+            tmp.write(
+            """
+                def tool1():
+                    '''A test tool'''
+                    pass
+
+                def tool2():
+                    '''Another test tool'''
+                    pass
+            """
+            )
+            tmp.flush()
+            tools_file = tmp.name
+
+        try:
+            with patch("wxo_agentic_evaluation.quick_eval.main") as mock_evaluate, \
+                 patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
+                
+                controller.evaluate(config_file=config_file_path, tools_path=tools_file, mode=EvaluateMode.referenceless)
+                mock_evaluate.assert_called_once()
+                actual_config = mock_evaluate.call_args[0][0]
+                
+                assert isinstance(actual_config, QuickEvalConfig)
+                assert actual_config.test_paths == ["test/path1", "test/path2"]
+                assert actual_config.output_dir == "test_output"
+                assert actual_config.tools_path == tools_file
+        finally:
+            Path(config_file_path).unlink()
+            Path(tools_file).unlink()
+
 
     def test_record(self, controller):
         mock_runs = []

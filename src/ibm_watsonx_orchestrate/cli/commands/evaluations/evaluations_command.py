@@ -16,7 +16,7 @@ from typing import Optional
 from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate import __version__
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 logger = logging.getLogger(__name__)
@@ -386,6 +386,67 @@ def validate_external(
 
         rich.print(Panel(msg))
 
+@evaluation_app.command(name="quick-eval",
+                        short_help="Evaluate agent against a suite of static metrics and LLM-as-a-judge metrics",
+                        help="""
+                        Use the quick-eval command to evaluate your agent against a suite of static metrics and LLM-as-a-judge metrics.
+                        """)
+def quick_eval(
+    config_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--config", "-c",
+            help="Path to YAML configuration file containing evaluation settings."
+        )
+    ] = None,
+    test_paths: Annotated[
+        Optional[str],
+        typer.Option(
+            "--test-paths", "-p", 
+            help="Paths to the test files and/or directories to evaluate, separated by commas."
+        ),
+    ] = None,
+    tools_path: Annotated[
+        str,
+        typer.Option(
+            "--tools-path", "-t",
+            help="Path to the directory containing tool definitions."
+        )
+    ] = None,
+    output_dir: Annotated[
+        Optional[str], 
+        typer.Option(
+            "--output-dir", "-o",
+            help="Directory to save the evaluation results."
+        )
+    ] = None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file", "-e", 
+            help="Path to a .env file that overrides default.env. Then environment variables override both."
+        ),
+    ] = None
+):
+    if not config_file:
+        if not test_paths or not output_dir:
+            logger.error("Error: Both --test-paths and --output-dir must be provided when not using a config file")
+            exit(1)
+    
+    validate_watsonx_credentials(user_env_file)
+
+    if tools_path is None:
+        logger.error("When running `quick-eval`, please provide the path to your tools file.")
+        sys.exit(1)
+    
+    controller = EvaluationsController()
+    controller.evaluate(
+        config_file=config_file,
+        test_paths=test_paths,
+        output_dir=output_dir,
+        tools_path=tools_path, mode=EvaluateMode.referenceless
+    )
+
 
 red_teaming_app = typer.Typer(no_args_is_help=True)
 evaluation_app.add_typer(red_teaming_app, name="red-teaming")
@@ -428,8 +489,8 @@ def plan(
     ],
     output_dir: Annotated[
         Optional[str],
-        typer.Option("--output-dir", "-o", help="Directory to save generated attacks."),
-    ] = None,
+        typer.Option("--output-dir", "-o", help="Directory to save generated attacks.")
+    ]=None,
     user_env_file: Annotated[
         Optional[str],
         typer.Option(
@@ -486,4 +547,3 @@ def run(
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.run_red_teaming_attacks(attack_paths=attack_paths, output_dir=output_dir)
-
