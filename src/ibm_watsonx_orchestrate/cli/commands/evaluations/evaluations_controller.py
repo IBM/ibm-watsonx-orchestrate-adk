@@ -1,14 +1,16 @@
 import logging
 import os.path
 from typing import List, Dict, Optional, Tuple
+from enum import StrEnum
 import csv
 from pathlib import Path
 import sys
 from wxo_agentic_evaluation import main as evaluate
+from wxo_agentic_evaluation import quick_eval
 from wxo_agentic_evaluation.tool_planner import build_snapshot
 from wxo_agentic_evaluation.analyze_run import Analyzer
 from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
-from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig
 from wxo_agentic_evaluation.record_chat import record_chats
 from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
 from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
@@ -25,6 +27,9 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+class EvaluateMode(StrEnum):
+    default = "default" # referenceFUL evaluation
+    referenceless = "referenceless"
 
 class EvaluationsController:
     def __init__(self):
@@ -42,7 +47,7 @@ class EvaluationsController:
 
         return url, tenant_name, token
 
-    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None) -> None:
+    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None, tools_path: str = None, mode: str = EvaluateMode.default) -> None:
         url, tenant_name, token = self._get_env_config()
 
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
@@ -94,9 +99,13 @@ class EvaluationsController:
             config_data["output_dir"] = output_dir
             logger.info(f"Using output directory: {config_data['output_dir']}")
 
-        config = TestConfig(**config_data)
-        
-        evaluate.main(config)
+        if mode == EvaluateMode.default:
+            config = TestConfig(**config_data)
+            evaluate.main(config)
+        elif mode == EvaluateMode.referenceless:
+            config_data["tools_path"] = tools_path
+            config = QuickEvalConfig(**config_data)
+            quick_eval.main(config)
 
     def record(self, output_dir) -> None:
 
