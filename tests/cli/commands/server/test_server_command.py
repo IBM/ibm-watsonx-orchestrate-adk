@@ -1,18 +1,25 @@
 import os
+import platform
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 from typer.testing import CliRunner
+from dotenv import dotenv_values
 import posixpath
 
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     server_app,
+    ensure_docker_installed,
+    ensure_docker_compose_installed,
+    docker_login,
+    merge_env,
+    apply_llm_api_key_defaults,
+    write_merged_env_file,
     run_compose_lite,
+    get_dbtag_from_architecture,
     run_db_migration
 )
-from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, ENV_ACCEPT_LICENSE, Config
-from ibm_watsonx_orchestrate.utils.docker_utils import DockerComposeCore
-from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, ENV_ACCEPT_LICENSE
 from utils.matcher import MatchesStringContaining
 
 
@@ -21,6 +28,15 @@ def skip_terms_and_conditions():
 
 runner = CliRunner()
 
+@pytest.fixture
+def mock_env_files(tmp_path):
+    default_env = tmp_path / "default.env"
+    default_env.write_text("DEFAULT_VAR=default\nOVERLAP_VAR=default_val")
+    
+    user_env = tmp_path / "user.env"
+    user_env.write_text("USER_VAR=user\nOVERLAP_VAR=user_val")
+    
+    return default_env, user_env
 
 @pytest.fixture(params=["internal", "myibm"])
 def valid_user_env(tmp_path, request):
@@ -88,6 +104,114 @@ def mock_compose_file(tmp_path):
     return compose
 
 # Tests
+def test_ensure_docker_installed_success():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        mock_run.return_value.returncode = 0
+        ensure_docker_installed()
+        mock_run.assert_called_once_with(
+            ["docker", "--version"],
+            check=True,
+            capture_output=True
+        )
+
+def test_ensure_docker_installed_failure():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        mock_run.side_effect = FileNotFoundError
+        with pytest.raises(SystemExit) as exc:
+            ensure_docker_installed()
+        assert exc.value.code == 1
+
+def test_ensure_docker_compose_installed_success():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        mock_run.return_value.returncode = 0
+        ensure_docker_compose_installed()
+        mock_run.assert_called_once_with(
+            ["docker", "compose", "version"],
+            check=True,
+            capture_output=True
+        )
+
+
+def test_ensure_docker_compose_hyphen_success():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        def mock_failure():
+            yield FileNotFoundError
+            while True:
+                yield 0
+
+        mock_run.side_effect = mock_failure()
+        ensure_docker_compose_installed()
+        mock_run.assert_called_with(
+            ["docker-compose", "version"],
+            check=True,
+            capture_output=True
+        )
+
+def test_ensure_docker_compose_failure(capsys):
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+
+        mock_run.side_effect = FileNotFoundError
+        with pytest.raises(SystemExit) as exc:
+            ensure_docker_compose_installed()
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Unable to find an installed docker-compose or docker compose" in captured.out
+
+def test_docker_login_success():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        mock_run.return_value.returncode = 0
+        docker_login("test-key", "registry.example.com")
+        mock_run.assert_called_once_with(
+            ["docker", "login", "-u", "iamapikey", "--password-stdin", "registry.example.com"],
+            input="test-key".encode("utf-8"),
+            capture_output=True
+        )
+
+def test_docker_login_failure():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+        mock_run.return_value.returncode = 1
+        mock_run.return_value.stderr = b"Login failed"
+        with pytest.raises(SystemExit) as exc:
+            docker_login("bad-key", "bad-registry")
+        assert exc.value.code == 1
+
+def test_merge_env_default_only(mock_env_files):
+    default_env, _ = mock_env_files
+    merged = merge_env(default_env, None)
+    assert merged["DEFAULT_VAR"] == "default"
+    assert "USER_VAR" not in merged
+
+def test_merge_env_with_user_file(mock_env_files):
+    default_env, user_env = mock_env_files
+    merged = merge_env(default_env, user_env)
+    assert merged["USER_VAR"] == "user"
+    assert merged["OVERLAP_VAR"] == "user_val"
+
+def test_merge_env_environment_override(monkeypatch, mock_env_files):
+    default_env, user_env = mock_env_files
+    monkeypatch.setenv("OVERLAP_VAR", "env_val")
+    merged = merge_env(default_env, user_env)
+    assert merged["OVERLAP_VAR"] == "user_val"
+
+def test_apply_llm_defaults():
+    env = {
+        "WATSONX_APIKEY": "test-key",
+        "WATSONX_SPACE_ID": "test-space"
+    }
+    apply_llm_api_key_defaults(env)
+    assert env["ASSISTANT_LLM_API_KEY"] == "test-key"
+    assert env["ROUTING_LLM_SPACE_ID"] == "test-space"
+    assert "ASSISTANT_EMBEDDINGS_API_KEY" in env
+
+def test_write_merged_env_file(tmp_path):
+    mock_env = {"KEY1": "value1", "KEY2": "value2"}
+    result_path = write_merged_env_file(mock_env)
+    content = result_path.read_text()
+    assert "KEY1=value1\n" in content
+    assert "KEY2=value2\n" in content
+    result_path.unlink()
+    assert isinstance(result_path, Path)
 
 def test_run_compose_lite_success():
     mock_env_file = Path("/tmp/test.env")
@@ -95,7 +219,7 @@ def test_run_compose_lite_success():
          patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file)
             mock_unlink.assert_called()
 
 def test_run_compose_lite_failure():
@@ -104,7 +228,7 @@ def test_run_compose_lite_failure():
          patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 1
         with pytest.raises(SystemExit):
-            run_compose_lite(mock_env_file, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file)
         mock_unlink.assert_not_called()
 
 def test_run_compose_lite_success_langfuse_true():
@@ -113,7 +237,7 @@ def test_run_compose_lite_success_langfuse_true():
         patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=True, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file, experimental_with_langfuse=True)
             mock_unlink.assert_called()
 
 def test_run_compose_lite_success_langfuse_false():
@@ -122,19 +246,19 @@ def test_run_compose_lite_success_langfuse_false():
          patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=False, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file, experimental_with_langfuse=False)
             mock_unlink.assert_called()
 
 def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
     mock_env_file = Path("test.env")
     with patch("subprocess.run") as mock_run, \
         skip_terms_and_conditions(), \
-        patch.object(EnvService, "get_compose_file") as mock_compose, \
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
         patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         mock_compose.return_value = mock_compose_file
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=True, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file, experimental_with_langfuse=True)
             mock_run.assert_called_with(
                 ['docker', 'compose', '--profile', 'langfuse', '-f', posixpath.abspath(mock_compose_file), '--env-file', posixpath.basename(mock_env_file), 'up', '--scale', 'ui=0', '--scale', 'cpe=0', '-d', '--remove-orphans'],
                 capture_output=False
@@ -146,7 +270,7 @@ def test_run_compose_lite_success_docproc_true():
         patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_doc_processing=True, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file, with_doc_processing=True)
             mock_unlink.assert_called()
 
 def test_run_compose_lite_success_docproc_false():
@@ -155,14 +279,14 @@ def test_run_compose_lite_success_docproc_false():
         patch.object(Path, "unlink") as mock_unlink:
         mock_run.return_value.returncode = 0
         with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_doc_processing=False, env_service=EnvService(Config()))
+            run_compose_lite(mock_env_file, with_doc_processing=False)
             mock_unlink.assert_called()
 
 def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
-         patch.object(EnvService, "get_default_env_file") as mock_default, \
-         patch.object(EnvService, "get_compose_file") as mock_compose, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check") as mock_wait_for_wxo_server_health_check, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite") as mock_run_compose_lite:
         mock_wait_for_wxo_server_health_check.return_value = True
@@ -207,7 +331,7 @@ def test_cli_stop_command(valid_user_env):
 def test_cli_reset_command(valid_user_env):
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
          skip_terms_and_conditions(), \
-         patch.object(EnvService, "write_merged_env_file") as mock_write_env:
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.write_merged_env_file") as mock_write_env:
         temp_env_path = Path("/tmp/tmpenv.env")
         mock_write_env.return_value = temp_env_path
         
@@ -229,7 +353,7 @@ def test_cli_logs_command(valid_user_env):
         mock_logs.assert_called_once()
 
 def test_missing_default_env_file(caplog):
-    with patch.object(EnvService, "get_default_env_file") as mock_default, \
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
             skip_terms_and_conditions():
         mock_default.return_value = Path("/non/existent/path")
         result = runner.invoke(server_app, ["start"])
@@ -255,7 +379,7 @@ def test_invalid_docker_credentials(invalid_user_env, caplog):
         assert "Invalid credentials" in captured
 
 def test_missing_compose_file(valid_user_env, caplog):
-  with patch.object(EnvService, "get_compose_file") as mock_compose, \
+  with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
           skip_terms_and_conditions(), \
           patch("subprocess.run") as mock_run:
       mock_compose.return_value = Path("/non/existent/compose.yml")
@@ -268,6 +392,18 @@ def test_missing_compose_file(valid_user_env, caplog):
       assert result.exit_code == 1
       assert "Error logging into Docker:" in captured
 
+def test_env_variable_conflict_resolution(monkeypatch, mock_env_files):
+    default_env, user_env = mock_env_files
+    monkeypatch.setenv("OVERLAP_VAR", "env_override")
+    merged = merge_env(default_env, user_env)
+    assert merged["OVERLAP_VAR"] == "user_val"
+
+def test_llm_defaults_missing_keys():
+    env = {}
+    apply_llm_api_key_defaults(env)
+    assert "ASSISTANT_LLM_API_KEY" not in env
+    assert "ROUTING_LLM_SPACE_ID" not in env
+
 def test_cli_command_failure(caplog):
     with (patch("subprocess.run") as mock_run, skip_terms_and_conditions()):
         mock_run.return_value.returncode = 1
@@ -278,13 +414,37 @@ def test_cli_command_failure(caplog):
     assert result.exit_code == 1
     assert "Missing required model access environment variables" in captured
 
+def test_get_dbtag_from_architecture_arm64():
+    with patch("platform.machine") as mock_machine, \
+            skip_terms_and_conditions(), \
+            patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
+         patch("os.getenv") as mock_getenv:
+        
+        mock_default.return_value = "/fake/path/.env"
+        mock_machine.return_value = "arm64"
+        mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
+        result = get_dbtag_from_architecture(merged_env_dict={'ARM64DBTAG': 'arm64-db-tag', 'AMDDBTAG': 'amd-db-tag'})
+
+        assert result == "arm64-db-tag"
+
+def test_get_dbtag_from_architecture_amd64():
+    with patch("platform.machine") as mock_machine, \
+            skip_terms_and_conditions(), \
+            patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_default_env_file") as mock_default, \
+            patch("os.getenv") as mock_getenv:
+        mock_default.return_value = "/fake/path/.env"
+        mock_machine.return_value = "x86_64"
+        mock_getenv.side_effect = lambda key: "arm64-db-tag" if key == "ARM64DBTAG" else "amd-db-tag"
+        result = get_dbtag_from_architecture(merged_env_dict={'ARM64DBTAG': 'arm64-db-tag', 'AMDDBTAG': 'amd-db-tag'})
+
+        assert result == "amd-db-tag"
+
 def test_run_db_migration_success():
-    with patch.object(EnvService, "get_compose_file") as mock_compose, \
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
              skip_terms_and_conditions(), \
-             patch.object(DockerComposeCore, "_DockerComposeCore__ensure_docker_compose_installed") as mock_docker_compose, \
+             patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.ensure_docker_compose_installed") as mock_docker_compose, \
              patch("subprocess.run") as mock_subprocess, \
-             patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as server_command_logger, \
-             patch("ibm_watsonx_orchestrate.utils.docker_utils.logger") as compose_core_logger:
+             patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
         
         mock_compose.return_value = "/fake/path/docker-compose.yml"
         mock_docker_compose.return_value = ["docker-compose"]
@@ -296,12 +456,12 @@ def test_run_db_migration_success():
         mock_compose.assert_called_once()
         mock_docker_compose.assert_called_once()
         mock_subprocess.assert_called_once()
-        compose_core_logger.info.assert_any_call("Running Database Migration...")
-        server_command_logger.info.assert_any_call("Migration ran successfully.")
+        mock_logger.info.assert_any_call("Running Database Migration...")
+        mock_logger.info.assert_any_call("Migration ran successfully.")
 
 def test_run_db_migration_failure():
-    with patch.object(EnvService, "get_compose_file") as mock_compose, \
-         patch.object(DockerComposeCore, "_DockerComposeCore__ensure_docker_compose_installed") as mock_docker_compose, \
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_compose_file") as mock_compose, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.ensure_docker_compose_installed") as mock_docker_compose, \
          skip_terms_and_conditions(), \
          patch("subprocess.run") as mock_subprocess, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
@@ -346,7 +506,7 @@ class MockConfig2():
 
 def test_server_start_asks_for_tc_interactively():
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement") as tc_mock:
-        tc_mock.side_effect = lambda accepts, cli_config: exit(1)
+        tc_mock.side_effect = lambda accepts: exit(1)
         from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_start
         with pytest.raises(SystemExit):
             server_start(accept_terms_and_conditions=False)
@@ -356,7 +516,7 @@ def test_server_start_asks_for_tc_interactively():
 
 def test_server_start_asks_for_tc_via_args():
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement") as tc_mock:
-        tc_mock.side_effect = lambda accepts, cli_config: exit(1)
+        tc_mock.side_effect = lambda accepts: exit(1)
         from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_start
         with pytest.raises(SystemExit):
             server_start(accept_terms_and_conditions=True)
@@ -371,7 +531,7 @@ def test_confirm_accepts_license_agreement_asks_if_not_already_accepted(capsys, 
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
          patch('ibm_watsonx_orchestrate.cli.commands.server.server_command.Config', lambda: cfg):
         cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, False)
-        confirm_accepts_license_agreement(accepts_by_argument=False, cfg=cfg)
+        confirm_accepts_license_agreement(accepts_by_argument=False)
         mock_logger.warning.assert_any_call(MatchesStringContaining('license agreement'))
 
         assert cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE) == True
@@ -383,7 +543,7 @@ def test_confirm_accepts_license_agreement_skips_if_already_accepted():
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
             patch('ibm_watsonx_orchestrate.cli.commands.server.server_command.Config', lambda: cfg):
         cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, True)
-        confirm_accepts_license_agreement(accepts_by_argument=False, cfg=cfg)
+        confirm_accepts_license_agreement(accepts_by_argument=False)
         mock_logger.warning.assert_not_called()
 
         assert cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE) == True
@@ -396,7 +556,7 @@ def test_confirm_exits_license_agreement_exist_if_not_accepted(capsys, monkeypat
             patch('ibm_watsonx_orchestrate.cli.commands.server.server_command.Config', lambda: cfg):
         cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, False)
         with pytest.raises(SystemExit):
-            confirm_accepts_license_agreement(accepts_by_argument=False, cfg=cfg)
+            confirm_accepts_license_agreement(accepts_by_argument=False)
         mock_logger.warning.assert_any_call(MatchesStringContaining('license agreement'))
 
         assert cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE) == False
@@ -407,7 +567,7 @@ def test_confirm_accepts_license_agreement_skips_if_accepted_via_args():
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
             patch('ibm_watsonx_orchestrate.cli.commands.server.server_command.Config', lambda: cfg):
         cfg.write(LICENSE_HEADER, ENV_ACCEPT_LICENSE, False)
-        confirm_accepts_license_agreement(accepts_by_argument=True, cfg=cfg)
+        confirm_accepts_license_agreement(accepts_by_argument=True)
         mock_logger.warning.assert_any_call(MatchesStringContaining('license agreement')) # it still prints to the user, just no input
 
         assert cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE) == True

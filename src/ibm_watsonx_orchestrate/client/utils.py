@@ -1,5 +1,3 @@
-import platform
-
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
     DEFAULT_CONFIG_FILE_FOLDER,
@@ -173,31 +171,3 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
         message = "No active environment found. Please run `orchestrate env activate` to activate an environment"
         logger.error(message)
         raise FileNotFoundError(message)
-
-
-def get_architecture () -> str:
-    arch = platform.machine().lower()
-    if arch in ("amd64", "x86_64"):
-        return "amd64"
-
-    elif arch == "i386":
-        return "386"
-
-    elif arch in ("aarch64", "arm64", "arm"):
-        return "arm"
-
-    else:
-        raise Exception("Unsupported architecture %s" % arch)
-
-
-def is_arm_architecture () -> bool:
-    return platform.machine().lower() in ("aarch64", "arm64", "arm")
-
-
-def get_os_type () -> str:
-    system = platform.system().lower()
-    if system in ("linux", "darwin", "windows"):
-        return system
-
-    else:
-        raise Exception("Unsupported operating system %s" % system)

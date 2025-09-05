@@ -1,13 +1,24 @@
 import logging
 import sys
 from pathlib import Path
+import subprocess
 import time
 import requests
 from urllib.parse import urlparse
-
-from ibm_watsonx_orchestrate.cli.config import Config
-from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
-from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
+    get_compose_file,
+    ensure_docker_compose_installed,
+    _prepare_clean_env,
+    ensure_docker_installed,
+    read_env_file,
+    get_default_env_file,
+    get_persisted_user_env,
+    get_dev_edition_source,
+    get_default_registry_env_vars_by_dev_edition_source,
+    docker_login_by_dev_edition_source,
+    write_merged_env_file,
+    apply_server_env_dict_defaults
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,26 +39,71 @@ def wait_for_wxo_cpe_health_check(timeout_seconds=45, interval_seconds=2):
         time.sleep(interval_seconds)
     return False
 
-def run_compose_lite_cpe(user_env_file: Path) -> bool:
-    DockerUtils.ensure_docker_installed()
+def _trim_authorization_urls(env_dict: dict) -> dict:
+    auth_url_key = "AUTHORIZATION_URL"
+    env_dict_copy = env_dict.copy()
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    env_service.prepare_clean_env(user_env_file)
-    user_env = env_service.get_user_env(user_env_file)
-    merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=True)
+    auth_url = env_dict_copy.get(auth_url_key)
+    if not auth_url:
+        return env_dict_copy
+    
+    
+    parsed_url = urlparse(auth_url)
+    new_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    env_dict_copy[auth_url_key] = new_url
+
+    return env_dict_copy
+
+    
+
+
+def run_compose_lite_cpe(user_env_file: Path) -> bool:
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+    _prepare_clean_env(user_env_file)  
+    ensure_docker_installed()
+
+    default_env = read_env_file(get_default_env_file())
+    user_env = read_env_file(user_env_file) if user_env_file else {}
+    if not user_env:
+        user_env = get_persisted_user_env() or {}
+
+    dev_edition_source = get_dev_edition_source(user_env)
+    default_registry_vars = get_default_registry_env_vars_by_dev_edition_source(default_env, user_env, source=dev_edition_source)
+
+    # Update the default environment with the default registry variables only if they are not already set
+    for key in default_registry_vars:
+        if key not in default_env or not default_env[key]:
+            default_env[key] = default_registry_vars[key]
+
+    # Merge the default environment with the user environment
+    merged_env_dict = {
+        **default_env,
+        **user_env,
+    }
+    
+    merged_env_dict = apply_server_env_dict_defaults(merged_env_dict)
+    merged_env_dict = _trim_authorization_urls(merged_env_dict)
 
     try:
-        DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
+        docker_login_by_dev_edition_source(merged_env_dict, dev_edition_source)
     except ValueError as ignored:
         # do nothing, as the docker login here is not mandatory
         pass
 
-    final_env_file = env_service.write_merged_env_file(merged_env_dict)
+    final_env_file = write_merged_env_file(merged_env_dict)
 
-    compose_core = DockerComposeCore(env_service)
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", str(final_env_file),
+        "up",
+        "cpe",
+        "-d",
+        "--remove-orphans"
+    ]
 
-    result = compose_core.service_up(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file)
+    logger.info(f"Starting docker-compose Copilot service...")
+    result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
         logger.info("Copilot Service started successfully.")
@@ -68,16 +124,27 @@ def run_compose_lite_cpe(user_env_file: Path) -> bool:
     return True
 
 def run_compose_lite_cpe_down(is_reset: bool = False) -> None:
-    DockerUtils.ensure_docker_installed()
+    compose_path = get_compose_file()
+    compose_command = ensure_docker_compose_installed()
+    ensure_docker_installed()
 
-    default_env = EnvService.read_env_file(EnvService.get_default_env_file())
-    final_env_file = EnvService.write_merged_env_file(default_env)
+    default_env = read_env_file(get_default_env_file())
+    final_env_file = write_merged_env_file(default_env)
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service)
+    command = compose_command + [
+        "-f", str(compose_path),
+        "--env-file", final_env_file,
+        "down",
+        "cpe"
+    ]
 
-    result = compose_core.service_down(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file, is_reset=is_reset)
+    if is_reset:
+        command.append("--volumes")
+        logger.info("Stopping docker-compose Copilot service and resetting volumes...")
+    else:
+        logger.info("Stopping docker-compose Copilot service...")
+
+    result = subprocess.run(command, capture_output=False)
 
     if result.returncode == 0:
         logger.info("Copilot service stopped successfully.")
