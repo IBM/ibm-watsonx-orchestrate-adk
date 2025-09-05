@@ -161,6 +161,8 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
                     client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
                 elif verify is not None:
                     client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=verify)
+                else:
+                    client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
             else:
                 client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
 
