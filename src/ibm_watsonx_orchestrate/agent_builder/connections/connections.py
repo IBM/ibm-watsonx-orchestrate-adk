@@ -1,5 +1,6 @@
 import os
 import logging
+from copy import deepcopy
 from typing import List
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     BasicAuthCredentials,
@@ -67,7 +68,8 @@ def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -
     return required_env_vars
 
 def _build_credentials_model(credentials_type: type[CREDENTIALS], vars: dict[str,str], base_prefix: str) -> type[CREDENTIALS]:
-    requirements = connection_type_requirements_mapping[credentials_type]
+    requirements_lut = deepcopy(connection_type_requirements_mapping)
+    requirements = requirements_lut[credentials_type]
 
     if requirements:
         requirements.append("url")
@@ -101,7 +103,8 @@ def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: st
     
     credentials_type = CONNECTION_TYPE_CREDENTIAL_MAPPING[connection_type]
 
-    requirements = connection_type_requirements_mapping.get(credentials_type)
+    requirements_lut = deepcopy(connection_type_requirements_mapping)
+    requirements = requirements_lut.get(credentials_type)
     if requirements:
         variables = _clean_env_vars(vars=variables, requirements=requirements, app_id=app_id)
 
