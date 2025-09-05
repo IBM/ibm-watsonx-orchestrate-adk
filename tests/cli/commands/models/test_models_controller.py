@@ -12,8 +12,6 @@ from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import 
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ModelType, ProviderConfig
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicyInner, ModelPolicyStrategyMode, ModelPolicy, ModelPolicyStrategy, ModelPolicyRetry, ModelPolicyTarget
-from ibm_watsonx_orchestrate.utils.environment import EnvService
-
 
 class MockModelsClient():
     def __init__(self, list_response=[], get_draft_by_name_response=[]):
@@ -377,8 +375,8 @@ class TestGetModelNamesFromPolicy:
 class TestListModels:
     def test_list_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy"}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(models_controller, "merge_env", lambda default, user: fake_env)
+        monkeypatch.setattr(models_controller, "get_default_env_file", lambda: Path("dummy.env"))
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
@@ -399,8 +397,8 @@ class TestListModels:
     
     def test_list_models_print_raw(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy"}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(models_controller, "merge_env", lambda default, user: fake_env)
+        monkeypatch.setattr(models_controller, "get_default_env_file", lambda: Path("dummy.env"))
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
@@ -421,8 +419,8 @@ class TestListModels:
     
     def test_list_models_missing_watsonx_url(self, monkeypatch, caplog):
         fake_env = {}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(models_controller, "merge_env", lambda default, user: fake_env)
+        monkeypatch.setattr(models_controller, "get_default_env_file", lambda: Path("dummy.env"))
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
@@ -441,8 +439,8 @@ class TestListModels:
     
     def test_list_models_no_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy"}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(models_controller, "merge_env", lambda default, user: fake_env)
+        monkeypatch.setattr(models_controller, "get_default_env_file", lambda: Path("dummy.env"))
         monkeypatch.setattr(requests, "get", empty_dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
@@ -463,8 +461,8 @@ class TestListModels:
     
     def test_list_models_incompatible_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy", "INCOMPATIBLE_MODELS": "1234"}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(models_controller, "merge_env", lambda default, user: fake_env)
+        monkeypatch.setattr(models_controller, "get_default_env_file", lambda: Path("dummy.env"))
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
