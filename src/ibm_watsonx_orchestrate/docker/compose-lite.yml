@@ -135,6 +135,7 @@ services:
       ALLOW_INSECURE_TLS: "true"
       ENABLE_EDIT_PROMPTS: "false"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      ENABLE_EMBED_SCRIPT: "true"
     command: 'npm start'
     ports:
       - "4025:4025"
