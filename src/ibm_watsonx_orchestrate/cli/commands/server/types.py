@@ -92,7 +92,7 @@ class ModelGatewayEnvConfig(BaseModel):
                     inferred_auth_url = config.get("WO_INSTANCE") + '/icp4d-api/v1/authorize'   
                 else: 
                     logger.error(f"No 'AUTHORIZATION_URL' found. Auth type '{auth_type}' does not support defaulting. Please set the 'AUTHORIZATION_URL' explictly")
-                sys.exit(1)
+                    sys.exit(1)
             config["AUTHORIZATION_URL"] = inferred_auth_url
         
         if auth_type != WoAuthType.CPD:
