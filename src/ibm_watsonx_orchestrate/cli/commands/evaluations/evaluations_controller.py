@@ -1,17 +1,23 @@
 import logging
 import os.path
 from typing import List, Dict, Optional, Tuple
+from enum import StrEnum
 import csv
 from pathlib import Path
 import sys
 from wxo_agentic_evaluation import main as evaluate
+from wxo_agentic_evaluation import quick_eval
 from wxo_agentic_evaluation.tool_planner import build_snapshot
-from wxo_agentic_evaluation.analyze_run import analyze
+from wxo_agentic_evaluation.analyze_run import Analyzer
 from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
-from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig
 from wxo_agentic_evaluation.record_chat import record_chats
 from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
 from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
+from wxo_agentic_evaluation.red_teaming.attack_list import print_attacks
+from wxo_agentic_evaluation.red_teaming import attack_generator
+from wxo_agentic_evaluation.red_teaming.attack_runner import run_attacks
+from wxo_agentic_evaluation.arg_configs import AttackGeneratorConfig
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, AUTH_CONFIG_FILE, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
@@ -21,6 +27,9 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+class EvaluateMode(StrEnum):
+    default = "default" # referenceFUL evaluation
+    referenceless = "referenceless"
 
 class EvaluationsController:
     def __init__(self):
@@ -38,7 +47,7 @@ class EvaluationsController:
 
         return url, tenant_name, token
 
-    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None) -> None:
+    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None, tools_path: str = None, mode: str = EvaluateMode.default) -> None:
         url, tenant_name, token = self._get_env_config()
 
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
@@ -90,9 +99,13 @@ class EvaluationsController:
             config_data["output_dir"] = output_dir
             logger.info(f"Using output directory: {config_data['output_dir']}")
 
-        config = TestConfig(**config_data)
-        
-        evaluate.main(config)
+        if mode == EvaluateMode.default:
+            config = TestConfig(**config_data)
+            evaluate.main(config)
+        elif mode == EvaluateMode.referenceless:
+            config_data["tools_path"] = tools_path
+            config = QuickEvalConfig(**config_data)
+            quick_eval.main(config)
 
     def record(self, output_dir) -> None:
 
@@ -160,9 +173,13 @@ class EvaluationsController:
 
         logger.info("Test cases stored at: %s", output_dir)
 
-    def analyze(self, data_path: str) -> None:
-        config = AnalyzeConfig(data_path=data_path)
-        analyze(config)
+    def analyze(self, data_path: str, tool_definition_path: str) -> None:
+        config = AnalyzeConfig(
+            data_path=data_path,
+            tool_definition_path=tool_definition_path
+            )
+        analyzer = Analyzer()
+        analyzer.analyze(config)
 
     def summarize(self) -> None:
         pass
@@ -187,3 +204,70 @@ class EvaluationsController:
         generated_performance_tests = performance_test.generate_tests()
 
         return generated_performance_tests
+    
+    def list_red_teaming_attacks(self):
+        print_attacks()
+
+    def generate_red_teaming_attacks(
+        self,
+        attacks_list: str,
+        datasets_path: str,
+        agents_path: str,
+        target_agent_name: str,
+        output_dir: Optional[str] = None,
+        max_variants: Optional[int] = None,
+    ):
+        if output_dir is None:
+            output_dir = os.path.join(os.getcwd(), "red_teaming_attacks")
+            os.makedirs(output_dir, exist_ok=True)
+            logger.info(f"No output directory specified. Using default: {output_dir}")
+
+        results = attack_generator.main(
+            AttackGeneratorConfig(
+                attacks_list=attacks_list.split(","),
+                datasets_path=datasets_path.split(","),
+                agents_path=agents_path,
+                target_agent_name=target_agent_name,
+                output_dir=output_dir,
+                max_variants=max_variants,
+            )
+        )
+        logger.info(f"Generated {len(results)} attacks and saved to {output_dir}")
+
+    def run_red_teaming_attacks(self, attack_paths: str, output_dir: Optional[str] = None) -> None:
+        url, tenant_name, token = self._get_env_config()
+
+        if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
+            provider = "watsonx"
+        elif "WO_INSTANCE" in os.environ and "WO_API_KEY" in os.environ:
+            provider = "model_proxy"
+        else:
+            logger.error(
+                "No provider found. Please either provide a config_file or set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables."
+            )
+            sys.exit(1)
+
+        config_data = {
+            "auth_config": AuthConfig(
+                url=url,
+                tenant_name=tenant_name,
+                token=token,
+            ),
+            "provider_config": ProviderConfig(
+                provider=provider,
+                model_id="meta-llama/llama-3-405b-instruct",
+            ),
+        }
+
+        config_data["attack_paths"] = attack_paths.split(",")
+        if output_dir:
+            config_data["output_dir"] = output_dir
+        else:
+            config_data["output_dir"] = os.path.join(os.getcwd(), "red_teaming_results")
+            os.makedirs(config_data["output_dir"], exist_ok=True)
+            logger.info(f"No output directory specified. Using default: {config_data['output_dir']}")
+            
+
+        config = AttackConfig(**config_data)
+
+        run_attacks(config)

@@ -223,6 +223,11 @@ class ExternalAgentSpec(BaseAgentSpec):
 
     @model_validator(mode="before")
     def validate_fields_for_external(cls, values):
+        # The get api responds with a flat object with no config
+        if values.get("config") is None:
+            values["config"] = {}
+            values["config"]["enable_cot"] = values.get("enable_cot", None)
+            values["config"]["hidden"] = values.get("hidden", None)
         return validate_external_agent_fields(values)
 
     @model_validator(mode="after")
@@ -276,6 +281,14 @@ class AssistantAgentSpec(BaseAgentSpec):
 
     @model_validator(mode="before")
     def validate_fields_for_external(cls, values):
+        if values.get("config") is None:
+            values["config"] = {}
+            values["config"]["api_version"] = values.get("api_version", None)
+            values["config"]["assistant_id"] = values.get("assistant_id", None)
+            values["config"]["crn"] = values.get("crn", None)
+            values["config"]["service_instance_url"] = values.get("service_instance_url", None)
+            values["config"]["environment_id"] = values.get("environment_id", None)
+            values["config"]["authorization_url"] = values.get("authorization_url", None)
         return validate_assistant_agent_fields(values)
 
     @model_validator(mode="after")

@@ -927,7 +927,9 @@ class TestAgentsControllerPublishOrUpdateAgents:
                 "type": "EXTERNAL",
                 "description": "Mock description",
                 "title": "Mock title",
-                "api_url": "https://mock-api.com"
+                "api_url": "https://mock-api.com",
+                "hidden": False,
+                "enable_cot": False
             }]))
             tool_client_mock.return_value = MockAgent()
 
@@ -1092,11 +1094,12 @@ class TestListAgents:
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_knowledge_base_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client')
+    @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_collaborator_names')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_tool_names')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_knowledge_base_names')
-    def test_list_agents(self, get_agent_knowledge_base_names, mock_get_connections_client, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_external_client, mock_get_native_client, mock_get_knowledge_base_client, mock_get_tool_client):
+    def test_list_agents(self, get_agent_knowledge_base_names, mock_get_connections_client, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_assistant_client, mock_get_external_client, mock_get_native_client, mock_get_knowledge_base_client, mock_get_tool_client):
         mock_get_connections_client.return_value = MockConnectionClient()
         
         # Mock responses for collaborator and tool names
@@ -1123,6 +1126,16 @@ class TestListAgents:
                 'chat_params': {},
                 'nickname': 'agent_nickname',
                 'app_id': 'app_id_example',
+                'hidden': False,
+                'enable_cot': False
+            }]
+        ]
+
+        mock_get_assistant_client.return_value.get.side_effect = [
+            [{
+                'id': 'external_agent1',
+                'name': 'Agent 1',
+                'title': 'Agent Title',
             }]
         ]
         
@@ -1136,14 +1149,16 @@ class TestListAgents:
         agents_controller = AgentsController()
         agents_controller.list_agents(kind=AgentKind.NATIVE)
         
-        assert mock_get_native_client.call_count == 1, f"Expected get_native_client to be called once, but got {mock_get_native_client.call_count}"
-        assert mock_get_tool_client.call_count == 0, f"Expected get_tool_client to be called 0 times, but got {mock_get_tool_client.call_count}"
-        assert mock_get_knowledge_base_client.call_count == 0, f"Expected get_knowledge_base_client to be called 0 times, but got {mock_get_knowledge_base_client.call_count}"
+        assert mock_get_native_client.call_count == 2, f"Expected get_native_client to be called once, but got {mock_get_native_client.call_count}"
+        assert mock_get_tool_client.call_count == 1, f"Expected get_tool_client to be called 0 times, but got {mock_get_tool_client.call_count}"
+        assert mock_get_knowledge_base_client.call_count == 1, f"Expected get_knowledge_base_client to be called 0 times, but got {mock_get_knowledge_base_client.call_count}"
         
+        mock_get_tool_client.reset_mock()
+        mock_get_knowledge_base_client.reset_mock()
         # Test for External agents
         agents_controller.list_agents(kind=AgentKind.EXTERNAL)
 
-        assert mock_get_external_client.call_count == 1, f"Expected get_external_client to be called once, but got {mock_get_external_client.call_count}"
+        assert mock_get_external_client.call_count == 2, f"Expected get_external_client to be called once, but got {mock_get_external_client.call_count}"
         assert mock_get_tool_client.call_count == 0, f"Expected get_tool_client to be called 0 times, but got {mock_get_tool_client.call_count}"
         assert mock_get_knowledge_base_client.call_count == 0, f"Expected get_knowledge_base_client to be called 0 times, but got {mock_get_knowledge_base_client.call_count}"
         

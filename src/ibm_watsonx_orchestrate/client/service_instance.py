@@ -10,7 +10,7 @@ from ibm_cloud_sdk_core.authenticators import MCSPV2Authenticator
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core.authenticators import CloudPakForDataAuthenticator
 
-from ibm_watsonx_orchestrate.client.utils import check_token_validity, is_cpd_env
+from ibm_watsonx_orchestrate.client.utils import check_token_validity, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.client.base_service_instance import BaseServiceInstance
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 
@@ -20,14 +20,6 @@ from ibm_watsonx_orchestrate.client.client_errors import (
 
 import logging
 logger = logging.getLogger(__name__)
-
-from ibm_watsonx_orchestrate.cli.config import (
-    Config,
-    CONTEXT_SECTION_HEADER,
-    CONTEXT_ACTIVE_ENV_OPT,
-    ENVIRONMENTS_SECTION_HEADER,
-    ENV_WXO_URL_OPT
-)
 
 class ServiceInstance(BaseServiceInstance):
     """Connect, get details, and check usage of a Watson Machine Learning service instance."""
@@ -50,29 +42,28 @@ class ServiceInstance(BaseServiceInstance):
         return self._client.token
     
     def _create_token(self) -> str:
-        if not self._credentials.auth_type:
-            if ".cloud.ibm.com" in self._credentials.url:
-                logger.warning("Using IBM IAM Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'mcsp', 'mcsp_v1', 'mcsp_v2' or 'cpd' ")
-                return self._authenticate(EnvironmentAuthType.IBM_CLOUD_IAM)
-            elif is_cpd_env(self._credentials.url):
-                logger.warning("Using CPD Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam', 'mcsp', 'mcsp_v1' or 'mcsp_v2' ")
-                return self._authenticate(EnvironmentAuthType.CPD)
-            else:
-                logger.warning("Using MCSP Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of 'ibm_iam', 'mcsp_v1', 'mcsp_v2' or 'cpd' ")
-                try:
-                    return self._authenticate(EnvironmentAuthType.MCSP_V1)
-                except:
-                    return self._authenticate(EnvironmentAuthType.MCSP_V2)
-        auth_type = self._credentials.auth_type.lower()
+        inferred_auth_type = None
+        if is_ibm_cloud_platform(self._credentials.url):
+            inferred_auth_type = EnvironmentAuthType.IBM_CLOUD_IAM
+        elif is_cpd_env(self._credentials.url):
+            inferred_auth_type = EnvironmentAuthType.CPD
+        else:
+            inferred_auth_type = EnvironmentAuthType.MCSP
+        
+        if self._credentials.auth_type:
+            if self._credentials.auth_type != inferred_auth_type:
+                logger.warning(f"Overriding the default authentication type '{inferred_auth_type}' for url '{self._credentials.url}' with '{self._credentials.auth_type.lower()}'")
+            auth_type = self._credentials.auth_type.lower()
+        else:
+            inferred_type_options = [t for t in EnvironmentAuthType if t != inferred_auth_type]
+            logger.warning(f"Using '{inferred_auth_type}' Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of {', '.join(inferred_type_options[:-1])} or {inferred_type_options[-1]}")
+            auth_type = inferred_auth_type
+        
         if auth_type == "mcsp":
             try:
                 return self._authenticate(EnvironmentAuthType.MCSP_V1)
             except:
                 return self._authenticate(EnvironmentAuthType.MCSP_V2)
-        elif auth_type == "mcsp_v1":
-            return self._authenticate(EnvironmentAuthType.MCSP_V1)
-        elif auth_type == "mcsp_v2":
-            return self._authenticate(EnvironmentAuthType.MCSP_V2)
         else:
             return self._authenticate(auth_type)
 
@@ -100,13 +91,7 @@ class ServiceInstance(BaseServiceInstance):
                     if self._credentials.iam_url is not None: 
                         url = self._credentials.iam_url
                     else: 
-                        cfg = Config()
-                        env_cfg = cfg.get(ENVIRONMENTS_SECTION_HEADER)
-                        matching_wxo_url = next(
-                            (env_config['wxo_url'] for env_config in env_cfg.values() if 'bypass_ssl' in env_config and 'verify' in env_config),
-                            None
-                        )
-                        base_url = matching_wxo_url.split("/orchestrate")[0]
+                        base_url = self._credentials.url.split("/orchestrate")[0]
                         url = f"{base_url}/icp4d-api"
 
                     password = self._credentials.password if self._credentials.password is not None else None

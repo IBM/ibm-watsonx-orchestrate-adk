@@ -5,6 +5,7 @@ import pytest
 import shutil
 from pathlib import Path
 from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluateMode
 
 @pytest.fixture(autouse=True, scope="module")
 def user_env_file():
@@ -105,6 +106,51 @@ class TestEvaluate:
             evaluations_command.evaluate(test_paths="", output_dir="output_dir", user_env_file=user_env_file)
         assert exc_info.value.code == 1
 
+pytest.mark.usefixtures('valid_config')
+pytest.mark.usefixtures('config_file')
+class TestQuickEval(TestEvaluate):
+    @pytest.fixture
+    def tools_path(self):
+        tools_dir = tempfile.mkdtemp()
+        tools_file = Path(tools_dir) / "test_tool.py"
+        tools_file.write_text(
+            """
+            def tool1():
+                '''A test tool'''
+                pass
+
+            def tool2():
+                '''Another test tool'''
+                pass
+            """
+        )
+
+        return str(tools_file)
+
+    def test_evaluate_with_config_file(self, config_file, user_env_file, tools_path):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.evaluate") as mock_evaluate:
+            evaluations_command.quick_eval(config_file=config_file, user_env_file=user_env_file, tools_path=tools_path)
+            mock_evaluate.assert_called_once_with(
+                config_file=config_file,
+                test_paths=None,
+                output_dir=None,
+                tools_path=tools_path,
+                mode=EvaluateMode.referenceless
+            )
+    
+    def test_evaluate_with_command_line_args(self, user_env_file, tools_path):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.evaluate") as mock_evaluate:
+            test_paths = "path1,path2"
+            output_dir = "output_dir"
+            evaluations_command.quick_eval(test_paths=test_paths,output_dir=output_dir, user_env_file=user_env_file, tools_path=tools_path)
+            mock_evaluate.assert_called_once_with(
+                config_file=None,
+                test_paths=test_paths,
+                output_dir=output_dir,
+                tools_path=tools_path,
+                mode=EvaluateMode.referenceless
+            )
+
 class TestRecord:
     @pytest.fixture
     def output_dir(self):
@@ -150,7 +196,7 @@ class TestAnalyze:
             mock_analyze.return_value = {"metrics": {"accuracy": 0.95}}
             data_path = "test_data"
             evaluations_command.analyze(data_path=data_path, user_env_file=user_env_file)
-            mock_analyze.assert_called_once_with(data_path=data_path)
+            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None)
 
     def test_analyze_with_empty_data_path(self, user_env_file):
         with pytest.raises(ValueError):
@@ -232,3 +278,41 @@ class TestValidateExternal:
                     )
             finally:
                 Path(csv_path).unlink()
+
+
+class TestRedTeaming:
+    def test_list_plans_calls_controller(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.list_red_teaming_attacks") as mock_list:
+            evaluations_command.list_plans()
+            mock_list.assert_called_once()
+
+    def test_plan_calls_generate_red_teaming_attacks(self, user_env_file):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.generate_red_teaming_attacks") as mock_generate:
+            evaluations_command.plan(
+                attacks_list="attack1,attack2",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                user_env_file=user_env_file,
+                max_variants=5,
+            )
+
+            mock_generate.assert_called_once_with(
+                attacks_list="attack1,attack2",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                max_variants=5,
+            )
+
+    def test_run_calls_run_red_teaming_attacks(self, user_env_file):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.run_red_teaming_attacks") as mock_run:
+            evaluations_command.run(
+                attack_paths="attacks",
+                output_dir="test_output",
+                user_env_file=user_env_file,
+            )
+
+            mock_run.assert_called_once_with(attack_paths="attacks", output_dir="test_output")
