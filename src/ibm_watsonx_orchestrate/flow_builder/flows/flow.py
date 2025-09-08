@@ -440,7 +440,7 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
-    def docclassfier(self, 
+    def docclassifier(self, 
             name: str, 
             llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
             version: str = "TIP",
@@ -607,6 +607,7 @@ class Flow(Node):
             display_name: str|None=None,
             description: str | None = None,
             input_map: DataMap = None,
+            document_structure: bool = False,
             kvp_schemas: list[DocProcKVPSchema] = None,
             enable_hw: bool = False) -> DocProcNode:
 
@@ -631,6 +632,7 @@ class Flow(Node):
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj,
             task=task,
+            document_structure=document_structure,
             plain_text_reading_order=plain_text_reading_order,
             enable_hw=enable_hw,
             kvp_schemas=kvp_schemas

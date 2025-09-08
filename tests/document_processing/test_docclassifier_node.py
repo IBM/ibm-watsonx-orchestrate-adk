@@ -24,7 +24,7 @@ class TestDocClassifierNode():
 
     def test_doc_ext_node_spec_generation(self):
         aflow = FlowFactory.create_flow(name="custom_flow_docclassifier_test")
-        doc_classifier_node = aflow.docclassfier(
+        doc_classifier_node = aflow.docclassifier(
             name="document_classifier_node",
             display_name="document_classifier_node",
             description="Classify custom classes from a document",

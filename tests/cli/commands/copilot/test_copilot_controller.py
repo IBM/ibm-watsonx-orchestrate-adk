@@ -421,7 +421,7 @@ class TestPromptTune:
     @pytest.mark.parametrize(
         ("agent_class", "agent_kind", "agent_params"),
         [
-            (ExternalAgent, AgentKind.EXTERNAL, {"title": "test", "api_url": "test"}),
+            (ExternalAgent, AgentKind.EXTERNAL, {"title": "test", "api_url": "test", "hidden": False, "enable_cot": False}),
             (AssistantAgent, AgentKind.ASSISTANT, {"title": "test"})
         ]
     )

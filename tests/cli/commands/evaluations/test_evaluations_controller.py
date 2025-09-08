@@ -6,9 +6,9 @@ import yaml
 import csv
 import shutil
 import json
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
-from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
 
 @pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
@@ -79,6 +79,57 @@ class TestEvaluationsController:
                 assert actual_config.output_dir == "test_output"
         finally:
             Path(config_file_path).unlink()
+    
+    def test_quick_eval_with_config_file(self, controller):
+        config_content = {
+            "test_paths": ["test/path1", "test/path2"],
+            "output_dir": "test_output",
+            "auth_config": {
+                "url": "test-url",
+                "tenant_name": "test-tenant",
+                "token": "test-token"
+            },
+            "llm_user_config": {
+                "model_id": "test-model"
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+            yaml.dump(config_content, tmp)
+            tmp.flush()
+            config_file_path = tmp.name
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".py", delete=False) as tmp:
+            tmp.write(
+            """
+                def tool1():
+                    '''A test tool'''
+                    pass
+
+                def tool2():
+                    '''Another test tool'''
+                    pass
+            """
+            )
+            tmp.flush()
+            tools_file = tmp.name
+
+        try:
+            with patch("wxo_agentic_evaluation.quick_eval.main") as mock_evaluate, \
+                 patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
+                
+                controller.evaluate(config_file=config_file_path, tools_path=tools_file, mode=EvaluateMode.referenceless)
+                mock_evaluate.assert_called_once()
+                actual_config = mock_evaluate.call_args[0][0]
+                
+                assert isinstance(actual_config, QuickEvalConfig)
+                assert actual_config.test_paths == ["test/path1", "test/path2"]
+                assert actual_config.output_dir == "test_output"
+                assert actual_config.tools_path == tools_file
+        finally:
+            Path(config_file_path).unlink()
+            Path(tools_file).unlink()
+
 
     def test_record(self, controller):
         mock_runs = []
@@ -195,13 +246,10 @@ def tool2():
             }
             metrics_file.write_text(json.dumps(metrics_content, indent=2))
 
-            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.analyze") as mock_analyze:
-                controller.analyze(temp_dir)
-
-                mock_analyze.assert_called_once()
-                actual_config = mock_analyze.call_args[0][0]
-                assert isinstance(actual_config, AnalyzeConfig)
-                assert actual_config.data_path == temp_dir
+            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze") as mock_analyze:
+                controller.analyze(data_path=temp_dir)
+                mock_analyze.assert_called_once_with(data_path=temp_dir)
+                
 
     def test_external_validate(self, controller):
         config = {
@@ -247,3 +295,49 @@ def tool2():
                 test_data=[("dummy story", "dummy_response")]
             )
                 
+    def test_generate_red_teaming_attacks(self, controller):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.attack_generator.main") as mock_gen:
+            mock_gen.return_value = ["attack1"]
+
+            controller.generate_red_teaming_attacks(
+                attacks_list="attackA,attackB",
+                datasets_path="datasets",
+                agents_path="agents",
+                target_agent_name="target_agent",
+                output_dir="test_output",
+                max_variants=2,
+            )
+
+            mock_gen.assert_called_once()
+            passed_cfg = mock_gen.call_args[0][0]
+
+            assert isinstance(passed_cfg, AttackGeneratorConfig)
+            assert passed_cfg.attacks_list == ["attackA", "attackB"]
+            assert passed_cfg.datasets_path == ["datasets"]
+            assert passed_cfg.agents_path == "agents"
+            assert passed_cfg.target_agent_name == "target_agent"
+            assert passed_cfg.output_dir == "test_output"
+            assert passed_cfg.max_variants == 2
+
+    def test_run_red_teaming_attacks(self, controller, monkeypatch):
+        # Using wx.ai provider
+        monkeypatch.setenv("WATSONX_SPACE_ID", "id")
+        monkeypatch.setenv("WATSONX_APIKEY", "key")
+
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.run_attacks"
+        ) as mock_run, patch.object(
+            controller,
+            "_get_env_config",
+            return_value=("test-url", "test-tenant", "test-token"),
+        ):
+            controller.run_red_teaming_attacks(
+                attack_paths="att1,att2", output_dir="test_output"
+            )
+
+            mock_run.assert_called_once()
+            passed_cfg = mock_run.call_args[0][0]
+
+            assert isinstance(passed_cfg, AttackConfig)
+            assert passed_cfg.attack_paths == ["att1", "att2"]
+            assert passed_cfg.output_dir == "test_output"

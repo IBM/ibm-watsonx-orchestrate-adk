@@ -1,9 +1,22 @@
 import json
-
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import requests
 from abc import ABC, abstractmethod
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 from typing_extensions import List
+from contextlib import contextmanager
+
+@contextmanager
+def ssl_handler():
+    try:
+        yield
+    except requests.exceptions.SSLError as e:
+        error_message = str(e)
+        if "self-signed certificate in certificate chain" in error_message:
+            reason = "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain"
+        else:
+            reason = error_message
+        raise BadRequest(f"SSL handshake failed for request '{e.request.path_url}'. Reason: '{reason}'")
 
 
 class ClientAPIException(requests.HTTPError):
@@ -50,7 +63,8 @@ class BaseAPIClient:
 
     def _get(self, path: str, params: dict = None, data=None, return_raw=False) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.get(url, headers=self._get_headers(), params=params, data=data, verify=self.verify)
+        with ssl_handler():
+            response = requests.get(url, headers=self._get_headers(), params=params, data=data, verify=self.verify)
         self._check_response(response)
         if not return_raw:
             return response.json()
@@ -59,13 +73,15 @@ class BaseAPIClient:
 
     def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.post(url, headers=self._get_headers(), json=data, files=files, verify=self.verify)
+        with ssl_handler():
+            response = requests.post(url, headers=self._get_headers(), json=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
     
     def _post_nd_json(self, path: str, data: dict = None, files: dict = None) -> List[dict]:
         url = f"{self.base_url}{path}"
-        response = requests.post(url, headers=self._get_headers(), json=data, files=files)
+        with ssl_handler():
+            response = requests.post(url, headers=self._get_headers(), json=data, files=files)
         self._check_response(response)
 
         res = []
@@ -76,33 +92,38 @@ class BaseAPIClient:
     
     def _post_form_data(self, path: str, data: dict = None, files: dict = None) -> dict:
         url = f"{self.base_url}{path}"
-        # Use data argument instead of json so data is encoded as application/x-www-form-urlencoded
-        response = requests.post(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
+        with ssl_handler():
+            # Use data argument instead of json so data is encoded as application/x-www-form-urlencoded
+            response = requests.post(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _put(self, path: str, data: dict = None) -> dict:
 
         url = f"{self.base_url}{path}"
-        response = requests.put(url, headers=self._get_headers(), json=data, verify=self.verify)
+        with ssl_handler():
+            response = requests.put(url, headers=self._get_headers(), json=data, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _patch(self, path: str, data: dict = None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.patch(url, headers=self._get_headers(), json=data, verify=self.verify)
+        with ssl_handler():
+            response = requests.patch(url, headers=self._get_headers(), json=data, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
     
     def _patch_form_data(self, path: str, data: dict = None, files = None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.patch(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
+        with ssl_handler():
+            response = requests.patch(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _delete(self, path: str, data=None) -> dict:
         url = f"{self.base_url}{path}"
-        response = requests.delete(url, headers=self._get_headers(), json=data, verify=self.verify)
+        with ssl_handler():
+            response = requests.delete(url, headers=self._get_headers(), json=data, verify=self.verify)
         self._check_response(response)
         return response.json() if response.text else {}
 

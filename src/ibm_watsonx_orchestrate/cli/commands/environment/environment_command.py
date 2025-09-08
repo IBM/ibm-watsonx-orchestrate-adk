@@ -70,7 +70,7 @@ def add_env(
         ] = None,
         type: Annotated[
             EnvironmentAuthType,
-            typer.Option("--type", "-t", help="The type of auth you wish to use"),
+            typer.Option("--type", "-t", help="The type of auth you wish to use. This overrides the auth type that is inferred from the url"),
         ] = None,
         insecure: Annotated[
             bool,

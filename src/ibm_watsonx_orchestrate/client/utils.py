@@ -68,7 +68,7 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
     if url is None:
         url = get_current_env_url()
 
-    if url.__contains__("cloud.ibm.com"):
+    if ".cloud.ibm.com" in url:
         return True
     return False
 
@@ -163,6 +163,8 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
                     client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
                 elif verify is not None:
                     client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url), verify=verify)
+                else:
+                    client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
             else:
                 client_instance = client(base_url=url, api_key=token, is_local=is_local_dev(url))
 
