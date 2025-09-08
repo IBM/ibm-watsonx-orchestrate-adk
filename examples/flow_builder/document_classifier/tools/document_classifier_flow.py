@@ -16,10 +16,10 @@ class CustomClasses(BaseModel):
     input_schema=DocumentProcessingCommonInput
 )
 def build_docclassifier_flow(aflow: Flow = None) -> Flow:
-    # aflow.docclassfier return a DocClassifierNode object
+    # aflow.docclassifier return a DocClassifierNode object
     # DocumentClassificationResponse is the output schema of DocClassifierNode and it can be used as input schema for the next node
 
-    doc_classifier_node = aflow.docclassfier(
+    doc_classifier_node = aflow.docclassifier(
         name="document_classifier_node",
         display_name="document_classifier_node",
         description="Classifies documents into one custom class.",

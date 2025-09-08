@@ -177,3 +177,17 @@ class ConnectionsClient(BaseAPIClient):
                 logger.warning(f"Connections not found. Returning connection ID: {conn_id}")
                 return conn_id
             raise e
+
+    def get_drafts_by_ids(self, conn_ids) -> List[ListConfigsResponse]:
+        try:
+            res = self._get(f"/connections/applications?connectionIds={','.join(conn_ids)}")
+            import json
+            json.dumps(res)
+            return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
+        except ValidationError as e:
+            logger.error("Recieved unexpected response from server")
+            raise e
+        except ClientAPIException as e:
+            if e.response.status_code == 404:
+                return []
+            raise e

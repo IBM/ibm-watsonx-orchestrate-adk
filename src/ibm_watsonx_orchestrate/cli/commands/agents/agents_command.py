@@ -1,5 +1,5 @@
 import typer
-from typing_extensions import Annotated, List
+from typing_extensions import Annotated, List, Optional
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
 import json
@@ -14,7 +14,7 @@ def agent_import(
         typer.Option("--file", "-f", help="YAML file with agent definition"),
     ],
     app_id: Annotated[
-        str, typer.Option(
+        Optional[str], typer.Option(
             '--app-id', '-a',
             help='The app id of the connection to associate with this external agent. An application connection represents the server authentication credentials needed to connection to this agent (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
@@ -46,6 +46,13 @@ def agent_create(
         AgentKind,
         typer.Option("--kind", "-k", help="The kind of agent you wish to create"),
     ] = AgentKind.NATIVE,
+    instructions: Annotated[
+        str,
+        typer.Option(
+            "--instructions",
+            help="A set of instructions for how the agent should preform actions.",
+        ),
+    ] = None,
     api_url: Annotated[
         str,
         typer.Option("--api", "-a", help="External Api url your Agent will use"),
@@ -175,6 +182,7 @@ def agent_create(
         kind=kind,
         description=description,
         title=title,
+        instructions=instructions,
         api_url=api_url,
         auth_scheme=auth_scheme,
         auth_config=auth_config_dict,
