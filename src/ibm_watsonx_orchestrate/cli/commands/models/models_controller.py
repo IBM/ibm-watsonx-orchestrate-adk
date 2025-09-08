@@ -12,7 +12,6 @@ import requests
 import rich
 import rich.highlighter
 
-from ibm_watsonx_orchestrate.cli.commands.server.server_command import get_default_env_file, merge_env
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
@@ -20,6 +19,7 @@ from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_cpd_env
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
+from ibm_watsonx_orchestrate.utils.environment import EnvService
 
 logger = logging.getLogger(__name__)
 
@@ -153,8 +153,8 @@ class ModelsController:
         models_client: ModelsClient = self.get_models_client()
         model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
         global WATSONX_URL
-        default_env_path = get_default_env_file()
-        merged_env_dict = merge_env(
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(
             default_env_path,
             None
         )
