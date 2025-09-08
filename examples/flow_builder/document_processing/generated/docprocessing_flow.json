@@ -1,23 +1,157 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "text_extraction_flow_example",
-    "display_name": "text_extraction_flow_example",
-    "description": "This flow consists of one node: a docproc node, which extracts text from the input document",
+    "name": "document_processing_flow",
+    "display_name": "document_processing_flow",
+    "description": "Process documents",
     "input_schema": {
-      "$ref": "#/schemas/text_extraction_flow_example_input"
+      "$ref": "#/schemas/document_processing_flow_input"
     },
     "schedulable": false
   },
   "nodes": {
-    "text_extraction_with_document_structure": {
+    "get_kvp_schemas_for_invoice": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_kvp_schemas_for_invoice",
+        "display_name": "get_kvp_schemas_for_invoice",
+        "description": "Return a DocProcKVPSchema object",
+        "input_schema": {
+          "$ref": "#/schemas/get_kvp_schemas_for_invoice_input"
+        },
+        "output_schema": {
+          "type": "array",
+          "description": "A DocProcKVPSchema object",
+          "items": {}
+        },
+        "tool": "get_kvp_schemas_for_invoice"
+      }
+    },
+    "get_kvp_schemas_for_utility_bill": {
+      "spec": {
+        "kind": "tool",
+        "name": "get_kvp_schemas_for_utility_bill",
+        "display_name": "get_kvp_schemas_for_utility_bill",
+        "description": "Return a DocProcKVPSchema object",
+        "input_schema": {
+          "$ref": "#/schemas/get_kvp_schemas_for_utility_bill_input"
+        },
+        "output_schema": {
+          "type": "array",
+          "description": "A DocProcKVPSchema object",
+          "items": {}
+        },
+        "tool": "get_kvp_schemas_for_utility_bill"
+      }
+    },
+    "doc_ext_node": {
+      "spec": {
+        "kind": "docext",
+        "name": "doc_ext_node",
+        "display_name": "doc_ext_node",
+        "description": "Extracts custom field values (key-value-pairs) from a document using different extraction schemas.",
+        "input_schema": {
+          "$ref": "#/schemas/doc_ext_node_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/DocExtFieldValue"
+        },
+        "task": "custom_field_extraction",
+        "enable_hw": true,
+        "version": "TIP",
+        "config": {
+          "domain": "other",
+          "type": "agreement",
+          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+          "fields": [
+            {
+              "name": "Buyer",
+              "type": "string",
+              "description": "",
+              "field_name": "buyer",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Seller",
+              "type": "string",
+              "description": "",
+              "field_name": "seller",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Agreement Date",
+              "type": "date",
+              "description": "",
+              "field_name": "agreement_date",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            }
+          ]
+        }
+      }
+    },
+    "document_classifier_node": {
+      "spec": {
+        "kind": "docclassifier",
+        "name": "document_classifier_node",
+        "display_name": "document_classifier_node",
+        "description": "Classifies documents into a custom class.",
+        "input_schema": {
+          "$ref": "#/schemas/document_classifier_node_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/DocumentClassificationResponse"
+        },
+        "task": "custom_document_classification",
+        "enable_hw": false,
+        "version": "TIP",
+        "config": {
+          "domain": "other",
+          "type": "class_configuration",
+          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+          "min_confidence": 0.0,
+          "classes": [
+            {
+              "class_name": "invoice",
+              "class_id": "d7b5acde-d1a1-5459-bf92-9d0b7ade0b5d"
+            },
+            {
+              "class_name": "bill_of_lading",
+              "class_id": "0a09112e-c6d0-53d2-a2af-f05ad55328a7"
+            },
+            {
+              "class_name": "contract",
+              "class_id": "04c94196-7560-5664-aeaa-a6e6a971df84"
+            },
+            {
+              "class_name": "purchase_order",
+              "class_id": "0d65ee0f-92e6-5ec2-8e0b-640ee4b786e4"
+            },
+            {
+              "class_name": "utility_bill",
+              "class_id": "734ef95e-6f7d-512d-b888-6112af747fa7"
+            },
+            {
+              "class_name": "tax_form",
+              "class_id": "8363b3ed-2929-5271-93f8-6afbeb3679fb"
+            }
+          ]
+        }
+      }
+    },
+    "text_extraction_with_document_structure_for_invoice": {
       "spec": {
         "kind": "docproc",
-        "name": "text_extraction_with_document_structure",
+        "name": "text_extraction_with_document_structure_for_invoice",
         "display_name": "text_extraction_node",
-        "description": "Extract text out of a document's contents.",
+        "description": "Extracts the raw text and semantic structure from a document.",
         "input_schema": {
-          "$ref": "#/schemas/text_extraction_with_document_structure_input"
+          "$ref": "#/schemas/text_extraction_with_document_structure_for_invoice_input"
         },
         "output_schema": {
           "$ref": "#/schemas/TextExtractionResponse"
@@ -25,6 +159,55 @@
         "task": "text_extraction",
         "enable_hw": true,
         "document_structure": true
+      }
+    },
+    "text_extraction_with_document_structure_for_utility_bill": {
+      "spec": {
+        "kind": "docproc",
+        "name": "text_extraction_with_document_structure_for_utility_bill",
+        "display_name": "text_extraction_node",
+        "description": "Extracts the raw text and semantic structure from a document.",
+        "input_schema": {
+          "$ref": "#/schemas/text_extraction_with_document_structure_for_utility_bill_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/TextExtractionResponse"
+        },
+        "task": "text_extraction",
+        "enable_hw": true,
+        "document_structure": true
+      }
+    },
+    "branch_1": {
+      "spec": {
+        "kind": "branch",
+        "name": "branch_1",
+        "display_name": "branch_1",
+        "evaluator": {
+          "conditions": [
+            {
+              "expression": "flow.document_classifier_node.output.class_name.strip().lower() in ['invoice','bill_of_lading']",
+              "node_id": "text_extraction_with_document_structure_for_invoice",
+              "default": false
+            },
+            {
+              "expression": "flow.document_classifier_node.output.class_name.strip().lower() in ['utility_bill']",
+              "node_id": "text_extraction_with_document_structure_for_utility_bill",
+              "default": false
+            },
+            {
+              "expression": "flow.document_classifier_node.output.class_name.strip().lower() in ['contract','purchase_order']",
+              "node_id": "doc_ext_node",
+              "default": false
+            },
+            {
+              "node_id": "doc_ext_node",
+              "default": true
+            }
+          ]
+        },
+        "cases": {},
+        "match_policy": "FIRST_MATCH"
       }
     },
     "__start__": {
@@ -44,18 +227,54 @@
   },
   "edges": [
     {
-      "start": "__start__",
-      "end": "text_extraction_with_document_structure"
+      "start": "branch_1",
+      "end": "text_extraction_with_document_structure_for_invoice"
     },
     {
-      "start": "text_extraction_with_document_structure",
+      "start": "branch_1",
+      "end": "text_extraction_with_document_structure_for_utility_bill"
+    },
+    {
+      "start": "branch_1",
+      "end": "doc_ext_node"
+    },
+    {
+      "start": "branch_1",
+      "end": "doc_ext_node"
+    },
+    {
+      "start": "__start__",
+      "end": "document_classifier_node"
+    },
+    {
+      "start": "document_classifier_node",
+      "end": "get_kvp_schemas_for_invoice"
+    },
+    {
+      "start": "get_kvp_schemas_for_invoice",
+      "end": "get_kvp_schemas_for_utility_bill"
+    },
+    {
+      "start": "get_kvp_schemas_for_utility_bill",
+      "end": "branch_1"
+    },
+    {
+      "start": "text_extraction_with_document_structure_for_utility_bill",
+      "end": "__end__"
+    },
+    {
+      "start": "text_extraction_with_document_structure_for_invoice",
+      "end": "__end__"
+    },
+    {
+      "start": "doc_ext_node",
       "end": "__end__"
     }
   ],
   "schemas": {
-    "text_extraction_flow_example_input": {
+    "document_processing_flow_input": {
       "type": "object",
-      "title": "text_extraction_flow_example_input",
+      "title": "document_processing_flow_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -75,149 +294,140 @@
               "format": "binary"
             }
           ]
-        },
-        "kvp_schemas": {
-          "title": "KVP schemas",
-          "description": "Optional list of key-value pair schemas to use for extraction.",
+        }
+      }
+    },
+    "get_kvp_schemas_for_invoice_input": {
+      "type": "object",
+      "title": "get_kvp_schemas_for_invoice_input",
+      "required": [
+        "place_holder"
+      ],
+      "properties": {
+        "place_holder": {
+          "type": "string",
+          "title": "Place Holder"
+        }
+      }
+    },
+    "get_kvp_schemas_for_utility_bill_input": {
+      "type": "object",
+      "title": "get_kvp_schemas_for_utility_bill_input",
+      "required": [
+        "place_holder"
+      ],
+      "properties": {
+        "place_holder": {
+          "type": "string",
+          "title": "Place Holder"
+        }
+      }
+    },
+    "doc_ext_node_input": {
+      "type": "object",
+      "title": "doc_ext_node_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
           "anyOf": [
             {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "title": "DocProcKVPSchema",
-                "required": [
-                  "document_type",
-                  "document_description",
-                  "fields"
-                ],
-                "properties": {
-                  "document_type": {
-                    "type": "string",
-                    "title": "Document Type",
-                    "description": "A label for the kind of documents we want to extract"
-                  },
-                  "document_description": {
-                    "type": "string",
-                    "title": "Document Description",
-                    "description": "A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction."
-                  },
-                  "fields": {
-                    "type": "object",
-                    "title": "Fields",
-                    "description": "The fields to extract from the document. These are the keys in the KVP extraction result.",
-                    "additionalProperties": {
-                      "anyOf": [
-                        {
-                          "properties": {
-                            "description": {
-                              "description": "A description of the field to extract from the document.",
-                              "title": "Description",
-                              "type": "string"
-                            },
-                            "example": {
-                              "default": "",
-                              "description": "An example of the field to extract from the document.",
-                              "title": "Example",
-                              "type": "string"
-                            },
-                            "default": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ],
-                              "default": "",
-                              "description": "A default value for the field to extract from the document.",
-                              "title": "Default"
-                            }
-                          },
-                          "required": [
-                            "description"
-                          ],
-                          "title": "DocProcField",
-                          "type": "object"
-                        },
-                        {
-                          "properties": {
-                            "type": {
-                              "const": "array",
-                              "title": "Type",
-                              "type": "string"
-                            },
-                            "description": {
-                              "description": "A description of the table to extract from the document.",
-                              "title": "Description",
-                              "type": "string"
-                            },
-                            "columns": {
-                              "additionalProperties": {
-                                "properties": {
-                                  "description": {
-                                    "description": "A description of the field to extract from the document.",
-                                    "title": "Description",
-                                    "type": "string"
-                                  },
-                                  "example": {
-                                    "default": "",
-                                    "description": "An example of the field to extract from the document.",
-                                    "title": "Example",
-                                    "type": "string"
-                                  },
-                                  "default": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ],
-                                    "default": "",
-                                    "description": "A default value for the field to extract from the document.",
-                                    "title": "Default"
-                                  }
-                                },
-                                "required": [
-                                  "description"
-                                ],
-                                "title": "DocProcField",
-                                "type": "object"
-                              },
-                              "description": "The columns to extract from the table. These are the keys in the table extraction result.",
-                              "title": "Columns",
-                              "type": "object"
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "description",
-                            "columns"
-                          ],
-                          "title": "DocProcTable",
-                          "type": "object"
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
+              "type": "string",
+              "format": "binary"
             },
             {
-              "type": "string"
-            },
-            {
-              "type": "null"
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
             }
           ]
         }
       }
     },
-    "text_extraction_with_document_structure_input": {
+    "DocExtFieldValue": {
       "type": "object",
-      "title": "text_extraction_with_document_structure_input",
+      "title": "DocExtFieldValue",
+      "required": [
+        "buyer",
+        "seller",
+        "agreement_date"
+      ],
+      "properties": {
+        "buyer": {
+          "type": "string",
+          "title": "Buyer",
+          "description": "Extracted value for Buyer"
+        },
+        "seller": {
+          "type": "string",
+          "title": "Seller",
+          "description": "Extracted value for Seller"
+        },
+        "agreement_date": {
+          "type": "string",
+          "title": "Agreement Date",
+          "description": "Extracted value for Agreement Date",
+          "format": "date"
+        }
+      }
+    },
+    "document_classifier_node_input": {
+      "type": "object",
+      "title": "document_classifier_node_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
+            }
+          ]
+        }
+      }
+    },
+    "CustomClassOutput": {
+      "type": "object",
+      "title": "CustomClassOutput",
+      "properties": {
+        "class_name": {
+          "type": "string",
+          "title": "Class Name",
+          "description": "Class Name of the Document",
+          "default": []
+        }
+      }
+    },
+    "DocumentClassificationResponse": {
+      "type": "object",
+      "title": "DocumentClassificationResponse",
+      "required": [
+        "custom_class_response"
+      ],
+      "properties": {
+        "custom_class_response": {
+          "title": "CustomClassOutput",
+          "$ref": "#/schemas/CustomClassOutput"
+        }
+      }
+    },
+    "text_extraction_with_document_structure_for_invoice_input": {
+      "type": "object",
+      "title": "text_extraction_with_document_structure_for_invoice_input",
       "required": [],
       "properties": {
         "document_ref": {
@@ -391,10 +601,172 @@
           "description": "The url to the file that contains the extracted text and kvps."
         }
       }
+    },
+    "text_extraction_with_document_structure_for_utility_bill_input": {
+      "type": "object",
+      "title": "text_extraction_with_document_structure_for_utility_bill_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
+            }
+          ]
+        },
+        "kvp_schemas": {
+          "title": "KVP schemas",
+          "description": "Optional list of key-value pair schemas to use for extraction.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "title": "DocProcKVPSchema",
+                "required": [
+                  "document_type",
+                  "document_description",
+                  "fields"
+                ],
+                "properties": {
+                  "document_type": {
+                    "type": "string",
+                    "title": "Document Type",
+                    "description": "A label for the kind of documents we want to extract"
+                  },
+                  "document_description": {
+                    "type": "string",
+                    "title": "Document Description",
+                    "description": "A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction."
+                  },
+                  "fields": {
+                    "type": "object",
+                    "title": "Fields",
+                    "description": "The fields to extract from the document. These are the keys in the KVP extraction result.",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "description": {
+                              "description": "A description of the field to extract from the document.",
+                              "title": "Description",
+                              "type": "string"
+                            },
+                            "example": {
+                              "default": "",
+                              "description": "An example of the field to extract from the document.",
+                              "title": "Example",
+                              "type": "string"
+                            },
+                            "default": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "default": "",
+                              "description": "A default value for the field to extract from the document.",
+                              "title": "Default"
+                            }
+                          },
+                          "required": [
+                            "description"
+                          ],
+                          "title": "DocProcField",
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "type": {
+                              "const": "array",
+                              "title": "Type",
+                              "type": "string"
+                            },
+                            "description": {
+                              "description": "A description of the table to extract from the document.",
+                              "title": "Description",
+                              "type": "string"
+                            },
+                            "columns": {
+                              "additionalProperties": {
+                                "properties": {
+                                  "description": {
+                                    "description": "A description of the field to extract from the document.",
+                                    "title": "Description",
+                                    "type": "string"
+                                  },
+                                  "example": {
+                                    "default": "",
+                                    "description": "An example of the field to extract from the document.",
+                                    "title": "Example",
+                                    "type": "string"
+                                  },
+                                  "default": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": "",
+                                    "description": "A default value for the field to extract from the document.",
+                                    "title": "Default"
+                                  }
+                                },
+                                "required": [
+                                  "description"
+                                ],
+                                "title": "DocProcField",
+                                "type": "object"
+                              },
+                              "description": "The columns to extract from the table. These are the keys in the table extraction result.",
+                              "title": "Columns",
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "description",
+                            "columns"
+                          ],
+                          "title": "DocProcTable",
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-25T19:14:28.323132+00:00"
+    "compiled_on": "2025-08-29T16:02:14.704617+00:00"
   }
 }

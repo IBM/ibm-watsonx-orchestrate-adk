@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+name: document_processing_agent
+description: >
+    You are an agent to process documents
+instructions: >
+    Invoke document_processing_flow tool and output the result
+
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - document_processing_flow

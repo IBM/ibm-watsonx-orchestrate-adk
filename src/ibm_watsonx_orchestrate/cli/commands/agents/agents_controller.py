@@ -12,6 +12,7 @@ from pathlib import Path
 from copy import deepcopy
 
 from typing import Iterable, List, TypeVar
+from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentStyle
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
@@ -40,10 +41,23 @@ from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from enum import Enum
+
 logger = logging.getLogger(__name__)
 
 # Helper generic type for any agent
 AnyAgentT = TypeVar("AnyAgentT", bound=Agent | ExternalAgent | AssistantAgent)
+
+class AgentListFormats(str, Enum):
+    Table = "table"
+    JSON = "json"
+
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
+
 
 def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     # Import tools
@@ -100,6 +114,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "name": name,
         "kind": kind,
         "description": description,
+        "instructions": args.get("instructions"),
         "llm": args.get("llm"),
         "style": args.get("style"),
         "custom_join_tool": args.get("custom_join_tool"),
@@ -804,213 +819,429 @@ class AgentsController:
                 logger.warning(f"Knowledge base with ID {id} not found. Returning Tool ID")
                 knowledge_bases.append(id)
         return knowledge_bases
-
-    def list_agents(self, kind: AgentKind=None, verbose: bool=False):
+    
+    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
         parse_errors = []
+        target_kind_display_name = None
+        target_kind_class = None
+        agent_client = None
 
-        if verbose:
-            verbose_output_dictionary = {
-                "native":[],
-                "assistant":[],
-                "external":[]  
-            }
+        match(target_agent_kind):
+            case AgentKind.NATIVE:
+                target_kind_display_name = "Agent"
+                target_kind_class = Agent
+                agent_client = self.get_native_client()
+            case AgentKind.EXTERNAL:
+                target_kind_display_name = "External Agent"
+                target_kind_class = ExternalAgent
+                agent_client = self.get_external_client()
+            case AgentKind.ASSISTANT:
+                target_kind_display_name = "Assistant Agent"
+                target_kind_class = AssistantAgent
+                agent_client = self.get_assistant_client()
+            case _:
+                return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
+        
+        response = agent_client.get()
+        agents = []
+        for agent in response:
+            try:
+                agents.append(target_kind_class.model_validate(agent))
+            except Exception as e:
+                name = agent.get('name', None)
+                parse_errors.append([
+                    f"{target_kind_display_name} '{name}' could not be parsed",
+                    json.dumps(agent),
+                    e
+                ])
+        return (agents, parse_errors)
+
+    def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
+        """
+            Given a list if agents get all the unique values of a certain field
+            Example: agent1.tools = [1 ,2 ,3] and agent2.tools = [2, 4, 5] then return [1, 2, 3, 4, 5]
+            Example: agent1.id = "123" and agent2.id = "456" then return ["123", "456"]
+
+            Args:
+                agents: List of agents
+                target_attr: The name of the field to access and get unique elements
+
+            Returns:
+                A list of unique elements from across all agents
+        """
+        all_ids = set()
+        for agent in agents:
+            attr_value = getattr(agent, target_attr, None)
+            if attr_value:
+                if isinstance(attr_value, list):
+                    all_ids.update(attr_value)
+                else:
+                    all_ids.add(attr_value)
+        return list(all_ids)
+
+    def _construct_lut_agent_resource(self, resource_list: List[dict], key_attr: str, value_attr) -> dict:
+        """
+            Given a list of dictionaries build a key -> value look up table
+            Example [{id: 1, name: obj1}, {id: 2, name: obj2}] return {1: obj1, 2: obj2}
+
+            Args:
+                resource_list: A list of dictionries from which to build the lookup table from
+                key_attr: The name of the field whose value will form the key of the lookup table
+                value_attrL The name of the field whose value will form the value of the lookup table
+
+            Returns:
+                A lookup table
+        """
+        lut = {}
+        for resource in resource_list:
+            if isinstance(resource, BaseModel):
+                resource = resource.model_dump()
+            lut[resource.get(key_attr, None)] = resource.get(value_attr, None)
+        return lut
+    
+    def _lookup_agent_resource_value(
+            self,
+            agent: Agent, 
+            lookup_table: dict[str, str], 
+            target_attr: str,
+            target_attr_display_name: str
+        ) -> List[str] | str | None:
+        """
+        Using a lookup table convert all the strings in a given field of an agent into their equivalent in the lookup table
+        Example: lookup_table={1: obj1, 2: obj2} agent=Agent(tools=[1,2]) return. [obj1, obj2]
+
+        Args:
+            agent: An agent
+            lookup_table: A dictionary that maps one value to another
+            target_attr: The field to convert on the provided agent
+            target_attr_display_name: The name of the field to be displayed in the event of an error
+        """
+        attr_value = getattr(agent, target_attr, None)
+        if not attr_value:
+            return
+        
+        if isinstance(attr_value, list):
+            new_resource_list=[]
+            for value in attr_value:
+                if value in lookup_table:
+                    new_resource_list.append(lookup_table[value])
+                else:
+                    logger.warning(f"{target_attr_display_name} with ID '{value}' not found. Returning {target_attr_display_name} ID")
+                    new_resource_list.append(value)
+            return new_resource_list
+        else:
+            if attr_value in lookup_table:
+                return lookup_table[attr_value]
+            else:
+                logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
+                return attr_value
+
+    def _batch_request_resource(self, client_fn, ids, batch_size=50) -> List[dict]:
+        resources = []
+        for i in range(0, len(ids), batch_size):
+                chunk = ids[i:i + batch_size]
+                resources += (client_fn(chunk))
+        return resources
+
+
+    def _bulk_resolve_agent_tools(self, agents: List[Agent]) -> List[Agent]:
+        new_agents = agents.copy()
+        all_tools_ids = self._get_all_unique_agent_resources(new_agents, "tools")
+        if not all_tools_ids:
+            return new_agents
+        
+        all_tools = self._batch_request_resource(self.get_tool_client().get_drafts_by_ids, all_tools_ids)
+
+        tool_lut = self._construct_lut_agent_resource(all_tools, "id", "name")
+        
+        for agent in new_agents:
+            tool_names = self._lookup_agent_resource_value(agent, tool_lut, "tools", "Tool")
+            if tool_names:
+                agent.tools = tool_names
+        return new_agents
+    
+    # TODO: Once bulk knowledge base is added create a generaic fucntion as opposed to 3 seperate ones
+    def _bulk_resolve_agent_knowledge_bases(self, agents: List[Agent]) -> List[Agent]:
+        new_agents = agents.copy()
+        all_kb_ids = self._get_all_unique_agent_resources(new_agents, "knowledge_base")
+
+        all_kbs = []
+        for id in all_kb_ids:
+            try:
+                all_kbs.append(self.get_knowledge_base_client().get_by_id(id))
+            except:
+                continue
+
+        kb_lut = self._construct_lut_agent_resource(all_kbs, "id", "name")
+        
+        for agent in new_agents:
+            kb_names = self._lookup_agent_resource_value(agent, kb_lut, "knowledge_base", "Knowledge Base")
+            if kb_names:
+                agent.knowledge_base = kb_names
+        return new_agents
+    
+    def _bulk_resolve_agent_collaborators(self, agents: List[Agent]) -> List[Agent]:
+        new_agents = agents.copy()
+        all_collab_ids = self._get_all_unique_agent_resources(new_agents, "collaborators")
+        if not all_collab_ids:
+            return new_agents
+
+        native_agents = self._batch_request_resource(self.get_native_client().get_drafts_by_ids, all_collab_ids)
+        external_agents = self._batch_request_resource(self.get_external_client().get_drafts_by_ids, all_collab_ids)
+        assitant_agents = self._batch_request_resource(self.get_assistant_client().get_drafts_by_ids, all_collab_ids)
+
+        all_collabs = native_agents + external_agents + assitant_agents
+
+        collab_lut = self._construct_lut_agent_resource(all_collabs, "id", "name")
+        
+        for agent in new_agents:
+            collab_names = self._lookup_agent_resource_value(agent, collab_lut, "collaborators", "Collaborator")
+            if collab_names:
+                agent.collaborators = collab_names
+        return new_agents
+
+    def _bulk_resolve_agent_app_ids(self , agents: List[ExternalAgent]) -> List[ExternalAgent]:
+        new_agents = agents.copy()
+        all_conn_ids = self._get_all_unique_agent_resources(new_agents, "connection_id")
+        if not all_conn_ids:
+            return new_agents
+        
+        all_connections = self._batch_request_resource(get_connections_client().get_drafts_by_ids, all_conn_ids)
+
+        connection_lut = self._construct_lut_agent_resource(all_connections, "connection_id", "app_id")
+        
+        for agent in new_agents:
+            app_id = self._lookup_agent_resource_value(agent, connection_lut, "connection_id", "Connection")
+            if app_id:
+                agent.app_id = app_id
+        return new_agents
+
+    # TODO: Make a shared util
+    def _rich_table_to_markdown(self, table: rich.table.Table) -> str:
+        headers = [column.header for column in table.columns]
+        cols = [[cell for cell in col.cells] for col in table.columns]
+        rows = list(map(list, zip(*cols)))
+
+        # Header row
+        md = "| " + " | ".join(headers) + " |\n"
+        # Separator row
+        md += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+        # # Data rows
+        for row in rows:
+            md += "| " + " | ".join(row) + " |\n"
+        return md
+
+
+
+    def list_agents(self, kind: AgentKind=None, verbose: bool=False, format: AgentListFormats | None = None) -> dict[str, dict] | None:
+        """
+        List agents in the active wxo environment
+
+        Args:
+            kind: Filter to only list a certain kind of agent. Allowed values "native", "assistant", "external"
+            verbose: Show raw json output without table formatting or id to name resolution
+            format: Optional value. If provided print nothing and return a string containing the agents in the requested format. Allowed values "table", "json" 
+        """
+        if verbose and format:
+            logger.error("For agents list, `--verbose` and `--format` are mutually exclusive options")
+            sys.exit(1)
+
+        parse_errors = []
+        output_dictionary = {
+                "native": None,
+                "assistant": None,
+                "external": None 
+        }
 
         if kind == AgentKind.NATIVE or kind is None:
-            response = self.get_native_client().get()
-            native_agents = []
-            for agent in response:
-                try:
-                    native_agents.append(Agent.model_validate(agent))
-                except Exception as e:
-                    name = agent.get('name', None)
-                    parse_errors.append([
-                        f"Agent '{name}' could not be parsed",
-                        json.dumps(agent),
-                        e
-                    ])
+            native_agents, new_parse_errors = self._fetch_and_parse_agents(AgentKind.NATIVE)
+            parse_errors += new_parse_errors
 
             if verbose:
                 agents_list = []
                 for agent in native_agents:
                     agents_list.append(json.loads(agent.dumps_spec()))
 
-                verbose_output_dictionary["native"] = agents_list
+                output_dictionary["native"] = agents_list
             else:
-                native_table = rich.table.Table(
-                    show_header=True, 
-                    header_style="bold white", 
-                    title="Agents",
-                    show_lines=True
-                )
-                column_args = {
-                    "Name": {"overflow": "fold"},
-                    "Description": {},
-                    "LLM": {"overflow": "fold"},
-                    "Style": {},
-                    "Collaborators": {},
-                    "Tools": {},
-                    "Knowledge Base": {},
-                    "ID": {"overflow": "fold"},
-                }
-                for column in column_args:
-                    native_table.add_column(column, **column_args[column])
+                resolved_native_agents = self._bulk_resolve_agent_tools(native_agents)
+                resolved_native_agents = self._bulk_resolve_agent_knowledge_bases(resolved_native_agents)
+                resolved_native_agents = self._bulk_resolve_agent_collaborators(resolved_native_agents)
 
-                for agent in native_agents:
-                    tool_names = self.get_agent_tool_names(agent.tools)
-                    knowledge_base_names = self.get_agent_knowledge_base_names(agent.knowledge_base)
-                    collaborator_names = self.get_agent_collaborator_names(agent.collaborators)
+                if format and format == AgentListFormats.JSON:
+                    agents_list = []
+                    for agent in resolved_native_agents:
+                        agents_list.append(json.loads(agent.dumps_spec()))
 
-                    native_table.add_row(
-                        agent.name,
-                        agent.description,
-                        agent.llm,
-                        agent.style,
-                        ", ".join(collaborator_names),
-                        ", ".join(tool_names),
-                        ", ".join(knowledge_base_names),
-                        agent.id,
+                    output_dictionary["native"] = agents_list
+                else:
+                    native_table = rich.table.Table(
+                        show_header=True, 
+                        header_style="bold white", 
+                        title="Agents",
+                        show_lines=True
                     )
-                rich.print(native_table)
 
+                    column_args = {
+                        "Name": {"overflow": "fold"},
+                        "Description": {},
+                        "LLM": {"overflow": "fold"},
+                        "Style": {},
+                        "Collaborators": {},
+                        "Tools": {},
+                        "Knowledge Base": {},
+                        "ID": {"overflow": "fold"},
+                    }
+                    for column in column_args:
+                        native_table.add_column(column, **column_args[column])
+
+                    for agent in resolved_native_agents:
+                        native_table.add_row(
+                            agent.name,
+                            agent.description,
+                            agent.llm,
+                            agent.style,
+                            ", ".join(agent.collaborators),
+                            ", ".join(agent.tools),
+                            ", ".join(agent.knowledge_base),
+                            agent.id,
+                        )
+                    if format == AgentListFormats.Table:
+                        output_dictionary["native"] = self._rich_table_to_markdown(native_table)
+                    else:
+                        rich.print(native_table)
       
         if kind == AgentKind.EXTERNAL or kind is None:
-            response = self.get_external_client().get()
+            external_agents, new_parse_errors = self._fetch_and_parse_agents(AgentKind.EXTERNAL)
+            parse_errors += new_parse_errors
 
-            external_agents = []
-            for agent in response:
-                try:
-                    external_agents.append(ExternalAgent.model_validate(agent))
-                except Exception as e:
-                    name = agent.get('name', None)
-                    parse_errors.append([f"External Agent {name} could not be parsed", e])
-
-            response_dict = {agent["id"]: agent for agent in response}
-
-            # Insert config values into config as config object is not retruned from api
-            for external_agent in external_agents:
-                if external_agent.id in response_dict:
-                    response_data = response_dict[external_agent.id]
-                    external_agent.config.enable_cot = response_data.get("enable_cot", external_agent.config.enable_cot)
-                    external_agent.config.hidden = response_data.get("hidden", external_agent.config.hidden)
-
-            external_agents_list = []
             if verbose:
+                external_agents_list = []
                 for agent in external_agents:
                     external_agents_list.append(json.loads(agent.dumps_spec()))
-                verbose_output_dictionary["external"] = external_agents_list
+                output_dictionary["external"] = external_agents_list
             else:
-                external_table = rich.table.Table(
-                    show_header=True, 
-                    header_style="bold white", 
-                    title="External Agents",
-                    show_lines=True
-                )
-                column_args = {
-                    "Name": {"overflow": "fold"},
-                    "Title": {},
-                    "Description": {},
-                    "Tags": {},
-                    "API URL": {"overflow": "fold"},
-                    "Chat Params": {},
-                    "Config": {},
-                    "Nickname": {},
-                    "App ID": {"overflow": "fold"},
-                    "ID": {"overflow": "fold"}
-                }
+                resolved_external_agents = self._bulk_resolve_agent_app_ids(external_agents)
                 
-                for column in column_args:
-                    external_table.add_column(column, **column_args[column])
-                
-                for agent in external_agents:
-                    connections_client =  get_connections_client()
-                    app_id = connections_client.get_draft_by_id(agent.connection_id)
+                if format and format == AgentListFormats.JSON:
+                    external_agents_list = []
+                    for agent in resolved_external_agents:
+                        external_agents_list.append(json.loads(agent.dumps_spec()))
 
-                    external_table.add_row(
-                        agent.name,
-                        agent.title,
-                        agent.description,
-                        ", ".join(agent.tags or []),
-                        agent.api_url,
-                        json.dumps(agent.chat_params),
-                        str(agent.config),
-                        agent.nickname,
-                        app_id,
-                        agent.id
+                    output_dictionary["external"] = external_agents_list
+                else:
+                    external_table = rich.table.Table(
+                        show_header=True, 
+                        header_style="bold white", 
+                        title="External Agents",
+                        show_lines=True
                     )
-                rich.print(external_table)
+                    column_args = {
+                        "Name": {"overflow": "fold"},
+                        "Title": {},
+                        "Description": {},
+                        "Tags": {},
+                        "API URL": {"overflow": "fold"},
+                        "Chat Params": {},
+                        "Config": {},
+                        "Nickname": {},
+                        "App ID": {"overflow": "fold"},
+                        "ID": {"overflow": "fold"}
+                    }
+                    
+                    for column in column_args:
+                        external_table.add_column(column, **column_args[column])
+                    
+                    for agent in external_agents:
+                        connections_client =  get_connections_client()
+                        app_id = connections_client.get_draft_by_id(agent.connection_id)
+                        resolved_native_agents = self._bulk_resolve_agent_app_ids(external_agents)
+
+                        external_table.add_row(
+                            agent.name,
+                            agent.title,
+                            agent.description,
+                            ", ".join(agent.tags or []),
+                            agent.api_url,
+                            json.dumps(agent.chat_params),
+                            str(agent.config),
+                            agent.nickname,
+                            app_id,
+                            agent.id
+                        )
+                    if format == AgentListFormats.Table:
+                        output_dictionary["external"] = self._rich_table_to_markdown(external_table)
+                    else:
+                        rich.print(external_table)
         
         if kind == AgentKind.ASSISTANT or kind is None:
-            response = self.get_assistant_client().get()
-
-            assistant_agents = []
-            for agent in response:
-                try:
-                    assistant_agents.append(AssistantAgent.model_validate(agent))
-                except Exception as e:
-                    name = agent.get('name', None)
-                    parse_errors.append([f"Assistant Agent {name} could not be parsed", e])
-
-            response_dict = {agent["id"]: agent for agent in response}
-
-            # Insert config values into config as config object is not retruned from api
-            for assistant_agent in assistant_agents:
-                if assistant_agent.id in response_dict:
-                    response_data = response_dict[assistant_agent.id]
-                    assistant_agent.config.api_version = response_data.get("api_version", assistant_agent.config.api_version)
-                    assistant_agent.config.assistant_id = response_data.get("assistant_id", assistant_agent.config.assistant_id)
-                    assistant_agent.config.crn = response_data.get("crn", assistant_agent.config.crn)
-                    assistant_agent.config.service_instance_url = response_data.get("service_instance_url", assistant_agent.config.service_instance_url)
-                    assistant_agent.config.environment_id = response_data.get("environment_id", assistant_agent.config.environment_id)
-                    assistant_agent.config.authorization_url = response_data.get("authorization_url", assistant_agent.config.authorization_url)
+            assistant_agents, new_parse_errors = self._fetch_and_parse_agents(AgentKind.ASSISTANT)
+            parse_errors += new_parse_errors
 
             if verbose:
-                assistant_agent_specs = []
+                assistant_agents_list = []
                 for agent in assistant_agents:
-                    assistant_agent_specs.append(json.loads(agent.dumps_spec()))
-                verbose_output_dictionary["assistant"] = assistant_agent_specs
+                    assistant_agents_list.append(json.loads(agent.dumps_spec()))
+                output_dictionary["assistant"] = assistant_agents_list
             else:
-                assistants_table = rich.table.Table(
-                    show_header=True, 
-                    header_style="bold white", 
-                    title="Assistant Agents",
-                    show_lines=True)
-                column_args = {
-                    "Name": {"overflow": "fold"},
-                    "Title": {},
-                    "Description": {},
-                    "Tags": {},
-                    "Nickname": {},
-                    "CRN": {},
-                    "Instance URL": {},
-                    "Assistant ID": {"overflow": "fold"},
-                    "Environment ID": {"overflow": "fold"},
-                    "ID": {"overflow": "fold"}
-                }
+                resolved_external_agents = self._bulk_resolve_agent_app_ids(assistant_agents)
                 
-                for column in column_args:
-                    assistants_table.add_column(column, **column_args[column])
-                
-                for agent in assistant_agents:
-                    assistants_table.add_row(
-                        agent.name,
-                        agent.title,
-                        agent.description,
-                        ", ".join(agent.tags or []),
-                        agent.nickname,
-                        agent.config.crn,
-                        agent.config.service_instance_url,
-                        agent.config.assistant_id,
-                        agent.config.environment_id,
-                        agent.id
-                    )
-                rich.print(assistants_table)
+                if format and format == AgentListFormats.JSON:
+                    assistant_agents_list = []
+                    for agent in resolved_external_agents:
+                        assistant_agents_list.append(json.loads(agent.dumps_spec()))
+
+                    output_dictionary["assistant"] = assistant_agents_list
+                else:
+                    assistants_table = rich.table.Table(
+                        show_header=True, 
+                        header_style="bold white", 
+                        title="Assistant Agents",
+                        show_lines=True)
+                    column_args = {
+                        "Name": {"overflow": "fold"},
+                        "Title": {},
+                        "Description": {},
+                        "Tags": {},
+                        "Nickname": {},
+                        "CRN": {},
+                        "Instance URL": {},
+                        "Assistant ID": {"overflow": "fold"},
+                        "Environment ID": {"overflow": "fold"},
+                        "ID": {"overflow": "fold"}
+                    }
+                    
+                    for column in column_args:
+                        assistants_table.add_column(column, **column_args[column])
+                    
+                    for agent in assistant_agents:
+                        assistants_table.add_row(
+                            agent.name,
+                            agent.title,
+                            agent.description,
+                            ", ".join(agent.tags or []),
+                            agent.nickname,
+                            agent.config.crn,
+                            agent.config.service_instance_url,
+                            agent.config.assistant_id,
+                            agent.config.environment_id,
+                            agent.id
+                        )
+                    if format == AgentListFormats.Table:
+                        output_dictionary["assistant"] = self._rich_table_to_markdown(assistants_table)
+                    else:
+                        rich.print(assistants_table)
 
         if verbose:
-            rich.print_json(data=verbose_output_dictionary)
+            rich.print_json(data=output_dictionary)
 
         for error in parse_errors:
             for l in error:
                 logger.error(l)
+        
+        if verbose or format:
+            return output_dictionary
+        
 
     def remove_agent(self, name: str, kind: AgentKind):
         try:

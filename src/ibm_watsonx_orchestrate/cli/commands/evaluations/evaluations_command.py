@@ -16,7 +16,7 @@ from typing import Optional
 from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate import __version__
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 logger = logging.getLogger(__name__)
@@ -220,6 +220,13 @@ def analyze(data_path: Annotated[
             help="Path to the directory that has the saved results"
         )
     ],
+    tool_definition_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--tools-path", "-t",
+            help="Path to the directory containing tool definitions."
+        )
+    ] = None,
     user_env_file: Annotated[
         Optional[str],
         typer.Option(
@@ -230,7 +237,10 @@ def analyze(data_path: Annotated[
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
-    controller.analyze(data_path=data_path)
+    controller.analyze(
+        data_path=data_path,
+        tool_definition_path=tool_definition_path
+        )
 
 @evaluation_app.command(name="validate-external", help="Validate an external agent against a set of inputs")
 def validate_external(
@@ -375,3 +385,165 @@ def validate_external(
             msg = f"[dark_orange]Schema validation did not succeed. See '{str(validation_folder)}' for failures.[/dark_orange]"
 
         rich.print(Panel(msg))
+
+@evaluation_app.command(name="quick-eval",
+                        short_help="Evaluate agent against a suite of static metrics and LLM-as-a-judge metrics",
+                        help="""
+                        Use the quick-eval command to evaluate your agent against a suite of static metrics and LLM-as-a-judge metrics.
+                        """)
+def quick_eval(
+    config_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--config", "-c",
+            help="Path to YAML configuration file containing evaluation settings."
+        )
+    ] = None,
+    test_paths: Annotated[
+        Optional[str],
+        typer.Option(
+            "--test-paths", "-p", 
+            help="Paths to the test files and/or directories to evaluate, separated by commas."
+        ),
+    ] = None,
+    tools_path: Annotated[
+        str,
+        typer.Option(
+            "--tools-path", "-t",
+            help="Path to the directory containing tool definitions."
+        )
+    ] = None,
+    output_dir: Annotated[
+        Optional[str], 
+        typer.Option(
+            "--output-dir", "-o",
+            help="Directory to save the evaluation results."
+        )
+    ] = None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file", "-e", 
+            help="Path to a .env file that overrides default.env. Then environment variables override both."
+        ),
+    ] = None
+):
+    if not config_file:
+        if not test_paths or not output_dir:
+            logger.error("Error: Both --test-paths and --output-dir must be provided when not using a config file")
+            exit(1)
+    
+    validate_watsonx_credentials(user_env_file)
+
+    if tools_path is None:
+        logger.error("When running `quick-eval`, please provide the path to your tools file.")
+        sys.exit(1)
+    
+    controller = EvaluationsController()
+    controller.evaluate(
+        config_file=config_file,
+        test_paths=test_paths,
+        output_dir=output_dir,
+        tools_path=tools_path, mode=EvaluateMode.referenceless
+    )
+
+
+red_teaming_app = typer.Typer(no_args_is_help=True)
+evaluation_app.add_typer(red_teaming_app, name="red-teaming")
+
+
+@red_teaming_app.command("list", help="List available red-teaming attack plans")
+def list_plans():
+    controller = EvaluationsController()
+    controller.list_red_teaming_attacks()
+
+
+@red_teaming_app.command("plan", help="Generate red-teaming attacks")
+def plan(
+    attacks_list: Annotated[
+        str,
+        typer.Option(
+            "--attacks-list",
+            "-a",
+            help="Comma-separated list of red-teaming attacks to generate.",
+        ),
+    ],
+    datasets_path: Annotated[
+        str,
+        typer.Option(
+            "--datasets-path",
+            "-d",
+            help="Path to datasets for red-teaming. This can also be a comma-separated list of files or directories.",
+        ),
+    ],
+    agents_path: Annotated[
+        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions.")
+    ],
+    target_agent_name: Annotated[
+        str,
+        typer.Option(
+            "--target-agent-name",
+            "-t",
+            help="Name of the target agent to attack (should be present in agents-path).",
+        ),
+    ],
+    output_dir: Annotated[
+        Optional[str],
+        typer.Option("--output-dir", "-o", help="Directory to save generated attacks.")
+    ]=None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file that overrides default.env. Then environment variables override both.",
+        ),
+    ] = None,
+    max_variants: Annotated[
+        Optional[int],
+        typer.Option(
+            "--max_variants",
+            "-n",
+            help="Number of variants to generate per attack type.",
+        ),
+    ] = None,
+
+):
+    validate_watsonx_credentials(user_env_file)
+    controller = EvaluationsController()
+    controller.generate_red_teaming_attacks(
+        attacks_list=attacks_list,
+        datasets_path=datasets_path,
+        agents_path=agents_path,
+        target_agent_name=target_agent_name,
+        output_dir=output_dir,
+        max_variants=max_variants,
+    )
+
+
+@red_teaming_app.command("run", help="Run red-teaming attacks")
+def run(
+    attack_paths: Annotated[
+        str,
+        typer.Option(
+            "--attack-paths",
+            "-a",
+            help="Path or list of paths (comma-separated) to directories containing attack files.",
+        ),
+    ],
+    output_dir: Annotated[
+        Optional[str],
+        typer.Option("--output-dir", "-o", help="Directory to save attack results."),
+    ] = None,
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file that overrides default.env. Then environment variables override both.",
+        ),
+    ] = None,
+):
+    validate_watsonx_credentials(user_env_file)
+    controller = EvaluationsController()
+    controller.run_red_teaming_attacks(attack_paths=attack_paths, output_dir=output_dir)

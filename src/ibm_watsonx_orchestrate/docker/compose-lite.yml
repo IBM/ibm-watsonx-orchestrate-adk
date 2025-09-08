@@ -133,7 +133,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
-      ENABLE_EDIT_PROMPTS: "true"
+      ENABLE_EDIT_PROMPTS: "false"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
     command: 'npm start'
     ports:
@@ -379,6 +379,7 @@ services:
       IS_WXO_LITE: "TRUE"
       TRM_BASE_URL: http://tools-runtime-manager:8080
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      RECURSION_LIMIT: ${RECURSION_LIMIT}
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       JWT_SECRET: ${JWT_SECRET}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres

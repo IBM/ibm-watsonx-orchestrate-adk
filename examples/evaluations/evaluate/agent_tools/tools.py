@@ -58,3 +58,14 @@ def get_direct_reports_hr_agent(username: str) -> str:
     """
 
     return json.dumps(["nwaters", "johndoe"])
+
+@tool(name="request_compensation_change_hr_agent", description="Request a compensation change for a user", permission=ToolPermission.ADMIN)
+def request_compensation_change_hr_agent(user_id: str, new_compensation: float) -> str:
+    """
+    Request a compensation change for a user.
+
+    Args:
+        user_id: The ID of the user whose compensation is to be changed.
+        new_compensation: The new compensation amount.
+    """
+    return f"Compensation change requested for user {user_id} to {new_compensation}."
