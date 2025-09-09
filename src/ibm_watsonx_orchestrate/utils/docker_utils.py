@@ -233,7 +233,7 @@ class DockerComposeCore:
         command = [
             "-f", str(compose_path),
             "--env-file", str(final_env_file),
-            "--profile", "*"
+            "--profile", "*",
             "logs"
         ]
 
