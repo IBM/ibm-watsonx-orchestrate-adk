@@ -279,6 +279,28 @@ class TestValidateExternal:
             finally:
                 Path(csv_path).unlink()
 
+class TestValidateNativeAgent:
+    @pytest.fixture
+    def tsv_file(self):
+        csv_content = "user story 1\texpected response 1\tagent1"
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False) as csv_tmp:
+            csv_tmp.write(csv_content)
+            csv_tmp.flush()
+            csv_path = csv_tmp.name
+            yield csv_path
+            Path(csv_path).unlink()
+
+    def test_validate_native_agent(self, tsv_file, user_env_file):
+        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.generate_performance_test") as mock_perf_test:
+            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command.evaluate") as mock_evaluate:
+                evaluations_command.validate_native(
+                    data_path=tsv_file,
+                    output_dir="test_output",
+                    user_env_file=user_env_file
+                )
+
+            mock_perf_test.assert_called()
+            mock_evaluate.assert_called_once_with(output_dir="test_output/native_agent_evaluations", test_paths=str("test_output/native_agent_evaluations/generated_test_data"))
 
 class TestRedTeaming:
     def test_list_plans_calls_controller(self):
