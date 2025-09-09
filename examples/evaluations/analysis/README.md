@@ -7,3 +7,7 @@
 3. Option2: Run the command with tools directory to perform additional analysis with tools:
 `orchestrate evaluations analyze -d ./examples/evaluations/analysis/ -e env.lite -t ./examples/evaluations/analysis/tools.py`
 🚨 Note: we expect `WATSONX_APIKEY, WATSONX_SPACE_ID` or `WO_INSTANCE, WO_API_KEY` to be part of the environment variables or specified in .env_file. 
+
+#### Using IBM Cloud Pak for Data (CPD)
+For running analyze/evaluate flows against CPD (with or without IFM), see:
+- examples/evaluations/cpd/README.md
