@@ -12,7 +12,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
 from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource, ToolkitTransportKind
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
-from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 import typer
 import json
@@ -240,7 +240,7 @@ class ToolkitController:
             if not len(runtime_id.strip()) or not len(local_id.strip()):
                 raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
 
-            runtime_id = sanatize_app_id(runtime_id)
+            runtime_id = sanitize_app_id(runtime_id)
             is_local_mcp = self.package is not None or self.package_root is not None
             app_id_dict[runtime_id] = get_connection_id(local_id, is_local_mcp)
 

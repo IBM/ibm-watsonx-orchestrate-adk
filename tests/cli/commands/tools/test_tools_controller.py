@@ -3,6 +3,7 @@ from typing import Literal
 from unittest import mock
 from unittest.mock import call
 
+from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind, _get_kind_from_spec
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolPermission, ToolSpec
@@ -185,12 +186,13 @@ def test_openapi_params_valid():
         get_by_id_response=MockListConnectionResponse(connection_id='connectionId'),
         list_conn_response=[]
         )
-    with mock.patch(
-        'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.create_openapi_json_tools_from_uri',
-        create_openapi_json_tools_from_uri
-    ), mock.patch(
-        'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') \
-    as client_mock:
+    
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch(
+            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.create_openapi_json_tools_from_uri',
+            create_openapi_json_tools_from_uri
+         ), \
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as client_mock:
         client_mock.return_value = client
         file = "../resources/yaml_samples/tool.yaml"
         tools =ToolsController.import_tool(
@@ -263,13 +265,14 @@ def test_openapi_no_app_id():
         calls.append((args, kwargs))
         return []
 
-    with mock.patch(
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.create_openapi_json_tools_from_uri',
             create_openapi_json_tools_from_uri
-    ), \
-        mock.patch(
+         ), \
+         mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client'
-        ) as mock_conn_client:
+         ) as mock_conn_client:
         
         mock_conn_client.return_value = MockConnectionClient()
 
@@ -285,7 +288,8 @@ def test_openapi_no_app_id():
         ]
 
 def test_openapi_multiple_app_ids():
-    with pytest.raises(BadParameter) as e:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as e:
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",  app_id=["test1", "test2"])
         list(tools)
@@ -293,7 +297,8 @@ def test_openapi_multiple_app_ids():
 
 def test_openapi_app_id_key_value(caplog):
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
-         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev:
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev,\
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
         mock_is_local_dev.return_value = False
         mock_client.return_value = MockConnectionClient(
             get_response=MockConnection(appid="test", connection_type="key_value"),
@@ -313,17 +318,19 @@ def test_openapi_app_id_key_value(caplog):
             list(tools)
 
         captured = caplog.text
-        assert "Key value application connections can not be bound to an openapi tool" in captured
+        assert "key_value_creds application connections can not be bound to openapi tools" in captured
 
 
 def test_openapi_no_file():
-    with pytest.raises(BadParameter):
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter):
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.openapi, file=None)
         list(tools)
 
 def test_python_file_is_dir():
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python, file="tests/cli"))
 
@@ -331,7 +338,8 @@ def test_python_file_is_dir():
 
 def test_python_file_is_symlink():
     drop_module('testtool1')
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         with tempfile.TemporaryDirectory() as tempdir:
             symlink_path = os.path.join(tempdir, "symlink_to_a_file")
             os.symlink("test/cli/resources/python_multi_file_samples/testtool1/testtool1.py", symlink_path)
@@ -342,7 +350,8 @@ def test_python_file_is_symlink():
     assert str(ex.value) == "Symbolic links are not supported for tool file path."
 
 def test_python_package_root_is_not_directory():
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python, file="tests/cli"))
 
@@ -350,7 +359,8 @@ def test_python_package_root_is_not_directory():
 
 def test_python_package_root_is_symlink():
     drop_module('testtool1')
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         with tempfile.TemporaryDirectory() as tempdir:
             symlink_path = os.path.join(tempdir, "symlink_to_dir")
             os.symlink("test/cli/resources/python_multi_file_samples/testtool1", symlink_path)
@@ -364,7 +374,8 @@ def test_python_package_root_is_symlink():
 
 def test_python_package_root_is_not_base_path_of_file():
     drop_module('testtool1')
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
@@ -374,10 +385,11 @@ def test_python_package_root_is_not_base_path_of_file():
 
 def test_python_with_package_root_binding_function_is_set():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples/testtool1"))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="tests/cli/resources/python_multi_file_samples/testtool1"))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
@@ -386,11 +398,12 @@ def test_python_with_package_root_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
 
 def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
-    drop_module('testtool2')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool2_single_file/testtool2.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples/"))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        drop_module('testtool2')
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool2_single_file/testtool2.py",
+                                                package_root="tests/cli/resources/python_multi_file_samples/"))
 
     assert len(tools) == 1
     assert (tools[0]).__tool_spec__.binding.python.function == "testtool2_single_file.testtool2:my_tool"
@@ -400,10 +413,11 @@ def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
 
 def test_python_with_package_root_binding_function_is_set2():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="tests/cli/resources"))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="tests/cli/resources"))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "python_multi_file_samples.testtool1.testtool1:my_tool"
@@ -413,10 +427,11 @@ def test_python_with_package_root_binding_function_is_set2():
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_tests():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="tests"))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="tests"))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "cli.resources.python_multi_file_samples.testtool1.testtool1:my_tool"
@@ -426,10 +441,11 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_t
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_dir_of_tool():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples/testtool1"))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="tests/cli/resources/python_multi_file_samples/testtool1"))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
@@ -439,10 +455,11 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_d
 
 def test_python_without_package_root_binding_function_is_set():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root=None))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root=None))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
@@ -452,10 +469,11 @@ def test_python_without_package_root_binding_function_is_set():
 
 def test_python_with_package_root_as_empty_string_binding_function_is_set():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root=""))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root=""))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
@@ -465,10 +483,11 @@ def test_python_with_package_root_as_empty_string_binding_function_is_set():
 
 def test_python_with_package_root_as_whitespace_string_binding_function_is_set():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="    "))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="    "))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
@@ -478,10 +497,11 @@ def test_python_with_package_root_as_whitespace_string_binding_function_is_set()
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_wrapped_in_whitespace():
     drop_module('testtool1')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
-                                              package_root="  tests/cli/resources/python_multi_file_samples   "))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool1/testtool1.py",
+                                                package_root="  tests/cli/resources/python_multi_file_samples   "))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool1.testtool1:my_tool"
@@ -490,7 +510,8 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_w
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
 
 def test_python_with_no_package_root_fails_when_file_name_has_unsupported_characters():
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/testtool3/test-tool 3.py",
@@ -499,7 +520,8 @@ def test_python_with_no_package_root_fails_when_file_name_has_unsupported_charac
     assert str(ex.value) == "File name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Filename: \"test-tool 3\""
 
 def test_python_with_package_root_fails_when_file_name_has_unsupported_characters():
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/testtool3/test-tool 3.py",
@@ -509,10 +531,11 @@ def test_python_with_package_root_fails_when_file_name_has_unsupported_character
 
 def test_python_with_no_package_root_and_unsupported_path_to_tool():
     drop_module('test_tool_4')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/test-tool 4/testtool_4.py",
-                                              package_root=None))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/test-tool 4/testtool_4.py",
+                                                package_root=None))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "testtool_4:my_tool"
@@ -521,7 +544,8 @@ def test_python_with_no_package_root_and_unsupported_path_to_tool():
     assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
 
 def test_python_with_package_root_and_unsupported_path_to_tool():
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/test-tool 4/test_tool_4.py",
@@ -531,7 +555,8 @@ def test_python_with_package_root_and_unsupported_path_to_tool():
 
 def test_python_with_no_package_root_tool_name_has_unsupported_characters():
     drop_module('testtool5')
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/testtool5/test_tool_5.py",
@@ -541,7 +566,8 @@ def test_python_with_no_package_root_tool_name_has_unsupported_characters():
 
 def test_python_with_package_root_tool_name_has_unsupported_characters():
     drop_module('testtool5')
-    with pytest.raises(BadParameter) as ex:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter) as ex:
         tools_controller = ToolsController()
         list(tools_controller.import_tool(ToolKind.python,
                                           file="tests/cli/resources/python_multi_file_samples/testtool5/test_tool_5.py",
@@ -551,10 +577,11 @@ def test_python_with_package_root_tool_name_has_unsupported_characters():
 
 def test_python_with_tool_in_subfolder_with_relative_imports():
     drop_module('testtool6')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool6/tools/testtool6.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples/testtool6",))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool6/tools/testtool6.py",
+                                                package_root="tests/cli/resources/python_multi_file_samples/testtool6",))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool6:my_tool"
@@ -564,10 +591,11 @@ def test_python_with_tool_in_subfolder_with_relative_imports():
 
 def test_python_with_tool_in_subfolder_with_package_level():
     drop_module('testtool7')
-    tools_controller = ToolsController()
-    tools = list(tools_controller.import_tool(ToolKind.python,
-                                              file="tests/cli/resources/python_multi_file_samples/testtool7/tools/testtool7.py",
-                                              package_root="tests/cli/resources/python_multi_file_samples/testtool7",))
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = list(tools_controller.import_tool(ToolKind.python,
+                                                file="tests/cli/resources/python_multi_file_samples/testtool7/tools/testtool7.py",
+                                                package_root="tests/cli/resources/python_multi_file_samples/testtool7",))
 
     assert len(tools) == 1
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool7:my_tool"
@@ -632,14 +660,15 @@ def test_update_openapi():
 
 
 def test_python_params_valid():
-    tools_controller = ToolsController()
-    tools = tools_controller.import_tool(
-        ToolKind.python,
-        file="tests/cli/resources/python_samples/tool_w_metadata.py",
-        requirements_file="tests/cli/resources/python_samples/requirements.txt"
-    )
-
-    tools = list(tools)
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(
+            ToolKind.python,
+            file="tests/cli/resources/python_samples/tool_w_metadata.py",
+            requirements_file="tests/cli/resources/python_samples/requirements.txt"
+        )
+        tools = list(tools)
+    
     assert len(tools) > 0
 
     tool = tools[0]
@@ -647,7 +676,8 @@ def test_python_params_valid():
     assert tool.__tool_spec__.permission == ToolPermission.ADMIN
 
 def test_python_params_valid_with_app_ids():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         mock_response = MockListConnectionResponse(connection_id="12345")
         mock_client.return_value = MockConnectionClient(
             get_by_id_response=mock_response,
@@ -671,7 +701,8 @@ def test_python_params_valid_with_app_ids():
         assert tool.__tool_spec__.binding.python.connections == {"test": "12345"}
 
 def test_python_params_valid_with_split_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         mock_response = MockListConnectionResponse(connection_id="12345")
         mock_client.return_value = MockConnectionClient(
             get_by_id_response=mock_response,
@@ -695,7 +726,8 @@ def test_python_params_valid_with_split_app_id():
         assert tool.__tool_spec__.binding.python.connections == {"test_1": "12345"}
 
 def test_python_params_valid_with_split_app_id_invalid_equals():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -709,7 +741,8 @@ def test_python_params_valid_with_split_app_id_invalid_equals():
         assert "The provided --app-id \'test!1=test=123\' is not valid. This is likely caused by having mutliple equal signs, please use \'\\\\=\' to represent a literal \'=\' character" in str(e)
 
 def test_python_params_valid_with_split_app_id_missing_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -723,7 +756,8 @@ def test_python_params_valid_with_split_app_id_missing_app_id():
         assert "The provided --app-id \'test=\' is not valid. --app-id cannot be empty or whitespace" in str(e)
 
 def test_python_params_valid_with_split_app_id_missing_runtime_app_id():
-    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
         with pytest.raises(BadParameter) as e:
             tools_controller = ToolsController()
             tools = tools_controller.import_tool(
@@ -821,14 +855,16 @@ def test_python_tool_expected_connections_live_missing(caplog):
         assert "Connection 'test' is not configured in the '{conn_environment}' environment"
 
 def test_python_no_file():
-    with pytest.raises(BadParameter):
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter):
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.python, file=None, requirements_file=None)
         list(tools)
 
 
 def test_python_file_not_readable():
-    with pytest.raises(BadParameter,
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter,
                        match="Failed to load python module from file does_not_exist.py: No module named 'does_not_exist'") as e:
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.python, file="does_not_exist.py",
@@ -837,7 +873,8 @@ def test_python_file_not_readable():
 
 
 def test_python_requirements_file_not_readable():
-    with pytest.raises(BadParameter, match=re.escape(
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         pytest.raises(BadParameter, match=re.escape(
             "Failed to read file does_not_exist.txt [Errno 2] No such file or directory: 'does_not_exist.txt'")):
         tools_controller = ToolsController()
         tools = tools_controller.import_tool(ToolKind.python,
@@ -847,14 +884,15 @@ def test_python_requirements_file_not_readable():
 
 
 def test_skill_valid():
-    tools_controller = ToolsController()
-    tools = tools_controller.import_tool(
-        "skill",
-        skillset_id="fake_skillset",
-        skill_id="fake_skill",
-        skill_operation_path="fake_operation_path",
-    )
-    list(tools)
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(
+            "skill",
+            skillset_id="fake_skillset",
+            skill_id="fake_skill",
+            skill_operation_path="fake_operation_path",
+        )
+        list(tools)
 
 
 def test_skill_missing_args():
@@ -867,20 +905,21 @@ def test_skill_missing_args():
 
 
 def test_invalid_kind():
-    try:
-        tools_controller = ToolsController()
-        tools = tools_controller.import_tool("invalid")
-        list(tools)
-        assert False
-    except BadRequest as e:
-        assert True
-        assert str(e) == "Invalid kind selected"
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        try:
+            tools_controller = ToolsController()
+            tools = tools_controller.import_tool("invalid")
+            list(tools)
+            assert False
+        except BadRequest as e:
+            assert True
+            assert str(e) == "Invalid kind selected"
 
 def test_publish_python():
     with mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -915,8 +954,8 @@ def test_publish_python():
 def test_update_python():
     with mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1034,8 +1073,8 @@ def test_single_publish_python_with_package_root_and_reqs_file():
 
     with mock.patch(
             'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1096,10 +1135,9 @@ def test_single_publish_python_with_reqs_file_no_package_root():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool2_single_file/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool2_single_file.testtool2:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1160,10 +1198,9 @@ def test_single_publish_python_with_no_reqs_file_no_package_root():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool2_single_file/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool2_single_file.testtool2:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1224,10 +1261,9 @@ def test_single_publish_python_with_package_root_and_no_reqs_file():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool2_single_file/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool2_single_file.testtool2:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1288,10 +1324,9 @@ def test_single_publish_python_with_package_root_and_reqs_file():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool1/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool2_single_file.testtool2:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1353,10 +1388,9 @@ def test_multifile_publish_python_with_package_root_and_reqs_file():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool1/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool1.testtool1:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1420,10 +1454,9 @@ def test_multifile_publish_python_with_no_package_root_and_reqs_file():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool1/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool1.testtool1:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1485,10 +1518,9 @@ def test_multifile_publish_python_with_package_root_and_reqs_file2():
     expected_requirements_file = 'tests/cli/resources/python_multi_file_samples/testtool1/requirements.txt'
     expected_binding_function = "python_multi_file_samples.testtool1.testtool1:my_tool"
 
-    with mock.patch(
-            'ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
-            mock.patch('zipfile.ZipFile') as mock_zipfile, \
-            mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client, \
+         mock.patch('zipfile.ZipFile') as mock_zipfile, \
+         mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.Config") as mock_cfg:
         cfg = MockConfig2()
         cfg.save(DEFAULT_CONFIG_FILE_CONTENT)
         cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, RegistryType.LOCAL)
@@ -1716,8 +1748,8 @@ def test_export_tool_invalid_output_file(caplog):
 
     tc.client = MockToolClient()
 
-    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
-        with pytest.raises(SystemExit):
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile,\
+         pytest.raises(SystemExit):
             tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
 
     captured = caplog.text
@@ -1725,3 +1757,87 @@ def test_export_tool_invalid_output_file(caplog):
     assert f"Exporting tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
     assert f"Successfully exported tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
     assert f"Output file must end with the extension '.zip'. Provided file '{mock_output_file}' ends with 'txt'"
+
+def test_langflow_tool_import():
+
+    tool_file = 'tests/cli/resources/langflow_samples/valid_tool.json'
+    requirments_file = 'tests/cli/resources/langflow_samples/requirements.txt'
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        controller = ToolsController()
+        tools = list(controller.import_tool(ToolKind.langflow,file=tool_file,requirments_file=requirments_file))
+    
+    assert(len(tools) == 1)
+    assert(isinstance(tools[0],LangflowTool))
+
+def test_langflow_tool_import_invalid_version():
+    tool_file = 'tests/cli/resources/langflow_samples/invalid_version_tool.json'
+    requirments_file = 'tests/cli/resources/langflow_samples/requirements.txt'
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
+        controller = ToolsController()
+        with pytest.raises(ValueError) as e:
+            tools = list(controller.import_tool(ToolKind.langflow,file=tool_file,requirments_file=requirments_file))
+    
+    assert("Langflow version is below minimum requirements" in str(e.value))    
+    
+
+def test_langflow_tool_publish():
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client,\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.publish_tool') as mock_publish:
+        spec = ToolSpec(
+            name="test",
+            description="test",
+            permission=ToolPermission.READ_ONLY,
+            binding={
+                "langflow": {
+                    "langflow_id": "langflow_id",
+                    "langflow_version": "1.5.0",
+                }
+            }
+        )
+        tools = [
+            LangflowTool(spec=spec)
+        ]
+
+        mock_instantiate_client.return_value = MockToolClient(
+            get_draft_by_name_response=[]
+        )
+
+        tools_controller = ToolsController()
+        tools_controller.publish_or_update_tools(tools)
+
+        mock_publish.assert_called_once_with(tool=tools[0],tool_artifact=None)
+
+def test_langflow_tool_update():
+    with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client,\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.update_tool') as mock_update:
+        spec = ToolSpec(
+            name="test",
+            description="test",
+            permission=ToolPermission.READ_ONLY,
+            binding={
+                "langflow": {
+                    "langflow_id": "langflow_id",
+                    "langflow_version": "1.5.0",
+                }
+            }
+        )
+        tools = [
+            LangflowTool(spec=spec)
+        ]
+
+        tool_id = "sample_id"
+
+        mock_instantiate_client.return_value = MockToolClient(
+            get_draft_by_name_response=[
+                {
+                    "mock_tool_response":"mock_tool_response",
+                    "id": tool_id
+                }
+            ]
+        )
+
+        tools_controller = ToolsController()
+        tools_controller.publish_or_update_tools(tools)
+
+        mock_update.assert_called_once_with(tool_id=tool_id,tool=tools[0],tool_artifact=None)
+    

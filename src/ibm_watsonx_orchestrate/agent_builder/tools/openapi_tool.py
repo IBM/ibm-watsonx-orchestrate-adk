@@ -56,9 +56,9 @@ class OpenAPITool(BaseTool):
                 spec = ToolSpec.model_validate(json.load(f))
             else:
                 raise BadRequest('file must end in .json, .yaml, or .yml')
-
-        if spec.binding.openapi is None or spec.binding.openapi is None:
-            raise BadRequest('failed to load python tool as the tool had no openapi binding')
+            
+        if spec is None or spec.binding is None or spec.binding.openapi is None:
+            raise BadRequest('failed to load openapi tool as the tool had no openapi binding')
 
         return OpenAPITool(spec=spec)
 

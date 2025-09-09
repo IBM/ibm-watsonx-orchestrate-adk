@@ -1143,7 +1143,7 @@ services:
     environment:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
-      LANGFLOW_CONFIG_DIR: app/langflow
+      LANGFLOW_CONFIG_DIR: /app/app/langflow
     volumes:
       - langflow-data:/app/langflow
 

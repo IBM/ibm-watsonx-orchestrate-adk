@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     CONNECTION_TYPE_CREDENTIAL_MAPPING
 )
 
-from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: st
     return _build_credentials_model(credentials_type=credentials_type, vars=variables, base_prefix=base_prefix)
 
 def get_connection_type(app_id: str) -> ConnectionSecurityScheme:
-    sanitized_app_id = sanatize_app_id(app_id=app_id)
+    sanitized_app_id = sanitize_app_id(app_id=app_id)
     expected_schema_key = f"WXO_SECURITY_SCHEMA_{sanitized_app_id}"
     expected_schema = os.environ.get(expected_schema_key)
 
@@ -129,7 +129,7 @@ def get_connection_type(app_id: str) -> ConnectionSecurityScheme:
     return expected_schema
 
 def get_application_connection_credentials(type: ConnectionType, app_id: str) -> CREDENTIALS:
-    sanitized_app_id = sanatize_app_id(app_id=app_id)
+    sanitized_app_id = sanitize_app_id(app_id=app_id)
     expected_schema = get_connection_type(app_id=app_id)
     requested_schema = connection_type_security_schema_map.get(type)
 
