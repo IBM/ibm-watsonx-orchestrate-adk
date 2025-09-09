@@ -1,6 +1,10 @@
+import logging
 from pydantic import BaseModel, Field, AliasChoices, model_validator
 from typing import Optional, Union, TypeVar, List
 from enum import Enum
+
+
+logger = logging.getLogger(__name__)
 
 class ConnectionKind(str, Enum):
     basic = 'basic'
@@ -144,6 +148,16 @@ class ConnectionConfiguration(BaseModel):
                 kwargs["security_scheme"] = CONNECTION_KIND_SCHEME_MAPPING.get(kind)
         
         super().__init__(*args, **kwargs)
+
+    @model_validator(mode="before")
+    def validate_auth_scheme(self):
+        if self.get('auth_type'):
+            try:
+                self['auth_type'] = ConnectionAuthType(self.get('auth_type'))
+            except:
+                logger.warning(f"Unsupported auth type '{self.get('auth_type')}', this will be removed from the configuration data")
+                self['auth_type'] = None
+        return self
 
     @model_validator(mode="after")
     def validate_config(self):
