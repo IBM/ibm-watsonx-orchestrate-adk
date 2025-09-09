@@ -42,4 +42,7 @@ class TempusClient(BaseAPIClient):
     
     def arun_flow(self, flow_id: str, input: dict) -> dict:
         return self._post(f"/flows/{flow_id}/versions/TIP/run/async", data=input)
+    
+    def get_flow_model(self, flow_id: str, version: str = "TIP") -> dict:
+        return self._get(f"/flow-models/{flow_id}/versions/{version}")
 

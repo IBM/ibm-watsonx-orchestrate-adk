@@ -43,6 +43,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_de
 from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -600,7 +601,7 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         return ToolKind.langflow
     elif ToolKind.mcp in tool_binding:
         return ToolKind.mcp
-    elif 'wxflows' in tool_binding:
+    elif 'flow' in tool_binding:
         return ToolKind.flow
     else:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
@@ -953,6 +954,23 @@ class ToolsController:
             logger.error(e.response.text)
             exit(1)
 
+    def serialize_to_json_in_zip(self, obj: any, filename: str) -> bytes:
+        # Serialize the Python object to a JSON string
+        json_str = json.dumps(obj, indent=2)
+        
+        # Create a BytesIO object to hold the in-memory zip file
+        zip_in_memory = io.BytesIO()
+        
+        # Create a ZipFile object in append mode
+        with zipfile.ZipFile(zip_in_memory, 'a') as zip_file:
+            # Write the JSON string as a file named 'data.json' inside the zip
+            zip_file.writestr(filename, json_str)
+        
+        # Seek to the beginning of the BytesIO object to return the in-memory zip file as bytes
+        zip_in_memory.seek(0)
+    
+        return zip_in_memory.getvalue()
+    
     def download_tool(self, name: str) -> bytes | None:
         tool_client = self.get_client()
         draft_tools = tool_client.get_draft_by_name(tool_name=name)
@@ -967,14 +985,27 @@ class ToolsController:
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
         # TODO: Add openapi tool support
-        supported_toolkinds = [ToolKind.python,ToolKind.langflow]
+        supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow]
         if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
 
         tool_id = draft_tool.get("id")
 
-        tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+        if draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow:
+            tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+        elif draft_tool_kind == ToolKind.flow:
+            if not is_local_dev():
+                logger.warning("Skipping '{name}', Flow tool export is only supported in local dev mode")
+                return
+            
+            client = instantiate_client(TempusClient)
+            flow_model = client.get_flow_model(tool_id)
+            # we need to fix the name as sometimes it is left as 'untitled' by the builder
+            if "data" in flow_model:
+                flow_model["data"]["spec"]["name"] = name
+            tool_artifacts_bytes = self.serialize_to_json_in_zip(flow_model["data"], f"{name}.json")
+
         return tool_artifacts_bytes
     
     def export_tool(self, name: str, output_path: str) -> None:
