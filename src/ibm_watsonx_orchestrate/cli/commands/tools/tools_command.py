@@ -61,9 +61,8 @@ relative to this package root folder or imported using relative imports from the
         requirements_file=requirements_file,
         package_root=package_root
     )
-    
-    tools_controller.publish_or_update_tools(tools, package_root=package_root)
-
+    tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+ 
 @tools_app.command(name="list", help='List the imported tools in the active environment')
 def list_tools(
     verbose: Annotated[

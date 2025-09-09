@@ -25,6 +25,7 @@ from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
+from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -40,7 +41,7 @@ from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
-from ibm_watsonx_orchestrate.utils.utils import sanatize_app_id
+from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from  ibm_watsonx_orchestrate import __version__
@@ -50,11 +51,16 @@ logger = logging.getLogger(__name__)
 __supported_characters_pattern = re.compile("^(\\w|_)+$")
 
 
+DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
+    "lfx==0.1.8"
+]
+
 class ToolKind(str, Enum):
     openapi = "openapi"
     python = "python"
     mcp = "mcp"
     flow = "flow"
+    langflow = "langflow"
     # skill = "skill"
 
 def _get_connection_environments() -> List[ConnectionEnvironment]:
@@ -64,6 +70,9 @@ def _get_connection_environments() -> List[ConnectionEnvironment]:
         return [env.value for env in ConnectionEnvironment]
 
 def validate_app_ids(kind: ToolKind, **args) -> None:
+    
+    environments = _get_connection_environments()
+    
     app_ids = args.get("app_id")
     if not app_ids:
         return
@@ -87,44 +96,62 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
             imported_connections[app_id] = {conn_env: conn}
 
     for app_id in app_ids:
-        if kind == ToolKind.python:
-            # Split on = but not on \=
-            split_pattern = re.compile(r"(?<!\\)=")
-            split_id = re.split(split_pattern, app_id)
-            split_id = [x.replace("\\=", "=") for x in split_id]
-            if len(split_id) == 2:
-                _, app_id = split_id
-            elif len(split_id) == 1:
-                app_id = split_id[0]
-            else:
-                raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
-
+        
         if app_id not in imported_connections:
             logger.warning(f"No connection found for provided app-id '{app_id}'. Please create the connection using `orchestrate connections add`")
-        else:
-            # Validate that the connection is not key_value when the tool in openapi
-            if kind != ToolKind.openapi:
+            if kind != ToolKind.python:
                 continue
 
-            environments = _get_connection_environments()
+        permitted_connections_types = []
 
-            imported_connection = imported_connections.get(app_id)
+        match(kind):
 
-            for conn_environment in environments:
-                conn = imported_connection.get(conn_environment)
+            case ToolKind.python:
+                # Split on = but not on \=
+                split_pattern = re.compile(r"(?<!\\)=")
+                split_id = re.split(split_pattern, app_id)
+                split_id = [x.replace("\\=", "=") for x in split_id]
+                if len(split_id) == 2:
+                    _, app_id = split_id
+                elif len(split_id) == 1:
+                    app_id = split_id[0]
+                else:
+                    raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
+                continue
 
-                if conn is None or conn.security_scheme is None:
-                    message = f"Connection '{app_id}' is not configured in the '{conn_environment}' environment."
-                    if conn_environment == ConnectionEnvironment.DRAFT:
-                        logger.error(message)
-                        sys.exit(1)
-                    else:
-                        logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
-                    continue
+            # Validate that the connection is not key_value when the tool in openapi
+            case ToolKind.openapi:
+                permitted_connections_types.extend([
+                    ConnectionSecurityScheme.API_KEY_AUTH,
+                    ConnectionSecurityScheme.BASIC_AUTH,
+                    ConnectionSecurityScheme.BEARER_TOKEN,
+                    ConnectionSecurityScheme.OAUTH2
+                ])
 
-                if conn.security_scheme == ConnectionSecurityScheme.KEY_VALUE:
-                    logger.error(f"Key value application connections can not be bound to an openapi tool")
-                    exit(1)
+            # Validate that the connection is key_value when the tool in langflow
+            case ToolKind.langflow:
+                permitted_connections_types.append(ConnectionSecurityScheme.KEY_VALUE)
+
+        imported_connection = imported_connections.get(app_id)
+
+        for conn_environment in environments:
+            conn = imported_connection.get(conn_environment)
+
+            if conn is None or conn.security_scheme is None:
+                message = f"Connection '{app_id}' is not configured in the '{conn_environment}' environment."
+                if conn_environment == ConnectionEnvironment.DRAFT:
+                    logger.error(message)
+                    sys.exit(1)
+                else:
+                    logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
+                continue
+
+            if conn.security_scheme not in permitted_connections_types:
+                logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
+                exit(1)
+
+
+            
 
 def validate_params(kind: ToolKind, **args) -> None:
     if kind in {"openapi", "python"} and args["file"] is None:
@@ -157,8 +184,37 @@ def get_connection_id(app_id: str) -> str:
         connection_id = connection.connection_id
     return connection_id
 
+def get_connections(app_ids: list[str] | str = None, environment: str = None, allow_missing: bool = True) -> dict:
+    if not app_ids:
+        return {}
+    if app_ids is str:
+        app_ids = [app_ids]
 
-def parse_python_app_ids(app_ids: List[str]) -> dict[str,str]:
+    connections_client = get_connections_client()
+    if environment:
+        connections = { 
+            x.app_id:x for x in connections_client.list() \
+            if x.app_id in app_ids and x.environment == ConnectionEnvironment(environment) 
+        }
+    else:
+        connections = { x.app_id:x for x in connections_client.list() if x.app_id in app_ids }
+
+
+    missing = 0
+    for id in app_ids:
+        if not connections.get(id,None):
+            missing += 1
+
+    if missing > 0 and not allow_missing:
+        raise ValueError(f"Could not find {missing} of {len(app_ids)} required connections")
+
+    return connections
+
+def get_connection_ids(app_ids: list[str] | str = None, environment: str = None, allow_missing: bool = True):
+    connections = get_connections(app_ids=app_ids, environment=environment, allow_missing=allow_missing)
+    return { k:v.connection_id for k,v in connections.items() }
+
+def parse_app_ids(app_ids: List[str]) -> dict[str,str]:
     app_id_dict = {}
     for app_id in app_ids:
         # Split on = but not on \=
@@ -176,7 +232,7 @@ def parse_python_app_ids(app_ids: List[str]) -> dict[str,str]:
         if not len(runtime_id.strip()) or not len(local_id.strip()):
             raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
 
-        runtime_id = sanatize_app_id(runtime_id)
+        runtime_id = sanitize_app_id(runtime_id)
         app_id_dict[runtime_id] = get_connection_id(local_id)
 
     return app_id_dict
@@ -211,7 +267,7 @@ def validate_python_connections(tool: BaseTool):
         else:
             expected_tool_conn_types = [expected_cred.type]
 
-        sanatized_expected_tool_app_id = sanatize_app_id(expected_tool_app_id)
+        sanatized_expected_tool_app_id = sanitize_app_id(expected_tool_app_id)
         if sanatized_expected_tool_app_id in existing_sanatized_expected_tool_app_ids:
             logger.error(f"Duplicate App ID found '{expected_tool_app_id}'. Multiple expected app ids in the tool '{tool.__tool_spec__.name}' collide after sanaitization to '{sanatized_expected_tool_app_id}'. Please rename the offending app id in your tool.")
             sys.exit(1)
@@ -288,6 +344,8 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
     requirements = list(dict.fromkeys(requirements))
 
     return requirements
+
+
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     try:
@@ -373,7 +431,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
         if app_id and len(app_id):
-            obj.__tool_spec__.binding.python.connections = parse_python_app_ids(app_id)
+            obj.__tool_spec__.binding.python.connections = parse_app_ids(app_id)
 
         validate_python_connections(obj)
         tools.append(obj)
@@ -495,10 +553,40 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
 
     return tools
 
-
 async def import_openapi_tool(file: str, connection_id: str) -> List[BaseTool]:
     tools = await create_openapi_json_tools_from_uri(file, connection_id)
     return tools
+
+async def import_langflow_tool(file: str, app_id: List[str] = None):    
+    try:
+        file_path = Path(file).absolute()
+
+        if file_path.is_dir():
+            raise typer.BadParameter(f"Provided langflow file path is not a file.")
+
+        if file_path.is_symlink():
+            raise typer.BadParameter(f"Symbolic links are not supported for langflow file path.")
+
+        if file_path.suffix.lower() != ".json":
+            raise typer.BadParameter(f"Unsupported langflow file type. Only json files are supported.")
+        
+        with open(file) as f:
+            imported_tool = json.load(f)
+
+    except typer.BadParameter as ex:
+        raise ex
+
+    except Exception as e:
+        raise typer.BadParameter(f"Failed to load langflow tool from file {file}: {e}")
+    
+    validate_app_ids(kind=ToolKind.langflow, app_ids=app_id)
+    connections = get_connection_ids(app_ids=app_id, environment='draft')
+    
+    tool = create_langflow_tool(tool_definition=imported_tool, connections=connections)
+
+
+    return tool    
+
 
 def _get_kind_from_spec(spec: dict) -> ToolKind:
     name = spec.get("name")
@@ -508,6 +596,8 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         return ToolKind.python
     elif ToolKind.openapi in tool_binding:
         return ToolKind.openapi
+    elif ToolKind.langflow in tool_binding:
+        return ToolKind.langflow
     elif ToolKind.mcp in tool_binding:
         return ToolKind.mcp
     elif 'wxflows' in tool_binding:
@@ -565,8 +655,13 @@ class ToolsController:
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")
+            case "langflow":
+                tools = asyncio.run(import_langflow_tool(file=args["file"],app_id=args.get('app_id',None)))
             case _:
                 raise BadRequest("Invalid kind selected")
+
+        if not isinstance(tools,list):
+            tools = [tools]
 
         for tool in tools:
             yield tool
@@ -631,6 +726,12 @@ class ToolsController:
                         else:
                             for conn in tool_binding.mcp.connections:
                                 connection_ids.append(tool_binding.mcp.connections[conn])
+                    elif tool_binding.langflow is not None and hasattr(tool_binding.langflow, "connections"):
+                        if tool_binding.langflow.connections is None:
+                            connection_ids.append(None)
+                        else:
+                            for conn in tool_binding.langflow.connections:
+                                connection_ids.append(tool_binding.langflow.connections[conn])
 
                 app_ids = []
                 for connection_id in connection_ids:
@@ -650,7 +751,9 @@ class ToolsController:
                 elif tool_binding.mcp is not None:
                         tool_type=ToolKind.mcp
                 elif tool_binding.flow is not None:
-                        tool_type=ToolKind.flow        
+                        tool_type=ToolKind.flow  
+                elif tool_binding.langflow is not None:
+                        tool_type=ToolKind.langflow      
                 else:
                         tool_type="Unknown"
                 
@@ -776,11 +879,30 @@ class ToolsController:
                         zip_tool_artifacts.write(requirements_file_path, arcname='requirements.txt')
 
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
+                        
+                elif self.tool_kind == ToolKind.langflow:
+
+                    tool_artifact = path.join(tmpdir, "artifacts.zip")
+
+                    with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                        tool_path = Path(self.file)
+                        zip_tool_artifacts.write(tool_path, arcname=f"{tool_path.stem}.json")
+
+                        requirements = DEFAULT_LANGFLOW_TOOL_REQUIREMENTS
+
+                        if self.requirements_file:
+                            requirements_file_path = Path(self.requirements_file)
+                            requirements.extend(
+                                get_requirement_lines(requirements_file=requirements_file_path, remove_trailing_newlines=False)
+                            )
+                        requirements_content = '\n'.join(requirements) + '\n'
+                        zip_tool_artifacts.writestr("requirements.txt",requirements_content)  
+                        zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
 
                 if exist:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
                 else:
-                    self.publish_tool(tool, tool_artifact=tool_artifact)
+                    self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
     def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
@@ -789,7 +911,11 @@ class ToolsController:
         tool_id = response.get("id")
 
         if tool_artifact is not None:
-            self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
+            match self.tool_kind:
+                case ToolKind.langflow | ToolKind.python:
+                    self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
+                case _:
+                    raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
@@ -801,7 +927,11 @@ class ToolsController:
         self.get_client().update(tool_id, tool_spec)
 
         if tool_artifact is not None:
-            self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
+            match self.tool_kind:
+                case ToolKind.langflow | ToolKind.python:
+                    self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
+                case _:
+                    raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' updated successfully")
 
@@ -837,7 +967,8 @@ class ToolsController:
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
         # TODO: Add openapi tool support
-        if draft_tool_kind != ToolKind.python:
+        supported_toolkinds = [ToolKind.python,ToolKind.langflow]
+        if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
 

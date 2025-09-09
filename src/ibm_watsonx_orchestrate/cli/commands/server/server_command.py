@@ -287,7 +287,7 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
     if accepts_license != True:
         logger.warning(('''
             By running the following command your machine will install IBM watsonx Orchestrate Developer Edition, which is governed by the following IBM license agreement:
-            - * https://www.ibm.com/support/customer/csol/terms/?id=L-YRMZ-PB6MHM&lc=en
+            - * https://www.ibm.com/support/customer/csol/terms/?id=L-GLQU-5KA4PY&lc=en
             Additionally, the following prerequisite open source programs will be obtained from Docker Hub and will be installed on your machine. Each of the below programs are Separately Licensed Code, and are governed by the separate license agreements identified below, and not by the IBM license agreement:
             * redis (7.2)               - https://github.com/redis/redis/blob/7.2.7/COPYING
             * minio                     - https://github.com/minio/minio/blob/master/LICENSE
@@ -295,6 +295,7 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
             * etcd                      - https://github.com/etcd-io/etcd/blob/main/LICENSE
             * clickhouse-server         - https://github.com/ClickHouse/ClickHouse/blob/master/LICENSE
             * langfuse                  - https://github.com/langfuse/langfuse/blob/main/LICENSE
+            * langflow                  - https://github.com/langflow-ai/langflow/blob/main/LICENSE
             After installation, you are solely responsible for obtaining and installing updates and fixes, including security patches, for the above prerequisite open source programs. To update images the customer will run `orchestrate server reset && orchestrate server start -e .env`.
         ''').strip())
         if not accepts_by_argument:

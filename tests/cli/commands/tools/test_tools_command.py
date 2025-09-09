@@ -67,6 +67,17 @@ def test_tool_import_call_flow():
 #             app_id=None
 #         )
 
+def test_tool_import_call_langflow():
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
+        tools_command.tool_import(kind="langflow", file="test_file.json", requirements_file="tests/cli/resources/langflow_samples/requirements.txt")
+        mock.assert_called_once_with(
+            kind="langflow",
+            file="test_file.json",
+            app_id=None,
+            requirements_file="tests/cli/resources/langflow_samples/requirements.txt",
+            package_root=None
+        )
+
 def test_tool_remove():
     with patch(
         "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.ToolsController.remove_tool"
