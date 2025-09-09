@@ -1,5 +1,6 @@
 import json
 import yaml
+import logging
 from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
@@ -9,12 +10,15 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
 from pydantic import Field, AliasChoices
 from typing import Annotated
+from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
 DEFAULT_LLM = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+
+logger = logging.getLogger(__name__)
 
 # Handles yaml formatting for multiline strings to improve readability
 def str_presenter(dumper, data):
@@ -93,6 +97,19 @@ class BaseAgentSpec(BaseModel):
     def dumps_spec(self) -> str:
         dumped = self.model_dump(mode='json', exclude_none=True)
         return json.dumps(dumped, indent=2)
+    
+    @model_validator(mode="before")
+    def validate_agent_fields(cls,values):
+        return drop_catalog_fields(values)
+
+
+def drop_catalog_fields(values: dict):
+    for field in CATALOG_ONLY_FIELDS:
+        if values.get(field):
+            logger.warning(f"Field '{field}' is only used when publishing to the catalog, dropping this field for import")
+            del values[field]
+    return values
+
 
 # ===============================
 #      NATIVE AGENT TYPES

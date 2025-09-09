@@ -1309,7 +1309,7 @@ class AgentsController:
             return AssistantAgent.model_validate(assistant_result)
         
 
-    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None) -> None:
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False) -> None:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
@@ -1357,15 +1357,22 @@ class AgentsController:
             agent_spec_yaml_file.getvalue()
         )
 
-        tools_contoller = ToolsController()
-        for tool_name in agent_spec_file_content.get("tools", []):
+        agent_tools = agent_spec_file_content.get("tools", [])
+
+        tools_controller = ToolsController()
+        tools_client = tools_controller.get_client() 
+        tool_specs = None
+        if with_tool_spec_file:
+            tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
+
+        for tool_name in agent_tools:
 
             base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
             if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
                 continue
             
             logger.info(f"Exporting tool '{tool_name}'")
-            tool_artifact_bytes = tools_contoller.download_tool(tool_name)
+            tool_artifact_bytes = tools_controller.download_tool(tool_name)
             if not tool_artifact_bytes:
                 continue
             
@@ -1377,6 +1384,12 @@ class AgentsController:
                             f"{base_tool_file_path}{item.filename}",
                             buffer
                         )
+                if with_tool_spec_file and tool_specs:
+                    current_spec = tool_specs[tool_name]
+                    zip_file_out.writestr(
+                        f"{base_tool_file_path}config.json",
+                        ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
+                    )
         
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
             logger.warning(f"Skipping {kb_name}, knowledge_bases are currently unsupported by export")
