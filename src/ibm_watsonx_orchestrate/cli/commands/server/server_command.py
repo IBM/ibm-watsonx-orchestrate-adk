@@ -48,7 +48,7 @@ def run_compose_lite(
         experimental_with_ibm_telemetry=False, 
         with_doc_processing=False,
         with_voice=False,
-        experimental_with_langflow=False,
+        with_langflow=False,
     ) -> None:
     EnvService.prepare_clean_env(final_env_file)
     db_tag = EnvService.read_env_file(final_env_file).get('DBTAG', None)
@@ -67,7 +67,7 @@ def run_compose_lite(
 
 
     # Step 2: Create Langflow DB (if enabled)
-    if experimental_with_langflow:
+    if with_langflow:
         create_langflow_db()
 
     # Step 3: Start all remaining services (except DB)
@@ -80,7 +80,7 @@ def run_compose_lite(
         profiles.append("docproc")
     if with_voice:
         profiles.append("voice")
-    if experimental_with_langflow:
+    if with_langflow:
         profiles.append("langflow")
 
     result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0", "--scale", "cpe=0"])
@@ -351,10 +351,10 @@ def server_start(
         '--with-voice', '-v',
         help='Enable voice controller to interact with the chat via voice channels'
     ),
-    experimental_with_langflow: bool = typer.Option(
+    with_langflow: bool = typer.Option(
         False,
-        '--experimental-with-langflow',
-        help='(Experimental) Enable Langflow UI, available at http://localhost:7861',
+        '--with-langflow',
+        help='Enable Langflow UI, available at http://localhost:7861',
         hidden=True
     ),
 ):
@@ -401,7 +401,7 @@ def server_start(
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
-    if experimental_with_langflow:
+    if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
     
 
@@ -418,7 +418,7 @@ def server_start(
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
                      with_doc_processing=with_doc_processing,
                      with_voice=with_voice,
-                     experimental_with_langflow=experimental_with_langflow, env_service=env_service)
+                     with_langflow=with_langflow, env_service=env_service)
     
     run_db_migration()
 
@@ -448,7 +448,7 @@ def server_start(
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
-    if experimental_with_langflow:
+    if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
 
 @server_app.command(name="stop")
