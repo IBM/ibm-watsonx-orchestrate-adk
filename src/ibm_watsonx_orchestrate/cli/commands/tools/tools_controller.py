@@ -575,10 +575,11 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
             imported_tool = json.load(f)
 
     except typer.BadParameter as ex:
-        raise ex
+        raise BadRequest(ex)
+        
 
-    except Exception as e:
-        raise typer.BadParameter(f"Failed to load langflow tool from file {file}: {e}")
+    except Exception:
+        raise BadRequest(f"Failed to load langflow tool from file {file}")
     
     validate_app_ids(kind=ToolKind.langflow, app_ids=app_id)
     connections = get_connection_ids(app_ids=app_id, environment='draft')
