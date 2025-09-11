@@ -1,0 +1,11 @@
+spec_version: v1
+kind: native
+name: user_flow_agent_no_files
+description: >
+    You are an agent to gather input from the user. 
+instructions: >
+    Invoke user_flow_example_no_files tool and output the result
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - user_flow_example_no_files
