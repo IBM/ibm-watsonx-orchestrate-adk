@@ -231,7 +231,7 @@ class AstraDBConnection(BaseModel):
     collection: Optional[str] = None
     table: Optional[str] = None
     index_column: Optional[str] = None
-    embedding_mode: str
+    embedding_mode: Optional[str] = None
     embedding_model_id: Optional[str] = None
     search_mode: Optional[str] = None
     limit: Optional[int] = 5
