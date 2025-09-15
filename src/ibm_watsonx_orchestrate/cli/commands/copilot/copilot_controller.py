@@ -327,11 +327,7 @@ def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
 
 
 def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | None, dry_run_flag: bool) -> None:
-    agents = AgentsController.import_agent(file=agent_spec, app_id=None)
-    if not agents:
-        logger.error("Invalid agent spec file provided, no agent found.")
-        sys.exit(1)
-    agent = agents[0]
+    agent = AgentsController.import_agent(file=agent_spec, app_id=None)[0]
     agent_kind = agent.kind
 
     if agent_kind != AgentKind.NATIVE:
@@ -346,7 +342,7 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
 
     client = get_cpe_client()
 
-    instr = agent.instructions if agent.instructions else ""
+    instr = agent.instructions
 
     tools = _get_tools_from_names(agent.tools)
 

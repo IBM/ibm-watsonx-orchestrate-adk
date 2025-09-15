@@ -386,6 +386,55 @@ def validate_external(
 
         rich.print(Panel(msg))
 
+@evaluation_app.command(name="validate-native", help="Validate native agents against a set of inputs")
+def validate_native(
+    data_path: Annotated[
+        str,
+        typer.Option(
+            "--tsv", "-t",
+            help="Path to .tsv file of inputs. The first column of the TSV is the user story, the second column is the  expected final output from the agent, and the third column is the name of the agent"
+        )
+    ],
+    output_dir: Annotated[
+        str,
+        typer.Option(
+            "--output", "-o",
+            help="where to save the validation results"
+        )
+    ] = "./test_native_agent",
+    user_env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file", "-e", 
+            help="Path to a .env file that overrides default.env. Then environment variables override both."
+        ),
+    ] = None,
+):
+    validate_watsonx_credentials(user_env_file)
+    
+    eval_dir = os.path.join(output_dir, "native_agent_evaluations")
+    if os.path.exists(eval_dir):
+        rich.print(f"[yellow]: found existing {eval_dir} in target directory. All content is removed.")
+        shutil.rmtree(eval_dir)
+    Path(eval_dir).mkdir(exist_ok=True, parents=True)
+
+    test_data_path = Path(eval_dir) / "generated_test_data"
+    test_data_path.mkdir(exist_ok=True, parents=True)
+    
+    controller = EvaluationsController()
+    test_data = read_csv(data_path) # tab seperated file containing the user story, the final outcome, and the agent name
+    
+    for idx, row in enumerate(test_data):
+        agent_name = row[2] # agent name
+        dataset = [row[0:2]] # user story, expected final outcome
+        generated_test_data = controller.generate_performance_test(agent_name=agent_name, test_data=dataset)
+        for test_data in generated_test_data:
+            test_name = f"native_agent_evaluation_test_{idx}.json"
+            with open(test_data_path / test_name, encoding="utf-8", mode="w+") as f:
+                json.dump(test_data, f, indent=4)
+    
+    evaluate(output_dir=eval_dir, test_paths=str(test_data_path))
+
 @evaluation_app.command(name="quick-eval",
                         short_help="Evaluate agent against a suite of static metrics and LLM-as-a-judge metrics",
                         help="""

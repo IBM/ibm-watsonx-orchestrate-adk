@@ -1,4 +1,7 @@
+import io
 import logging
+from pathlib import Path
+import zipfile
 import requests
 import json
 import rich
@@ -7,6 +10,7 @@ import sys
 import typer
 
 from typing import List
+from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionEnvironment,
@@ -277,6 +281,48 @@ def _connection_credentials_parse_entry(text: str, default_location: ConnectionC
     
     return ConnectionCredentialsEntry(key=key, value=value, location=location)
     
+def _combine_connection_configs(configs: List[ConnectionConfiguration]) -> dict:
+    combined_configuration = {
+        'app_id': None,
+        'spec_version': SpecVersion.V1.value,
+        'kind': 'connection',
+        'environments': {
+
+        },
+        'catalog': {
+            'name': None,
+            'description': None,
+            'icon': None
+        }
+    }
+    for config in configs:
+        if combined_configuration.get('app_id') and config.app_id != combined_configuration.get('app_id'):
+            raise ValueError(f"Cannot combine config '{config.app_id}' with config '{combined_configuration.get('app_id')}'")
+        combined_configuration['app_id'] = config.app_id
+
+        current_env = config.environment.value.lower()
+        combined_configuration['environments'][current_env] = {}
+
+        for k,v in config.model_dump().items():
+            if not v:
+                continue
+            match(k):
+                case "app_id" | "environment" | "spec_version":
+                    continue
+                case _:
+                    try:
+                        combined_configuration['environments'][current_env][k] = str(v)
+                    except:
+                        logger.error(f"Couldn't represent {k} as a string")
+    
+    return combined_configuration
+
+def _resolve_connection_ids(connection_ids: list[str]) -> list[str]:
+    client = get_connections_client()
+    connections = client.list()
+    return list(set([c.app_id for c in connections if c.connection_id in connection_ids]))
+
+
 
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
@@ -396,6 +442,21 @@ def add_connection(app_id: str) -> None:
         logger.error(response_text)
         exit(1)
 
+def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
+    client = get_connections_client()
+    connection_configs = []
+    for env in ConnectionEnvironment:
+        try:
+            config = client.get_config(app_id=app_id,env=env)
+            if not config:
+                logger.warning(f"No {env.value.lower()} configuration found for connection '{app_id}'")
+            else:
+                connection_configs.append( config.as_config() )
+        except:
+            logger.error(f"Unable to get {env.value.lower()} configs for connection '{app_id}'")
+
+    return connection_configs
+
 def remove_connection(app_id: str) -> None:
     client = get_connections_client()
 
@@ -478,6 +539,59 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
 
 def import_connection(file: str) -> None:
     _parse_file(file=file)
+
+def export_connection(output_file: str, app_id: str | None = None, connection_id: str | None = None) -> None:
+    if not app_id and not connection_id:
+        raise ValueError(f"Connection export requires at least one of 'app_id' or 'connection_id'")
+    
+    if app_id and connection_id:
+        logger.warning(f"Connection export recieved both 'app_id' and 'connection_id', preferring 'app_id'")
+    
+    if not app_id:
+        app_ids = _resolve_connection_ids([connection_id])
+        if len(app_ids) > 0:
+            app_id = app_ids[0]
+        else:
+            raise ValueError(f"No connections found with connection_id of '{connection_id}'")
+
+
+    # verify output folder
+    output_path = Path(output_file)
+    if output_path.exists():
+        logger.error(f"Specified output file already exists")
+        sys.exit(0)
+
+    output_type = output_path.suffix.lower()
+    if output_type not in ['.zip','.yaml','.yml']:
+        logger.error(f"Output file must end with the extension '.zip', '.yaml' or '.yml'")
+        sys.exit(0)
+
+    # get connection data
+    connections = get_connection_configs(app_id=app_id)
+    combined_connections = _combine_connection_configs(connections)
+
+    # write to folder
+    match(output_type):
+        case '.zip':
+            zip_file = zipfile.ZipFile(output_path, "w")
+                
+            connection_yaml = yaml.dump(combined_connections, sort_keys=False, default_flow_style=False)
+            connection_yaml_bytes = connection_yaml.encode("utf-8")
+            connection_yaml_file = io.BytesIO(connection_yaml_bytes)
+
+            zip_file.writestr(
+                f"{output_path.stem}/{app_id}.yaml",
+                connection_yaml_file.getvalue()
+            )
+
+            zip_file.close()
+        case '.yaml' | '.yml':
+            with open(output_path,'w') as yaml_file:
+                yaml_file.write(
+                    yaml.dump(combined_connections, sort_keys=False, default_flow_style=False)
+                )
+                
+    logger.info(f"Successfully exported connection file for {app_id}")
 
 def configure_connection(**kwargs) -> None:
     if is_local_dev() and kwargs.get("environment") != ConnectionEnvironment.DRAFT:

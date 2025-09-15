@@ -135,6 +135,7 @@ services:
       ALLOW_INSECURE_TLS: "true"
       ENABLE_EDIT_PROMPTS: "false"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      ENABLE_EMBED_SCRIPT: "true"
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -1142,7 +1143,7 @@ services:
     environment:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
-      LANGFLOW_CONFIG_DIR: app/langflow
+      LANGFLOW_CONFIG_DIR: /app/app/langflow
     volumes:
       - langflow-data:/app/langflow
 

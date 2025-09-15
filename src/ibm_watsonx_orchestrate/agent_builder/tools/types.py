@@ -1,8 +1,9 @@
 from enum import Enum
 from typing import List, Any, Dict, Literal, Optional, Union
 
-from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices
+from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices, ValidationError
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.agent_builder.connections import KeyValueConnectionCredentials
 
 
 class ToolPermission(str, Enum):
@@ -159,6 +160,21 @@ class FlowToolBinding(BaseModel):
     flow_id: str
     model: Optional[dict] = None
 
+class LangflowToolBinding(BaseModel):
+    langflow_id: Optional[str] = None
+    project_id: Optional[str] = None
+    langflow_version: str
+    connections: Optional[dict] = None
+
+    @model_validator(mode='after')
+    def validate_connection_type(self) -> 'LangflowToolBinding':
+        if self.connections:
+            for k,v in self.connections.items():
+                if not v:
+                    raise ValidationError(f"No connection provided for '{k}'")
+        return self
+
+
 class ToolBinding(BaseModel):
     openapi: OpenApiToolBinding = None
     python: PythonToolBinding = None
@@ -167,6 +183,7 @@ class ToolBinding(BaseModel):
     client_side: ClientSideToolBinding = None
     mcp: McpToolBinding = None
     flow: FlowToolBinding = None
+    langflow: LangflowToolBinding = None
 
     @model_validator(mode='after')
     def validate_binding_type(self) -> 'ToolBinding':
@@ -177,7 +194,8 @@ class ToolBinding(BaseModel):
             self.skill is not None,
             self.client_side is not None,
             self.mcp is not None,
-            self.flow is not None
+            self.flow is not None,
+            self.langflow is not None
         ]
         if sum(bindings) == 0:
             raise BadRequest("One binding must be set")

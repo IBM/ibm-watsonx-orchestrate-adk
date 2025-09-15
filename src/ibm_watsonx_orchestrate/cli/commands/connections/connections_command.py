@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     remove_connection,
     list_connections,
     import_connection,
+    export_connection,
     configure_connection,
     set_credentials_connection,
     set_identity_provider_connection,
@@ -64,6 +65,23 @@ def import_connection_command(
     ]
 ):
     import_connection(file=file)
+
+@connections_app.command(name="export")
+def export_connection_command(
+    app_id: Annotated[
+        str, typer.Option(
+            '--app-id', '-a',
+            help='The app id of the connection you wish to export.'
+        )
+    ],
+    output_file: Annotated[
+        str, typer.Option(
+            '--output', '-o',
+            help='Path to where the exported connection should be saved.'
+        )
+    ] = None
+):
+    export_connection(app_id=app_id,output_file=output_file)
 
 @connections_app.command(name="configure")
 def configure_connection_command(
