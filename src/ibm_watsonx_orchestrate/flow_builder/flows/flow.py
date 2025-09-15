@@ -21,6 +21,7 @@ from typing_extensions import Self
 from pydantic import BaseModel, Field, SerializeAsAny, create_model, TypeAdapter
 import yaml
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
+from ibm_watsonx_orchestrate.agent_builder.models.types import ListVirtualModel
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -83,6 +84,21 @@ class Flow(Node):
 
         # get Tool Client
         self._tool_client = instantiate_client(ToolClient)
+
+        # set llm_model to use for the flow if any
+        llm_model = kwargs.get("llm_model")
+        if llm_model:
+            if isinstance(llm_model, ListVirtualModel):
+                self.metadata["llm_model"] = llm_model.name
+            elif isinstance(llm_model, str):
+                self.metadata["llm_model"] = llm_model
+            else:
+                raise AssertionError(f"flow llm_model should be either a str or ListVirtualModel")
+        
+        # set agent_conversation_memory_turns_limit for the flow if any
+        agent_conversation_memory_turns_limit = kwargs.get("agent_conversation_memory_turns_limit")
+        if agent_conversation_memory_turns_limit:
+            self.metadata["agent_conversation_memory_turns_limit"] = agent_conversation_memory_turns_limit
 
     def _find_topmost_flow(self) -> Self:
         if self.parent:
@@ -1227,7 +1243,9 @@ class FlowFactory(BaseModel):
                     initiators: Sequence[str]|None=None,
                     input_schema: type[BaseModel]|None=None,
                     output_schema: type[BaseModel]|None=None,
-                    schedulable: bool=False) -> Flow:
+                    schedulable: bool=False,
+                    llm_model: str|ListVirtualModel|None=None,
+                    agent_conversation_memory_turns_limit: int|None = None) -> Flow:
         if isinstance(name, Callable):
             flow_spec = getattr(name, "__flow_spec__", None)
             if not flow_spec:
@@ -1252,7 +1270,7 @@ class FlowFactory(BaseModel):
             schedulable=schedulable,
         )
 
-        return Flow(spec = flow_spec)
+        return Flow(spec = flow_spec, llm_model=llm_model, agent_conversation_memory_turns_limit=agent_conversation_memory_turns_limit)
 
 
 class FlowControl(Node):

@@ -6,7 +6,8 @@
     "description": "Given a list of customers, we will iterate through the list and send email to each ",
     "input_schema": {
       "$ref": "#/schemas/send_invitation_to_customer_input"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "get_emails_from_customer": {
@@ -42,8 +43,9 @@
         "initiators": [
           "__any_user__"
         ],
+        "schedulable": false,
         "item_schema": {
-          "ref": "#/schemas/CustomerRecord"
+          "$ref": "#/schemas/CustomerRecord"
         },
         "foreach_policy": "SEQUENTIAL"
       },
@@ -53,12 +55,13 @@
             "kind": "tool",
             "name": "send_invitation_email",
             "display_name": "send_invitation_email",
-            "description": "Send an invitation email to a given email address. \nReturns the email body that was sent.",
+            "description": "Send an invitation email to a given email address.\n",
             "input_schema": {
               "$ref": "#/schemas/send_invitation_email_input"
             },
             "output_schema": {
-              "type": "string"
+              "type": "string",
+              "description": "The email body that was sent."
             },
             "tool": "send_invitation_email"
           }
@@ -188,19 +191,15 @@
       "type": "object",
       "title": "foreach_1_output",
       "required": [
-        "name",
-        "email"
+        "invitations"
       ],
       "properties": {
-        "name": {
-          "type": "string",
-          "title": "Name",
-          "description": "The name of the customer"
-        },
-        "email": {
-          "type": "string",
-          "title": "Email",
-          "description": "The email address of the customer"
+        "invitations": {
+          "type": "array",
+          "title": "Invitations",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -208,7 +207,10 @@
       "type": "object",
       "title": "CustomerRecord_1",
       "description": "TODO: Docstring",
-      "required": [],
+      "required": [
+        "name",
+        "email"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -238,6 +240,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T20:50:45.356246+00:00"
+    "compiled_on": "2025-08-28T20:11:24.926993+00:00"
   }
 }
