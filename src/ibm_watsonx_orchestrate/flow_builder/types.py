@@ -909,8 +909,7 @@ class UserFlowSpec(FlowSpec):
 class ForeachPolicy(Enum):
  
     SEQUENTIAL = 1
-    # support only SEQUENTIAL for now
-    # PARALLEL = 2
+    PARALLEL = 2
 
 class ForeachSpec(FlowSpec):
  
@@ -927,7 +926,7 @@ class ForeachSpec(FlowSpec):
         if isinstance(self.item_schema, JsonSchemaObject):
             my_dict["item_schema"] = _to_json_from_json_schema(self.item_schema)
         else:
-            my_dict["item_schema"] = self.item_schema.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+            my_dict["item_schema"] = self.item_schema.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True, by_alias=True)
 
         my_dict["foreach_policy"] = self.foreach_policy.name
         return my_dict
