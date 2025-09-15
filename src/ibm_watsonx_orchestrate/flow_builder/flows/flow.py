@@ -519,7 +519,9 @@ class Flow(Node):
             fields: type[BaseModel]| None = None, 
             description: str | None = None,
             input_map: DataMap = None,
-            enable_hw: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
+            enable_hw: bool = False,
+            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
+            review_fields: List[str] = []) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -544,7 +546,9 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             config=doc_ext_config,
             version=version,
-            enable_hw=enable_hw
+            enable_hw=enable_hw,
+            min_confidence=min_confidence,
+            review_fields=review_fields
         )
         node = DocExtNode(spec=task_spec)
 
