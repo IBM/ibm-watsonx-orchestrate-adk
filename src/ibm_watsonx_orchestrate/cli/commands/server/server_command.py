@@ -354,8 +354,7 @@ def server_start(
     with_langflow: bool = typer.Option(
         False,
         '--with-langflow',
-        help='Enable Langflow UI, available at http://localhost:7861',
-        hidden=True
+        help='Enable Langflow UI, available at http://localhost:7861'
     ),
 ):
     cli_config = Config()
