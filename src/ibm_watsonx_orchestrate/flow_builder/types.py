@@ -271,6 +271,8 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
 class DocExtSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocExtConfig
+    min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
+    review_fields: List[str] = Field(description="The fields that require user to review", default=[])
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -281,6 +283,8 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec["version"] = self.version
         model_spec["config"] = self.config.model_dump()
         model_spec["task"] = DocProcTask.custom_field_extraction
+        model_spec["min_confidence"] = self.min_confidence
+        model_spec["review_fields"] = self.review_fields
         return model_spec
     
 class DocProcField(BaseModel):
