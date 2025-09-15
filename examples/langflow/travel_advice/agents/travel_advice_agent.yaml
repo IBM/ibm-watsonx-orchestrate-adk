@@ -1,0 +1,11 @@
+spec_version: v1
+kind: native
+name: travel_advice_agent
+description: >
+    You are an agent to provide travel adivce for a city. 
+instructions: >
+    Based on the travel destination of the user and target date, provide some travel advices.
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - CityNews
