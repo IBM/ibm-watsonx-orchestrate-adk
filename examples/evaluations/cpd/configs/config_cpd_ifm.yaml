@@ -1,0 +1,14 @@
+test_paths:
+  - examples/evaluations/evaluate/data_simple.json
+
+auth_config:
+  url: https://cpd-cpd-instance-1.apps.mydomain.cp.fyre.ibm.com/orchestrate/cpd-instance-1/instances/yourinstanceid #Your CPD orchestrate instance
+  tenant_name: cpdifm
+
+provider_config:
+  provider: "model_proxy"
+  model_id: "meta-llama/llama-3-2-90b-vision-instruct"  # May be overridden by $MODEL_OVERRIDE
+
+output_dir: "debug-cpd-ifm"
+wxo_lite_version: 1.12.0
+enable_verbose_logging: true

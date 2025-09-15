@@ -1,3 +1,19 @@
+# IBM knowledge classic mode
+This example was written to simulate an agent with a knowledge-base created from 2 PDF files.
+
+Knowledge (classic mode) is used as a linear pipeline that retrieves information from whatever content store it is connected to, knowledge takes the user input and context of the conversation to create a query against that store and then generates an answer which is sent back to the agent.
+
+## Steps to import
+1. Run `orchestrate server start -e .my-env`
+2. Run the import all script `./import_all.sh`
+3. Run `orchestrate chat start`
+
+## Suggested script
+
+- who is ibm ceo
+- tell me about ibm history
+
+
 # IBM knowledge dynamic mode
 This example was written to simulate an agent with both knowledge-base and a python tool configured. 
 

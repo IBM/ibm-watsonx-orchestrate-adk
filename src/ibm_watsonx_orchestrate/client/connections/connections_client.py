@@ -6,7 +6,7 @@ from typing import Optional
 from enum import Enum
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
 from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
@@ -46,6 +46,9 @@ class GetConfigResponse(BaseModel):
     server_url: str | None = None
     idp_config_data: Optional[IdpConfigData] = None
     app_config_data: Optional[AppConfigData] = None
+
+    def as_config(self):
+        return ConnectionConfiguration(**dict(self))
 
 class GetConnectionResponse(BaseModel):
     connection_id: str = None

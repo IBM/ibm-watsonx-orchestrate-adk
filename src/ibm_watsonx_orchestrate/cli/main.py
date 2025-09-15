@@ -11,6 +11,7 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_ap
 from ibm_watsonx_orchestrate.cli.commands.chat.chat_command import chat_app
 from ibm_watsonx_orchestrate.cli.commands.models.models_command import models_app
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import environment_app
+from ibm_watsonx_orchestrate.cli.commands.partners.partners_command import partners_app
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_command import channel_app
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_command import knowledge_bases_app
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
@@ -44,6 +45,7 @@ app.add_typer(channel_app, name="channels", help="Configure channels where your 
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
 app.add_typer(copilot_app, name="copilot", help='Access AI powered assistance to help refine your agents')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
+app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
 
 if __name__ == "__main__":
     app()
