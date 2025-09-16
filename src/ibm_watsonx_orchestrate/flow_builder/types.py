@@ -341,6 +341,11 @@ class DocProcSpec(DocProcCommonNodeSpec):
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
+    kvp_model_name: str | None = Field(
+        title='KVP Model Name',
+        description="The LLM model to be used for key-value pair extraction",
+        default=None
+    )
     plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
     document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
     
@@ -356,6 +361,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["plain_text_reading_order"] = self.plain_text_reading_order
         if self.kvp_schemas is not None:
             model_spec["kvp_schemas"] = self.kvp_schemas
+        if self.kvp_model_name is not None:
+            model_spec["kvp_model_name"] = self.kvp_model_name
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -1315,6 +1322,11 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
+    kvp_model_name: str | None = Field(
+        title='KVP Model Name',
+        description="The LLM model to be used for key-value pair extraction",
+        default=None
+    )
 
 class TextExtractionResponse(BaseModel):
     '''

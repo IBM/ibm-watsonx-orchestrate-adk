@@ -18,7 +18,8 @@ class TestDocProcNode():
             name="text_extraction",
             display_name="text_extraction",
             description="Extract text out of a document's contents.",
-            task="text_extraction"
+            task="text_extraction",
+            kvp_model_name="mistralai/pixtral-12b"
         )
         expected_text_extraction_spec = json.loads(open(self.parent_dir_path + "/resources/docproc_spec.json").read())
         actual_text_extraction_spec = text_extraction_node.get_spec().to_json()
@@ -33,6 +34,7 @@ class TestDocProcNode():
         assert aflow_json_spec["spec"]["kind"] == expected_text_extraction_spec["spec"]["kind"]
         assert aflow_json_spec["spec"]["name"] == expected_text_extraction_spec["spec"]["name"]
         assert aflow_json_spec["schemas"]["text_extraction_input"]["title"] == expected_text_extraction_spec["schemas"]["text_extraction_input"]["title"]
+        assert aflow_json_spec["schemas"]["text_extraction_input"]["properties"]["kvp_model_name"] == expected_text_extraction_spec["schemas"]["text_extraction_input"]["properties"]["kvp_model_name"]
         assert aflow_json_spec["schemas"]["text_extraction_input"]["properties"]["document_ref"]["format"] == expected_text_extraction_spec["schemas"]["text_extraction_input"]["properties"]["document_ref"]["format"]
         #assert aflow_json_spec["schemas"]["TextExtractionResponse"]["required"] == expected_text_extraction_spec["schemas"]["TextExtractionResponse"]["required"]
         
