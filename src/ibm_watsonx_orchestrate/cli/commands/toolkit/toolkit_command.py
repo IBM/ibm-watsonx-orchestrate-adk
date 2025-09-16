@@ -47,11 +47,11 @@ def import_toolkit(
     ] = None,
     url: Annotated[
         Optional[str],
-        typer.Option("--url", "-u", help="The URL of the remote MCP server", hidden=True),
+        typer.Option("--url", "-u", help="The URL of the remote MCP server"),
     ] = None,
     transport: Annotated[
         ToolkitTransportKind,
-        typer.Option("--transport", help="The communication protocol to use for the remote MCP server. Only \"sse\" or \"streamable_http\" supported", hidden=True),
+        typer.Option("--transport", help="The communication protocol to use for the remote MCP server. Only \"sse\" or \"streamable_http\" supported"),
     ] = None,
     tools: Annotated[
         Optional[str],
