@@ -629,7 +629,8 @@ class Flow(Node):
             input_map: DataMap = None,
             document_structure: bool = False,
             kvp_schemas: list[DocProcKVPSchema] = None,
-            enable_hw: bool = False) -> DocProcNode:
+            enable_hw: bool = False,
+            kvp_model_name: str | None = None) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -655,7 +656,8 @@ class Flow(Node):
             document_structure=document_structure,
             plain_text_reading_order=plain_text_reading_order,
             enable_hw=enable_hw,
-            kvp_schemas=kvp_schemas
+            kvp_schemas=kvp_schemas,
+            kvp_model_name=kvp_model_name
         )
 
         node = DocProcNode(spec=task_spec)
