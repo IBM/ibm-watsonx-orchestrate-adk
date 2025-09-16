@@ -49,8 +49,28 @@ services:
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
+      BACKEND_BASE_URL: http://localhost:3001
+      CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
     ports:
       - 3001:3001
+  
+  wxo-server-connections-ui:
+    image: ${CONNECTIONS_UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections-ui:${CONNECTIONS_UI_TAG:-latest}
+    platform: linux/amd64
+    profiles: [connections-ui]
+    environment:
+      PORT: 3412
+      WXO_CONNECTIONS_URL: http://wxo-server-connection-manager:3001
+      DEPLOYMENT_MODE: laptop 
+      WXO_URL: http://localhost:3412
+      ENV: production
+      WXO_SERVER_URL: http://localhost:4321
+      TENANT_ID: ${REACT_APP_TENANT_ID}
+      WXO_CHAT_URL: http://localhost:3000
+    ports:
+     - "3412:3412"
+    networks:
+      - default
 
   ai-gateway:
     image: ${AI_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/ai-gateway:${AI_GATEWAY_TAG:-latest}

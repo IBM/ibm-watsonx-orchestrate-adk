@@ -48,6 +48,7 @@ def run_compose_lite(
         experimental_with_ibm_telemetry=False, 
         with_doc_processing=False,
         with_voice=False,
+        with_connections_ui=False,
         with_langflow=False,
     ) -> None:
     EnvService.prepare_clean_env(final_env_file)
@@ -80,6 +81,8 @@ def run_compose_lite(
         profiles.append("docproc")
     if with_voice:
         profiles.append("voice")
+    if with_connections_ui:
+        profiles.append("connections-ui")
     if with_langflow:
         profiles.append("langflow")
 
@@ -351,6 +354,10 @@ def server_start(
         '--with-voice', '-v',
         help='Enable voice controller to interact with the chat via voice channels'
     ),
+    with_connections_ui: bool = typer.Option(
+        False,
+        '--with-connections-ui', '-c',
+        help='Enables connections ui to facilitate OAuth connections and credential management via a UI'),
     with_langflow: bool = typer.Option(
         False,
         '--with-langflow',
@@ -417,6 +424,7 @@ def server_start(
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
                      with_doc_processing=with_doc_processing,
                      with_voice=with_voice,
+                     with_connections_ui=with_connections_ui,
                      with_langflow=with_langflow, env_service=env_service)
     
     run_db_migration()
@@ -447,9 +455,10 @@ def server_start(
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
+    if with_connections_ui:
+        logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
-
 @server_app.command(name="stop")
 def server_stop(
     user_env_file: str = typer.Option(
