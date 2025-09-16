@@ -47,6 +47,7 @@ def openapispec_for_all_http_methods(request):
                     "summary": f"Test {request.param} with query parameters",
                     "description": "Test {request.param} with query parameters",
                     "operationId": "testParams",
+                    "display_name": "Test {request.param} with query parameters",
                     "parameters": [
                         {
                             "in": "query",
