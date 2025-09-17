@@ -212,6 +212,8 @@ Confirm you set exactly one of WO_PASSWORD or WO_API_KEY.
 
 Verify WO_INSTANCE matches your CPD watsonx Orchestrate instance URL path.
 
+You also may need to activate your environment again with `orchestrate env activate <yourenvname>` to refresh the credentials.
+
 ### Model not found:
 If using IFM, ensure the model exists in your IFM space. Consider setting MODEL_OVERRIDE.
 
