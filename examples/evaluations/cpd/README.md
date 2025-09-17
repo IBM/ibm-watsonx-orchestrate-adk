@@ -40,16 +40,16 @@ In this scenario, you authenticate via CPD, and evaluation inference is performe
 
 export WO_INSTANCE=<your-instance-url>  # e.g. https://cpd-cpd-instance-1.apps.mydomain.cp.fyre.ibm.com/orchestrate/cpd-instance-1/instances/yourinstance
 export WO_USERNAME=<your-username>      # e.g. cpadmin
-# Choose ONE of the following:
+### Choose ONE of the following:
 export WO_PASSWORD=<your-password>      # specify WO_PASSWORD or WO_API_KEY (not both)
-# or
+### or
 export WO_API_KEY=<your-api-key>
 
-# watsonx.ai for inference
+#### watsonx.ai for inference
 export WATSONX_SPACE_ID="<your-watsonx-space-id>"
 export WATSONX_APIKEY="<your-watsonx-api-key>"
 
-# Optional: disable SSL certificate checking for private CPD instances
+#### Optional: disable SSL certificate checking for private CPD instances
 export WO_SSL_VERIFY="false"
 
 Note: This setup uses watsonx.ai as the inference provider for the agent evaluator.
@@ -59,7 +59,7 @@ Use the config at
 
 Run the evaluation:
 
-# From repository root
+### From repository root
 python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
 
 Alternatively, use the helper script:
@@ -75,15 +75,15 @@ Set environment variables (example below or use ./env/.env.cpd.ifm.example)
 export WATSONX_SPACE_ID="<your-cpd-ifm-space-id>"
 export WO_INSTANCE=<your-instance-url>     # e.g. https://cpd-cpd-instance-1.apps.mydomain.cp.fyre.ibm.com/orchestrate/cpd-instance-1/instances/yourinstance
 export WO_USERNAME=<your-cpd-username>     # e.g. cpadmin
-# Choose ONE of the following:
+### Choose ONE of the following:
 export WO_PASSWORD=<your-cpd-password>     # specify WO_PASSWORD or WO_API_KEY (not both)
-# or
+### or
 export WO_API_KEY=<your-cpd-api-key>
 
-# Optional: disable SSL certificate checking for private CPD instances
+#### Optional: disable SSL certificate checking for private CPD instances
 export WO_SSL_VERIFY="false"
 
-# Optional: model override if your CPD IFM only has a single or limited models
+#### Optional: model override if your CPD IFM only has a single or limited models
 export MODEL_OVERRIDE="meta-llama/llama-3-2-90b-vision-instruct"
 
 Note: This setup uses CPD IFM as the inference provider for the agent evaluator.
@@ -93,19 +93,18 @@ Use the config at
 
 Run the evaluation:
 
-# From repository root
+### From repository root
 python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
 
 Alternatively, use the helper script:
 
 bash examples/evaluations/cpd/run/run_cpd_ifm.sh
 
-Configuration files
+## Sample Configuration files
 Both configurations below point test_paths to existing sample datasets so you can verify the integration immediately.
 
-config_cpd_no_ifm.yaml
-
-# examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
+### examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
+```
 test_paths:
   - examples/evaluations/evaluate/data_simple.json
 
@@ -121,8 +120,10 @@ output_dir: "debug-cpd-no-ifm"
 enable_verbose_logging: true
 
 config_cpd_ifm.yaml
+```
 
-# examples/evaluations/cpd/configs/config_cpd_ifm.yaml
+### examples/evaluations/cpd/configs/config_cpd_ifm.yaml
+```
 test_paths:
   - examples/evaluations/evaluate/data_simple.json
 
@@ -136,19 +137,15 @@ provider_config:
 
 output_dir: "debug-cpd-ifm"
 enable_verbose_logging: true
+```
 
 Tip:
 
-If your IFM environment only exposes a single model, use
-MODEL_OVERRIDE
+If your IFM environment only exposes a single model, use MODEL_OVERRIDE
 to force that model at runtime.
-If you keep both
-model_id
-in the config and
-MODEL_OVERRIDE
 
 
-Environment variables reference
+## Environment variables reference
 
 | Variable | CPD (no IFM) | CPD with IFM | Example Notes |
 |----------|----------------|--------------|---------------|
@@ -163,7 +160,7 @@ Environment variables reference
 
 Important: For CPD, specify one of WO_PASSWORD or WO_API_KEY, not both.
 
-Running with our sample data
+### Running with our sample data
 The configs reference examples/evaluations/evaluate/data_simple.json
 which uses the sample hr_agent.
 
@@ -184,15 +181,16 @@ It will prompt you for the orchestrate user (ie. cpadmin) and either password or
 ### If you haven’t imported the sample tools/agent yet:
 
 ```bash
-bash examples/evaluations/evaluate/import-all.sh
+orchestrate tools import -k python -f examples/evaluations/evaluate/agent_tools/tools.py
+orchestrate agents import -f examples/evaluations/evaluate/agent_tools/hr_agent.json
 ```
 
 Then run either:
 
-## CPD (no IFM)
+#### CPD (no IFM)
 python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
 
-## CPD with IFM
+#### CPD with IFM
 python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
 
 ## Recording
