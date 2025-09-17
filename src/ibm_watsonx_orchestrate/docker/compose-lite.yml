@@ -125,6 +125,7 @@ services:
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
       WXO_VOICE_URL: http://localhost:9876/v1
+      DPS_CACHE_URL: http://localhost:18083
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -147,7 +148,7 @@ services:
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
-      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
@@ -835,6 +836,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       FLOW_CALLBACK_REQUEST_RETRIES: "1"
+      DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -880,13 +882,13 @@ services:
       SERVICE_NAME: wxo-doc-processing-service
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
-      SERVICE_URL: ${SERVICE_URL:-https://wxo-doc-processing-cache:8080}
+      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
       HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
-      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
     profiles:
       - docproc
     depends_on:
@@ -981,6 +983,8 @@ services:
       VERIFY_CLIENT_CERT: 1
       # S3_USE_SSL: false
       # S3_VERIFY_CERT: false
+      ISTIO_ENABLED: true
+      IS_ADK_ENV: true
     profiles:
       - docproc
     depends_on:
@@ -993,7 +997,7 @@ services:
     # volumes:
       # - ./docker/wo_doc_processing_rag_base/etc/certs:/etc/certs
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1052,7 +1056,7 @@ services:
       LOG_LEVEL: info
       WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
       WXO_SERVER_BASE_URL : http://wxo-server:4321
-      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
+      IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
     profiles:
       - docproc
     depends_on:
