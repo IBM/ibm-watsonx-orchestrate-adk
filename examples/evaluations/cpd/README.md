@@ -118,8 +118,6 @@ provider_config:
 
 output_dir: "debug-cpd-no-ifm"
 enable_verbose_logging: true
-
-config_cpd_ifm.yaml
 ```
 
 ### examples/evaluations/cpd/configs/config_cpd_ifm.yaml
