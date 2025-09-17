@@ -218,3 +218,6 @@ If using IFM, ensure the model exists in your IFM space. Consider setting MODEL_
 ### Permissions:
 Ensure your CPD and (if applicable) watsonx.ai credentials have permissions to run inference.
 
+### Can't find agent in UI for recording
+You may need to deploy your agent in the UI or by using the `orchestrate agents deploy` command.
+
