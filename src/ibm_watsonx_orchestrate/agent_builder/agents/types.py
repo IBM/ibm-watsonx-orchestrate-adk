@@ -219,8 +219,8 @@ def validate_agent_fields(values: dict) -> dict:
 # ===============================
 
 class ExternalAgentConfig(BaseModel):
-    hidden: bool = False
-    enable_cot: bool = False
+    hidden: Optional[bool] = False
+    enable_cot: Optional[bool] = False
 
 class ExternalAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
