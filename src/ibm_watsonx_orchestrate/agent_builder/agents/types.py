@@ -243,8 +243,8 @@ class ExternalAgentSpec(BaseAgentSpec):
         # The get api responds with a flat object with no config
         if values.get("config") is None:
             values["config"] = {}
-            values["config"]["enable_cot"] = values.get("enable_cot", None)
-            values["config"]["hidden"] = values.get("hidden", None)
+            values["config"]["enable_cot"] = values.get("enable_cot", False)
+            values["config"]["hidden"] = values.get("hidden", False)
         return validate_external_agent_fields(values)
 
     @model_validator(mode="after")

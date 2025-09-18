@@ -101,10 +101,11 @@ PROVIDER_EXTRA_PROPERTIES_LUT = {
 PROVIDER_REQUIRED_FIELDS = {k:['api_key'] for k in ModelProvider}
 # Update required fields for each provider
 # Use sets to denote when a requirement is 'or'
+# Tuples denote combined requirements like 'and'
 PROVIDER_REQUIRED_FIELDS.update({
     ModelProvider.WATSONX: PROVIDER_REQUIRED_FIELDS[ModelProvider.WATSONX] + [{'watsonx_space_id', 'watsonx_project_id', 'watsonx_deployment_id'}],
     ModelProvider.OLLAMA: PROVIDER_REQUIRED_FIELDS[ModelProvider.OLLAMA] + ['custom_host'],
-    ModelProvider.BEDROCK: [],
+    ModelProvider.BEDROCK: [{'api_key', ('aws_secret_access_key', 'aws_access_key_id')}],
 })
 
 # def env_file_to_model_ProviderConfig(model_name: str, env_file_path: str) -> ProviderConfig | None:
@@ -158,16 +159,34 @@ def _validate_extra_fields(provider: ModelProvider, cfg: ProviderConfig) -> None
         if  cfg.__dict__.get(attr) is not None and attr not in accepted_fields:
             logger.warning(f"The config option '{attr}' is not used by provider '{provider}'")
 
+def _check_credential_provided(cred: str | tuple, provided_creds: set) -> bool:
+    if isinstance(cred, tuple):
+        return all(item in provided_creds for item in cred)
+    else:
+        return cred in provided_creds
+
+def _format_missing_credential(missing_credential: set) -> str:
+    parts = []
+    for cred in missing_credential:
+        if isinstance(cred, tuple):
+            formatted = " and ".join(f"{x}" for x in cred)
+            parts.append(f"({formatted})")
+        else:
+            parts.append(f"{cred}")
+
+    return " or ".join(parts)
+
+
 def _validate_requirements(provider: ModelProvider, cfg: ProviderConfig, app_id: str = None) -> None:
     provided_credentials = set([k for k,v in dict(cfg).items() if v is not None])
     required_creds = PROVIDER_REQUIRED_FIELDS[provider]
     missing_credentials = []
     for cred in required_creds:
         if isinstance(cred, set):
-            if not any(c in provided_credentials for c in cred):
+            if not any(_check_credential_provided(c, provided_credentials) for c in cred):
                 missing_credentials.append(cred)
         else:
-            if cred not in provided_credentials:
+            if not _check_credential_provided(cred, provided_credentials):
                 missing_credentials.append(cred)
 
     if len(missing_credentials) > 0:
@@ -177,7 +196,7 @@ def _validate_requirements(provider: ModelProvider, cfg: ProviderConfig, app_id:
             missing_credentials_string = f"Be sure to include the following required fields for provider '{provider}' in the connection '{app_id}':"
         for cred in missing_credentials:
             if isinstance(cred, set):
-                cred_str = ' or '.join(list(cred))
+                cred_str = _format_missing_credential(cred)
             else:
                 cred_str = cred
             missing_credentials_string += f"\n\t  - {cred_str}"
