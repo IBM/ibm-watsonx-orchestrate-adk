@@ -8,7 +8,7 @@ for python_tool in  get_hello_message.py combine_names.py; do
   orchestrate tools import -k python -f ${SCRIPT_DIR}/tools/${python_tool} -r ${SCRIPT_DIR}/tools/requirements.txt
 done
 
-for flow_tool in hello_message_flow.py; do
+for flow_tool in hello_message_flow_datamap.py; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
 done
 
