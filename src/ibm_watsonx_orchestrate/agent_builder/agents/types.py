@@ -88,7 +88,7 @@ class BaseAgentSpec(BaseModel):
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
         with open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
-                yaml.dump(dumped, f, sort_keys=False)
+                yaml.dump(dumped, f, sort_keys=False, allow_unicode=True)
             elif file.endswith('.json'):
                 json.dump(dumped, f, indent=2)
             else:

@@ -1223,7 +1223,7 @@ class CompiledFlow(BaseModel):
         dumped = self.flow.to_json()
         with open(file, 'w') as f:
             if file.endswith(".yaml") or file.endswith(".yml"):
-                yaml.dump(dumped, f)
+                yaml.dump(dumped, f, allow_unicode=True)
             elif file.endswith(".json"):
                 json.dump(dumped, f, indent=2)
             else:
