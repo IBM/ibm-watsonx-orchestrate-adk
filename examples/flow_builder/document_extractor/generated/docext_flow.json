@@ -31,25 +31,36 @@
           "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
           "fields": [
             {
-              "name": "Social Security Number",
+              "name": "Buyer",
               "type": "string",
               "description": "",
-              "field_name": "social_security_number",
+              "field_name": "buyer",
               "multiple_mentions": false,
               "example_value": "",
               "examples": []
             },
             {
-              "name": "Driver's License Number",
+              "name": "Seller",
               "type": "string",
               "description": "",
-              "field_name": "driver_license_number",
+              "field_name": "seller",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Agreement Date",
+              "type": "date",
+              "description": "",
+              "field_name": "agreement_date",
               "multiple_mentions": false,
               "example_value": "",
               "examples": []
             }
           ]
-        }
+        },
+        "min_confidence": 0.0,
+        "review_fields": []
       }
     },
     "__start__": {
@@ -132,25 +143,32 @@
       "type": "object",
       "title": "DocExtFieldValue",
       "required": [
-        "social_security_number",
-        "driver_license_number"
+        "buyer",
+        "seller",
+        "agreement_date"
       ],
       "properties": {
-        "social_security_number": {
+        "buyer": {
           "type": "string",
-          "title": "Social Security Number",
-          "description": "Extracted value for Social Security Number"
+          "title": "Buyer",
+          "description": "Extracted value for Buyer"
         },
-        "driver_license_number": {
+        "seller": {
           "type": "string",
-          "title": "Driver's License Number",
-          "description": "Extracted value for Driver's License Number"
+          "title": "Seller",
+          "description": "Extracted value for Seller"
+        },
+        "agreement_date": {
+          "type": "string",
+          "title": "Agreement Date",
+          "description": "Extracted value for Agreement Date",
+          "format": "date"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-15T08:10:30.211424+00:00"
+    "compiled_on": "2025-09-13T00:29:06.402677+00:00"
   }
 }

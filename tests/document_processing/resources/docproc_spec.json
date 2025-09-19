@@ -15,14 +15,17 @@
         "kind": "docproc",
         "name": "text_extraction",
         "display_name": "text_extraction",
-        "description": "Extract text out of a document's contents.",
+        "description": "Extract text out of a documents contents.",
         "input_schema": {
           "$ref": "#/schemas/text_extraction_input"
         },
         "output_schema": {
           "$ref": "#/schemas/TextExtractionResponse"
         },
-        "task": "text_extraction"
+        "task": "text_extraction",
+        "enable_hw": false,
+        "document_structure": false,
+        "kvp_model_name": "mistralai/pixtral-12b"
       }
     },
     "__start__": {
@@ -363,6 +366,21 @@
               }
             },
             {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ]
@@ -387,6 +405,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-04T22:22:38.774913+00:00"
+    "compiled_on": "2025-09-11T22:22:38.774913+00:00"
   }
 }

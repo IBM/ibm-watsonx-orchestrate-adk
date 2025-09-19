@@ -4,11 +4,11 @@
 2. Run `import-all.sh` 
 3. Launch the Chat UI with `orchestrate chat start`
 4. Pick the `document_classifier_agent`
-5. Type in something like `classifiy custom classes from a document`. Then, the agent will promt you to upload the document
+5. Type in something like `classify custom classes from a document`. Then, the agent will prompt you to upload the document.
 
 
 ### Testing Flow programmatically
 
-1. Run the script `examples/flow_builder/text_extraction/upload_document.sh -f <ABSOLUTE PATH TO YOUR DOCUMENT YOU WANT TO TEST WITH THE FLOW>` and you will receive an url
+1. Run the script `examples/flow_builder/text_extraction/upload_document.sh -f <ABSOLUTE PATH TO YOUR DOCUMENT YOU WANT TO TEST WITH THE FLOW>` and you will receive a URL.
 2. Set `PYTHONPATH=<ADK>/src:<ADK>`  where `<ADK>` is the directory where you downloaded the ADK.
 3. Run `python3 main.py "<your URL goes here>"`

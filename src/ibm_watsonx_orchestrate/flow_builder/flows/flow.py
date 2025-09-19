@@ -21,6 +21,7 @@ from typing_extensions import Self
 from pydantic import BaseModel, Field, SerializeAsAny, create_model, TypeAdapter
 import yaml
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
+from ibm_watsonx_orchestrate.agent_builder.models.types import ListVirtualModel
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -83,6 +84,21 @@ class Flow(Node):
 
         # get Tool Client
         self._tool_client = instantiate_client(ToolClient)
+
+        # set llm_model to use for the flow if any
+        llm_model = kwargs.get("llm_model")
+        if llm_model:
+            if isinstance(llm_model, ListVirtualModel):
+                self.metadata["llm_model"] = llm_model.name
+            elif isinstance(llm_model, str):
+                self.metadata["llm_model"] = llm_model
+            else:
+                raise AssertionError(f"flow llm_model should be either a str or ListVirtualModel")
+        
+        # set agent_conversation_memory_turns_limit for the flow if any
+        agent_conversation_memory_turns_limit = kwargs.get("agent_conversation_memory_turns_limit")
+        if agent_conversation_memory_turns_limit:
+            self.metadata["agent_conversation_memory_turns_limit"] = agent_conversation_memory_turns_limit
 
     def _find_topmost_flow(self) -> Self:
         if self.parent:
@@ -519,7 +535,9 @@ class Flow(Node):
             fields: type[BaseModel]| None = None, 
             description: str | None = None,
             input_map: DataMap = None,
-            enable_hw: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
+            enable_hw: bool = False,
+            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
+            review_fields: List[str] = []) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -544,7 +562,9 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             config=doc_ext_config,
             version=version,
-            enable_hw=enable_hw
+            enable_hw=enable_hw,
+            min_confidence=min_confidence,
+            review_fields=review_fields
         )
         node = DocExtNode(spec=task_spec)
 
@@ -609,7 +629,8 @@ class Flow(Node):
             input_map: DataMap = None,
             document_structure: bool = False,
             kvp_schemas: list[DocProcKVPSchema] = None,
-            enable_hw: bool = False) -> DocProcNode:
+            enable_hw: bool = False,
+            kvp_model_name: str | None = None) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -635,7 +656,8 @@ class Flow(Node):
             document_structure=document_structure,
             plain_text_reading_order=plain_text_reading_order,
             enable_hw=enable_hw,
-            kvp_schemas=kvp_schemas
+            kvp_schemas=kvp_schemas,
+            kvp_model_name=kvp_model_name
         )
 
         node = DocProcNode(spec=task_spec)
@@ -1201,7 +1223,7 @@ class CompiledFlow(BaseModel):
         dumped = self.flow.to_json()
         with open(file, 'w') as f:
             if file.endswith(".yaml") or file.endswith(".yml"):
-                yaml.dump(dumped, f)
+                yaml.dump(dumped, f, allow_unicode=True)
             elif file.endswith(".json"):
                 json.dump(dumped, f, indent=2)
             else:
@@ -1223,7 +1245,9 @@ class FlowFactory(BaseModel):
                     initiators: Sequence[str]|None=None,
                     input_schema: type[BaseModel]|None=None,
                     output_schema: type[BaseModel]|None=None,
-                    schedulable: bool=False) -> Flow:
+                    schedulable: bool=False,
+                    llm_model: str|ListVirtualModel|None=None,
+                    agent_conversation_memory_turns_limit: int|None = None) -> Flow:
         if isinstance(name, Callable):
             flow_spec = getattr(name, "__flow_spec__", None)
             if not flow_spec:
@@ -1248,7 +1272,7 @@ class FlowFactory(BaseModel):
             schedulable=schedulable,
         )
 
-        return Flow(spec = flow_spec)
+        return Flow(spec = flow_spec, llm_model=llm_model, agent_conversation_memory_turns_limit=agent_conversation_memory_turns_limit)
 
 
 class FlowControl(Node):
