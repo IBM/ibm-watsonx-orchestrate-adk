@@ -49,8 +49,28 @@ services:
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
+      BACKEND_BASE_URL: http://localhost:3001
+      CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
     ports:
       - 3001:3001
+  
+  wxo-server-connections-ui:
+    image: ${CONNECTIONS_UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections-ui:${CONNECTIONS_UI_TAG:-latest}
+    platform: linux/amd64
+    profiles: [connections-ui]
+    environment:
+      PORT: 3412
+      WXO_CONNECTIONS_URL: http://wxo-server-connection-manager:3001
+      DEPLOYMENT_MODE: laptop 
+      WXO_URL: http://localhost:3412
+      ENV: production
+      WXO_SERVER_URL: http://localhost:4321
+      TENANT_ID: ${REACT_APP_TENANT_ID}
+      WXO_CHAT_URL: http://localhost:3000
+    ports:
+     - "3412:3412"
+    networks:
+      - default
 
   ai-gateway:
     image: ${AI_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/ai-gateway:${AI_GATEWAY_TAG:-latest}
@@ -73,6 +93,24 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET}
       DEPLOYMENT_PLATFORM: laptop-lite
+      CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-}
+      REDIS_URL: redis://wxo-server-redis:6379/0
+    entrypoint: >
+      sh -c '
+        if [ ! -z "$$CALLBACK_HOST_URL" ]; then
+          GATEWAY_IP=$$(echo "$$CALLBACK_HOST_URL" | sed "s|http://||" | cut -d: -f1)
+          export CALL_BACK_URL="http://$$GATEWAY_IP:8989"
+          echo "Auto-configured CALL_BACK_URL: $$CALL_BACK_URL"
+        else
+          export CALL_BACK_URL="http://wxo-agent-gateway:8989"
+          echo "Using fallback CALL_BACK_URL: $$CALL_BACK_URL"
+        fi
+        if [ $$# -eq 0 ]; then
+          exec ./conditional_script.sh
+        else
+          exec "$$@"
+        fi
+      '
 
   ui:
     image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
@@ -105,6 +143,7 @@ services:
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
       WXO_VOICE_URL: http://localhost:9876/v1
+      DPS_CACHE_URL: http://localhost:18083
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -127,13 +166,13 @@ services:
       AGENTS_OPS_RUNTIME_ENDPOINT: https://frontend-server:443
       DPI_WO_WDU_SERVER_ENDPOINT: https://wxo-doc-processing-service:8080
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
-      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
-      ENABLE_EDIT_PROMPTS: "false"
+      ENABLE_EDIT_PROMPTS: "true"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
     command: 'npm start'
@@ -354,6 +393,10 @@ services:
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      WATSONX_SERVER: WXO
+      EVALUATION_PLATFORM: lite-local
+      AGENTOPS_BACKEND_URL: https://frontend-server:443
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -454,6 +497,10 @@ services:
       CPD_VERIFY: ${CPD_VERIFY}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      WATSONX_SERVER: WXO
+      EVALUATION_PLATFORM: lite-local
+      AGENTOPS_BACKEND_URL: https://frontend-server:443
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -815,6 +862,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       FLOW_CALLBACK_REQUEST_RETRIES: "1"
+      DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -860,13 +908,13 @@ services:
       SERVICE_NAME: wxo-doc-processing-service
       LOG_LEVEL: info
       VERIFY_CLIENT_CERT: 0
-      SERVICE_URL: ${SERVICE_URL:-https://wxo-doc-processing-cache:8080}
+      SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
       HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
-      IBM_DPS_CACHE_SERVICE: https://wxo-doc-processing-cache:8080
+      IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
     profiles:
       - docproc
     depends_on:
@@ -961,6 +1009,8 @@ services:
       VERIFY_CLIENT_CERT: 1
       # S3_USE_SSL: false
       # S3_VERIFY_CERT: false
+      ISTIO_ENABLED: true
+      IS_ADK_ENV: true
     profiles:
       - docproc
     depends_on:
@@ -973,7 +1023,7 @@ services:
     # volumes:
       # - ./docker/wo_doc_processing_rag_base/etc/certs:/etc/certs
     healthcheck:
-      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      test: ["CMD-SHELL", "curl -fk http://localhost:8080/ping"]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -1032,7 +1082,7 @@ services:
       LOG_LEVEL: info
       WATSONX_API_ENDPOINT: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
       WXO_SERVER_BASE_URL : http://wxo-server:4321
-      IBM_DPS_CACHE_SERVICE: 'wxo-doc-processing-cache:8080'
+      IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
     profiles:
       - docproc
     depends_on:

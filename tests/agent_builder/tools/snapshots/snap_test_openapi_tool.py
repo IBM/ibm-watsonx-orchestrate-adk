@@ -20,6 +20,7 @@ snapshots['test_all_supported_http_methods[DELETE] 1'] = {
         }
     },
     'description': 'Test {request.param} with query parameters',
+    'display_name': 'Test DELETE with query parameters',
     'input_schema': {
         'properties': {
             'query_query_param': {
@@ -62,6 +63,7 @@ snapshots['test_all_supported_http_methods[GET] 1'] = {
         }
     },
     'description': 'Test {request.param} with query parameters',
+    'display_name': 'Test GET with query parameters',
     'input_schema': {
         'properties': {
             'query_query_param': {
@@ -104,6 +106,7 @@ snapshots['test_all_supported_http_methods[POST] 1'] = {
         }
     },
     'description': 'Test {request.param} with query parameters',
+    'display_name': 'Test POST with query parameters',
     'input_schema': {
         'properties': {
             'query_query_param': {
@@ -146,6 +149,7 @@ snapshots['test_all_supported_http_methods[PUT] 1'] = {
         }
     },
     'description': 'Test {request.param} with query parameters',
+    'display_name': 'Test PUT with query parameters',
     'input_schema': {
         'properties': {
             'query_query_param': {
@@ -188,6 +192,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[cookie] 1'] = {
         }
     },
     'description': 'Test cookie with query parameters',
+    'display_name': 'Test cookie with query parameters',
     'input_schema': {
         'properties': {
             'cookie_param': {
@@ -230,6 +235,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[header] 1'] = {
         }
     },
     'description': 'Test header with query parameters',
+    'display_name': 'Test header with query parameters',
     'input_schema': {
         'properties': {
             'header_param': {
@@ -272,6 +278,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[path] 1'] = {
         }
     },
     'description': 'Test path with query parameters',
+    'display_name': 'Test path with query parameters',
     'input_schema': {
         'properties': {
             'path_param': {
@@ -314,6 +321,7 @@ snapshots['test_all_supported_parameter_in_methods_except_body[query] 1'] = {
         }
     },
     'description': 'Test query with query parameters',
+    'display_name': 'Test query with query parameters',
     'input_schema': {
         'properties': {
             'query_param': {
@@ -378,6 +386,7 @@ snapshots['test_async_spec_with_callback 1'] = {
         }
     },
     'description': 'Test async with callback',
+    'display_name': 'Test async with callback',
     'input_schema': {
         'properties': {
             '__requestBody__': {
@@ -437,6 +446,7 @@ snapshots['test_body_parameters 1'] = {
         }
     },
     'description': 'Test requestBody parameters',
+    'display_name': 'Test requestBody parameters',
     'input_schema': {
         'properties': {
             '__requestBody__': {
@@ -489,6 +499,7 @@ snapshots['test_global_authentication[openapi_global_authentication0] 1'] = {
         }
     },
     'description': 'Test none with query parameters',
+    'display_name': 'Test none with query parameters',
     'input_schema': {
         'properties': {
         },
@@ -529,6 +540,7 @@ snapshots['test_global_authentication[openapi_global_authentication1] 1'] = {
         }
     },
     'description': 'Test basic with query parameters',
+    'display_name': 'Test basic with query parameters',
     'input_schema': {
         'properties': {
         },
@@ -570,6 +582,7 @@ snapshots['test_global_authentication[openapi_global_authentication2] 1'] = {
         }
     },
     'description': 'Test apiKey with query parameters',
+    'display_name': 'Test apiKey with query parameters',
     'input_schema': {
         'properties': {
         },
@@ -611,6 +624,7 @@ snapshots['test_global_authentication[openapi_global_authentication3] 1'] = {
         }
     },
     'description': 'Test apiKey with query parameters',
+    'display_name': 'Test apiKey with query parameters',
     'input_schema': {
         'properties': {
         },
@@ -652,6 +666,7 @@ snapshots['test_global_authentication[openapi_global_authentication4] 1'] = {
         }
     },
     'description': 'Test apiKey with query parameters',
+    'display_name': 'Test apiKey with query parameters',
     'input_schema': {
         'properties': {
         },
@@ -743,6 +758,7 @@ snapshots['test_http_get_with_api_key_auth 1'] = {
         }
     },
     'description': 'TEST GET',
+    'display_name': 'Test HTTP GET',
     'input_schema': {
         'properties': {
         },
@@ -834,6 +850,7 @@ snapshots['test_http_get_with_basic_auth 1'] = {
         }
     },
     'description': 'TEST GET',
+    'display_name': 'Test HTTP GET',
     'input_schema': {
         'properties': {
         },
@@ -925,6 +942,7 @@ snapshots['test_http_post_with_header_query_and_path_params 1'] = {
         }
     },
     'description': 'Test we handle params  path, query, header',
+    'display_name': 'Test post with parameters',
     'input_schema': {
         'properties': {
             'header_header_param': {
@@ -1042,6 +1060,7 @@ snapshots['test_http_put_with_json_request_body 1'] = {
         }
     },
     'description': 'TEST PUT',
+    'display_name': 'Test HTTP PUT',
     'input_schema': {
         'properties': {
             '__requestBody__': {

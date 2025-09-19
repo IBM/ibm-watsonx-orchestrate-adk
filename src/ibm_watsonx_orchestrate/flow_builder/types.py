@@ -271,6 +271,8 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
 class DocExtSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocExtConfig
+    min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
+    review_fields: List[str] = Field(description="The fields that require user to review", default=[])
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -281,6 +283,8 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec["version"] = self.version
         model_spec["config"] = self.config.model_dump()
         model_spec["task"] = DocProcTask.custom_field_extraction
+        model_spec["min_confidence"] = self.min_confidence
+        model_spec["review_fields"] = self.review_fields
         return model_spec
     
 class DocProcField(BaseModel):
@@ -337,6 +341,11 @@ class DocProcSpec(DocProcCommonNodeSpec):
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
+    kvp_model_name: str | None = Field(
+        title='KVP Model Name',
+        description="The LLM model to be used for key-value pair extraction",
+        default=None
+    )
     plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
     document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
     
@@ -352,6 +361,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["plain_text_reading_order"] = self.plain_text_reading_order
         if self.kvp_schemas is not None:
             model_spec["kvp_schemas"] = self.kvp_schemas
+        if self.kvp_model_name is not None:
+            model_spec["kvp_model_name"] = self.kvp_model_name
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -905,8 +916,7 @@ class UserFlowSpec(FlowSpec):
 class ForeachPolicy(Enum):
  
     SEQUENTIAL = 1
-    # support only SEQUENTIAL for now
-    # PARALLEL = 2
+    PARALLEL = 2
 
 class ForeachSpec(FlowSpec):
  
@@ -923,7 +933,7 @@ class ForeachSpec(FlowSpec):
         if isinstance(self.item_schema, JsonSchemaObject):
             my_dict["item_schema"] = _to_json_from_json_schema(self.item_schema)
         else:
-            my_dict["item_schema"] = self.item_schema.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
+            my_dict["item_schema"] = self.item_schema.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True, by_alias=True)
 
         my_dict["foreach_policy"] = self.foreach_policy.name
         return my_dict
@@ -1312,6 +1322,11 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP schemas',
         description="Optional list of key-value pair schemas to use for extraction.",
         default=None)
+    kvp_model_name: str | None = Field(
+        title='KVP Model Name',
+        description="The LLM model to be used for key-value pair extraction",
+        default=None
+    )
 
 class TextExtractionResponse(BaseModel):
     '''

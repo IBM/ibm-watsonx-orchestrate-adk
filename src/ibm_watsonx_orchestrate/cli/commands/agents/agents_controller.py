@@ -1330,7 +1330,7 @@ class AgentsController:
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
             with open(output_path, 'w') as outfile:
-                yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False)
+                yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
             return
         
         close_file_flag = False
@@ -1340,7 +1340,7 @@ class AgentsController:
 
         logger.info(f"Exporting agent definition for '{name}'")
         
-        agent_spec_yaml = yaml.dump(agent_spec_file_content, sort_keys=False, default_flow_style=False)
+        agent_spec_yaml = yaml.dump(agent_spec_file_content, sort_keys=False, default_flow_style=False, allow_unicode=True)
         agent_spec_yaml_bytes = agent_spec_yaml.encode("utf-8")
         agent_spec_yaml_file = io.BytesIO(agent_spec_yaml_bytes)
 

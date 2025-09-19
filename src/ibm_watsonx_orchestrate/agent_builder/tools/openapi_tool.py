@@ -80,6 +80,7 @@ def create_openapi_json_tool(
         http_success_response_code: int = 200,
         http_response_content_type='application/json',
         name: str = None,
+        display_name: str = None,
         description: str = None,
         permission: ToolPermission = None,
         input_schema: ToolRequestBody = None,
@@ -130,8 +131,10 @@ def create_openapi_json_tool(
         raise BadRequest(
             f"No description provided for tool. {http_method}: {http_path} did not specify a description field, and no description was provided")
 
+    spec_display_name = display_name if display_name else route_spec.get('summary')
     spec = ToolSpec(
         name=spec_name,
+        display_name=spec_display_name,
         description=spec_description,
         permission=spec_permission
     )
@@ -348,6 +351,7 @@ async def create_openapi_json_tool_from_uri(
         http_response_content_type='application/json',
         permission: ToolPermission = ToolPermission.READ_ONLY,
         name: str = None,
+        display_name: str = None,
         description: str = None,
         input_schema: ToolRequestBody = None,
         output_schema: ToolResponseBody = None,
@@ -362,6 +366,7 @@ async def create_openapi_json_tool_from_uri(
     :param http_success_response_code: Which http status code should be considered a successful call (defaults to 200)
     :param http_response_content_type: Which http response type should be considered successful (default to application/json)
     :param name: The name of the resulting tool (used to invoke the tool by the agent)
+    :param display_name: The name of the resulting tool to be displayed
     :param description: The description of the resulting tool (used as the semantic layer to help the agent with tool selection)
     :param permission: Which orchestrate permission level does a user need to have to invoke this tool
     :param input_schema: The JSONSchema of the inputs to the http request
@@ -379,6 +384,7 @@ async def create_openapi_json_tool_from_uri(
         http_response_content_type=http_response_content_type,
         permission=permission,
         name=name,
+        display_name=display_name,
         description=description,
         input_schema=input_schema,
         output_schema=output_schema,

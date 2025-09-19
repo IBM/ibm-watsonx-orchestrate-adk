@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
 from ibm_watsonx_orchestrate.flow_builder.flows import Flow, flow, START, END
+from ibm_watsonx_orchestrate.flow_builder.types import ForeachPolicy
 
 from .send_invitation_email import send_invitation_email
 from .get_emails_from_customer import get_emails_from_customer, CustomerRecord
@@ -31,7 +32,9 @@ def build_send_invitation_to_customer_flow(aflow: Flow) -> Flow:
     get_customer_list_node = aflow.tool(get_emails_from_customer)
 
     # calling add_foreach will create a subflow, and we can add more node to the subflow
-    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord, output_schema=Invitations)
+    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord, output_schema=Invitations) \
+        .policy(kind=ForeachPolicy.SEQUENTIAL)
+        # .policy(kind=ForeachPolicy.PARALLEL) # replace with 'ForeachPolicy.PARALLEL' if need to run .foreach in parallel
     
     node2 = foreach_flow.tool(send_invitation_email)
     foreach_flow.sequence(START, node2, END)

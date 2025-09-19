@@ -88,7 +88,7 @@ class BaseAgentSpec(BaseModel):
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
         with open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
-                yaml.dump(dumped, f, sort_keys=False)
+                yaml.dump(dumped, f, sort_keys=False, allow_unicode=True)
             elif file.endswith('.json'):
                 json.dump(dumped, f, indent=2)
             else:
@@ -219,8 +219,8 @@ def validate_agent_fields(values: dict) -> dict:
 # ===============================
 
 class ExternalAgentConfig(BaseModel):
-    hidden: bool = False
-    enable_cot: bool = False
+    hidden: Optional[bool] = False
+    enable_cot: Optional[bool] = False
 
 class ExternalAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -243,8 +243,8 @@ class ExternalAgentSpec(BaseAgentSpec):
         # The get api responds with a flat object with no config
         if values.get("config") is None:
             values["config"] = {}
-            values["config"]["enable_cot"] = values.get("enable_cot", None)
-            values["config"]["hidden"] = values.get("hidden", None)
+            values["config"]["enable_cot"] = values.get("enable_cot", False)
+            values["config"]["hidden"] = values.get("hidden", False)
         return validate_external_agent_fields(values)
 
     @model_validator(mode="after")

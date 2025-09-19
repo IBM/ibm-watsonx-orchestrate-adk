@@ -23,6 +23,7 @@ class  ModelProvider(str, Enum):
     STABILITY_AI = 'stability-ai'
     TOGETHER_AI = 'together-ai'
     WATSONX = 'watsonx'
+    X_AI='x-ai'
 
     def __str__(self):
         return self.value
