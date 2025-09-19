@@ -575,7 +575,7 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
         case '.zip':
             zip_file = zipfile.ZipFile(output_path, "w")
                 
-            connection_yaml = yaml.dump(combined_connections, sort_keys=False, default_flow_style=False)
+            connection_yaml = yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
             connection_yaml_bytes = connection_yaml.encode("utf-8")
             connection_yaml_file = io.BytesIO(connection_yaml_bytes)
 
@@ -588,7 +588,7 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
         case '.yaml' | '.yml':
             with open(output_path,'w') as yaml_file:
                 yaml_file.write(
-                    yaml.dump(combined_connections, sort_keys=False, default_flow_style=False)
+                    yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
                 )
                 
     logger.info(f"Successfully exported connection file for {app_id}")
