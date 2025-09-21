@@ -1,0 +1,73 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "hello_message_script_flow",
+    "display_name": "hello_message_script_flow",
+    "description": "Creates a flow with two script nodes: set_greeting_node and return_greeting_node.",
+    "private_schema": {
+      "type": "object",
+      "title": "GreetMessage",
+      "required": [
+        "greeting"
+      ],
+      "properties": {
+        "greeting": {
+          "type": "string",
+          "title": "Greeting"
+        }
+      }
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "codeblock_1": {
+      "spec": {
+        "kind": "script",
+        "name": "codeblock_1",
+        "display_name": "codeblock_1",
+        "fn": "flow.private.greeting = 'How are you doing today!'"
+      }
+    },
+    "codeblock_2": {
+      "spec": {
+        "kind": "script",
+        "name": "codeblock_2",
+        "display_name": "codeblock_2",
+        "fn": "self.output.message = flow.private.greeting"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "codeblock_1"
+    },
+    {
+      "start": "codeblock_1",
+      "end": "codeblock_2"
+    },
+    {
+      "start": "codeblock_2",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {},
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-09-17T13:46:25.205329+00:00"
+  }
+}
