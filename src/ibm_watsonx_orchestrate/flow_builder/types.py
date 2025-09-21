@@ -389,6 +389,19 @@ class ToolNodeSpec(NodeSpec):
             else:
                 model_spec["tool"] = self.tool
         return model_spec
+    
+class ScriptNodeSpec(NodeSpec):
+     fn: str = Field(default = None, description="the script to execute")
+
+     def __init__(self, **data):
+         super().__init__(**data)
+         self.kind = "script"
+
+     def to_json(self) -> dict[str, Any]:
+         model_spec = super().to_json()
+         if self.fn:
+             model_spec["fn"] = self.fn
+         return model_spec
 
 
 class UserFieldValue(BaseModel):
@@ -871,6 +884,9 @@ class FlowSpec(NodeSpec):
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
 
+    # flow can have private schema
+    private_schema: JsonSchemaObject | SchemaRef | None = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.kind = "flow"
@@ -879,6 +895,8 @@ class FlowSpec(NodeSpec):
         model_spec = super().to_json()
         if self.initiators:
             model_spec["initiators"] = self.initiators
+        if self.private_schema:
+             model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
         
         model_spec["schedulable"] = self.schedulable
 
