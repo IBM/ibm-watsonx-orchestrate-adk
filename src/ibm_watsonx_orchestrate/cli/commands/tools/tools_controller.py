@@ -11,7 +11,7 @@ import zipfile
 from enum import Enum
 from os import path
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, cast
 import rich
 import json
 from rich.json import JSON
@@ -25,7 +25,7 @@ from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
-from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import create_langflow_tool
+from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -54,6 +54,11 @@ __supported_characters_pattern = re.compile("^(\\w|_)+$")
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
     "lfx==0.1.8"
+]
+
+DEFAULT_LANGFLOW_RUNNER_MODULES = [
+    "lfx",
+    "lfx-nightly"
 ]
 
 class ToolKind(str, Enum):
@@ -890,13 +895,34 @@ class ToolsController:
                         tool_path = Path(self.file)
                         zip_tool_artifacts.write(tool_path, arcname=f"{tool_path.stem}.json")
 
-                        requirements = DEFAULT_LANGFLOW_TOOL_REQUIREMENTS
+                        requirements = []
 
                         if self.requirements_file:
                             requirements_file_path = Path(self.requirements_file)
                             requirements.extend(
                                 get_requirement_lines(requirements_file=requirements_file_path, remove_trailing_newlines=False)
                             )
+
+                        langflowTool = cast(LangflowTool, tool)
+                        # if there are additional requriements from the langflow model, we should add it to the requirement set
+                        if langflowTool.requirements and len(langflowTool.requirements) > 0:
+                            requirements.extend(langflowTool.requirements)
+
+                        # now check if the requirements contain modules listed in DEFAULT_LANGFLOW_RUNNER_MODULES
+                        # if it is needed, we are assuming the user wants to override the default langflow module
+                        # with a specific version
+                        runner_overridden = False
+                        for r in requirements:
+                            # get the module name from the requirements
+                            module_name = r.strip().split('==')[0].split('=')[0].split('>=')[0].split('<=')[0].split('~=')[0].lower()
+                            if not module_name.startswith('#'):
+                                if module_name in DEFAULT_LANGFLOW_RUNNER_MODULES:
+                                    runner_overridden = True
+                        
+                        if not runner_overridden:
+                            # add the default runner to the top of requirement list
+                            requirements = DEFAULT_LANGFLOW_TOOL_REQUIREMENTS + list(requirements)
+
                         requirements_content = '\n'.join(requirements) + '\n'
                         zip_tool_artifacts.writestr("requirements.txt",requirements_content)  
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
