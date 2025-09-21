@@ -27,7 +27,7 @@ Then export the model with the API keys.  Make sure all the API keys are already
 
 1. Create a `.env` file with the setting:
     1. `GROQ_API_KEY=<your groq api key>`
-    2. `TAVILY_API_EKY=<your tavily api key>`
+    2. `TAVILY_API_KEY=<your tavily api key>`
 1. Run `import-all.sh` 
     1. As part of the script, we create an app-id `city_news` with the environment values and associate them with the Langflow tool.
 1. Launch the Chat UI with `orchestrate chat start`
