@@ -374,8 +374,24 @@ class EndNodeSpec(NodeSpec):
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "end"
+
+class NodeErrorHandlerConfig(BaseModel):
+    error_message: Optional[str] = None
+    max_retries: Optional[int] = None
+    retry_interval: Optional[int] = None
+        
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.error_message:
+            model_spec["error_message"] = self.error_message
+        if self.max_retries:
+            model_spec["max_retries"] = self.max_retries
+        if self.retry_interval:
+            model_spec["retry_interval"] = self.retry_interval
+        return model_spec
 class ToolNodeSpec(NodeSpec):
     tool: Union[str, ToolSpec] = Field(default = None, description="the tool to use")
+    error_handler_config: Optional[NodeErrorHandlerConfig] = None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -383,6 +399,8 @@ class ToolNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        if self.error_handler_config:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()  
         if self.tool:
             if isinstance(self.tool, ToolSpec):
                 model_spec["tool"] = self.tool.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
@@ -719,6 +737,7 @@ class PromptNodeSpec(NodeSpec):
     prompt_examples: Optional[list[PromptExample]]
     llm: Optional[str] 
     llm_parameters: Optional[PromptLLMParameters] 
+    error_handler_config: Optional[NodeErrorHandlerConfig] 
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -734,6 +753,8 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm"] = self.llm
         if self.llm_parameters:
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
+        if self.error_handler_config:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()            
         if self.prompt_examples:
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
