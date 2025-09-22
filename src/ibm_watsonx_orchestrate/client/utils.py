@@ -175,23 +175,24 @@ def instantiate_client(client: type[T] , url: str | None=None) -> T:
         raise FileNotFoundError(message)
 
 
+def get_arm_architectures () -> list[str]:
+    # NOTE: intentionally omitting 32 bit arm architectures.
+    return ["aarch64", "arm64", "arm", "aarch64_be", "armv8b", "armv8l"]
+
+
 def get_architecture () -> str:
     arch = platform.machine().lower()
     if arch in ("amd64", "x86_64"):
         return "amd64"
-
-    elif arch == "i386":
-        return "386"
-
-    elif arch in ("aarch64", "arm64", "arm"):
-        return "arm"
+    elif arch in get_arm_architectures():
+        return arch
 
     else:
         raise Exception("Unsupported architecture %s" % arch)
 
 
 def is_arm_architecture () -> bool:
-    return platform.machine().lower() in ("aarch64", "arm64", "arm")
+    return platform.machine().lower() in get_arm_architectures()
 
 
 def get_os_type () -> str:
@@ -201,3 +202,24 @@ def get_os_type () -> str:
 
     else:
         raise Exception("Unsupported operating system %s" % system)
+
+def concat_bin_files(target_bin_file: str, source_files: list[str], read_chunk_size: int = None,
+                     delete_source_files_post: bool = True) -> None:
+    if read_chunk_size is None:
+        # default read chunk size is 100 MB.
+        read_chunk_size = 100 * 1024 * 1024
+
+    with open(target_bin_file, "wb") as target:
+        for source_file in source_files:
+            with open(source_file, "rb") as source:
+                while True:
+                    source_chunk = source.read(read_chunk_size)
+
+                    if source_chunk:
+                        target.write(source_chunk)
+
+                    else:
+                        break
+
+            if delete_source_files_post is True:
+                os.remove(source_file)

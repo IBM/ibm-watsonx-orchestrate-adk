@@ -16,3 +16,40 @@ def sanitize_app_id(app_id: str) -> str:
 
 def check_file_in_zip(file_path: str, zip_file: zipfile.ZipFile) -> bool:
     return any(x.startswith("%s/" % file_path.rstrip("/")) for x in zip_file.namelist())
+
+def parse_bool_safe (value, fallback = False) -> bool:
+    if value is not None:
+        if isinstance(value, bool):
+            return value
+
+        elif isinstance(value, str):
+            value = value.lower().strip()
+            if value in ("yes", "true", "t", "1"):
+                return True
+
+            elif value in ("no", "false", "f", "0"):
+                return False
+
+        elif value in (0, 1):
+            return parse_bool_safe(str(value), fallback)
+
+    return fallback
+
+def parse_int_safe (value, base: int = 10, fallback: int | None = None) -> int:
+    if value is not None:
+        if isinstance(value, int):
+            return value
+
+        elif isinstance(value, float):
+            return int(value)
+
+        elif isinstance(value, str):
+            value = value.strip()
+
+            try:
+                return int(value, base)
+
+            except ValueError as ex:
+                pass
+
+    return fallback
