@@ -18,7 +18,6 @@ Note: For CPD, you must specify exactly one of WO_PASSWORD or WO_API_KEY (not bo
 - A working CPD instance URL and credentials
 - For the "no IFM" path, a watsonx.ai Space and API key
 - For the CPD IFM path, a CPD IFM Space ID (no watsonx.ai API key required)
-- Python environment that can run: python -m wxo_agentic_evaluation.main
 
 ## Folder Structure
 
@@ -60,7 +59,7 @@ Use the config at
 Run the evaluation:
 
 ### From repository root
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
 
 Alternatively, use the helper script:
 
@@ -94,7 +93,7 @@ Use the config at
 Run the evaluation:
 
 ### From repository root
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
 
 Alternatively, use the helper script:
 
@@ -186,17 +185,17 @@ orchestrate agents import -f examples/evaluations/evaluate/agent_tools/hr_agent.
 Then run either:
 
 #### CPD (no IFM)
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
 
 #### CPD with IFM
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
 
 ## Recording
 Recording mode works the same for CPD, using the same environment variables as the agent evaluation.
 
 For example:
 ```bash
-python -m wxo_agentic_evaluation.record_chat --output_dir dir/to/save/recordings "wxo-agent-evaluation/recordings" --tenant_name "cpd" --keywords_generation_config.model_id "meta-llama/llama-3-2-90b-vision-instruct" --service_url "https://cpd-cpd-instance-1.apps.mydomain.cp.fyre.ibm.com/orchestrate/cpd-instance-1/instances/yourinstance"
+orchestrate evaluations record --output-dir "dir/to/save/recordings" -e examples/evaluations/cpd/env/.env.cpd.ifm.example
 ```
 
 This will initiate a recording from your CPD watsonx Orchestrate chat.
@@ -219,5 +218,5 @@ If using IFM, ensure the model exists in your IFM space. Consider setting MODEL_
 Ensure your CPD and (if applicable) watsonx.ai credentials have permissions to run inference.
 
 ### Can't find agent in UI for recording
-You may need to deploy your agent in the UI or by using the `orchestrate agents deploy` command.
+You may need to deploy your agent in the UI or by using the `orchestrate agents deploy` command. 
 
