@@ -70,7 +70,7 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str):
         if "language_support" not in agent_data:
             agent_data["language_support"] = ["English"]
         if "icon" not in agent_data:
-            agent_data["icon"] = "inline-svg-of-icon"
+            agent_data["icon"] = AGENT_CATALOG_ONLY_PLACEHOLDERS['icon']
         if "category" not in agent_data:
             agent_data["category"] = "agent"
         if "supported_apps" not in agent_data:
@@ -337,12 +337,16 @@ class PartnersOfferingController:
                             **agent_data
                         )
                         agent = Agent.model_validate(agent_details)
-                        AgentsController().persist_record(agent=agent)
                     case AgentKind.EXTERNAL:
                         agent_details = parse_create_external_args(
                             **agent_data
                         )
                         agent = ExternalAgent.model_validate(agent_details)
+                
+                # Placeholder detection
+                for label,placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
+                    if agent_data.get(label) == placeholder:
+                        logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
 
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
                 zf.writestr(agent_json_path, json.dumps(agent_data, indent=2))
