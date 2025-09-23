@@ -24,10 +24,9 @@ from rich.progress import (
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.client.utils import get_architecture, concat_bin_files, is_arm_architecture, \
     get_arm_architectures
-from ibm_watsonx_orchestrate.utils.environment import EnvSettingsService, EnvService
+from ibm_watsonx_orchestrate.utils.environment import EnvSettingsService, EnvService, DeveloperEditionSources
 from ibm_watsonx_orchestrate.utils.tokens import CpdWxOTokenService
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-
 
 logger = logging.getLogger(__name__)
 
@@ -1091,18 +1090,18 @@ class DockerLoginService:
             if not env_dict.get("REGISTRY_URL"):
                 raise ValueError("REGISTRY_URL is not set.")
             registry_url = env_dict["REGISTRY_URL"].split("/")[0]
-            if source == "internal":
+            if source == DeveloperEditionSources.INTERNAL:
                 iam_api_key = env_dict.get("DOCKER_IAM_KEY")
                 if not iam_api_key:
                     raise ValueError(
                         "DOCKER_IAM_KEY is required in the environment file if WO_DEVELOPER_EDITION_SOURCE is set to 'internal'.")
                 self.__docker_login(iam_api_key, registry_url, "iamapikey")
-            elif source == "myibm":
+            elif source == DeveloperEditionSources.MYIBM:
                 wo_entitlement_key = env_dict.get("WO_ENTITLEMENT_KEY")
                 if not wo_entitlement_key:
                     raise ValueError("WO_ENTITLEMENT_KEY is required in the environment file.")
                 self.__docker_login(wo_entitlement_key, registry_url, "cp")
-            elif source == "orchestrate":
+            elif source == DeveloperEditionSources.ORCHESTRATE:
                 wo_auth_type = self.__env_service.resolve_auth_type(env_dict)
                 if wo_auth_type == EnvironmentAuthType.CPD.value and not self.__env_service.did_user_provide_registry_url(env_dict):
                     # docker login is not required when auth type is cpd and user has not provided a custom registry
@@ -1120,6 +1119,13 @@ class DockerLoginService:
                 else:
                     api_key, username = self.__get_docker_cred_by_wo_auth_type(auth_type=wo_auth_type, env_dict=env_dict)
                     self.__docker_login(api_key, registry_url, username)
+            elif source == DeveloperEditionSources.CUSTOM:
+                username = env_dict.get("REGISTRY_USERNAME")
+                password = env_dict.get("REGISTRY_PASSWORD")
+                if not username or not password:
+                    logger.warning("REGISTRY_USERNAME or REGISTRY_PASSWORD are missing in the environment file. These values are needed for registry authentication when WO_DEVELOPER_EDITION_SOURCE is set to 'custom'. Skipping registry login." )
+                    return
+                self.__docker_login(password, registry_url, username)
 
     @staticmethod
     def __docker_login(api_key: str, registry_url: str, username: str = "iamapikey") -> None:
