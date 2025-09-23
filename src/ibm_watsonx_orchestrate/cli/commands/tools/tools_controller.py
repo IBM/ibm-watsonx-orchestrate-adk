@@ -33,7 +33,7 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
 from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
-    DEFAULT_CONFIG_FILE_CONTENT
+    DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -856,15 +856,18 @@ class ToolsController:
 
                         cfg = Config()
                         registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
+                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
 
                         version = __version__
                         if registry_type == RegistryType.LOCAL:
+                            logger.warning(f"Using a local registry which is for development purposes only")
                             requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
                         elif registry_type == RegistryType.PYPI:
-                            wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
-                            if not wheel_file:
-                                logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
-                                exit(1)
+                            if not skip_version_check:
+                                wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
+                                if not wheel_file:
+                                    logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
+                                    exit(1)
                             requirements.append(f"ibm-watsonx-orchestrate=={version}\n")
                         elif registry_type == RegistryType.TESTPYPI:
                             override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
