@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 import pytest
 
 from ibm_watsonx_orchestrate.cli.config import Config
@@ -50,7 +51,7 @@ def test_ensure_docker_compose_installed_success():
         mock_run.return_value.returncode = 0
         cli_config = Config()
         env_service = EnvService(cli_config)
-        compose_core = DockerComposeCore(env_service)
+        compose_core = DockerComposeCore(env_service=env_service)
         compose_core._DockerComposeCore__ensure_docker_compose_installed()
         mock_run.assert_called_once_with(
             ["docker", "compose", "version"],
@@ -69,7 +70,7 @@ def test_ensure_docker_compose_hyphen_success():
         mock_run.side_effect = mock_failure()
         cli_config = Config()
         env_service = EnvService(cli_config)
-        compose_core = DockerComposeCore(env_service)
+        compose_core = DockerComposeCore(env_service=env_service)
         compose_core._DockerComposeCore__ensure_docker_compose_installed()
         mock_run.assert_called_with(
             ["docker-compose", "version"],
@@ -84,7 +85,7 @@ def test_ensure_docker_compose_failure(capsys):
         with pytest.raises(SystemExit) as exc:
             cli_config = Config()
             env_service = EnvService(cli_config)
-            compose_core = DockerComposeCore(env_service)
+            compose_core = DockerComposeCore(env_service=env_service)
             compose_core._DockerComposeCore__ensure_docker_compose_installed()
         assert exc.value.code == 1
 

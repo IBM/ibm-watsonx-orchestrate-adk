@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ibm-watsonx-orchestrate-mcp-server"
+dynamic = ["version"]
+description = "IBM watsonx Orchestrate ADK MCP Server"
+authors = [
+    { name = "IBM", email = "support@ibm.com" }
+]
+#readme = { file = "README.md", content-type = 'text/markdown'}
+license = {text = "MIT License"}
+license-files = ["LICENSE"]
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "typing-extensions>=4.4.0",
+    "pyyaml>=6.0.2,<7.0.0",
+    "fastmcp~=2.10",
+    "ibm-watsonx-orchestrate",
+    "authlib>=1.6.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+package-data = true
+
+[tool.hatch.build]
+include = [
+    "./*"
+]
+directory="../../dist"
+
+[tool.hatch.version]
+path = "../../src/ibm_watsonx_orchestrate/__init__.py"
+validate-bump=false
+
+[project.scripts]
+ibm-watsonx-orchestrate-mcp-server = "ibm_watsonx_orchestrate_mcp_server.server:start_server"

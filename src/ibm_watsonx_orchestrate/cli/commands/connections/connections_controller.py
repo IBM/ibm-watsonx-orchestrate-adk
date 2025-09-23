@@ -9,8 +9,9 @@ import yaml
 import sys
 import typer
 
-from typing import List
+from typing import List, Optional, Any
 from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionEnvironment,
@@ -34,11 +35,13 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAUTH_CONNECTION_TYPES,
     ConnectionCredentialsEntryLocation,
     ConnectionCredentialsEntry,
-    ConnectionCredentialsCustomFields
-
+    ConnectionCredentialsCustomFields,
+    ConnectionsListEntry,
+    ConnectionsListResponse
 )
 
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -470,7 +473,11 @@ def remove_connection(app_id: str) -> None:
         logger.error(response_text)
         exit(1)
 
-def list_connections(environment: ConnectionEnvironment | None, verbose: bool = False) -> None:
+def list_connections(environment: ConnectionEnvironment | None = None, verbose: bool = False, format: Optional[ListFormats] = None) -> List[dict[str, Any]]| ConnectionsListResponse | None:
+    if verbose and format:
+            logger.error("For connections list, `--verbose` and `--format` are mutually exclusive options")
+            sys.exit(1)
+
     client = get_connections_client()
     connections = client.list()
     is_local = is_local_dev()
@@ -483,7 +490,12 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
             connections_list.append(json.loads(conn.model_dump_json()))
 
         rich.print_json(json.dumps(connections_list, indent=4))
+        return connections_list
     else:
+        non_configured_connection_details = []
+        draft_connection_details = []
+        live_connection_details = []
+
         non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
         draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
         live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
@@ -501,41 +513,55 @@ def list_connections(environment: ConnectionEnvironment | None, verbose: bool = 
         
         for conn in connections:
             if conn.environment is None:
-                non_configured_table.add_row(
-                    conn.app_id,
-                    "n/a",
-                    "n/a",
-                    "❌"
+                entry = ConnectionsListEntry(
+                    app_id=conn.app_id,
                 )
+
+                non_configured_table.add_row(*entry.get_row_details())
+                non_configured_connection_details.append(entry.model_dump())
                 continue
             
             try:
                 connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
             except:
                 connection_type = conn.auth_type
+            
+            entry = ConnectionsListEntry(
+                    app_id=conn.app_id,
+                    auth_type = connection_type,
+                    type=conn.preference,
+                    credentials_set=conn.credentials_entered
+                )
 
             if conn.environment == ConnectionEnvironment.DRAFT:
-                draft_table.add_row(
-                    conn.app_id,
-                    connection_type,
-                    conn.preference,
-                    "✅" if conn.credentials_entered else "❌"
-                )
+                draft_table.add_row(*entry.get_row_details())
+                draft_connection_details.append(entry.model_dump())
             elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
-                live_table.add_row(
-                    conn.app_id,
-                    connection_type,
-                    conn.preference,
-                    "✅" if conn.credentials_entered else "❌"
+                live_table.add_row(*entry.get_row_details())
+                live_connection_details.append(entry.model_dump())
+        
+        match format:
+            case ListFormats.JSON:
+                return ConnectionsListResponse(
+                    non_configured=non_configured_connection_details,
+                    draft=draft_connection_details,
+                    live=live_connection_details
                 )
-        if environment is None and len(non_configured_table.rows):
-            rich.print(non_configured_table)
-        if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
-            rich.print(draft_table)
-        if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
-            rich.print(live_table)
-        if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
-            logger.info("No connections found. You can create connections using `orchestrate connections add`")
+            case ListFormats.Table:
+                return ConnectionsListResponse(
+                    non_configured=rich_table_to_markdown(non_configured_table),
+                    draft=rich_table_to_markdown(draft_table),
+                    live=rich_table_to_markdown(live_table)
+                )
+            case _:
+                if environment is None and len(non_configured_table.rows):
+                    rich.print(non_configured_table)
+                if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
+                    rich.print(draft_table)
+                if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
+                    rich.print(live_table)
+                if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
+                    logger.info("No connections found. You can create connections using `orchestrate connections add`")
 
 def import_connection(file: str) -> None:
     _parse_file(file=file)

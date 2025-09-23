@@ -1,9 +1,9 @@
 import logging
 import sys
-from pathlib import Path
 import time
+from pathlib import Path
+
 import requests
-from urllib.parse import urlparse
 
 from ibm_watsonx_orchestrate.cli.config import Config
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
@@ -45,7 +45,7 @@ def run_compose_lite_cpe(user_env_file: Path) -> bool:
 
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
-    compose_core = DockerComposeCore(env_service)
+    compose_core = DockerComposeCore(env_service=env_service)
 
     result = compose_core.service_up(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file)
 
@@ -75,7 +75,7 @@ def run_compose_lite_cpe_down(is_reset: bool = False) -> None:
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service)
+    compose_core = DockerComposeCore(env_service=env_service)
 
     result = compose_core.service_down(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file, is_reset=is_reset)
 

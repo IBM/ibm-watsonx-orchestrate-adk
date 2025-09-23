@@ -6,16 +6,32 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Tuple, OrderedDict
 from urllib.parse import urlparse
+from enum import Enum
 
 from dotenv import dotenv_values
 
+from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
+from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe
+
 
 logger = logging.getLogger(__name__)
 
+class DeveloperEditionSources(str, Enum):
+    MYIBM = "myibm"
+    ORCHESTRATE = "orchestrate"
+    INTERNAL = "internal"
+    CUSTOM = "custom"
+
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return self.value
 
 class EnvService:
 
@@ -65,8 +81,8 @@ class EnvService:
             return env_file
 
     @staticmethod
-    def read_env_file (env_path: Path | str) -> dict:
-        return dotenv_values(str(env_path))
+    def read_env_file (env_path: Path | str) -> OrderedDict:
+        return dotenv_values(env_path)
 
     def get_user_env (self, user_env_file: Path | str, fallback_to_persisted_env: bool = True) -> dict:
         if user_env_file is not None and isinstance(user_env_file, str):
@@ -80,19 +96,19 @@ class EnvService:
         return user_env
 
     @staticmethod
-    def get_dev_edition_source_core(env_dict: dict | None) -> str:
+    def get_dev_edition_source_core(env_dict: dict | None) -> DeveloperEditionSources | str:
         if not env_dict:
-            return "myibm"
+            return DeveloperEditionSources.MYIBM
 
         source = env_dict.get("WO_DEVELOPER_EDITION_SOURCE")
 
         if source:
             return source
         if env_dict.get("WO_INSTANCE"):
-            return "orchestrate"
-        return "myibm"
+            return DeveloperEditionSources.ORCHESTRATE
+        return DeveloperEditionSources.MYIBM
 
-    def get_dev_edition_source(self, user_env_file: str):
+    def get_dev_edition_source(self, user_env_file: str) -> DeveloperEditionSources | str:
         return self.get_dev_edition_source_core(self.get_user_env(user_env_file))
 
     @staticmethod
@@ -106,16 +122,34 @@ class EnvService:
         return merged
 
     @staticmethod
+    def resolve_auth_type (env_dict: dict) -> str | None:
+        auth_type = env_dict.get("WO_AUTH_TYPE")
+
+        # Try infer the auth type if not provided
+        if not auth_type:
+            instance_url = env_dict.get("WO_INSTANCE")
+            if instance_url:
+                if ".cloud.ibm.com" in instance_url:
+                    auth_type = EnvironmentAuthType.IBM_CLOUD_IAM.value
+                elif ".ibm.com" in instance_url:
+                    auth_type = EnvironmentAuthType.MCSP.value
+                elif "https://cpd" in instance_url:
+                    auth_type = EnvironmentAuthType.CPD.value
+
+        return auth_type
+
+    @staticmethod
     def __get_default_registry_env_vars_by_dev_edition_source (default_env: dict, user_env: dict, source: str) -> dict[str, str]:
         component_registry_var_names = {key for key in default_env if key.endswith("_REGISTRY")} | {'REGISTRY_URL'}
 
         registry_url = user_env.get("REGISTRY_URL", None)
+        user_env["HAS_USER_PROVIDED_REGISTRY_URL"] = registry_url is not None
         if not registry_url:
-            if source == "internal":
+            if source == DeveloperEditionSources.INTERNAL:
                 registry_url = "us.icr.io/watson-orchestrate-private"
-            elif source == "myibm":
+            elif source == DeveloperEditionSources.MYIBM:
                 registry_url = "cp.icr.io/cp/wxo-lite"
-            elif source == "orchestrate":
+            elif source == DeveloperEditionSources.ORCHESTRATE:
                 # extract the hostname from the WO_INSTANCE URL, and replace the "api." prefix with "registry." to construct the registry URL per region
                 wo_url = user_env.get("WO_INSTANCE")
 
@@ -123,15 +157,32 @@ class EnvService:
                     raise ValueError(
                         "WO_INSTANCE is required in the environment file if the developer edition source is set to 'orchestrate'.")
 
-                parsed = urlparse(wo_url)
-                hostname = parsed.hostname
+                wo_auth_type = EnvService.resolve_auth_type(user_env)
 
-                registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
+                if wo_auth_type == EnvironmentAuthType.CPD.value:
+                    registry_url = "cpd/cp/wxo-lite"
+
+                else:
+                    parsed = urlparse(wo_url)
+                    hostname = parsed.hostname
+
+                    registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
+            elif source == DeveloperEditionSources.CUSTOM:
+                raise ValueError(
+                    f"REGISTRY_URL is required in the environment file when the developer edition source is set to 'custom'."
+                )
             else:
                 raise ValueError(
-                    f"Unknown value for developer edition source: {source}. Must be one of ['internal', 'myibm', 'orchestrate']."
+                    f"Unknown value for developer edition source: {source}. Must be one of {list(map(str, DeveloperEditionSources))}."
                 )
-
+        
+        # For non-custom use cases remove etcd and elastic search as they have different default registries
+        if source != DeveloperEditionSources.CUSTOM:
+            component_registry_var_names -= {"ETCD_REGISTRY", "ELASTICSEARCH_REGISTRY"}
+        # In the custom case default the OPENSOURCE_REGISTRY_PROXY to also be the REGISTRY_URL
+        else:
+            component_registry_var_names.add("OPENSOURCE_REGISTRY_PROXY")
+        
         result = {name: registry_url for name in component_registry_var_names}
         return result
 
@@ -145,15 +196,19 @@ class EnvService:
 
     @staticmethod
     def write_merged_env_file (merged_env: dict, target_path: str = None) -> Path:
+        target_file = None
         if target_path:
-            file = open(target_path, "w")
-        else:
-            file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env")
+            target_file = target_path
 
-        with file:
+        else:
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env") as ntf:
+                target_file = ntf.name
+
+        with open(target_file, "w") as file:
             for key, val in merged_env.items():
                 file.write(f"{key}={val}\n")
-        return Path(file.name)
+
+        return Path(target_file)
 
     def persist_user_env (self, env: dict, include_secrets: bool = False) -> None:
         if include_secrets:
@@ -367,3 +422,77 @@ class EnvService:
 
     def define_saas_wdu_runtime (self, value: str = "none") -> None:
         self.__config.write(USER_ENV_CACHE_HEADER, "SAAS_WDU_RUNTIME", value)
+
+    @staticmethod
+    def did_user_provide_registry_url (env_dict: dict) -> bool:
+        has_user_provided_registry_url = parse_bool_safe(env_dict.get("HAS_USER_PROVIDED_REGISTRY_URL"), fallback=None)
+
+        if has_user_provided_registry_url is None:
+            raise Exception("Unable to determine if user has provided REGISTRY_URL.")
+
+        return has_user_provided_registry_url
+
+
+class EnvSettingsService:
+
+    @staticmethod
+    def __get_string_safe(value) -> str | None:
+        if value is not None and isinstance(value, str):
+            value = value.strip()
+
+            if value == "":
+                value = None
+
+            return value
+
+        return None
+
+    def __init__(self, env_file: Path | str) -> None:
+        self.__env_dict = dotenv_values(str(env_file))
+
+    def get_env(self) -> dict:
+        return self.__env_dict
+
+    def get_user_provided_docker_os_type(self) -> str | None:
+        return self.__get_string_safe(self.__env_dict.get("DOCKER_IMAGE_OS_TYPE"))
+
+    def get_user_provided_docker_arch_type(self) -> str | None:
+        return self.__get_string_safe(self.__env_dict.get("DOCKER_IMAGE_ARCH_TYPE"))
+
+    def get_wo_instance_url(self) -> str:
+        return self.__env_dict["WO_INSTANCE"]
+
+    def get_parsed_wo_instance_details(self) -> Tuple[str, str, str, str]:
+        instance_url = self.get_wo_instance_url()
+        parsed = urlparse(instance_url)
+        route_parts = parsed.path.split("/")
+
+        orchestrate_namespace = route_parts[2]      # this is usually "cpd-instance-1"
+        wxo_tenant_id = route_parts[4]
+
+        return parsed.scheme, parsed.netloc, orchestrate_namespace, wxo_tenant_id
+
+    def get_wo_username(self) -> str:
+        return self.__env_dict.get("WO_USERNAME")
+
+    def get_wo_password(self) -> str:
+        return self.__env_dict.get("WO_PASSWORD")
+
+    def get_wo_api_key(self) -> str:
+        return self.__env_dict.get("WO_API_KEY")
+
+    def use_parallel_docker_image_layer_pulls(self):
+        return parse_bool_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_LAYERS_PARALLELISM"), fallback=True)
+
+    def get_docker_pull_parallel_worker_count(self):
+        fallback = 7
+        parsed = parse_int_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT"),
+                                fallback=fallback)
+
+        if parsed < 1:
+            parsed = fallback
+
+        return parsed
+
+    def use_ranged_requests_during_docker_pulls(self):
+        return parse_bool_safe(value=self.__env_dict.get("USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS"), fallback=True)
