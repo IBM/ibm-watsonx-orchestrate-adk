@@ -211,6 +211,8 @@ class CpdDockerRequestsService:
         url_scheme, hostname, orchestrate_namespace, wxo_tenant_id = env_settings.get_parsed_wo_instance_details()
         self.__wxo_tenant_id = wxo_tenant_id
 
+        self.__ssl_verify = env_settings.get_wo_instance_ssl_verify()
+
         self.__cpd_docker_url = f"{url_scheme}://{hostname}/orchestrate/{orchestrate_namespace}/docker"
         # self.__cpd_docker_url = f"{url_scheme}://{hostname}""
 
@@ -224,7 +226,7 @@ class CpdDockerRequestsService:
         response = None
 
         try:
-            response = requests.get(url, headers=headers, verify=False)
+            response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
             if response.status_code != 200:
                 logger.error(f"Received non-200 response from upstream CPD Docker service. Received: {response.status_code}{self.__get_log_request_id(response)}")
@@ -253,7 +255,7 @@ class CpdDockerRequestsService:
             "Accept": manifest_media_type,
         }
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code == 404:
             if manifest_media_type == DockerOCIContainerMediaTypes.LIST_V2.value:
@@ -289,7 +291,7 @@ class CpdDockerRequestsService:
             "Accept": media_type,
         }
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code == 404:
             raise Exception(f"Could not find manifest for image {image}@{digest}.")
@@ -312,7 +314,7 @@ class CpdDockerRequestsService:
             "Accept": media_type,
         }
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code == 404:
             raise Exception(f"Could not find manifest for image {image}:{tag}.")
@@ -338,7 +340,7 @@ class CpdDockerRequestsService:
             "Accept": media_type,
         }
 
-        response = requests.head(url, headers=headers, verify=False)
+        response = requests.head(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code >= 500:
             raise Exception(f"Failed to retrieve HEAD digest for image {image}:{tag}. Received: {response.status_code}{self.__get_log_request_id(response)}")
@@ -357,7 +359,7 @@ class CpdDockerRequestsService:
                                  DockerOCIContainerMediaTypes.V2.value]),
         }
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code == 404:
             logger.error(f"Could not find OCI manifest(s) for image {image}:{tag}. Received: {response.status_code}{self.__get_log_request_id(response)}")
@@ -415,7 +417,7 @@ class CpdDockerRequestsService:
             "Accept": media_type,
         }
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify)
 
         if response.status_code != 200:
             raise Exception(f"Received unexpected, non-200 response while trying to retrieve config blob (digest: {config_digest}) for image {image}. Received: {response.status_code}{self.__get_log_request_id(response)}")
@@ -432,7 +434,7 @@ class CpdDockerRequestsService:
         if byte_range is not None and "start" in byte_range and "end" in byte_range:
             headers["Range"] = f"bytes={byte_range['start']}-{byte_range['end']}"
 
-        response = requests.get(url, headers=headers, verify=False, stream=True)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify, stream=True)
 
         if response.status_code not in (200, 206):
             if "urls" in layer:
@@ -449,7 +451,7 @@ class CpdDockerRequestsService:
             "Accept": media_type,
         }
 
-        response = requests.get(url, headers=headers, verify=False, stream=True)
+        response = requests.get(url, headers=headers, verify=self.__ssl_verify, stream=True)
 
         if response.status_code != 200:
             raise Exception(f"Failed to download layer {blob_digest}. Received unexpected, non-200 response for image {image}. Received: {response.status_code}, Custom URL: \"{url}\"{self.__get_log_request_id(response)}")
