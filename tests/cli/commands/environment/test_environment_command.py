@@ -12,7 +12,8 @@ class TestEnvActivate:
         "username":None,
         "password": None,
         "registry": str(RegistryType.LOCAL),
-        'test_package_version_override': None
+        'test_package_version_override': None,
+        'skip_version_check': True
     }
 
     def test_activate(self):
