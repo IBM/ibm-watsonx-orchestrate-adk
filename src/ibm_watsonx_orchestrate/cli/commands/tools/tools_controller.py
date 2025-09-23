@@ -676,7 +676,7 @@ class ToolsController:
 
         for tool in response:
             try:
-                tool_specs.append(ToolSpec.model_validate(tool))
+                tool_specs.append(ToolSpec.model_validate(tool, context="list"))
             except Exception as e:
                 name = tool.get('name', None)
                 parse_errors.append([
