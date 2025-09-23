@@ -11,4 +11,4 @@ orchestrate env add -n cpdifm -u $WO_INSTANCE # --insecure
 orchestrate env activate cpdifm --username=$WO_USERNAME --password=$WO_PASSWORD
 # orchestrate env activate cpdifm -username=$WO_USERNAME --api-key $WO_API_KEY
 
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_ifm.yaml

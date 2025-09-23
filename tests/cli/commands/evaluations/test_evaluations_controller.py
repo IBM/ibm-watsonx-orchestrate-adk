@@ -131,7 +131,10 @@ class TestEvaluationsController:
             Path(tools_file).unlink()
 
 
-    def test_record(self, controller):
+    def test_record(self, controller, monkeypatch, tmp_path):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / ".cache" / "orchestrate").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
         mock_runs = []
         # Mock get_all_runs to prevent HTTP requests but allow record_chats to execute
         with patch("wxo_agentic_evaluation.record_chat.get_all_runs", return_value=mock_runs), \

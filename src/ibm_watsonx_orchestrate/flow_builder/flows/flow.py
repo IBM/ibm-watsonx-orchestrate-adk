@@ -26,13 +26,15 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, TimerNodeSpec,
+    DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
+    NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
+    NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
-    EndNode, Node, PromptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
+    EndNode, Node, PromptNode, ScriptNode, StartNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
@@ -365,6 +367,41 @@ class Flow(Node):
 
         node = self._add_node(node)
         return cast(ToolNode, node)
+    
+
+    def script(
+        self,
+        script: str | None = "",
+        name: str | None = None,
+        display_name: str | None = None,
+        description: str | None = None,
+        input_schema: type[BaseModel] | None = None,
+        output_schema: type[BaseModel] | None = None,
+        input_map: DataMap = None
+    ) -> ScriptNode:
+        '''create a script node in the flow'''    
+        name = name if name is not None and name != "" else ""
+
+        input_schema_obj = _get_json_schema_obj("input", input_schema)
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+
+        script_node_spec = ScriptNodeSpec(
+                                name = name,
+                                display_name = display_name,
+                                description = description,
+                                input_schema= _get_tool_request_body(input_schema_obj),
+                                output_schema= _get_tool_response_body(output_schema_obj),
+                                output_schema_object = output_schema_obj,
+                                fn = script)
+
+        node = ScriptNode(spec=script_node_spec)
+
+        # setup input and output map
+        if input_map:
+            node.input_map = self._get_data_map(input_map)
+
+        node = self._add_node(node)
+        return cast(ScriptNode, node)
  
 
     def _add_node(self, node: Node) -> Node:
@@ -1255,6 +1292,7 @@ class FlowFactory(BaseModel):
                     initiators: Sequence[str]|None=None,
                     input_schema: type[BaseModel]|None=None,
                     output_schema: type[BaseModel]|None=None,
+                    private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None) -> Flow:
@@ -1267,6 +1305,7 @@ class FlowFactory(BaseModel):
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
         # create input spec
         output_schema_obj = _get_json_schema_obj("output", output_schema)
+        private_schema_obj = _get_json_schema_obj("private", private_schema)
         if initiators is None:
             initiators = []
 
@@ -1278,6 +1317,7 @@ class FlowFactory(BaseModel):
             initiators=initiators,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
+            private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
         )

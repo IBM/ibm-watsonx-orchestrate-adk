@@ -43,9 +43,13 @@ def activate_env(
         test_package_version_override: Annotated[
             str,
             typer.Option("--test-package-version-override", help="Which prereleased package version to reference when using --registry testpypi", hidden=True),
+        ] = None,
+        skip_version_check: Annotated[
+            bool,
+            typer.Option('--skip-version-check/--enable-version-check', help='Use this flag to skip validating that adk version in use exists in pypi (for clients who mirror the ADK to a local registry and do not have local access to pypi).')
         ] = None
 ):
-    environment_controller.activate(name=name, apikey=apikey,username=username, password=password, registry=registry, test_package_version_override=test_package_version_override)
+    environment_controller.activate(name=name, apikey=apikey, username=username, password=password, registry=registry, test_package_version_override=test_package_version_override, skip_version_check=skip_version_check)
 
 
 @environment_app.command(name="add")

@@ -6,7 +6,7 @@ import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
 from enum import Enum
 
-from .types import Assignment, DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
+from .types import Assignment, DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
 
 from .data_map import DataMap
@@ -132,6 +132,18 @@ class ToolNode(Node):
 
     def get_spec(self) -> ToolNodeSpec:
         return cast(ToolNodeSpec, self.spec)
+    
+
+class ScriptNode(Node):
+    def __repr__(self):
+        return f"ScriptNode(name='{self.spec.name}', description='{self.spec.description}')"
+
+    def get_spec(self) -> ScriptNodeSpec:
+        return cast(ScriptNodeSpec, self.spec)
+    
+    def updateScript(self, script: str):
+        '''Update the script of a script node'''
+        self.spec.fn = script
 
 class UserNode(Node):
     def __repr__(self):
