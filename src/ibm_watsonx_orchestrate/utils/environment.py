@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Tuple, OrderedDict
 from urllib.parse import urlparse
+from enum import Enum
 
 from dotenv import dotenv_values
 
@@ -20,6 +21,17 @@ from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe
 
 logger = logging.getLogger(__name__)
 
+class DeveloperEditionSources(str, Enum):
+    MYIBM = "myibm"
+    ORCHESTRATE = "orchestrate"
+    INTERNAL = "internal"
+    CUSTOM = "custom"
+
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return self.value
 
 class EnvService:
 
@@ -84,19 +96,19 @@ class EnvService:
         return user_env
 
     @staticmethod
-    def get_dev_edition_source_core(env_dict: dict | None) -> str:
+    def get_dev_edition_source_core(env_dict: dict | None) -> DeveloperEditionSources | str:
         if not env_dict:
-            return "myibm"
+            return DeveloperEditionSources.MYIBM
 
         source = env_dict.get("WO_DEVELOPER_EDITION_SOURCE")
 
         if source:
             return source
         if env_dict.get("WO_INSTANCE"):
-            return "orchestrate"
-        return "myibm"
+            return DeveloperEditionSources.ORCHESTRATE
+        return DeveloperEditionSources.MYIBM
 
-    def get_dev_edition_source(self, user_env_file: str):
+    def get_dev_edition_source(self, user_env_file: str) -> DeveloperEditionSources | str:
         return self.get_dev_edition_source_core(self.get_user_env(user_env_file))
 
     @staticmethod
@@ -133,11 +145,11 @@ class EnvService:
         registry_url = user_env.get("REGISTRY_URL", None)
         user_env["HAS_USER_PROVIDED_REGISTRY_URL"] = registry_url is not None
         if not registry_url:
-            if source == "internal":
+            if source == DeveloperEditionSources.INTERNAL:
                 registry_url = "us.icr.io/watson-orchestrate-private"
-            elif source == "myibm":
+            elif source == DeveloperEditionSources.MYIBM:
                 registry_url = "cp.icr.io/cp/wxo-lite"
-            elif source == "orchestrate":
+            elif source == DeveloperEditionSources.ORCHESTRATE:
                 # extract the hostname from the WO_INSTANCE URL, and replace the "api." prefix with "registry." to construct the registry URL per region
                 wo_url = user_env.get("WO_INSTANCE")
 
@@ -155,11 +167,22 @@ class EnvService:
                     hostname = parsed.hostname
 
                     registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
+            elif source == DeveloperEditionSources.CUSTOM:
+                raise ValueError(
+                    f"REGISTRY_URL is required in the environment file when the developer edition source is set to 'custom'."
+                )
             else:
                 raise ValueError(
-                    f"Unknown value for developer edition source: {source}. Must be one of ['internal', 'myibm', 'orchestrate']."
+                    f"Unknown value for developer edition source: {source}. Must be one of {list(map(str, DeveloperEditionSources))}."
                 )
-
+        
+        # For non-custom use cases remove etcd and elastic search as they have different default registries
+        if source != DeveloperEditionSources.CUSTOM:
+            component_registry_var_names -= {"ETCD_REGISTRY", "ELASTICSEARCH_REGISTRY"}
+        # In the custom case default the OPENSOURCE_REGISTRY_PROXY to also be the REGISTRY_URL
+        else:
+            component_registry_var_names.add("OPENSOURCE_REGISTRY_PROXY")
+        
         result = {name: registry_url for name in component_registry_var_names}
         return result
 
