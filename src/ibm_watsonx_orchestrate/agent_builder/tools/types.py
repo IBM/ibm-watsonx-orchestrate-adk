@@ -266,3 +266,14 @@ class ToolSpec(BaseModel):
             return False
 
         return True
+
+class ToolListEntry(BaseModel):
+    name: str = Field(description="The name of the tool")
+    description: Optional[str] = Field(description="A description of the purpose of the tool")
+    type: Optional[str] = Field(description="The type of the tool"),
+    toolkit: Optional[str] = Field(description="The name of the Toolkit the tool belongs. Empty if the tool is not from a Toolkit"),
+    app_ids: Optional[List[str]] = Field(description="A list of app_ids that show what connections are bound to a tool")
+
+    def get_row_details(self):
+        app_ids = ", ".join(self.app_ids)
+        return [self.name, self.description, self.type, self.toolkit, app_ids]

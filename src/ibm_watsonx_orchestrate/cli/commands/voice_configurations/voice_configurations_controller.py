@@ -3,10 +3,12 @@ import sys
 import rich
 import yaml
 import logging
-from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration
+from typing import Optional, List, Any
+from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration, VoiceConfigurationListEntry
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +71,13 @@ class VoiceConfigurationsController:
       
     return configs[0]
 
-  def list_voice_configs(self, verbose: bool) -> None:
+  def list_voice_configs(self, verbose: bool, format: Optional[ListFormats]=None) -> List[dict[str | Any]] | List[VoiceConfigurationListEntry] | str | None:
     voice_configs = self.fetch_voice_configs()
 
     if verbose:
       json_configs = [json.loads(x.dumps_spec()) for x in voice_configs]
       rich.print_json(json.dumps(json_configs, indent=4))
+      return json_configs
     else:
       config_table = rich.table.Table(
         show_header=True, 
@@ -94,18 +97,27 @@ class VoiceConfigurationsController:
       for column in column_args:
         config_table.add_column(column, **column_args[column])
 
-      for config in voice_configs:
-        attached_agents = [x.display_name or x.name or x.id for x in config.attached_agents]
-        config_table.add_row(
-          config.name,
-          config.voice_configuration_id,
-          config.speech_to_text.provider,
-          config.text_to_speech.provider,
-          ",".join(attached_agents)
-        )
-      
-      rich.print(config_table)
+      config_details = []
 
+      for config in voice_configs:
+        attached_agents = [x.name or x.id for x in config.attached_agents]
+        entry = VoiceConfigurationListEntry(
+          name=config.name,
+          id=config.voice_configuration_id,
+          speech_to_text_provider=config.speech_to_text.provider,
+          text_to_speech_provider=config.text_to_speech.provider,
+          attached_agents=attached_agents
+        )
+        config_details.append(entry)
+        config_table.add_row(*entry.get_row_details())
+      
+      match format:
+        case ListFormats.JSON:
+          return config_details
+        case ListFormats.Table:
+          return rich_table_to_markdown(config_table)
+        case _:
+          rich.print(config_table)
 
   def create_voice_config(self, voice_config: VoiceConfiguration) -> str | None:
     client = self.get_voice_configurations_client()
