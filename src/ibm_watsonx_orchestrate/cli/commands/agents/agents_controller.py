@@ -1096,8 +1096,9 @@ class AgentsController:
                         native_table.add_column(column, **column_args[column])
 
                     for agent in resolved_native_agents:
+                        agent_name = self._format_agent_display_name(agent)
                         native_table.add_row(
-                            agent.name,
+                            agent_name,
                             agent.description,
                             agent.llm,
                             agent.style,
@@ -1157,8 +1158,9 @@ class AgentsController:
                         app_id = connections_client.get_draft_by_id(agent.connection_id)
                         resolved_native_agents = self._bulk_resolve_agent_app_ids(external_agents)
 
+                        agent_name = self._format_agent_display_name(agent)
                         external_table.add_row(
-                            agent.name,
+                            agent_name,
                             agent.title,
                             agent.description,
                             ", ".join(agent.tags or []),
@@ -1215,8 +1217,9 @@ class AgentsController:
                         assistants_table.add_column(column, **column_args[column])
                     
                     for agent in assistant_agents:
+                        agent_name = self._format_agent_display_name(agent)
                         assistants_table.add_row(
-                            agent.name,
+                            agent_name,
                             agent.title,
                             agent.description,
                             ", ".join(agent.tags or []),
@@ -1523,4 +1526,9 @@ class AgentsController:
             logger.info(f"Successfully undeployed agent {name}")
         else:
             logger.error(f"Error undeploying agent {name}")
+    
+    @staticmethod
+    def _format_agent_display_name(agent: AnyAgentT) -> str:
+        return f"{agent.name} ({agent.display_name})" if agent.display_name and agent.name != agent.display_name else agent.name
+
 
