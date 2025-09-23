@@ -52,7 +52,7 @@ class EvaluationsController:
 
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
-        elif "WO_INSTANCE" in os.environ and "WO_API_KEY" in os.environ:
+        elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
         else:
             logger.error(

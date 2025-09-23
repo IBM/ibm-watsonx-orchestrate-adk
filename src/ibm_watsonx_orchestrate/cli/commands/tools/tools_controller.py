@@ -22,7 +22,7 @@ from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
-from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import create_langflow_tool
+from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -31,7 +31,7 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
-    DEFAULT_CONFIG_FILE_CONTENT
+    DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -53,6 +53,11 @@ __supported_characters_pattern = re.compile("^(\\w|_)+$")
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
     "lfx==0.1.8"
+]
+
+DEFAULT_LANGFLOW_RUNNER_MODULES = [
+    "lfx",
+    "lfx-nightly"
 ]
 
 class ToolKind(str, Enum):
@@ -865,15 +870,18 @@ class ToolsController:
 
                         cfg = Config()
                         registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
+                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
 
                         version = __version__
                         if registry_type == RegistryType.LOCAL:
+                            logger.warning(f"Using a local registry which is for development purposes only")
                             requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
                         elif registry_type == RegistryType.PYPI:
-                            wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
-                            if not wheel_file:
-                                logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
-                                exit(1)
+                            if not skip_version_check:
+                                wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
+                                if not wheel_file:
+                                    logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
+                                    exit(1)
                             requirements.append(f"ibm-watsonx-orchestrate=={version}\n")
                         elif registry_type == RegistryType.TESTPYPI:
                             override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
@@ -904,13 +912,34 @@ class ToolsController:
                         tool_path = Path(self.file)
                         zip_tool_artifacts.write(tool_path, arcname=f"{tool_path.stem}.json")
 
-                        requirements = DEFAULT_LANGFLOW_TOOL_REQUIREMENTS
+                        requirements = []
 
                         if self.requirements_file:
                             requirements_file_path = Path(self.requirements_file)
                             requirements.extend(
                                 get_requirement_lines(requirements_file=requirements_file_path, remove_trailing_newlines=False)
                             )
+
+                        langflowTool = cast(LangflowTool, tool)
+                        # if there are additional requriements from the langflow model, we should add it to the requirement set
+                        if langflowTool.requirements and len(langflowTool.requirements) > 0:
+                            requirements.extend(langflowTool.requirements)
+
+                        # now check if the requirements contain modules listed in DEFAULT_LANGFLOW_RUNNER_MODULES
+                        # if it is needed, we are assuming the user wants to override the default langflow module
+                        # with a specific version
+                        runner_overridden = False
+                        for r in requirements:
+                            # get the module name from the requirements
+                            module_name = r.strip().split('==')[0].split('=')[0].split('>=')[0].split('<=')[0].split('~=')[0].lower()
+                            if not module_name.startswith('#'):
+                                if module_name in DEFAULT_LANGFLOW_RUNNER_MODULES:
+                                    runner_overridden = True
+                        
+                        if not runner_overridden:
+                            # add the default runner to the top of requirement list
+                            requirements = DEFAULT_LANGFLOW_TOOL_REQUIREMENTS + list(requirements)
+
                         requirements_content = '\n'.join(requirements) + '\n'
                         zip_tool_artifacts.writestr("requirements.txt",requirements_content)  
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
