@@ -16,7 +16,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAu
 from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
-from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe
+from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_bool_safe_and_get_raw_val
 
 
 logger = logging.getLogger(__name__)
@@ -496,3 +496,14 @@ class EnvSettingsService:
 
     def use_ranged_requests_during_docker_pulls(self):
         return parse_bool_safe(value=self.__env_dict.get("USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS"), fallback=True)
+
+    def get_wo_instance_ssl_verify(self) -> bool | str:
+        ssl_verify, path = parse_bool_safe_and_get_raw_val(value=self.__env_dict.get("WO_VERIFY_SSL"), fallback=True)
+        if ssl_verify is True and path is not None and isinstance(path, str):
+            if not os.path.exists(path) or not os.path.isfile(path):
+                logger.error(f"WO SSL verification certificate path not found or could not be accessed: {str(path)}")
+                sys.exit(1)
+
+            return str(path)
+
+        return ssl_verify
