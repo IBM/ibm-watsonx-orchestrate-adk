@@ -6,7 +6,7 @@ import yaml
 import importlib
 import inspect
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import requests
 import rich
@@ -16,10 +16,11 @@ from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import 
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
-from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS
+from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_cpd_env
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class ModelsController:
             self.model_policies_client = instantiate_client(ModelPoliciesClient)
         return self.model_policies_client
 
-    def list_models(self, print_raw: bool = False) -> None:
+    def list_models(self, print_raw: bool = False, format: Optional[ListFormats] = None) -> List[ModelListEntry] | str |None:
         models_client: ModelsClient = self.get_models_client()
         model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
         global WATSONX_URL
@@ -224,6 +225,7 @@ class ModelsController:
 
                 console.print("[yellow]★[/yellow] [italic dim]indicates a supported and preferred model[/italic dim]\n[blue dim]✨️[/blue dim] [italic dim]indicates a model from a custom provider[/italic dim]" )
             else:
+                model_details = []
                 table = rich.table.Table(
                     show_header=True,
                     title="[bold]Available Models[/bold]",
@@ -234,15 +236,32 @@ class ModelsController:
                     table.add_column(col)
 
                 for model in (virtual_models + virtual_model_policies):
-                    table.add_row(f"✨️ {model.name}", model.description or 'No description provided.')
+                    entry = ModelListEntry(
+                        name=model.name,
+                        description=model.description,
+                        is_custom=True
+                    )
+                    model_details.append(entry)
+                    table.add_row(*entry.get_row_details())
 
                 for model in sorted_models:
-                    model_id = model.get("model_id", "N/A")
-                    short_desc = model.get("short_description", "No description provided.")
-                    marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
-                    table.add_row(f"[yellow]{marker}[/yellow]watsonx/{model_id}", short_desc)
-            
-                rich.print(table)
+                    name = model.get("model_id", "N/A")
+                    entry = ModelListEntry(
+                        name=name,
+                        description=model.get("short_description"),
+                        is_custom=False,
+                        recommended=any(pref in name.lower() for pref in preferred_list)
+                    )
+                    model_details.append(entry)
+                    table.add_row(*entry.get_row_details())
+
+                match format:
+                    case ListFormats.JSON:
+                        return model_details
+                    case ListFormats.Table:
+                        return rich_table_to_markdown(table)
+                    case _: 
+                        rich.print(table)
 
     def import_model(self, file: str, app_id: str | None) -> List[VirtualModel]:
         from ibm_watsonx_orchestrate.cli.commands.models.model_provider_mapper import validate_ProviderConfig # lazily import this because the lut building is expensive

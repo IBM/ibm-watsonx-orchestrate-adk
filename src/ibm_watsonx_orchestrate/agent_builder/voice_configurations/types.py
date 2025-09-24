@@ -95,4 +95,15 @@ class VoiceConfiguration(BaseModel):
     dumped = self.model_dump(mode='json', exclude_none=True)
     return json.dumps(dumped, indent=2)
 
+class VoiceConfigurationListEntry(BaseModel):
+    name: str = Field(description="Name of the voice configuration.")
+    id: str = Field(default=None, description="A unique identifier for the voice configuration.")
+    speech_to_text_provider: Optional[str] = Field("The speech to text service provider.")
+    text_to_speech_provider: Optional[str] = Field("The text to speech service provider.")
+    attached_agents: Optional[List[str]] = Field("A list of agent names that use the voice configuration.")
+
+    def get_row_details(self):
+        attached_agents = ", ".join(self.attached_agents)
+        return [self.name, self.id, self.speech_to_text_provider, self.text_to_speech_provider, attached_agents]
+
 

@@ -87,7 +87,8 @@ def _check_if_auth_config_file(folder, file):
 
 def clear_protected_env_credentials_token():
     auth_cfg = Config(config_file_folder=AUTH_CONFIG_FILE_FOLDER, config_file=AUTH_CONFIG_FILE)
-    auth_cfg.delete(AUTH_SECTION_HEADER, PROTECTED_ENV_NAME, AUTH_MCSP_TOKEN_OPT)
+    if auth_cfg.exists(AUTH_SECTION_HEADER, PROTECTED_ENV_NAME, AUTH_MCSP_TOKEN_OPT):
+        auth_cfg.delete(AUTH_SECTION_HEADER, PROTECTED_ENV_NAME, AUTH_MCSP_TOKEN_OPT)
 
 
 class ConfigFileTypes(str, Enum):
@@ -232,3 +233,31 @@ class Config:
 
         with open(self.config_file_path, 'w') as conf_file:
             yaml.dump(deletion_data, conf_file, allow_unicode=True)
+
+    def exists(self, *args) -> bool:
+        """
+        Determines if an item of arbitrary depth exists in the config file.
+        Takes an arbitrary number of args. Uses the args in order
+        as keys to access deeper sections of the config and then deleting the last specified key.
+        """
+        if len(args) < 1:
+            raise BadRequest("Config.delete() requires at least one positional argument")
+
+        config_data = {}
+        try:
+            with open(self.config_file_path, 'r') as conf_file:
+                config_data = yaml_safe_load(conf_file) or {}
+        except FileNotFoundError:
+            pass
+
+        expression = "config_data"
+        for key in args:
+            temp = eval(expression)
+
+            if not isinstance(temp, dict) or key not in temp:
+                return False
+
+            else:
+                expression += f"['{key}']"
+
+        return True

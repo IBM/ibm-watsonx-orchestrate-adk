@@ -1,10 +1,12 @@
 from enum import Enum
 from typing import List, Any, Dict, Literal, Optional, Union
+import logging
 
-from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices, ValidationError
+from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices, ValidationError, ValidationInfo
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.agent_builder.connections import KeyValueConnectionCredentials
 
+logger = logging.getLogger(__name__)
 
 class ToolPermission(str, Enum):
     READ_ONLY = 'read_only'
@@ -117,9 +119,14 @@ class OpenApiToolBinding(BaseModel):
     acknowledgement: Optional[AcknowledgementBinding] = None
 
     @model_validator(mode='after')
-    def validate_openapi_tool_binding(self):
+    def validate_openapi_tool_binding(self, info: ValidationInfo):
+        context = getattr(info, "context", None)
+
         if len(self.servers) != 1:
-            raise BadRequest("OpenAPI definition must include exactly one server")
+            if isinstance(context, str) and context == "list":
+                logger.warning("OpenAPI definition must include exactly one server")
+            else:
+                raise BadRequest("OpenAPI definition must include exactly one server")
         return self
 
 
@@ -259,3 +266,14 @@ class ToolSpec(BaseModel):
             return False
 
         return True
+
+class ToolListEntry(BaseModel):
+    name: str = Field(description="The name of the tool")
+    description: Optional[str] = Field(description="A description of the purpose of the tool")
+    type: Optional[str] = Field(description="The type of the tool"),
+    toolkit: Optional[str] = Field(description="The name of the Toolkit the tool belongs. Empty if the tool is not from a Toolkit"),
+    app_ids: Optional[List[str]] = Field(description="A list of app_ids that show what connections are bound to a tool")
+
+    def get_row_details(self):
+        app_ids = ", ".join(self.app_ids)
+        return [self.name, self.description, self.type, self.toolkit, app_ids]
