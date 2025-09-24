@@ -1,0 +1,19 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  standard:
+    format: "%(levelname)s - %(message)s"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: standard
+    stream: ext://sys.stderr
+
+loggers:
+  wxo-mcp:
+    level: DEBUG
+    handlers: [console]
+    propagate: false

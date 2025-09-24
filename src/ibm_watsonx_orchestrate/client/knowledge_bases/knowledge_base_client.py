@@ -30,8 +30,12 @@ class KnowledgeBaseClient(BaseAPIClient):
     def get_by_id(self, knowledge_base_id: str) -> dict:
         return self._get(f"{self.base_endpoint}/{knowledge_base_id}")
 
-    def get_by_names(self, name: List[str]) -> List[dict]:
-        formatted_names = [f"names={x}" for x in name]
+    def get_by_names(self, names: List[str]) -> List[dict]:
+        formatted_names = [f"names={x}" for x in names]
+        return self._get(f"{self.base_endpoint}?{'&'.join(formatted_names)}")
+    
+    def get_by_ids(self, ids: List[str]) -> List[dict]:
+        formatted_names = [f"ids={x}" for x in ids]
         return self._get(f"{self.base_endpoint}?{'&'.join(formatted_names)}")
     
     def status(self, knowledge_base_id: str) -> dict:

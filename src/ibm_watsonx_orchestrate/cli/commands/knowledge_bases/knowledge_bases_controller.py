@@ -6,14 +6,15 @@ import logging
 import importlib
 import inspect
 from pathlib import Path
-from typing import List
+from typing import List, Any
 
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -198,8 +199,7 @@ class KnowledgeBaseController:
 
         logger.info(f"Knowledge base '{kb.name}' updated successfully")
 
-
-    def knowledge_base_status( self, id: str, name: str) -> None:
+    def knowledge_base_status( self, id: str, name: str, format: ListFormats = None) ->  dict | str | None:
         knowledge_base_id = self.get_id(id, name)
         response = self.get_client().status(knowledge_base_id)
 
@@ -219,13 +219,25 @@ class KnowledgeBaseController:
 
             response["id"] = kbID
         
+        if format == ListFormats.JSON:
+            return response
+        
+
         [table.add_column(to_column_name(col), {}) for col in response.keys()]
         table.add_row(*[str(val) for val in response.values()])
         
+        if format == ListFormats.Table:
+            return rich_table_to_markdown(table)
+
         rich.print(table)
 
 
-    def list_knowledge_bases(self, verbose: bool=False):
+    def list_knowledge_bases(self, verbose: bool=False, format: ListFormats=None)-> List[dict[str, Any]] | List[KnowledgeBaseListEntry] | str | None:
+
+        if verbose and format:
+            logger.error("For knowledge base list, `--verbose` and `--format` are mutually exclusive options")
+            sys.exit(1)
+
         response = self.get_client().get()
         knowledge_bases = [KnowledgeBase.model_validate(knowledge_base) for knowledge_base in response]
 
@@ -234,7 +246,9 @@ class KnowledgeBaseController:
             for kb in knowledge_bases:
                 knowledge_base_list.append(json.loads(kb.model_dump_json(exclude_none=True)))
             rich.print(rich.json.JSON(json.dumps(knowledge_base_list, indent=4)))
+            return knowledge_base_list
         else:
+            knowledge_base_details=[]
             table = rich.table.Table(
                 show_header=True, 
                 header_style="bold white", 
@@ -251,6 +265,11 @@ class KnowledgeBaseController:
             for column in column_args:
                 table.add_column(column, **column_args[column])
             
+            connections_client = get_connections_client()
+            connections = connections_client.list()
+
+            connections_dict = {conn.connection_id: conn for conn in connections}
+            
             for kb in knowledge_bases:
                 app_id = ""
                 
@@ -258,18 +277,26 @@ class KnowledgeBaseController:
                    and kb.conversational_search_tool.index_config is not None \
                    and len(kb.conversational_search_tool.index_config) > 0 \
                    and kb.conversational_search_tool.index_config[0].connection_id is not None:
-                    connections_client = get_connections_client()
-                    app_id = str(connections_client.get_draft_by_id(kb.conversational_search_tool.index_config[0].connection_id))
+                    app_id = connections_dict.get(kb.conversational_search_tool.index_config[0].connection_id, {}).get("app_id")
 
-                table.add_row(
-                    kb.name,
-                    kb.description,
-                    app_id,
-                    str(kb.id)
+                entry = KnowledgeBaseListEntry(
+                    name=kb.name,
+                    id=kb.id,
+                    description=kb.description,
+                    app_id=app_id
                 )
+                if format == ListFormats.JSON:
+                    knowledge_base_details.append(entry)
+                else:
+                    table.add_row(*entry.get_row_details())
 
-            rich.print(table)
-        
+            match format:
+                case ListFormats.JSON:
+                    return knowledge_base_details
+                case ListFormats.Table:
+                    return rich_table_to_markdown(table)
+                case _:
+                    rich.print(table)   
 
     def remove_knowledge_base(self, id: str, name: str):
         knowledge_base_id = self.get_id(id, name)      
