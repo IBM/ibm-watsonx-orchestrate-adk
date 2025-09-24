@@ -26,9 +26,7 @@ from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ..types import (
-    DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
-    NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
-    NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
+    DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
@@ -271,8 +269,7 @@ class Flow(Node):
                 
     def _create_node_from_tool_fn(
         self,
-        tool: Callable,
-        error_handler_config: Optional[NodeErrorHandlerConfig] = None
+        tool: Callable
     ) -> ToolNode:
         if not isinstance(tool, Callable):
             raise ValueError("Only functions with @tool decorator can be added.")
@@ -295,8 +292,7 @@ class Flow(Node):
                                      input_schema = tool_spec.input_schema,
                                      output_schema = tool_spec.output_schema,
                                      output_schema_object = spec.output_schema_object,
-                                     tool = tool_spec.name,
-                                     error_handler_config = error_handler_config,)
+                                     tool = tool_spec.name)
 
         return ToolNode(spec=toolnode_spec)
 
@@ -306,18 +302,14 @@ class Flow(Node):
         name: str | None = None,
         display_name: str | None = None,
         description: str | None = None,
+
         input_schema: type[BaseModel] | None = None,
         output_schema: type[BaseModel] | None = None,
-        input_map: DataMap = None,
-        error_handler_config: NodeErrorHandlerConfig | None = None
+        input_map: DataMap = None
     ) -> ToolNode:
         '''create a tool node in the flow'''
         if tool is None:
             raise ValueError("tool must be provided")
-
-
-        if isinstance(error_handler_config, dict):
-            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)    
         
         if isinstance(tool, str):        
             name = name if name is not None and name != "" else tool
@@ -346,16 +338,14 @@ class Flow(Node):
                                      input_schema= _get_tool_request_body(input_schema_obj),
                                      output_schema= _get_tool_response_body(output_schema_obj),
                                      output_schema_object = output_schema_obj,
-                                     tool = tool,
-                                     error_handler_config = error_handler_config
-                                     )
+                                     tool = tool)
 
             node = ToolNode(spec=toolnode_spec)
         elif isinstance(tool, PythonTool):
             if callable(tool):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
-                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    node = self._create_node_from_tool_fn(tool)
                 else:
                     raise ValueError("Only functions with @tool decorator can be added.")
         else:
@@ -468,8 +458,7 @@ class Flow(Node):
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
-            input_map: DataMap = None,
-            error_handler_config: NodeErrorHandlerConfig | None = None,) -> PromptNode:
+            input_map: DataMap = None) -> PromptNode:
 
         if name is None:
             raise ValueError("name must be provided.")
@@ -488,7 +477,6 @@ class Flow(Node):
             prompt_examples=prompt_examples,
             llm=llm,
             llm_parameters=llm_parameters,
-            error_handler_config=error_handler_config,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj

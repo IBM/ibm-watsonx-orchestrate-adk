@@ -45,32 +45,6 @@ function is_prerelease() {
   fi
 }
 
-function build_sub_packages() {
-  echo "Building all sub-packages..."
-  
-  local build_image="${1:-$(get_env "wai-build-env-image")}"
-  
-  # Get list of package directories from inside the container
-  package_dirs=$(docker_run $build_image "find ./packages -maxdepth 1 -mindepth 1 -type d")
-  
-  if [ -z "$package_dirs" ]; then
-    echo "No package directories found or packages directory doesn't exist"
-    return 1
-  fi
-  
-  # Process each package directory
-  echo "$package_dirs" | while read -r package_path; do
-    package_name=$(basename "$package_path")
-    echo "Building package: $package_name"
-    
-    # Run hatch build in the package directory
-    if ! docker_run $build_image "cd $package_path && hatch build ../../dist"; then
-      echo "Error building package: $package_name"
-    fi
-  done
-  
-  echo "All sub-packages built successfully"
-}
 
 warn "ENTER ${BASH_SOURCE[0]}"
 
@@ -101,7 +75,6 @@ if is_prerelease; then
   VERSION=$(docker_run $BUILD_IMAGE "hatch version")
 fi
 docker_run $BUILD_IMAGE "hatch build"
-build_sub_packages $BUILD_IMAGE
 
 
 if is_prerelease && ! property_set "wai-release-type"; then

@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator
 
 
 class SpecVersion(str, Enum):
@@ -296,12 +296,3 @@ class KnowledgeBaseSpec(BaseModel):
     updated_at: Optional[datetime] = None
     # For import/update
     documents: list[str] | list[FileUpload] = None
-
-class KnowledgeBaseListEntry(BaseModel):
-    name: str = Field(description="Name of the knowledge base")
-    description: Optional[str] = Field(description="A description of the content contained in a knowledge base")
-    app_id: Optional[str] = Field(description="The app id for a connection that connects the knowledge base to an external knowledge store")
-    id: Optional[str] = Field(description="Unique identifier of the knowledge base")
-
-    def get_row_details(self):
-        return [self.name, self.description, self.app_id, self.id]

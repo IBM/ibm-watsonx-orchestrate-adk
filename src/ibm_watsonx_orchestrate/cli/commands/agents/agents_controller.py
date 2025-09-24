@@ -18,7 +18,6 @@ from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -42,10 +41,22 @@ from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from enum import Enum
+
 logger = logging.getLogger(__name__)
 
 # Helper generic type for any agent
 AnyAgentT = TypeVar("AnyAgentT", bound=Agent | ExternalAgent | AssistantAgent)
+
+class AgentListFormats(str, Enum):
+    Table = "table"
+    JSON = "json"
+
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
 
 
 def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
@@ -847,7 +858,7 @@ class AgentsController:
 
     def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
         """
-            Given a list of agents get all the unique values of a certain field
+            Given a list if agents get all the unique values of a certain field
             Example: agent1.tools = [1 ,2 ,3] and agent2.tools = [2, 4, 5] then return [1, 2, 3, 4, 5]
             Example: agent1.id = "123" and agent2.id = "456" then return ["123", "456"]
 
@@ -948,14 +959,18 @@ class AgentsController:
             if tool_names:
                 agent.tools = tool_names
         return new_agents
-
+    
+    # TODO: Once bulk knowledge base is added create a generaic fucntion as opposed to 3 seperate ones
     def _bulk_resolve_agent_knowledge_bases(self, agents: List[Agent]) -> List[Agent]:
         new_agents = agents.copy()
         all_kb_ids = self._get_all_unique_agent_resources(new_agents, "knowledge_base")
-        if not all_kb_ids:
-            return new_agents
 
-        all_kbs = self._batch_request_resource(self.get_knowledge_base_client().get_by_ids, all_kb_ids)
+        all_kbs = []
+        for id in all_kb_ids:
+            try:
+                all_kbs.append(self.get_knowledge_base_client().get_by_id(id))
+            except:
+                continue
 
         kb_lut = self._construct_lut_agent_resource(all_kbs, "id", "name")
         
@@ -1001,7 +1016,24 @@ class AgentsController:
                 agent.app_id = app_id
         return new_agents
 
-    def list_agents(self, kind: AgentKind=None, verbose: bool=False, format: ListFormats | None = None) -> dict[str, dict] | dict[str, str] | None:
+    # TODO: Make a shared util
+    def _rich_table_to_markdown(self, table: rich.table.Table) -> str:
+        headers = [column.header for column in table.columns]
+        cols = [[cell for cell in col.cells] for col in table.columns]
+        rows = list(map(list, zip(*cols)))
+
+        # Header row
+        md = "| " + " | ".join(headers) + " |\n"
+        # Separator row
+        md += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+        # # Data rows
+        for row in rows:
+            md += "| " + " | ".join(row) + " |\n"
+        return md
+
+
+
+    def list_agents(self, kind: AgentKind=None, verbose: bool=False, format: AgentListFormats | None = None) -> dict[str, dict] | None:
         """
         List agents in the active wxo environment
 
@@ -1036,7 +1068,7 @@ class AgentsController:
                 resolved_native_agents = self._bulk_resolve_agent_knowledge_bases(resolved_native_agents)
                 resolved_native_agents = self._bulk_resolve_agent_collaborators(resolved_native_agents)
 
-                if format and format == ListFormats.JSON:
+                if format and format == AgentListFormats.JSON:
                     agents_list = []
                     for agent in resolved_native_agents:
                         agents_list.append(json.loads(agent.dumps_spec()))
@@ -1064,9 +1096,8 @@ class AgentsController:
                         native_table.add_column(column, **column_args[column])
 
                     for agent in resolved_native_agents:
-                        agent_name = self._format_agent_display_name(agent)
                         native_table.add_row(
-                            agent_name,
+                            agent.name,
                             agent.description,
                             agent.llm,
                             agent.style,
@@ -1075,8 +1106,8 @@ class AgentsController:
                             ", ".join(agent.knowledge_base),
                             agent.id,
                         )
-                    if format == ListFormats.Table:
-                        output_dictionary["native"] = rich_table_to_markdown(native_table)
+                    if format == AgentListFormats.Table:
+                        output_dictionary["native"] = self._rich_table_to_markdown(native_table)
                     else:
                         rich.print(native_table)
       
@@ -1092,7 +1123,7 @@ class AgentsController:
             else:
                 resolved_external_agents = self._bulk_resolve_agent_app_ids(external_agents)
                 
-                if format and format == ListFormats.JSON:
+                if format and format == AgentListFormats.JSON:
                     external_agents_list = []
                     for agent in resolved_external_agents:
                         external_agents_list.append(json.loads(agent.dumps_spec()))
@@ -1126,9 +1157,8 @@ class AgentsController:
                         app_id = connections_client.get_draft_by_id(agent.connection_id)
                         resolved_native_agents = self._bulk_resolve_agent_app_ids(external_agents)
 
-                        agent_name = self._format_agent_display_name(agent)
                         external_table.add_row(
-                            agent_name,
+                            agent.name,
                             agent.title,
                             agent.description,
                             ", ".join(agent.tags or []),
@@ -1139,8 +1169,8 @@ class AgentsController:
                             app_id,
                             agent.id
                         )
-                    if format == ListFormats.Table:
-                        output_dictionary["external"] = rich_table_to_markdown(external_table)
+                    if format == AgentListFormats.Table:
+                        output_dictionary["external"] = self._rich_table_to_markdown(external_table)
                     else:
                         rich.print(external_table)
         
@@ -1156,7 +1186,7 @@ class AgentsController:
             else:
                 resolved_external_agents = self._bulk_resolve_agent_app_ids(assistant_agents)
                 
-                if format and format == ListFormats.JSON:
+                if format and format == AgentListFormats.JSON:
                     assistant_agents_list = []
                     for agent in resolved_external_agents:
                         assistant_agents_list.append(json.loads(agent.dumps_spec()))
@@ -1185,9 +1215,8 @@ class AgentsController:
                         assistants_table.add_column(column, **column_args[column])
                     
                     for agent in assistant_agents:
-                        agent_name = self._format_agent_display_name(agent)
                         assistants_table.add_row(
-                            agent_name,
+                            agent.name,
                             agent.title,
                             agent.description,
                             ", ".join(agent.tags or []),
@@ -1198,8 +1227,8 @@ class AgentsController:
                             agent.config.environment_id,
                             agent.id
                         )
-                    if format == ListFormats.Table:
-                        output_dictionary["assistant"] = rich_table_to_markdown(assistants_table)
+                    if format == AgentListFormats.Table:
+                        output_dictionary["assistant"] = self._rich_table_to_markdown(assistants_table)
                     else:
                         rich.print(assistants_table)
 
@@ -1494,9 +1523,4 @@ class AgentsController:
             logger.info(f"Successfully undeployed agent {name}")
         else:
             logger.error(f"Error undeploying agent {name}")
-    
-    @staticmethod
-    def _format_agent_display_name(agent: AnyAgentT) -> str:
-        return f"{agent.name} ({agent.display_name})" if agent.display_name and agent.name != agent.display_name else agent.name
-
 

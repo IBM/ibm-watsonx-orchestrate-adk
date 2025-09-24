@@ -2,17 +2,13 @@ import logging
 import os
 import sys
 import csv
-import difflib
-from datetime import datetime
 
 import rich
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.panel import Panel
-from rich.table import Table
 from requests import ConnectionError
-from typing import List, Dict
+from typing import List
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
@@ -20,7 +16,6 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import Agents
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -67,7 +62,6 @@ def _get_incomplete_tool_from_name(tool_name: str) -> dict:
 def _get_incomplete_agent_from_name(agent_name: str) -> dict:
     spec = BaseAgentSpec(**{"name": agent_name, "description": agent_name, "kind": AgentKind.NATIVE})
     return spec.model_dump()
-
 
 def _get_incomplete_knowledge_base_from_name(kb_name: str) -> dict:
     spec = KnowledgeBaseSpec(**{"name": kb_name, "description": kb_name})
@@ -129,7 +123,6 @@ def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
 
     return agents
 
-
 def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
     if not len(kb_names):
         return []
@@ -173,10 +166,6 @@ def get_knowledge_bases_client(*args, **kwargs):
 
 def get_native_client(*args, **kwargs):
     return instantiate_client(AgentClient)
-
-
-def get_threads_client():
-    return instantiate_client(ThreadsClient)
 
 
 def gather_utterances(max: int) -> list[str]:
@@ -232,8 +221,7 @@ def pre_cpe_step(cpe_client):
             rich.print('\n🤖 Copilot: ' + response["message"])
             user_message = Prompt.ask("\n👤 You").strip()
             message_content = {"user_message": user_message}
-        elif "description" in response and response[
-            "description"]:  # after we have a description, we pass the all tools
+        elif "description" in response and response["description"]:  # after we have a description, we pass the all tools
             res["description"] = response["description"]
             message_content = {"tools": tools_agents_and_knowledge_bases['tools']}
         elif "tools" in response and response[
@@ -246,13 +234,11 @@ def pre_cpe_step(cpe_client):
             res["collaborators"] = [a for a in tools_agents_and_knowledge_bases["collaborators"] if
                                     a["name"] in response["collaborators"]]
             message_content = {"knowledge_bases": tools_agents_and_knowledge_bases['knowledge_bases']}
-        elif "knowledge_bases" in response and response[
-            'knowledge_bases'] is not None:  # after we have knowledge bases, we pass selected=True to mark that all selection were done
+        elif "knowledge_bases" in response and response['knowledge_bases'] is not None:  # after we have knowledge bases, we pass selected=True to mark that all selection were done
             res["knowledge_bases"] = [a for a in tools_agents_and_knowledge_bases["knowledge_bases"] if
                                       a["name"] in response["knowledge_bases"]]
             message_content = {"selected": True}
-        elif "agent_name" in response and response[
-            'agent_name'] is not None:  # once we have a name and style, this phase has ended
+        elif "agent_name" in response and response['agent_name'] is not None:  # once we have a name and style, this phase has ended
             res["agent_name"] = response["agent_name"]
             res["agent_style"] = response["agent_style"]
             return res
@@ -365,21 +351,21 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
     knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
     try:
         new_prompt = talk_to_cpe(cpe_client=client,
-                                 samples_file=samples_file,
-                                 context_data={
-                                     "initial_instruction": instr,
-                                     'tools': tools,
-                                     'description': agent.description,
-                                     "collaborators": collaborators,
-                                     "knowledge_bases": knowledge_bases
-                                 })
+                                samples_file=samples_file,
+                                context_data={
+                                    "initial_instruction": instr,
+                                    'tools': tools,
+                                    'description': agent.description,
+                                    "collaborators": collaborators,
+                                    "knowledge_bases": knowledge_bases
+                                })
     except ConnectionError:
         logger.error(
             "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
         sys.exit(1)
     except ClientAPIException:
         logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
+            "An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
 
     if new_prompt:
@@ -408,7 +394,7 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
         sys.exit(1)
     except ClientAPIException:
         logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
+            "An unexpected server error has occur with in the Copilot server. Please check the logs via `orchestrate server logs`")
         sys.exit(1)
 
     tools = res["tools"]
@@ -460,224 +446,3 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
     for line in message_lines:
         rich.print("║  " + line.ljust(max_length) + "  ║")
     rich.print("╚" + "═" * frame_width + "╝")
-
-
-def _format_thread_messages(messages:List[dict]) -> List[dict]:
-    """
-        restructure and keep only the content relevant for refining the agent before sending to the refinement process
-    :param messages: List of messages as returned from the threads endpoint
-    :param messages:
-    :return: List of dictionaries where each dictionary represents a message
-    """
-    new_messages = []
-    for m in messages:
-        m_dict = {'role': m['role'], 'content': m['content'][0]['text'], 'type': 'text'} # text message
-        if m['step_history']:
-            step_history = m['step_history']
-            for step in step_history:
-                step_details = step['step_details'][0]
-                if step_details['type'] == 'tool_calls':  # tool call
-                    for t in step_details['tool_calls']:
-                        new_messages.append(
-                            {'role': m['role'], 'type': 'tool_call', 'args': t['args'], 'name': t['name']})
-                elif step_details['type'] == 'tool_response':  # tool response
-                    new_messages.append({'role': m['role'], 'type': 'tool_response', 'content': step_details['content']})
-        new_messages.append(m_dict)
-        if m['message_state']:
-            new_messages.append({'feedback': m['message_state']['content']['1']['feedback']})
-    return new_messages
-
-
-def _suggest_sorted(user_input: str, options: List[str]) -> List[str]:
-    # Sort by similarity score
-    return sorted(options, key=lambda x: difflib.SequenceMatcher(None, user_input, x).ratio(), reverse=True)
-
-
-def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use_last_chat: bool=False, dry_run_flag: bool = False) -> None:
-    """
-    Refines an existing agent's instructions using user selected chat trajectories and saves the updated agent configuration.
-
-    This function performs a multi-step process to enhance an agent's prompt instructions based on user interactions:
-
-    1. **Validation**: Ensures the output file path is valid and checks if the specified agent exists. If not found,
-       it suggests similar agent names.
-    2. **Chat Retrieval**: Fetches the 10 most recent chat threads associated with the agent. If no chats are found,
-       the user is prompted to initiate a conversation.
-    3. **User Selection**: Displays a summary of recent chats and allows the user to select which ones to use for refinement.
-    4. **Refinement**: Sends selected chat messages to the Copilot Prompt Engine (CPE) to generate refined instructions.
-    5. **Update and Save**: Updates the agent's instructions and either prints the
-       updated agent (if `dry_run_flag` is True) or saves it to the specified output file.
-
-    Parameters:
-        agent_name (str): The name of the agent to refine.
-        output_file (str): Path to the file where the refined agent configuration will be saved.
-        use_last_chat(bool): If true, optimize by using the last conversation with the agent, otherwise let the use choose
-        dry_run_flag (bool): If True, prints the refined agent configuration without saving it to disk.
-
-    Returns:
-        None
-    """
-
-    _validate_output_file(output_file, dry_run_flag)
-    agents_controller = AgentsController()
-    agents_client = get_native_client()
-    threads_client = get_threads_client()
-    all_agents = agents_controller.get_all_agents(client=agents_client)
-
-    # Step 1 - validate agent exist. If not - list the agents sorted by their distance from the user input name
-    agent_id = all_agents.get(agent_name)
-    if agent_id is None:
-        if len(all_agents) == 0:
-            raise BadRequest("No agents in workspace\nCreate your first agent using `orchestrate copilot prompt-tune`")
-        else:
-            available_sorted_str = "\n".join(_suggest_sorted(agent_name, all_agents.keys()))
-            raise BadRequest(f'Agent "{agent_name}" does not exist.\n\n'
-                             f'Available agents:\n'
-                             f'{available_sorted_str}')
-
-        rich.print(Panel(message, title="Agent Lookup", border_style="blue"))
-        return
-
-    cpe_client = get_cpe_client()
-    # Step 2 - retrieve chats (threads)
-    try:
-        with _get_progress_spinner() as progress:
-            task = progress.add_task(description="Retrieve chats", total=None)
-            all_threads = threads_client.get_all_threads(agent_id)
-            if len(all_threads) == 0:
-                progress.remove_task(task)
-                progress.refresh()
-                raise BadRequest(
-                    f"No chats found for agent '{agent_name}'. To use autotune, please initiate at least one conversation with the agent. You can start a chat using `orchestrate chat start`.",
-                   )
-                return
-            last_10_threads = all_threads[:10] #TODO use batching when server allows
-            last_10_chats = [_format_thread_messages(chat) for chat in
-                             threads_client.get_threads_messages([thread['id'] for thread in last_10_threads])]
-
-            progress.remove_task(task)
-            progress.refresh()
-    except ConnectionError:
-        logger.error(
-            f"Failed to retrieve threads (chats) for agent {agent_name}")
-        sys.exit(1)
-    except ClientAPIException:
-        logger.error(
-            f"An unexpected server error has occurred while retrieving threads for agent {agent_name}. Please check the logs via `orchestrate server logs`")
-        sys.exit(1)
-
-    # Step 3 - show chats and let the user choose
-    if use_last_chat:
-        title = "Selected chat"
-    else:
-        title = "10 Most Recent Chats"
-    table = Table(title=title)
-    table.add_column("Number", justify="right")
-    table.add_column("Chat Date", justify="left")
-    table.add_column("Title", justify="left")
-    table.add_column("Last User Message", justify="left")
-    table.add_column("Last User Feedback", justify="left")
-
-    for i, (thread, chat) in enumerate(zip(last_10_threads, last_10_chats), start=1):
-        all_user_messages = [msg for msg in chat if 'role' in msg and msg['role'] == 'user']
-
-        if len(all_user_messages) == 0:
-            last_user_message = ""
-        else:
-            last_user_message = all_user_messages[-1]['content']
-        all_feedbacks = [msg for msg in chat if 'feedback' in msg and 'text' in msg['feedback']]
-        if len(all_feedbacks) == 0:
-            last_feedback = ""
-        else:
-            last_feedback = f"{'👍' if all_feedbacks[-1]['feedback']['is_positive'] else '👎'} {all_feedbacks[-1]['feedback']['text']}"
-
-        table.add_row(str(i), datetime.strptime(thread['created_on'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime(
-            '%B %d, %Y at %I:%M %p'), thread['title'], last_user_message, last_feedback)
-        table.add_row("", "", "")
-        if  use_last_chat:
-            break
-
-    rich.print(table)
-
-    if use_last_chat:
-        rich.print("Tuning using the last conversation with the agent")
-        threads_messages = [last_10_chats[0]]
-    else:
-        threads_messages = get_user_selection(last_10_chats)
-
-    # Step 4 - run the refiner
-    try:
-        with _get_progress_spinner() as progress:
-            agent = agents_controller.get_agent_by_id(id=agent_id)
-            task = progress.add_task(description="Running Prompt Refiner", total=None)
-            tools_client = get_tool_client()
-            knowledge_base_client = get_knowledge_bases_client()
-            # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
-            agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
-            agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
-            agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
-            tools = _get_tools_from_names(agent.tools)
-            collaborators = _get_agents_from_names(agent.collaborators)
-            knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
-            if agent.instructions is None:
-                raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate copilot prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
-            response = cpe_client.refine_agent_with_chats(agent.instructions, tools=tools, collaborators=collaborators,
-                                                          knowledge_bases=knowledge_bases, trajectories_with_feedback=threads_messages)
-            progress.remove_task(task)
-            progress.refresh()
-    except ConnectionError:
-        logger.error(
-            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
-        sys.exit(1)
-    except ClientAPIException:
-        logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
-        sys.exit(1)
-
-    # Step 5 - update the agent and print/save the results
-    agent.instructions = response['instruction']
-
-    if dry_run_flag:
-        rich.print(agent.model_dump(exclude_none=True))
-        return
-
-    if os.path.dirname(output_file):
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    agent.id = None # remove existing agent id before saving
-    AgentsController.persist_record(agent, output_file=output_file)
-
-    logger.info(f"Your agent refinement session finished successfully!")
-    logger.info(f"Agent YAML with the updated instruction saved in file: {os.path.abspath(output_file)}")
-
-
-
-def get_user_selection(chats: List[List[Dict]]) -> List[List[Dict]]:
-    """
-    Prompts the user to select up to 5 chat threads by entering their indices.
-
-    Parameters:
-        chats (List[List[Dict]]): A list of chat threads, where each thread is a list of message dictionaries.
-
-    Returns:
-        List[List[Dict]]: A list of selected chat threads based on user input.
-    """
-    while True:
-        try:
-            eg_str = "1" if len(chats) < 2 else "1, 2"
-            input_str = input(
-                f"Please enter up to 5 indices of chats you'd like to select, separated by commas (e.g. {eg_str}): "
-            )
-
-            choices = [int(choice.strip()) for choice in input_str.split(',')]
-
-            if len(choices) > 5:
-                rich.print("You can select up to 5 chats only. Please try again.")
-                continue
-
-            if all(1 <= choice <= len(chats) for choice in choices):
-                selected_threads = [chats[choice - 1] for choice in choices]
-                return selected_threads
-            else:
-                rich.print(f"Please enter only numbers between 1 and {len(chats)}.")
-        except ValueError:
-            rich.print("Invalid input. Please enter valid integers separated by commas.")

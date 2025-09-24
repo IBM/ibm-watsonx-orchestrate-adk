@@ -60,7 +60,7 @@ class ModelsClient(BaseAPIClient):
                 return []
             raise e
     
-    def get_draft_by_name(self, model_name: str) -> List[ListVirtualModel]:
+    def get_draft_by_name(self, model_name: str) -> ListVirtualModel:
         return self.get_drafts_by_names([model_name])
 
 

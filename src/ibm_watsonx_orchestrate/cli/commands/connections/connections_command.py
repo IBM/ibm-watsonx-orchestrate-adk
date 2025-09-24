@@ -1,6 +1,6 @@
 import typer
 from typing_extensions import Annotated, List
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import (
     add_connection,
     remove_connection,
@@ -222,7 +222,7 @@ def set_credentials_connection_command(
         )
     ] = None,
     send_via: Annotated[
-        ConnectionSendVia,
+        str,
         typer.Option(
             '--send-via',
             help='For oauth_auth_client_credentials_flow, how the token will be sent to the server. Defaults to using `header`'

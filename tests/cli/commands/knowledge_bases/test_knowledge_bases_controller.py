@@ -172,9 +172,6 @@ class MockConnectionClient:
     
     def get_draft_by_id(self, conn_id: str):
         return self.get_conn_by_id_response
-    
-    def list(self):
-        return []
 
 class MockConnection:
     def __init__(self, appid, connection_type):
@@ -384,10 +381,8 @@ class TestImportKnowledgeBase:
 class TestListKnowledgeBases:
     def test_list_knowledge_bases(self, external_knowledge_base_content):    
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
-            patch('ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.get_connections_client') as conn_client_mock,  \
              patch("rich.table.Table") as richTableMock, patch("rich.print") as richPrintMock:
             client_mock.return_value = MockClient(fake_knowledge_base=KnowledgeBase(**external_knowledge_base_content))
-            conn_client_mock = MockConnectionClient()
 
             knowledge_base_controller.list_knowledge_bases()
 

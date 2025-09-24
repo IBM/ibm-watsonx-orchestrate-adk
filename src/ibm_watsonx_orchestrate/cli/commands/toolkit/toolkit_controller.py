@@ -1,8 +1,8 @@
 import os
 import zipfile
 import tempfile
-from typing import List, Optional, Any
-from pydantic import BaseModel
+from typing import List, Optional
+from enum import Enum
 import logging
 import sys
 import re
@@ -10,7 +10,7 @@ import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource, ToolkitTransportKind, ToolkitListEntry
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource, ToolkitTransportKind
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
@@ -18,7 +18,7 @@ import typer
 import json
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from rich.json import JSON
 import rich
 import rich.table
@@ -264,119 +264,8 @@ class ToolkitController:
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)
-    
-    def _lookup_toolkit_resource_value(
-            self,
-            toolkit: BaseToolkit, 
-            lookup_table: dict[str, str], 
-            target_attr: str,
-            target_attr_display_name: str
-        ) -> List[str] | str | None:
-        """
-        Using a lookup table convert all the strings in a given field of an agent into their equivalent in the lookup table
-        Example: lookup_table={1: obj1, 2: obj2} agent=Toolkit(tools=[1,2]) return. [obj1, obj2]
 
-        Args:
-            toolkit: A toolkit
-            lookup_table: A dictionary that maps one value to another
-            target_attr: The field to convert on the provided agent
-            target_attr_display_name: The name of the field to be displayed in the event of an error
-        """
-        attr_value = getattr(toolkit, target_attr, None)
-        if not attr_value:
-            return
-        
-        if isinstance(attr_value, list):
-            new_resource_list=[]
-            for value in attr_value:
-                if value in lookup_table:
-                    new_resource_list.append(lookup_table[value])
-                else:
-                    logger.warning(f"{target_attr_display_name} with ID '{value}' not found. Returning {target_attr_display_name} ID")
-                    new_resource_list.append(value)
-            return new_resource_list
-        else:
-            if attr_value in lookup_table:
-                return lookup_table[attr_value]
-            else:
-                logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
-                return attr_value
-
-    def _construct_lut_toolkit_resource(self, resource_list: List[dict], key_attr: str, value_attr) -> dict:
-        """
-            Given a list of dictionaries build a key -> value look up table
-            Example [{id: 1, name: obj1}, {id: 2, name: obj2}] return {1: obj1, 2: obj2}
-
-            Args:
-                resource_list: A list of dictionries from which to build the lookup table from
-                key_attr: The name of the field whose value will form the key of the lookup table
-                value_attrL The name of the field whose value will form the value of the lookup table
-
-            Returns:
-                A lookup table
-        """
-        lut = {}
-        for resource in resource_list:
-            if isinstance(resource, BaseModel):
-                resource = resource.model_dump()
-            lut[resource.get(key_attr, None)] = resource.get(value_attr, None)
-        return lut
-    
-    def _batch_request_resource(self, client_fn, ids, batch_size=50) -> List[dict]:
-        resources = []
-        for i in range(0, len(ids), batch_size):
-                chunk = ids[i:i + batch_size]
-                resources += (client_fn(chunk))
-        return resources
-
-    def _get_all_unique_toolkit_resources(self, toolkits: List[BaseToolkit], target_attr: str) -> List[str]:
-        """
-            Given a list of toolkits get all the unique values of a certain field
-            Example: tk1.tools = [1 ,2 ,3] and tk2.tools = [2, 4, 5] then return [1, 2, 3, 4, 5]
-            Example: tk1.id = "123" and tk2.id = "456" then return ["123", "456"]
-
-            Args:
-                toolkits: List of toolkits
-                target_attr: The name of the field to access and get unique elements
-
-            Returns:
-                A list of unique elements from across all toolkits
-        """
-        all_ids = set()
-        for toolkit in toolkits:
-            attr_value = getattr(toolkit, target_attr, None)
-            if attr_value:
-                if isinstance(attr_value, list):
-                    all_ids.update(attr_value)
-                else:
-                    all_ids.add(attr_value)
-        return list(all_ids)
-    
-    def _bulk_resolve_toolkit_tools(self, toolkits: List[BaseToolkit]) -> List[BaseToolkit]:
-        new_toolkit_specs = [tk.__toolkit_spec__ for tk in toolkits].copy()
-        all_tools_ids = self._get_all_unique_toolkit_resources(new_toolkit_specs, "tools")
-        if not all_tools_ids:
-            return toolkits
-        
-        tool_client = instantiate_client(ToolClient)
-        
-        all_tools = self._batch_request_resource(tool_client.get_drafts_by_ids, all_tools_ids)
-
-        tool_lut = self._construct_lut_toolkit_resource(all_tools, "id", "name")
-        
-        new_toolkits = []
-        for toolkit_spec in new_toolkit_specs:
-            tool_names = self._lookup_toolkit_resource_value(toolkit_spec, tool_lut, "tools", "Tool")
-            if tool_names:
-                toolkit_spec.tools = tool_names
-            new_toolkits.append(BaseToolkit(toolkit_spec))
-        return new_toolkits
-
-    def list_toolkits(self, verbose=False, format: ListFormats| None = None) -> List[dict[str, Any]] | List[ToolkitListEntry] | str | None:
-        if verbose and format:
-            logger.error("For toolkits list, `--verbose` and `--format` are mutually exclusive options")
-            sys.exit(1)
-
+    def list_toolkits(self, verbose=False):
         client = self.get_client()
         response = client.get()
         toolkit_spec = [ToolkitSpec.model_validate(toolkit) for toolkit in response]
@@ -387,10 +276,7 @@ class ToolkitController:
             for toolkit in toolkits:
                 tools_list.append(json.loads(toolkit.dumps_spec()))
             rich.print(JSON(json.dumps(tools_list, indent=4)))
-            return tools_list
         else:
-            toolkit_details = []
-
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
             column_args = {
                 "Name": {"overflow": "fold"},
@@ -402,14 +288,23 @@ class ToolkitController:
             for column in column_args:
                 table.add_column(column,**column_args[column])
 
+            tools_client = instantiate_client(ToolClient)
+
             connections_client = get_connections_client()
             connections = connections_client.list()
 
             connections_dict = {conn.connection_id: conn for conn in connections}
 
-            resolved_toolkits = self._bulk_resolve_toolkit_tools(toolkits)
+            for toolkit in toolkits:
+                tool_ids = toolkit.__toolkit_spec__.tools or []
+                tool_names = []
+                if len(tool_ids) == 0:
+                    logger.warning("This toolkit contains no tools.")
 
-            for toolkit in resolved_toolkits:
+                for tool_id in tool_ids:
+                    tool = tools_client.get_draft_by_id(tool_id)
+                    tool_names.append(tool["name"])
+
                 app_ids = []
                 connection_ids = toolkit.__toolkit_spec__.mcp.connections.values()
 
@@ -422,22 +317,15 @@ class ToolkitController:
                     else:
                         app_id = ""
                     app_ids.append(app_id)
-                
-                entry = ToolkitListEntry(
-                    name = toolkit.__toolkit_spec__.name,
-                    description = toolkit.__toolkit_spec__.description,
-                    tools = toolkit.__toolkit_spec__.tools,
-                    app_ids = app_ids
-                )
-                if format == ListFormats.JSON:
-                    toolkit_details.append(entry)
-                else:
-                    table.add_row(*entry.get_row_details())
 
-            match format:
-                case ListFormats.JSON:
-                    return toolkit_details
-                case ListFormats.Table:
-                    return rich_table_to_markdown(table)
-                case _:
-                    rich.print(table)
+
+
+                table.add_row(
+                    toolkit.__toolkit_spec__.name,
+                    "MCP",
+                    toolkit.__toolkit_spec__.description,
+                    ", ".join(tool_names),
+                    ", ".join(app_ids),
+                )
+
+            rich.print(table)
