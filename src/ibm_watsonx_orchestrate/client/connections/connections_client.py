@@ -3,13 +3,26 @@ from typing import List
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 from pydantic import BaseModel, ValidationError
 from typing import Optional
+from enum import Enum
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, FetchConfigAuthTypes
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
 from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+class FetchConfigAuthTypes(str, Enum):
+    BASIC_AUTH = ConnectionType.BASIC_AUTH.value
+    BEARER_TOKEN = ConnectionType.BEARER_TOKEN.value
+    API_KEY_AUTH = ConnectionType.API_KEY_AUTH.value
+    OAUTH2_AUTH_CODE = ConnectionType.OAUTH2_AUTH_CODE.value
+    OAUTH2_IMPLICIT = 'oauth2_implicit'
+    OAUTH2_PASSWORD = ConnectionType.OAUTH2_PASSWORD.value
+    OAUTH2_CLIENT_CREDS = ConnectionType.OAUTH2_CLIENT_CREDS.value
+    OAUTH_ON_BEHALF_OF_FLOW = ConnectionType.OAUTH_ON_BEHALF_OF_FLOW.value
+    KEY_VALUE = ConnectionType.KEY_VALUE.value
 
 class ListConfigsResponse(BaseModel):
     connection_id: str = None,

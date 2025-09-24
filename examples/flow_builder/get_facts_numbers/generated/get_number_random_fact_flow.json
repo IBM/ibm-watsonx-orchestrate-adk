@@ -25,11 +25,6 @@
         "output_schema": {
           "$ref": "#/schemas/FlowOutput"
         },
-        "error_handler_config": {
-          "error_message": "An error has occured while invoking the LLM",
-          "max_retries": 1,
-          "retry_interval": 1000
-        },
         "tool": "get_facts_about_numbers"
       }
     },
@@ -249,6 +244,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-09-19T17:19:20.604991+00:00"
+    "compiled_on": "2025-07-30T20:36:17.351508+00:00"
   }
 }

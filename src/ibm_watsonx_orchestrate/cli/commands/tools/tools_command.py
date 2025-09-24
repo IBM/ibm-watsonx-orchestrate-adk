@@ -1,6 +1,6 @@
 import typer
 from typing import List
-from typing_extensions import Annotated, Optional
+from typing_extensions import Annotated
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 tools_app= typer.Typer(no_args_is_help=True)
 
@@ -34,7 +34,7 @@ def tool_import(
         )
     ] = None,
     requirements_file: Annotated[
-        Optional[str],
+        str,
         typer.Option(
             "--requirements-file",
             "-r",

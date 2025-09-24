@@ -58,7 +58,7 @@ class ModelPoliciesClient(BaseAPIClient):
                 return []
             raise e
     
-    def get_draft_by_name(self, policy_name: str) -> List[ModelPolicy]:
+    def get_draft_by_name(self, policy_name: str) -> ModelPolicy:
         return self.get_drafts_by_names([policy_name])
 
 

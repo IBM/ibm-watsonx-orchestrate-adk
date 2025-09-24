@@ -226,21 +226,5 @@ class ListVirtualModel(BaseModel):
     provider_config: Optional[ProviderConfig] = None
     tags: Optional[List[str]] = None
     model_type: Optional[str] = None
-    connection_id: Optional[str] = None
-
-class ModelListEntry(BaseModel):
-    name: Optional[str] = Field(default=None, description="Name of the model")
-    description: Optional[str] = Field(default=None, description="A description of the model")
-    is_custom: bool = Field(default=False, description="Is the model a third party model imported into Orchestrate")
-    recommended: bool = Field(default=False, description="Is the model a reccomended model in watsonx. Non-custom models only")
-
-    def get_row_details(self):
-        description = self.description or 'No description provided.'
-        if self.is_custom:
-            return [f"✨️ {self.name}", description]
-        else:
-            name = self.name or "N/A"
-            marker = "★ " if self.recommended else ""
-            return [f"[yellow]{marker}[/yellow]watsonx/{name}", description]
 
 ANTHROPIC_DEFAULT_MAX_TOKENS = 4096

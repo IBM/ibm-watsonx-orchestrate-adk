@@ -136,11 +136,11 @@ def models_policy_import(
 def models_policy_add(
         name: Annotated[
             str,
-            typer.Option("--name", "-n", help="The name of the model policy to add"),
+            typer.Option("--name", "-n", help="The name of the model to remove"),
         ],
         models: Annotated[
             List[str],
-            typer.Option('--model', '-m', help='A list of model names the policy should contain'),
+            typer.Option('--model', '-m', help='The name of the model to add'),
         ],
         strategy: Annotated[
             ModelPolicyStrategyMode,

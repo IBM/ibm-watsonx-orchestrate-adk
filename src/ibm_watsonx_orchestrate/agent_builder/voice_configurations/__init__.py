@@ -1,1 +1,1 @@
-from .types import VoiceConfiguration, VoiceConfigurationListEntry
+from .types import VoiceConfiguration

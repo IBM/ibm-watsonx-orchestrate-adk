@@ -1,8 +1,7 @@
 import typer
 from typing_extensions import Annotated
 from pathlib import Path
-from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller import prompt_tune, create_agent, \
-    refine_agent_with_trajectories
+from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller import prompt_tune, create_agent
 from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_server_controller import start_server, stop_server
 
 copilot_app = typer.Typer(no_args_is_help=True)
@@ -64,25 +63,3 @@ def prompt_tume_command(
             output_file=output_file,
             dry_run_flag=dry_run_flag,
         )
-
-@copilot_app.command(name="autotune", help="Autotune the agent's instructions by incorporating insights from chat interactions and user feedback")
-def agent_refine(
-    agent_name: Annotated[
-        str,
-        typer.Option("--agent-name", "-n", help="The name of the agent to tune"),
-    ],
-    output_file: Annotated[
-        str,
-        typer.Option("--output-file", "-o", help="Optional output file to avoid overwriting existing agent spec"),
-    ] = None,
-    use_last_chat: Annotated[
-        bool,
-        typer.Option("--use_last_chat", "-l", help="Tuning by using the last conversation with the agent instead of prompting the user to choose chats"),
-    ] = False,
-    dry_run_flag: Annotated[
-        bool,
-        typer.Option("--dry-run",
-                     help="Dry run will prevent the tuned content being saved and output the results to console"),
-    ] = False,
-):
-    refine_agent_with_trajectories(agent_name, output_file, use_last_chat, dry_run_flag)

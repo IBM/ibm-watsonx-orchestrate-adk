@@ -16,7 +16,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
 
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
-    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, LICENSE_HEADER, \
+    AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, USER_ENV_CACHE_HEADER, LICENSE_HEADER, \
     ENV_ACCEPT_LICENSE
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
@@ -38,12 +38,8 @@ def refresh_local_credentials() -> None:
     """
     Refresh the local credentials
     """
-    try:
-        clear_protected_env_credentials_token()
-        _login(name=PROTECTED_ENV_NAME, apikey=None)
-
-    except:
-        logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
+    clear_protected_env_credentials_token()
+    _login(name=PROTECTED_ENV_NAME, apikey=None)
 
 def run_compose_lite(
         final_env_file: Path,
@@ -55,11 +51,11 @@ def run_compose_lite(
         with_connections_ui=False,
         with_langflow=False,
     ) -> None:
-    env_service.prepare_clean_env(final_env_file)
-    db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
+    EnvService.prepare_clean_env(final_env_file)
+    db_tag = EnvService.read_env_file(final_env_file).get('DBTAG', None)
     logger.info(f"Detected architecture: {platform.machine()}, using DBTAG: {db_tag}")
 
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     # Step 1: Start only the DB container
     result = compose_core.service_up(service_name="wxo-server-db", friendly_name="WxO Server DB", final_env_file=final_env_file, compose_env=os.environ)
@@ -194,7 +190,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
         logger.error("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
         return False
 
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.service_up(service_name="ui", friendly_name="UI", final_env_file=final_env_file)
 
@@ -231,7 +227,7 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=final_env_file, is_reset=is_reset)
 
@@ -252,7 +248,7 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.services_down(final_env_file=final_env_file, is_reset=is_reset)
 
@@ -273,7 +269,7 @@ def run_compose_lite_logs(final_env_file: Path) -> None:
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.services_logs(final_env_file=final_env_file, should_follow=True)
 
@@ -448,7 +444,10 @@ def server_start(
         )
         exit(1)
 
-    refresh_local_credentials()
+    try:
+        refresh_local_credentials()
+    except:
+        logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
 
@@ -564,7 +563,7 @@ def run_db_migration() -> None:
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.service_container_bash_exec(service_name="wxo-server-db",
                                                       log_message="Running Database Migration...",
@@ -618,7 +617,7 @@ def create_langflow_db() -> None:
 
     cli_config = Config()
     env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core = DockerComposeCore(env_service)
 
     result = compose_core.service_container_bash_exec(service_name="wxo-server-db",
                                                       log_message="Preparing Langflow resources...",
