@@ -168,9 +168,11 @@ class EnvService:
 
                     registry_url = f"registry.{hostname[4:]}/cp/wxo-lite"
             elif source == DeveloperEditionSources.CUSTOM:
-                raise ValueError(
-                    f"REGISTRY_URL is required in the environment file when the developer edition source is set to 'custom'."
-                )
+                registry_url = user_env.get("CUSTOM_REGISTRY_URL")
+                if not registry_url:
+                    raise ValueError(
+                        f"REGISTRY_URL is required in the environment file when the developer edition source is set to 'custom'."
+                    )
             else:
                 raise ValueError(
                     f"Unknown value for developer edition source: {source}. Must be one of {list(map(str, DeveloperEditionSources))}."
@@ -210,11 +212,14 @@ class EnvService:
 
         return Path(target_file)
 
-    def persist_user_env (self, env: dict, include_secrets: bool = False) -> None:
+    def persist_user_env (self, env: dict, include_secrets: bool = False, source: DeveloperEditionSources| str | None = None) -> None:
         if include_secrets:
             persistable_env = env
         else:
             persistable_env = {k: env[k] for k in EnvService.__NON_SECRET_ENV_ITEMS if k in env}
+        
+        if source == DeveloperEditionSources.CUSTOM and "REGISTRY_URL" in env:
+            persistable_env["CUSTOM_REGISTRY_URL"] = env.get("REGISTRY_URL")
 
         self.__config.save(
             {
