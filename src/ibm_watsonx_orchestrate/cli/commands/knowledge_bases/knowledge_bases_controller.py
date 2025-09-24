@@ -277,7 +277,9 @@ class KnowledgeBaseController:
                    and kb.conversational_search_tool.index_config is not None \
                    and len(kb.conversational_search_tool.index_config) > 0 \
                    and kb.conversational_search_tool.index_config[0].connection_id is not None:
-                    app_id = connections_dict.get(kb.conversational_search_tool.index_config[0].connection_id, {}).app_id
+                    conn = connections_dict.get(kb.conversational_search_tool.index_config[0].connection_id)
+                    if conn:
+                        app_id = conn.app_id
 
                 entry = KnowledgeBaseListEntry(
                     name=kb.name,
