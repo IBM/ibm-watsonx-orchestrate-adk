@@ -6,6 +6,8 @@ import importlib.util
 
 from pydantic import BaseModel
 
+from .lfx_deps import LFX_DEPENDENCIES
+
 logger = logging.getLogger(__name__)
 
 class LangflowComponent(BaseModel):
@@ -85,26 +87,7 @@ def _extract_imports(source_code) -> list[str]:
                 imports.add(node.module.split('.')[0])
     return sorted(imports)
 
-def _get_requirements_file() -> str:
-    current_folder = f"{Path(__file__).resolve().parent}"
-    requirements_file = f"{current_folder}/lfx_requirements.txt"
-    return requirements_file
 
-def _get_requirements_modules() -> list[str]:
-    try:
-        with open(_get_requirements_file(), 'r') as f:
-            requirements = f.readlines()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File not found: {_get_requirements_file()}")
-
-    # Normalize requirements (strip version constraints and comments)
-    requirements_modules = [
-        line.strip().split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].lower()
-        for line in requirements
-        if line.strip() and not line.startswith('#')
-    ]
-
-    return requirements_modules
 
 def _is_builtin_module(module_name: str) -> bool:
     # Check against the list of built-in module names
@@ -176,7 +159,7 @@ def parse_langflow_model(model) -> LangflowModelSpec:
     data = model.get('data', {} )
 
     # get the list of available modules
-    requirements_modules = _get_requirements_modules()
+    requirements_modules = LFX_DEPENDENCIES
 
     for node in data.get("nodes", []):
         node_data = node.get("data", {})
