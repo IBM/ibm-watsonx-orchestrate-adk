@@ -392,7 +392,8 @@ def server_start(
     env_service.set_compose_file_path_in_env(custom_compose_file)
 
     user_env = env_service.get_user_env(user_env_file=user_env_file, fallback_to_persisted_env=False)
-    env_service.persist_user_env(user_env, include_secrets=persist_env_secrets)
+    developer_edition_source = env_service.get_dev_edition_source_core(user_env)
+    env_service.persist_user_env(user_env, include_secrets=persist_env_secrets, source=developer_edition_source)
     
     merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False)
 
