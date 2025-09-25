@@ -1,6 +1,7 @@
 import os
 import tomllib
 from typing import Any
+from importlib.metadata import version
 
 DEFAULT_SERVER_NAME: str = "WXO-MCP"
 DEFAULT_VERSION: str = "Unknown"
@@ -52,7 +53,10 @@ class Config:
         pyproject_config: dict[Any, Any] = _get_pyproject_configuration()
 
         self.server_name: str = pyproject_config.get("name", DEFAULT_SERVER_NAME)
-        self.version: str = pyproject_config.get("version", DEFAULT_VERSION)
+        try:
+            self.version: str = version("ibm-watsonx-orchestrate-mcp-server")
+        except:
+            self.version: str = DEFAULT_VERSION
         self.description: str = pyproject_config.get("description", DEFAULT_DESCRIPTION)
         
         # Network
