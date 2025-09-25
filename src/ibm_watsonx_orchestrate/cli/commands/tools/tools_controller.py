@@ -10,7 +10,7 @@ import zipfile
 from enum import Enum
 from os import path
 from pathlib import Path
-from typing import Iterable, List, Any, Optional
+from typing import Iterable, List, Any, Optional, cast
 import rich
 import json
 import glob
