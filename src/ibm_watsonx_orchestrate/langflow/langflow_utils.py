@@ -90,11 +90,19 @@ def _extract_imports(source_code) -> list[str]:
 
 
 def _is_builtin_module(module_name: str) -> bool:
+    underscore_module_name = f"_{module_name}"
+
+    # Check against the list of standard modules 
+    if module_name in sys.stdlib_module_names:
+        return True
+    
+    if underscore_module_name in sys.stdlib_module_names:
+        return True
+
     # Check against the list of built-in module names
     if module_name in sys.builtin_module_names:
         return True
 
-    underscore_module_name = f"_{module_name}"
     if underscore_module_name in sys.builtin_module_names:
         return True
     
