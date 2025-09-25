@@ -71,5 +71,14 @@ LFX_DEPENDENCIES = [
     "langflow",
     "langchain_openai",
     "langchain_core",
-    "langchain_text_splitters"
+    "langchain_text_splitters",
+    "collections",
+    "typing",
+    "datetime",
+    "zoneinfo",
+    "or",
+    "re",
+    "os",
+    "copy",
+    "json"
 ]
