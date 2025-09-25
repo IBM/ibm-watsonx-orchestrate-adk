@@ -52,6 +52,6 @@ class ToolkitListEntry(BaseModel):
     app_ids: Optional[List[str]] = Field(description = "A list of connection app_ids showing every connection bound to the Toolkit")
 
     def get_row_details(self):
-        tools = ", ".join(self.tools)
-        app_ids = ", ".join(self.app_ids)
+        tools = ", ".join(self.tools) if self.tools else ""
+        app_ids = ", ".join(self.app_ids) if self.app_ids else ""
         return [self.name, self.description, self.type, tools, app_ids]
