@@ -27,6 +27,9 @@ class ConnectionEnvironment(str, Enum):
 
     def __str__(self):
         return self.value
+    
+    def __repr__(self):
+        return repr(self.value)
 
 class ConnectionPreference(str, Enum):
     MEMBER = 'member'
@@ -188,9 +191,9 @@ class ConnectionCredentialsEntryLocation(str, Enum):
         return self.value
 
 class ConnectionCredentialsEntry(BaseModel):
-    key: str
-    value: str
-    location: ConnectionCredentialsEntryLocation
+    key: str = Field(description="The key of the custom credential entry.")
+    value: str = Field(description="The value of the custom credential entry.")
+    location: ConnectionCredentialsEntryLocation = Field(description="How the custom credential should be sent to the server")
 
     def __str__(self):
         return f"<ConnectionCredentialsEntry: {self.location}:{self.key}={self.value}>"
@@ -338,3 +341,31 @@ class IdentityProviderCredentials(BaseOAuthCredentials):
 class ExpectedCredentials(BaseModel):
     app_id: str
     type: ConnectionType | List[ConnectionType]
+
+class FetchConfigAuthTypes(str, Enum):
+    BASIC_AUTH = ConnectionType.BASIC_AUTH.value
+    BEARER_TOKEN = ConnectionType.BEARER_TOKEN.value
+    API_KEY_AUTH = ConnectionType.API_KEY_AUTH.value
+    OAUTH2_AUTH_CODE = ConnectionType.OAUTH2_AUTH_CODE.value
+    OAUTH2_IMPLICIT = 'oauth2_implicit'
+    OAUTH2_PASSWORD = ConnectionType.OAUTH2_PASSWORD.value
+    OAUTH2_CLIENT_CREDS = ConnectionType.OAUTH2_CLIENT_CREDS.value
+    OAUTH_ON_BEHALF_OF_FLOW = ConnectionType.OAUTH_ON_BEHALF_OF_FLOW.value
+    KEY_VALUE = ConnectionType.KEY_VALUE.value
+
+class ConnectionsListEntry(BaseModel):
+    app_id: str = Field(description="A unique identifier for the connection.")
+    auth_type: Optional[FetchConfigAuthTypes] = Field(default=None, description="The kind of auth used by the connections")
+    type: Optional[ConnectionPreference] = Field(default=None, description="The type of the connections. If set to 'team' the credentails will be shared by all users. If set to 'member' each user will have to provide their own credentials")
+    credentials_set: bool = Field(default=False, description="Are the credentials set for the current user. If using OAuth connection types this value will be False unless there isn a stored token from runtime usage")
+
+    def get_row_details(self):
+        auth_type = self.auth_type if self.auth_type else "n/a"
+        type = self.type if self.type else "n/a"
+        credentials_set = "✅" if self.credentials_set else "❌"
+        return [self.app_id, auth_type, type, credentials_set]
+
+class ConnectionsListResponse(BaseModel):
+    non_configured: Optional[List[dict] | str] = None
+    draft: Optional[List[dict] | str] = None
+    live: Optional[List[dict] | str] = None

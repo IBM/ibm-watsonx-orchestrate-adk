@@ -1,11 +1,7 @@
-from copy import deepcopy
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController, ToolkitKind
 import pytest
-import tempfile
-import os
 
-from ibm_watsonx_orchestrate.cli.config import DEFAULT_CONFIG_FILE_CONTENT
 from utils.matcher import MatchesStringContaining
 
 
@@ -13,8 +9,7 @@ def test_remove_toolkit_success():
     mock_client = MagicMock()
     mock_client.get_draft_by_name.return_value = [{"id": "123"}]
 
-    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True):
+    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client):
         controller = ToolkitController()
         controller.remove_toolkit("test_toolkit")
 
@@ -26,7 +21,6 @@ def test_remove_toolkit_multiple_results():
     mock_client.get_draft_by_name.return_value = [{"id": "123"}, {"id": "456"}]
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
          patch("sys.exit") as mock_exit:
         controller = ToolkitController()
         controller.remove_toolkit("duplicate_toolkit")
@@ -37,24 +31,21 @@ def test_remove_toolkit_not_found():
     mock_client = MagicMock()
     mock_client.get_draft_by_name.return_value = []
 
-    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True):
+    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client):
         controller = ToolkitController()
         controller.remove_toolkit("missing_toolkit")
         mock_client.delete.assert_not_called()
 
 
 def test_remap_connections_single_id():
-    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-123"), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True):
+    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-123"):
         controller = ToolkitController()
         result = controller._remap_connections(["my_id"])
         assert result == {"my_id": "conn-123"}
 
 
 def test_remap_connections_key_value_pair():
-    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-456"), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True):
+    with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-456"):
         controller = ToolkitController()
         result = controller._remap_connections(["runtime=local"])
         assert result == {"runtime": "conn-456"}
@@ -71,7 +62,6 @@ def test_import_toolkit_exits_if_toolkit_exists():
     mock_client.get_draft_by_name.return_value = [{"id": "already-there"}]
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.os.path.isdir", return_value=True), \
          patch("sys.exit", side_effect=SystemExit) as mock_exit:
         controller = ToolkitController(
@@ -94,7 +84,6 @@ def test_import_toolkit_successful_path():
 
     with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.instantiate_client", return_value=mock_client), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip", return_value="dummy.zip"), \
-         patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.is_local_dev", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id", return_value="conn-id"), \
          patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.os.path.isdir", return_value=True):
 

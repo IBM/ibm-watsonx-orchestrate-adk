@@ -1,5 +1,4 @@
 import logging
-import asyncio
 import importlib
 import inspect
 import sys
@@ -11,25 +10,24 @@ import zipfile
 from enum import Enum
 from os import path
 from pathlib import Path
-from typing import Iterable, List, cast
+from typing import Iterable, List, Any, Optional, cast
 import rich
 import json
-from rich.json import JSON
 import glob
 
 import rich.table
 import typer
 
-from rich.console import Console
 from rich.panel import Panel
 
-from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
@@ -42,6 +40,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client, g
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
+from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 
@@ -620,7 +619,7 @@ def get_whl_in_registry(registry_url: str, version: str) -> str| None:
     return wheel_file
 
 class ToolsController:
-    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: str = None):
+    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None):
         self.client = None
         self.tool_kind = tool_kind
         self.file = file
@@ -656,14 +655,14 @@ class ToolsController:
                     app_id = app_id[0]
                     connection = connections_client.get_draft_by_app_id(app_id=app_id)
                     connection_id = connection.connection_id
-                tools = asyncio.run(import_openapi_tool(file=args["file"], connection_id=connection_id))
+                tools = run_coroutine_sync(import_openapi_tool(file=args["file"], connection_id=connection_id))
             case "flow":
-                tools = asyncio.run(import_flow_tool(file=args["file"]))
+                tools = run_coroutine_sync(import_flow_tool(file=args["file"]))
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")
             case "langflow":
-                tools = asyncio.run(import_langflow_tool(file=args["file"],app_id=args.get('app_id',None)))
+                tools = run_coroutine_sync(import_langflow_tool(file=args["file"],app_id=args.get('app_id',None)))
             case _:
                 raise BadRequest("Invalid kind selected")
 
@@ -674,14 +673,18 @@ class ToolsController:
             yield tool
 
 
-    def list_tools(self, verbose=False):
+    def list_tools(self, verbose=False, format: ListFormats| None = None) -> List[dict[str, Any]] | str | None:
+        if verbose and format:
+            logger.error("For tools list, `--verbose` and `--format` are mutually exclusive options")
+            sys.exit(1)
+
         response = self.get_client().get()
         tool_specs = []
         parse_errors = []
 
         for tool in response:
             try:
-                tool_specs.append(ToolSpec.model_validate(tool))
+                tool_specs.append(ToolSpec.model_validate(tool, context="list"))
             except Exception as e:
                 name = tool.get('name', None)
                 parse_errors.append([
@@ -698,23 +701,25 @@ class ToolsController:
                 tools_list.append(json.loads(tool.dumps_spec()))
 
             rich.print_json(json.dumps(tools_list, indent=4))
+            return tools_list
         else:
+            tool_details = []
+
+            connections_client = get_connections_client()
+            connections = connections_client.list()
+
+            connections_dict = {conn.connection_id: conn for conn in connections}
+
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
             column_args = {
                 "Name": {"overflow": "fold"},
                 "Description": {},
-                "Permission": {}, 
                 "Type": {}, 
                 "Toolkit": {}, 
                 "App ID": {"overflow": "fold"}
             }
             for column in column_args:
                 table.add_column(column,**column_args[column])
-
-            connections_client = get_connections_client()
-            connections = connections_client.list()
-
-            connections_dict = {conn.connection_id: conn for conn in connections}
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
@@ -773,22 +778,31 @@ class ToolsController:
                         toolkit_name = toolkit["name"]
                     elif toolkit:
                         toolkit_name = str(toolkit)
-
                 
-                table.add_row(
-                    tool.__tool_spec__.name,
-                    tool.__tool_spec__.description,
-                    tool.__tool_spec__.permission,
-                    tool_type,
-                    toolkit_name,
-                    ", ".join(app_ids),
+                entry = ToolListEntry(
+                    name=tool.__tool_spec__.name,
+                    description=tool.__tool_spec__.description,
+                    type=tool_type,
+                    toolkit=toolkit_name,
+                    app_ids=app_ids
                 )
 
-            rich.print(table)
+                if format == ListFormats.JSON:
+                    tool_details.append(entry)
+                else:
+                    table.add_row(*entry.get_row_details())
 
-            for error in parse_errors:
-                for l in error:
-                    logger.error(l)
+            match format:
+                case ListFormats.JSON:
+                    return tool_details
+                case ListFormats.Table:
+                    return rich_table_to_markdown(table)
+                case _:
+                    rich.print(table)
+
+        for error in parse_errors:
+            for l in error:
+                logger.error(l)
 
     def get_all_tools(self) -> dict:
         return {entry["name"]: entry["id"] for entry in self.get_client().get()}
