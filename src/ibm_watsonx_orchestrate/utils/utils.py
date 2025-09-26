@@ -11,8 +11,12 @@ def yaml_safe_load(file : BinaryIO) -> dict:
     return yaml.safe_load(file)
 
 def sanitize_app_id(app_id: str) -> str:
-    sanatize_pattern = re.compile(r"[^a-zA-Z0-9]+")
-    return re.sub(sanatize_pattern,'_', app_id)
+    sanitize_pattern = re.compile(r"[^a-zA-Z0-9]+")
+    return re.sub(sanitize_pattern,'_', app_id)
+
+def sanitize_catalog_label(label: str) -> str:
+    sanitize_pattern = re.compile(r"[^a-zA-Z0-9]+")
+    return re.sub(sanitize_pattern,'_', label)
 
 def check_file_in_zip(file_path: str, zip_file: zipfile.ZipFile) -> bool:
     return any(x.startswith("%s/" % file_path.rstrip("/")) for x in zip_file.namelist())

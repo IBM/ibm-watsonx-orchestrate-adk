@@ -23,6 +23,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
+from ibm_watsonx_orchestrate.utils.utils import sanitize_catalog_label
 from .types import *
 
 APPLICATIONS_FILE_VERSION = '1.16.0'
@@ -54,7 +55,7 @@ def get_tool_bindings(tool_names: list[str]) -> dict[str, dict]:
 
     return results
 
-def _patch_agent_yamls(project_root: Path, publisher_name: str):
+def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_name: str):
     agents_dir = project_root / "agents"
     if not agents_dir.exists():
         return
@@ -70,14 +71,17 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str):
         if "language_support" not in agent_data:
             agent_data["language_support"] = ["English"]
         if "icon" not in agent_data:
-            agent_data["icon"] = "inline-svg-of-icon"
+            agent_data["icon"] = AGENT_CATALOG_ONLY_PLACEHOLDERS['icon']
         if "category" not in agent_data:
             agent_data["category"] = "agent"
         if "supported_apps" not in agent_data:
             agent_data["supported_apps"] = []
+        if "agent_role" not in agent_data:
+            agent_data["agent_role"] = "manager" if agent_data.get("name") == parent_agent_name else "collaborator"
 
         with open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
+
 
 def _create_applications_entry(connection_config: dict) -> dict:
     return {
@@ -116,6 +120,15 @@ class PartnersOfferingController:
         sys.exit(1)
 
     def create(self, offering: str, publisher_name: str, agent_type: str, agent_name: str):
+
+        # Sanitize offering name
+        original_offering = offering
+        offering = sanitize_catalog_label(offering)
+
+        if offering != original_offering:
+            logger.warning("Offering name must contain only alpahnumeric characters or underscore")
+            logger.info(f"Offering '{original_offering}' has been updated to '{offering}'")
+
         # Create parent project folder
         project_root = self.root / offering
 
@@ -179,7 +192,7 @@ class PartnersOfferingController:
         output_zip.unlink(missing_ok=True)
 
         # Patch the agent yamls with publisher, tags, icon, etc.
-        _patch_agent_yamls(project_root, publisher_name)
+        _patch_agent_yamls(project_root=project_root, publisher_name=publisher_name, parent_agent_name=agent_name)
 
 
         # Create offering.yaml file -------------------------------------------------------
@@ -337,12 +350,16 @@ class PartnersOfferingController:
                             **agent_data
                         )
                         agent = Agent.model_validate(agent_details)
-                        AgentsController().persist_record(agent=agent)
                     case AgentKind.EXTERNAL:
                         agent_details = parse_create_external_args(
                             **agent_data
                         )
                         agent = ExternalAgent.model_validate(agent_details)
+                
+                # Placeholder detection
+                for label,placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
+                    if agent_data.get(label) == placeholder:
+                        logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
 
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
                 zf.writestr(agent_json_path, json.dumps(agent_data, indent=2))

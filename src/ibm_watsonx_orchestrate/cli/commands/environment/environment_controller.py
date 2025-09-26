@@ -18,8 +18,9 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENV_IAM_URL_OPT,
     ENVIRONMENTS_SECTION_HEADER,
     PROTECTED_ENV_NAME,
-    ENV_AUTH_TYPE, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, BYPASS_SSL, VERIFY,
-    DEFAULT_CONFIG_FILE_CONTENT
+    ENV_AUTH_TYPE, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT,
+    BYPASS_SSL, VERIFY,
+    DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
@@ -131,7 +132,7 @@ def _login(name: str, apikey: str = None, username: str = None, password: str = 
     except ClientError as e:
         raise ClientError(e)
 
-def activate(name: str, apikey: str=None, username: str=None, password: str=None, registry: RegistryType=None, test_package_version_override=None) -> None:
+def activate(name: str, apikey: str=None, username: str=None, password: str=None, registry: RegistryType=None, test_package_version_override=None, skip_version_check=None) -> None:
     cfg = Config()
     auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
     env_cfg = cfg.read(ENVIRONMENTS_SECTION_HEADER, name)
@@ -159,6 +160,8 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
         elif cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) is None:
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT])
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, test_package_version_override)
+        if skip_version_check is not None:
+            cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT, skip_version_check)
 
     logger.info(f"Environment '{name}' is now active")
     is_cpd = is_cpd_env(url)

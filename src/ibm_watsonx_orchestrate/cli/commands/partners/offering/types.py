@@ -24,6 +24,10 @@ CATALOG_ONLY_FIELDS = [
     'supported_apps'
 ]
 
+AGENT_CATALOG_ONLY_PLACEHOLDERS = {
+    'icon': "inline-svg-of-icon",
+}
+
 class AgentKind(str, Enum):
     NATIVE = "native"
     EXTERNAL = "external"
@@ -87,21 +91,9 @@ class Offering(BaseModel):
         return values
     
     def validate_ready_for_packaging(self):
-        self.test_for_placeholder_values()
-    
-    def test_for_placeholder_values(self):
-        placholders = False
-        # part numbers
-        if not self.part_number:
-            raise ValueError(f"Offering '{self.name}' does not have valid part numbers")
-        
-        for (k,v) in self.part_number.model_dump().items():
-            if v == CATALOG_PLACEHOLDERS['part_number']:
-                logger.warning(f"Placeholder part number detected for platform '{k}', please ensure valid part numbers are entered before packaging.")
-                placholders = True
-        
-        if placholders:
-            raise ValueError(f"Offering '{self.name}' cannot be packaged with placeholder values")
+        # Leaving this fn here in case we want to reintroduce validation
+        pass
+
 
 
 

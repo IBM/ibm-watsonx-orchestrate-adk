@@ -12,4 +12,4 @@ orchestrate env activate cpd --username=$WO_USERNAME --password=$WO_PASSWORD
 # orchestrate env activate cpd -username=$WO_USERNAME --api-key $WO_API_KEY
 
 # Run the evaluation
-python -m wxo_agentic_evaluation.main --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
+orchestrate evaluations evaluate --config examples/evaluations/cpd/configs/config_cpd_no_ifm.yaml
