@@ -54,7 +54,8 @@ def read_env_file(env_path: Path|str) -> dict:
 def validate_watsonx_credentials(user_env_file: str) -> bool:
     required_sets = [
         ["WATSONX_SPACE_ID", "WATSONX_APIKEY"],
-        ["WO_INSTANCE", "WO_API_KEY"]
+        ["WO_INSTANCE", "WO_API_KEY"],
+        ["WO_INSTANCE", "WO_PASSWORD", "WO_USERNAME"]
     ]
     
     def has_valid_keys(env: dict) -> bool:
@@ -75,7 +76,7 @@ def validate_watsonx_credentials(user_env_file: str) -> bool:
     user_env = read_env_file(user_env_file)
     
     if not has_valid_keys(user_env):
-        logger.error("Error: The environment file does not contain the required keys: either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY.")
+        logger.error("Error: The environment file does not contain the required keys: either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY or WO_INSTANCE and WO_USERNAME and WO_PASSWORD.")
         sys.exit(1)
 
     # Update os.environ with whichever set is present

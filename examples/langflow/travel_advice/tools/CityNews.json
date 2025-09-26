@@ -7,7 +7,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "TavilySearchComponent",
-            "id": "TavilySearchComponent-IkBqM",
+            "id": "TavilySearchComponent-NZ5Td",
             "name": "dataframe",
             "output_types": [
               "DataFrame"
@@ -15,7 +15,7 @@
           },
           "targetHandle": {
             "fieldName": "input_data",
-            "id": "ParserComponent-TZ8DU",
+            "id": "ParserComponent-neCCc",
             "inputTypes": [
               "DataFrame",
               "Data"
@@ -23,12 +23,12 @@
             "type": "other"
           }
         },
-        "id": "reactflow__edge-TavilySearchComponent-IkBqM{œdataTypeœ:œTavilySearchComponentœ,œidœ:œTavilySearchComponent-IkBqMœ,œnameœ:œdataframeœ,œoutput_typesœ:[œDataFrameœ]}-ParserComponent-TZ8DU{œfieldNameœ:œinput_dataœ,œidœ:œParserComponent-TZ8DUœ,œinputTypesœ:[œDataFrameœ,œDataœ],œtypeœ:œotherœ}",
+        "id": "reactflow__edge-TavilySearchComponent-NZ5Td{œdataTypeœ:œTavilySearchComponentœ,œidœ:œTavilySearchComponent-NZ5Tdœ,œnameœ:œdataframeœ,œoutput_typesœ:[œDataFrameœ]}-ParserComponent-neCCc{œfieldNameœ:œinput_dataœ,œidœ:œParserComponent-neCCcœ,œinputTypesœ:[œDataFrameœ,œDataœ],œtypeœ:œotherœ}",
         "selected": false,
-        "source": "TavilySearchComponent-IkBqM",
-        "sourceHandle": "{œdataTypeœ:œTavilySearchComponentœ,œidœ:œTavilySearchComponent-IkBqMœ,œnameœ:œdataframeœ,œoutput_typesœ:[œDataFrameœ]}",
-        "target": "ParserComponent-TZ8DU",
-        "targetHandle": "{œfieldNameœ:œinput_dataœ,œidœ:œParserComponent-TZ8DUœ,œinputTypesœ:[œDataFrameœ,œDataœ],œtypeœ:œotherœ}"
+        "source": "TavilySearchComponent-NZ5Td",
+        "sourceHandle": "{œdataTypeœ:œTavilySearchComponentœ,œidœ:œTavilySearchComponent-NZ5Tdœ,œnameœ:œdataframeœ,œoutput_typesœ:[œDataFrameœ]}",
+        "target": "ParserComponent-neCCc",
+        "targetHandle": "{œfieldNameœ:œinput_dataœ,œidœ:œParserComponent-neCCcœ,œinputTypesœ:[œDataFrameœ,œDataœ],œtypeœ:œotherœ}"
       },
       {
         "animated": false,
@@ -36,7 +36,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "CurrentDate",
-            "id": "CurrentDate-RjtEm",
+            "id": "CurrentDate-JnJhc",
             "name": "current_date",
             "output_types": [
               "Message"
@@ -44,19 +44,19 @@
           },
           "targetHandle": {
             "fieldName": "current_date",
-            "id": "Prompt Template-GHrUA",
+            "id": "Prompt Template-VTXKQ",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-CurrentDate-RjtEm{œdataTypeœ:œCurrentDateœ,œidœ:œCurrentDate-RjtEmœ,œnameœ:œcurrent_dateœ,œoutput_typesœ:[œMessageœ]}-Prompt Template-GHrUA{œfieldNameœ:œcurrent_dateœ,œidœ:œPrompt Template-GHrUAœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-CurrentDate-JnJhc{œdataTypeœ:œCurrentDateœ,œidœ:œCurrentDate-JnJhcœ,œnameœ:œcurrent_dateœ,œoutput_typesœ:[œMessageœ]}-Prompt Template-VTXKQ{œfieldNameœ:œcurrent_dateœ,œidœ:œPrompt Template-VTXKQœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
         "selected": false,
-        "source": "CurrentDate-RjtEm",
-        "sourceHandle": "{œdataTypeœ:œCurrentDateœ,œidœ:œCurrentDate-RjtEmœ,œnameœ:œcurrent_dateœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "Prompt Template-GHrUA",
-        "targetHandle": "{œfieldNameœ:œcurrent_dateœ,œidœ:œPrompt Template-GHrUAœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "source": "CurrentDate-JnJhc",
+        "sourceHandle": "{œdataTypeœ:œCurrentDateœ,œidœ:œCurrentDate-JnJhcœ,œnameœ:œcurrent_dateœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "Prompt Template-VTXKQ",
+        "targetHandle": "{œfieldNameœ:œcurrent_dateœ,œidœ:œPrompt Template-VTXKQœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
       },
       {
         "animated": false,
@@ -64,7 +64,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "ChatInput",
-            "id": "ChatInput-WjDCM",
+            "id": "ChatInput-6e3zx",
             "name": "message",
             "output_types": [
               "Message"
@@ -72,19 +72,19 @@
           },
           "targetHandle": {
             "fieldName": "input",
-            "id": "Prompt Template-GHrUA",
+            "id": "Prompt Template-VTXKQ",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-ChatInput-WjDCM{œdataTypeœ:œChatInputœ,œidœ:œChatInput-WjDCMœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}-Prompt Template-GHrUA{œfieldNameœ:œinputœ,œidœ:œPrompt Template-GHrUAœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-ChatInput-6e3zx{œdataTypeœ:œChatInputœ,œidœ:œChatInput-6e3zxœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}-Prompt Template-VTXKQ{œfieldNameœ:œinputœ,œidœ:œPrompt Template-VTXKQœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
         "selected": false,
-        "source": "ChatInput-WjDCM",
-        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-WjDCMœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "Prompt Template-GHrUA",
-        "targetHandle": "{œfieldNameœ:œinputœ,œidœ:œPrompt Template-GHrUAœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "source": "ChatInput-6e3zx",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-6e3zxœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "Prompt Template-VTXKQ",
+        "targetHandle": "{œfieldNameœ:œinputœ,œidœ:œPrompt Template-VTXKQœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
       },
       {
         "animated": false,
@@ -92,7 +92,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "Prompt Template",
-            "id": "Prompt Template-GHrUA",
+            "id": "Prompt Template-VTXKQ",
             "name": "prompt",
             "output_types": [
               "Message"
@@ -100,19 +100,19 @@
           },
           "targetHandle": {
             "fieldName": "system_message",
-            "id": "GroqModel-N7JE9",
+            "id": "GroqModel-fQ10O",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-Prompt Template-GHrUA{œdataTypeœ:œPrompt Templateœ,œidœ:œPrompt Template-GHrUAœ,œnameœ:œpromptœ,œoutput_typesœ:[œMessageœ]}-GroqModel-N7JE9{œfieldNameœ:œsystem_messageœ,œidœ:œGroqModel-N7JE9œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-Prompt Template-VTXKQ{œdataTypeœ:œPrompt Templateœ,œidœ:œPrompt Template-VTXKQœ,œnameœ:œpromptœ,œoutput_typesœ:[œMessageœ]}-GroqModel-fQ10O{œfieldNameœ:œsystem_messageœ,œidœ:œGroqModel-fQ10Oœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
         "selected": false,
-        "source": "Prompt Template-GHrUA",
-        "sourceHandle": "{œdataTypeœ:œPrompt Templateœ,œidœ:œPrompt Template-GHrUAœ,œnameœ:œpromptœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "GroqModel-N7JE9",
-        "targetHandle": "{œfieldNameœ:œsystem_messageœ,œidœ:œGroqModel-N7JE9œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "source": "Prompt Template-VTXKQ",
+        "sourceHandle": "{œdataTypeœ:œPrompt Templateœ,œidœ:œPrompt Template-VTXKQœ,œnameœ:œpromptœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "GroqModel-fQ10O",
+        "targetHandle": "{œfieldNameœ:œsystem_messageœ,œidœ:œGroqModel-fQ10Oœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
       },
       {
         "animated": false,
@@ -120,7 +120,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "GroqModel",
-            "id": "GroqModel-N7JE9",
+            "id": "GroqModel-fQ10O",
             "name": "text_output",
             "output_types": [
               "Message"
@@ -128,19 +128,19 @@
           },
           "targetHandle": {
             "fieldName": "query",
-            "id": "TavilySearchComponent-IkBqM",
+            "id": "TavilySearchComponent-NZ5Td",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-GroqModel-N7JE9{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-N7JE9œ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}-TavilySearchComponent-IkBqM{œfieldNameœ:œqueryœ,œidœ:œTavilySearchComponent-IkBqMœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-GroqModel-fQ10O{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-fQ10Oœ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}-TavilySearchComponent-NZ5Td{œfieldNameœ:œqueryœ,œidœ:œTavilySearchComponent-NZ5Tdœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
         "selected": false,
-        "source": "GroqModel-N7JE9",
-        "sourceHandle": "{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-N7JE9œ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "TavilySearchComponent-IkBqM",
-        "targetHandle": "{œfieldNameœ:œqueryœ,œidœ:œTavilySearchComponent-IkBqMœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "source": "GroqModel-fQ10O",
+        "sourceHandle": "{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-fQ10Oœ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "TavilySearchComponent-NZ5Td",
+        "targetHandle": "{œfieldNameœ:œqueryœ,œidœ:œTavilySearchComponent-NZ5Tdœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
       },
       {
         "animated": false,
@@ -148,7 +148,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "ParserComponent",
-            "id": "ParserComponent-TZ8DU",
+            "id": "ParserComponent-neCCc",
             "name": "parsed_text",
             "output_types": [
               "Message"
@@ -156,19 +156,19 @@
           },
           "targetHandle": {
             "fieldName": "input_value",
-            "id": "GroqModel-87OE5",
+            "id": "GroqModel-kkxuh",
             "inputTypes": [
               "Message"
             ],
             "type": "str"
           }
         },
-        "id": "reactflow__edge-ParserComponent-TZ8DU{œdataTypeœ:œParserComponentœ,œidœ:œParserComponent-TZ8DUœ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}-GroqModel-87OE5{œfieldNameœ:œinput_valueœ,œidœ:œGroqModel-87OE5œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-ParserComponent-neCCc{œdataTypeœ:œParserComponentœ,œidœ:œParserComponent-neCCcœ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}-GroqModel-kkxuh{œfieldNameœ:œinput_valueœ,œidœ:œGroqModel-kkxuhœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
         "selected": false,
-        "source": "ParserComponent-TZ8DU",
-        "sourceHandle": "{œdataTypeœ:œParserComponentœ,œidœ:œParserComponent-TZ8DUœ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "GroqModel-87OE5",
-        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œGroqModel-87OE5œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "source": "ParserComponent-neCCc",
+        "sourceHandle": "{œdataTypeœ:œParserComponentœ,œidœ:œParserComponent-neCCcœ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "GroqModel-kkxuh",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œGroqModel-kkxuhœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
       },
       {
         "animated": false,
@@ -176,7 +176,7 @@
         "data": {
           "sourceHandle": {
             "dataType": "GroqModel",
-            "id": "GroqModel-87OE5",
+            "id": "GroqModel-kkxuh",
             "name": "text_output",
             "output_types": [
               "Message"
@@ -184,7 +184,7 @@
           },
           "targetHandle": {
             "fieldName": "input_value",
-            "id": "ChatOutput-8tI3C",
+            "id": "ChatOutput-xZY4U",
             "inputTypes": [
               "Data",
               "DataFrame",
@@ -193,18 +193,18 @@
             "type": "other"
           }
         },
-        "id": "reactflow__edge-GroqModel-87OE5{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-87OE5œ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}-ChatOutput-8tI3C{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-8tI3Cœ,œinputTypesœ:[œDataœ,œDataFrameœ,œMessageœ],œtypeœ:œotherœ}",
+        "id": "reactflow__edge-GroqModel-kkxuh{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-kkxuhœ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}-ChatOutput-xZY4U{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-xZY4Uœ,œinputTypesœ:[œDataœ,œDataFrameœ,œMessageœ],œtypeœ:œotherœ}",
         "selected": false,
-        "source": "GroqModel-87OE5",
-        "sourceHandle": "{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-87OE5œ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "ChatOutput-8tI3C",
-        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-8tI3Cœ,œinputTypesœ:[œDataœ,œDataFrameœ,œMessageœ],œtypeœ:œotherœ}"
+        "source": "GroqModel-kkxuh",
+        "sourceHandle": "{œdataTypeœ:œGroqModelœ,œidœ:œGroqModel-kkxuhœ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "ChatOutput-xZY4U",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-xZY4Uœ,œinputTypesœ:[œDataœ,œDataFrameœ,œMessageœ],œtypeœ:œotherœ}"
       }
     ],
     "nodes": [
       {
         "data": {
-          "id": "ChatInput-WjDCM",
+          "id": "ChatInput-6e3zx",
           "node": {
             "base_classes": [
               "Message"
@@ -382,7 +382,7 @@
                 "trace_as_input": true,
                 "trace_as_metadata": true,
                 "type": "str",
-                "value": "New York"
+                "value": "New York on Nov 13"
               },
               "sender": {
                 "_input_type": "DropdownInput",
@@ -502,7 +502,7 @@
           "type": "ChatInput"
         },
         "dragging": false,
-        "id": "ChatInput-WjDCM",
+        "id": "ChatInput-6e3zx",
         "measured": {
           "height": 48,
           "width": 192
@@ -516,7 +516,7 @@
       },
       {
         "data": {
-          "id": "ChatOutput-8tI3C",
+          "id": "ChatOutput-xZY4U",
           "node": {
             "base_classes": [
               "Message"
@@ -811,7 +811,7 @@
           "type": "ChatOutput"
         },
         "dragging": false,
-        "id": "ChatOutput-8tI3C",
+        "id": "ChatOutput-xZY4U",
         "measured": {
           "height": 48,
           "width": 192
@@ -825,7 +825,7 @@
       },
       {
         "data": {
-          "id": "TavilySearchComponent-IkBqM",
+          "id": "TavilySearchComponent-NZ5Td",
           "node": {
             "base_classes": [
               "DataFrame"
@@ -1173,7 +1173,7 @@
           "type": "TavilySearchComponent"
         },
         "dragging": false,
-        "id": "TavilySearchComponent-IkBqM",
+        "id": "TavilySearchComponent-NZ5Td",
         "measured": {
           "height": 318,
           "width": 320
@@ -1187,7 +1187,7 @@
       },
       {
         "data": {
-          "id": "ParserComponent-TZ8DU",
+          "id": "ParserComponent-neCCc",
           "node": {
             "base_classes": [
               "Message"
@@ -1349,7 +1349,7 @@
           "type": "ParserComponent"
         },
         "dragging": false,
-        "id": "ParserComponent-TZ8DU",
+        "id": "ParserComponent-neCCc",
         "measured": {
           "height": 329,
           "width": 320
@@ -1363,7 +1363,7 @@
       },
       {
         "data": {
-          "id": "Prompt Template-GHrUA",
+          "id": "Prompt Template-VTXKQ",
           "node": {
             "base_classes": [
               "Message"
@@ -1498,7 +1498,7 @@
                 "tool_mode": false,
                 "trace_as_input": true,
                 "type": "prompt",
-                "value": "based on the city name and travel date specified in the {input}, create a simple and short search phrase to ask for the recent news and events that might be relevant to traveller visiting that city, including most recent travel advices.\nIf not travel date is specified in the input, create the search prompt based on {current_date}.\nJust specify the search phrase and nothing else."
+                "value": "Based on the city name and travel date specified in the {input}, generate a concise search phrase to find news, events, and recent travel advisories relevant to a traveler visiting that city around the specified date.\nIf no travel date is provided in the {input}, use {current_date} as the reference point.\nOutput only the search phrase—no explanation or additional text."
               },
               "tool_placeholder": {
                 "_input_type": "MessageTextInput",
@@ -1530,7 +1530,7 @@
           "type": "Prompt Template"
         },
         "dragging": false,
-        "id": "Prompt Template-GHrUA",
+        "id": "Prompt Template-VTXKQ",
         "measured": {
           "height": 449,
           "width": 320
@@ -1544,7 +1544,7 @@
       },
       {
         "data": {
-          "id": "CurrentDate-RjtEm",
+          "id": "CurrentDate-JnJhc",
           "node": {
             "base_classes": [
               "Message"
@@ -2234,7 +2234,7 @@
           "type": "CurrentDate"
         },
         "dragging": false,
-        "id": "CurrentDate-RjtEm",
+        "id": "CurrentDate-JnJhc",
         "measured": {
           "height": 220,
           "width": 320
@@ -2248,7 +2248,7 @@
       },
       {
         "data": {
-          "id": "GroqModel-N7JE9",
+          "id": "GroqModel-fQ10O",
           "node": {
             "base_classes": [
               "LanguageModel",
@@ -2277,7 +2277,7 @@
             "frozen": false,
             "icon": "Groq",
             "key": "GroqModel",
-            "last_updated": "2025-09-11T18:24:24.071Z",
+            "last_updated": "2025-09-17T16:25:23.577Z",
             "legacy": false,
             "lf_version": "1.5.0.post2",
             "metadata": {
@@ -2439,23 +2439,23 @@
                 "info": "The name of the model to use.",
                 "name": "model_name",
                 "options": [
+                  "groq/compound-mini",
+                  "groq/compound",
+                  "moonshotai/kimi-k2-instruct",
+                  "allam-2-7b",
+                  "meta-llama/llama-4-maverick-17b-128e-instruct",
+                  "llama-3.3-70b-versatile",
                   "meta-llama/llama-prompt-guard-2-86m",
-                  "llama-3.1-8b-instant",
+                  "gemma2-9b-it",
+                  "meta-llama/llama-prompt-guard-2-22m",
+                  "qwen/qwen3-32b",
                   "openai/gpt-oss-120b",
                   "deepseek-r1-distill-llama-70b",
-                  "qwen/qwen3-32b",
-                  "meta-llama/llama-prompt-guard-2-22m",
-                  "gemma2-9b-it",
-                  "meta-llama/llama-4-maverick-17b-128e-instruct",
-                  "openai/gpt-oss-20b",
+                  "meta-llama/llama-4-scout-17b-16e-instruct",
                   "meta-llama/llama-guard-4-12b",
-                  "groq/compound-mini",
-                  "moonshotai/kimi-k2-instruct",
+                  "llama-3.1-8b-instant",
                   "moonshotai/kimi-k2-instruct-0905",
-                  "allam-2-7b",
-                  "groq/compound",
-                  "llama-3.3-70b-versatile",
-                  "meta-llama/llama-4-scout-17b-16e-instruct"
+                  "openai/gpt-oss-20b"
                 ],
                 "options_metadata": [],
                 "placeholder": "",
@@ -2467,7 +2467,7 @@
                 "tool_mode": false,
                 "trace_as_metadata": true,
                 "type": "str",
-                "value": "openai/gpt-oss-20b"
+                "value": "openai/gpt-oss-120b"
               },
               "n": {
                 "_input_type": "IntInput",
@@ -2584,7 +2584,7 @@
           "showNode": true,
           "type": "GroqModel"
         },
-        "id": "GroqModel-N7JE9",
+        "id": "GroqModel-fQ10O",
         "measured": {
           "height": 494,
           "width": 320
@@ -2598,7 +2598,7 @@
       },
       {
         "data": {
-          "id": "GroqModel-87OE5",
+          "id": "GroqModel-kkxuh",
           "node": {
             "base_classes": [
               "LanguageModel",
@@ -2627,7 +2627,7 @@
             "frozen": false,
             "icon": "Groq",
             "key": "GroqModel",
-            "last_updated": "2025-09-11T18:15:10.664Z",
+            "last_updated": "2025-09-17T16:25:41.943Z",
             "legacy": false,
             "lf_version": "1.5.0.post2",
             "metadata": {
@@ -2789,23 +2789,23 @@
                 "info": "The name of the model to use.",
                 "name": "model_name",
                 "options": [
-                  "groq/compound-mini",
                   "meta-llama/llama-prompt-guard-2-22m",
-                  "meta-llama/llama-guard-4-12b",
-                  "meta-llama/llama-4-maverick-17b-128e-instruct",
-                  "deepseek-r1-distill-llama-70b",
-                  "openai/gpt-oss-120b",
-                  "moonshotai/kimi-k2-instruct",
-                  "moonshotai/kimi-k2-instruct-0905",
-                  "gemma2-9b-it",
-                  "meta-llama/llama-4-scout-17b-16e-instruct",
                   "llama-3.1-8b-instant",
+                  "openai/gpt-oss-120b",
+                  "groq/compound-mini",
+                  "meta-llama/llama-4-scout-17b-16e-instruct",
+                  "moonshotai/kimi-k2-instruct",
+                  "meta-llama/llama-guard-4-12b",
+                  "gemma2-9b-it",
+                  "deepseek-r1-distill-llama-70b",
+                  "llama-3.3-70b-versatile",
+                  "groq/compound",
+                  "moonshotai/kimi-k2-instruct-0905",
+                  "qwen/qwen3-32b",
+                  "meta-llama/llama-4-maverick-17b-128e-instruct",
                   "meta-llama/llama-prompt-guard-2-86m",
                   "allam-2-7b",
-                  "openai/gpt-oss-20b",
-                  "groq/compound",
-                  "qwen/qwen3-32b",
-                  "llama-3.3-70b-versatile"
+                  "openai/gpt-oss-20b"
                 ],
                 "options_metadata": [],
                 "placeholder": "",
@@ -2935,7 +2935,7 @@
           "type": "GroqModel"
         },
         "dragging": false,
-        "id": "GroqModel-87OE5",
+        "id": "GroqModel-kkxuh",
         "measured": {
           "height": 494,
           "width": 320
@@ -2949,14 +2949,14 @@
       }
     ],
     "viewport": {
-      "x": -38.71948723553169,
-      "y": -414.49351649066375,
-      "zoom": 0.7669205418858702
+      "x": -340.9092200332617,
+      "y": -909.5974079157502,
+      "zoom": 1.1146669790913974
     }
   },
   "description": "When given a city name and date (specific date, or month), search of list of events and news around that time.",
   "endpoint_name": null,
-  "id": "d0d9483c-4355-4c67-8524-14950302fe2f",
+  "id": "8d6e00ca-2f19-467d-99dd-a862c052f7c8",
   "is_component": false,
   "last_tested_version": "1.5.0.post2",
   "name": "CityNews",
