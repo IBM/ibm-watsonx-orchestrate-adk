@@ -43,6 +43,11 @@ def build_alert_message_node(aflow: Flow) -> PromptNode:
             "top_k": 1,
             "stop_sequences": ["Human:", "AI:"]
         },
+        error_handler_config={
+            "error_message": "An error has occured while invoking the LLM",
+            "max_retries": 1,
+            "retry_interval": 1000
+        },
         input_schema=Alert,
         output_schema=Message
     )

@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional, Union
 from enum import Enum
-from pydantic import BaseModel 
+from pydantic import BaseModel, Field
 
 class ToolkitKind(str, Enum):
     MCP = "mcp"
@@ -43,3 +43,15 @@ class ToolkitSpec(BaseModel):
     created_by_username: str
     tools: List[str] | None
     mcp: McpModel
+
+class ToolkitListEntry(BaseModel):
+    name: str = Field(description="The name of the Toolkit")
+    description: Optional[str] = Field(description="The description of the Toolkit")
+    type: str = Field(default="MCP", description="The type of Toolkit.")
+    tools: Optional[List[str]] = Field(description = "A list of tool names for every tool in the Toolkit")
+    app_ids: Optional[List[str]] = Field(description = "A list of connection app_ids showing every connection bound to the Toolkit")
+
+    def get_row_details(self):
+        tools = ", ".join(self.tools) if self.tools else ""
+        app_ids = ", ".join(self.app_ids) if self.app_ids else ""
+        return [self.name, self.description, self.type, tools, app_ids]
