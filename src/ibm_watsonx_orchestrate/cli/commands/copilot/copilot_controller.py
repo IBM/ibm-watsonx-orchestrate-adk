@@ -387,7 +387,7 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
         agent.instructions = new_prompt
 
         if dry_run_flag:
-            rich.print(agent.model_dump(exclude_none=True))
+            rich.print(agent.model_dump(exclude_none=True, mode="json"))
         else:
             if os.path.dirname(output_file):
                 os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -438,7 +438,7 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
     agent.spec_version = SpecVersion.V1
 
     if dry_run_flag:
-        rich.print(agent.model_dump(exclude_none=True))
+        rich.print(agent.model_dump(exclude_none=True, mode="json"))
         return
 
     if os.path.dirname(output_file):
@@ -535,9 +535,6 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
                              f'Available agents:\n'
                              f'{available_sorted_str}')
 
-        rich.print(Panel(message, title="Agent Lookup", border_style="blue"))
-        return
-
     cpe_client = get_cpe_client()
     # Step 2 - retrieve chats (threads)
     try:
@@ -550,7 +547,6 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
                 raise BadRequest(
                     f"No chats found for agent '{agent_name}'. To use autotune, please initiate at least one conversation with the agent. You can start a chat using `orchestrate chat start`.",
                    )
-                return
             last_10_threads = all_threads[:10] #TODO use batching when server allows
             last_10_chats = [_format_thread_messages(chat) for chat in
                              threads_client.get_threads_messages([thread['id'] for thread in last_10_threads])]
@@ -638,7 +634,7 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
     agent.instructions = response['instruction']
 
     if dry_run_flag:
-        rich.print(agent.model_dump(exclude_none=True))
+        rich.print(agent.model_dump(exclude_none=True, mode="json"))
         return
 
     if os.path.dirname(output_file):
