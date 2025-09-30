@@ -131,7 +131,7 @@ class AgentClient(BaseAPIClient):
                 agent = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}/{agent_id}"))
                 return agent
             except ClientAPIException as e:
-                if e.response.status_code == 404 and "not found with the given name" in e.response.text:
+                if e.response.status_code == 404 and ("not found with the given name" in e.response.text or ("Agent" in e.response.text and "not found" in e.response.text)):
                     return ""
                 raise(e)
     
