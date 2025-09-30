@@ -137,7 +137,7 @@ class TestEvaluationsController:
         (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
         mock_runs = []
         # Mock get_all_runs to prevent HTTP requests but allow record_chats to execute
-        with patch("wxo_agentic_evaluation.record_chat.get_all_runs", return_value=mock_runs), \
+        with patch("wxo_agentic_evaluation.record_chat.get_recent_runs", return_value=mock_runs), \
              patch.object(controller, "_get_env_config", return_value=("https://test-url", "test-tenant", "test-token")), \
              patch("time.sleep", side_effect=KeyboardInterrupt):  # Simulate Ctrl+C
             output_dir = "test_output"

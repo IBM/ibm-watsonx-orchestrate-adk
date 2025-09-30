@@ -17,9 +17,12 @@ from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 logger = logging.getLogger(__name__)
+
+HIDE_ENVIRONMENT_MGR_PANEL = os.environ.get("HIDE_ENVIRONMENT_MGR_PANEL", "true").lower() == "true"
 
 evaluation_app = typer.Typer(no_args_is_help=True)
 
@@ -142,14 +145,38 @@ def evaluate(
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
-    ] = None
+    ] = None,
+    env_manager_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-manager-path",
+            help="""
+                Path to YAML configuration file containing environment settings.\n
+                See `./examples/evaluations/environment_manager` on how to create the environment manager file.
+                Note: When using this feature, you must pass the `output_dir`.
+            """,
+            rich_help_panel="Environment Manager",
+            hidden=HIDE_ENVIRONMENT_MGR_PANEL
+        )
+    ] = None,
 ):
+    validate_watsonx_credentials(user_env_file)
+
+    if env_manager_path:
+        if output_dir:
+            return run_environment_manager(
+                environment_manager_path=env_manager_path,
+                output_dir=output_dir,
+            )
+        else:
+            logger.error("Error: `--env_manager_path`, `--output_dir` must be provided to use the environment manager feature.")
+            sys.exit(1)
+
     if not config_file:
         if not test_paths or not output_dir:
             logger.error("Error: Both --test-paths and --output-dir must be provided when not using a config file")
             exit(1)
-    
-    validate_watsonx_credentials(user_env_file)
+
     controller = EvaluationsController()
     controller.evaluate(config_file=config_file, test_paths=test_paths, output_dir=output_dir)
 
