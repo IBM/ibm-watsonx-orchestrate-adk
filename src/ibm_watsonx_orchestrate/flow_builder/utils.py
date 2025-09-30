@@ -170,13 +170,7 @@ async def import_flow_model(model):
 
     return tool_id
 
-def import_flow_support_tools(model):
-
-    if not is_local_dev():
-        # we can't import support tools into non-local environments yet
-        return []
-
-        
+def import_flow_support_tools(model):     
     schedulable = False
     if "schedulable" in model["spec"]:
         schedulable = model["spec"]["schedulable"]
