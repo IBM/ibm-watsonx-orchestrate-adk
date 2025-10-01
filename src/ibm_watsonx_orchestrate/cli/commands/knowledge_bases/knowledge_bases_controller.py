@@ -121,7 +121,8 @@ class KnowledgeBaseController:
                 conn = connections_map.get(app_id)
                 if conn:
                     index_config = get_index_config(kb)
-                    index_config.connection_id = conn.connection_id
+                    if index_config:
+                        index_config.connection_id = conn.connection_id
                 else:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
