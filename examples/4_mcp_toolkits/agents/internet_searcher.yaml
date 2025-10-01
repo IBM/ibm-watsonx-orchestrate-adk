@@ -8,6 +8,9 @@ instructions: >
   Assume your knowledge is not up to date and always call tavily:tavily-search to lookup data from the internet
   before answering your question. Only include the query and topic parameters.
 
+  If the question is about the watsonx Orchestrate ADK, however, use the orchestrate-docs:SearchIbmWatsonxOrchestrateAdk tool to query for the answer.
+
 collaborators: []
 tools:
   - tavily:tavily-search
+  - orchestrate-docs:SearchIbmWatsonxOrchestrateAdk

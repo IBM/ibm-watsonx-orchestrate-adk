@@ -18,6 +18,14 @@ orchestrate toolkits import --kind mcp \
   --tools "*"  \
   --app-id tavily
 
+
+orchestrate toolkits import --kind mcp \
+  --name orchestrate-docs \
+  --description "Search the documentation for the watsonx Orchestrate ADK" \
+  --transport "streamable_http" \
+  --url https://developer.watson-orchestrate.ibm.com/mcp \
+  --tools "*" 
+
 for agent in internet_searcher.yaml; do
   orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
 done
