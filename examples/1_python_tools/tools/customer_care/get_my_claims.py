@@ -3,24 +3,26 @@ from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
 @tool
 def get_my_claims():
-    """
-    Retrieve detailed information about submitted claims including claim status, submission and processing dates,
+    """Retrieve detailed information about submitted claims.
+    
+    Retrieves information including claim status, submission and processing dates,
     amounts claimed and approved, provider information, and services included in the claims.
 
-    :returns: A list of dictionaries, each containing details about a specific claim:
-              - 'claimId': Unique identifier for the claim
-              - 'submittedDate': Date when the claim was submitted
-              - 'claimStatus': Current status of the claim (e.g., 'Processed', 'Pending', 'Rejected')
-              - 'processedDate': Date when the claim was processed (null if not processed yet)
-              - 'amountClaimed': Total amount claimed
-              - 'amountApproved': Amount approved for reimbursement (null if pending, 0 if rejected)
-              - 'rejectionReason': Reason for rejection if applicable (only present if claimStatus is 'Rejected')
-              - 'provider': Provider details, either as a simple string or a dictionary with detailed provider information
-              - 'services': List of services included in the claim, each with:
-                  - 'serviceId': Identifier for the service
-                  - 'description': Description of the service provided
-                  - 'dateOfService': Date the service was provided
-                  - 'amount': Amount charged for the service
+    Returns:
+        list: A list of dictionaries, each containing details about a specific claim:
+            - 'claimId': Unique identifier for the claim
+            - 'submittedDate': Date when the claim was submitted
+            - 'claimStatus': Current status of the claim (e.g., 'Processed', 'Pending', 'Rejected')
+            - 'processedDate': Date when the claim was processed (null if not processed yet)
+            - 'amountClaimed': Total amount claimed
+            - 'amountApproved': Amount approved for reimbursement (null if pending, 0 if rejected)
+            - 'rejectionReason': Reason for rejection if applicable (only present if claimStatus is 'Rejected')
+            - 'provider': Provider details, either as a simple string or a dictionary with detailed provider information
+            - 'services': List of services included in the claim, each with:
+                - 'serviceId': Identifier for the service
+                - 'description': Description of the service provided
+                - 'dateOfService': Date the service was provided
+                - 'amount': Amount charged for the service
     """
     claims_data = [
         {

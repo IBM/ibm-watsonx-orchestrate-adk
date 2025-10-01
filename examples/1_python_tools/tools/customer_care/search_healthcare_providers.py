@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import requests
 from pydantic import BaseModel, Field
@@ -22,12 +22,12 @@ class HealthcareSpeciality(str, Enum):
 
 
 class HealthcareProvider(BaseModel):
-    provider_id: str = Field(None, description="The unique identifier of the provider")
-    name: str = Field(None, description="The providers name")
-    provider_type: str = Field(None, description="Type of provider, (e.g. Hospital, Clinic, Individual Practitioner)")
-    specialty: HealthcareSpeciality = Field(None, description="Medical speciality, if applicable")
-    address: str = Field(None, description="The address of the provider")
-    contact: ContactInformation = Field(None, description="The contact information of the provider")
+    provider_id: Optional[str] = Field(None, description="The unique identifier of the provider")
+    name: Optional[str] = Field(None, description="The providers name")
+    provider_type: Optional[str] = Field(None, description="Type of provider, (e.g. Hospital, Clinic, Individual Practitioner)")
+    specialty: Optional[HealthcareSpeciality] = Field(None, description="Medical speciality, if applicable")
+    address: Optional[str] = Field(None, description="The address of the provider")
+    contact: Optional[ContactInformation] = Field(None, description="The contact information of the provider")
 
 
 @tool
@@ -35,15 +35,19 @@ def search_healthcare_providers(
         location: str,
         specialty: HealthcareSpeciality = HealthcareSpeciality.GENERAL_MEDICINE
 ) -> List[HealthcareProvider]:
-    """
-    Retrieve a list of the nearest healthcare providers based on location and optional specialty. Infer the
-    speciality of the location from the request.
+    """Retrieve a list of the nearest healthcare providers based on location and optional specialty.
+    
+    Infer the speciality of the location from the request.
 
+    Args:
+        location (str): Geographic location to search providers in (city, state, zip code, etc.)
+        specialty (HealthcareSpeciality, optional): Medical specialty to filter providers by.
+            Must be one of: "ENT", "General Medicine", "Cardiology", "Pediatrics",
+            "Orthopedics", "Multi-specialty". Defaults to GENERAL_MEDICINE.
 
-    :param location: Geographic location to search providers in (city, state, zip code, etc.)
-    :param specialty: (Optional) Medical specialty to filter providers by (Must be one of: "ENT", "General Medicine", "Cardiology", "Pediatrics", "Orthopedics", "Multi-specialty")
-
-    :returns: A list of healthcare providers near a particular location for a given speciality
+    Returns:
+        List[HealthcareProvider]: A list of healthcare providers near a particular location
+            for a given speciality
     """
     resp = requests.get(
         'https://find-provider.1sqnxi8zv3dh.us-east.codeengine.appdomain.cloud',

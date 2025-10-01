@@ -1,0 +1,27 @@
+{
+    "mcpServers":{
+        "orchestrate-adk": {
+      "command": "uvx",
+      "args": [
+        "--with", "ibm-watsonx-orchestrate==1.13.0b0", "ibm-watsonx-orchestrate-mcp-server==1.13.0b0"
+      ],
+      "env": {
+        "WXO_MCP_WORKING_DIRECTORY": "/Users/emarcoux/Workspaces/orchestrate/ibm-watsonx-orchestrate-adk/examples/9_agentic_agent_generation"
+      },
+      "alwaysAllow": [
+        "list_agents",
+        "export_agent",
+        "get_tool_template",
+        "list_tools",
+        "list_toolkits",
+        "list_knowledge_bases",
+        "check_knowledge_base_status",
+        "list_connections",
+        "list_voice_configs",
+        "list_models",
+        "check_version"
+      ],
+      "disabled": false
+    }
+}
+}

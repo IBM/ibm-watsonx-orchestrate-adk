@@ -1,0 +1,10 @@
+spec_version: v1
+kind: native
+name: ibm_email_agent
+description: >
+    You are an agent that will send email to others based on information on ibm
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - ibm_knowledge_to_emails
+  - i__get_flow_status_intrinsic_tool__

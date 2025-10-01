@@ -1,0 +1,20 @@
+auth_config:
+  tenant_name: local
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYiLCJ1c2VybmFtZSI6Ind4by5hcmNoZXJAaWJtLmNvbSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJ0ZW5hbnRfaWQiOiI0MjY5ZDU4Mi0yMGU4LTRmOWEtYTdhYS02ZjI0ODQxMjM1MTQiLCJ3b1RlbmFudElkIjoiNDI2OWQ1ODItMjBlOC00ZjlhLWE3YWEtNmYyNDg0MTIzNTE0Iiwid29Vc2VySWQiOiJmMjQyZWFkZi0wZGM5LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYifQ.Z7kz3j3AGPmBMlbFPiwrMNEDpPHeNFtQcxLZhyZW9XU
+  url: http://localhost:4321
+data_annotation_run: false
+enable_manual_user_input: false
+enable_verbose_logging: true
+llm_user_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  prompt_config: /Users/emarcoux/Workspaces/orchestrate/ibm-watsonx-orchestrate-adk/venv/lib/python3.12/site-packages/wxo_agentic_evaluation/prompt/llama_user_prompt.jinja2
+  user_response_style: []
+num_workers: 2
+output_dir: results
+provider_config:
+  model_id: meta-llama/llama-3-405b-instruct
+  provider: watsonx
+skip_available_results: false
+test_paths:
+- /Users/emarcoux/Workspaces/orchestrate/ibm-watsonx-orchestrate-adk/examples/7_evaluations/generated
+wxo_lite_version: 1.10.0

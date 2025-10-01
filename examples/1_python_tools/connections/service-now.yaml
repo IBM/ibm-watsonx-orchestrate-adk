@@ -5,8 +5,8 @@ environments:
   draft:
     kind: basic
     type: team
-    server_url: https://dev295896.service-now.com # update me with your own service instance url
+    server_url: https://dev221068.service-now.com # update me with your own service instance url
   live:
     kind: basic
     type: team
-    server_url: https://dev295896.service-now.com # update me with your own service instance url
+    server_url: https://dev221068.service-now.com # update me with your own service instance url

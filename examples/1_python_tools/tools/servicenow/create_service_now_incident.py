@@ -15,16 +15,14 @@ from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType
 CONNECTION_SNOW = 'service-now'
 
 class ServiceNowIncidentResponse(BaseModel):
-    """
-    Represents the response received after creating a ServiceNow incident.
+    """Represents the response received after creating a ServiceNow incident.
     """
     incident_number: str = Field(..., description='The incident number assigned by ServiceNow')
     sys_id: str = Field(..., description='The system ID of the created incident')
 
 
 class ServiceNowIncident(BaseModel):
-    """
-    Represents the details of a ServiceNow incident.
+    """Represents the details of a ServiceNow incident.
     """
     incident_number: str = Field(..., description='The incident number assigned by ServiceNow')
     short_description: str = Field(..., description='A brief summary of the incident')
@@ -44,13 +42,15 @@ def create_service_now_incident(
         description: Optional[str] = None,
         urgency: Optional[int] = 3
 ):
-    """
-    Create a new ServiceNow incident.
+    """Create a new ServiceNow incident.
 
-    :param short_description: A brief summary of the incident.
-    :param description: Detailed information about the incident (optional).
-    :param urgency: Urgency level (1 - High, 2 - Medium, 3 - Low, default is 3).
-    :returns: The created incident details including incident number and system ID.
+    Args:
+        short_description (str): A brief summary of the incident.
+        description (Optional[str], optional): Detailed information about the incident. Defaults to None.
+        urgency (Optional[int], optional): Urgency level (1 - High, 2 - Medium, 3 - Low). Defaults to 3.
+
+    Returns:
+        str: The created incident details including incident number and system ID.
     """
     creds = connections.basic_auth(CONNECTION_SNOW)
     base_url = creds.url

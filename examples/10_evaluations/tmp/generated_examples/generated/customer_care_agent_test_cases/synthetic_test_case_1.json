@@ -1,0 +1,34 @@
+{
+  "agent": "customer_care_agent",
+  "story": "As a patient, I am looking for information about my medical claims.",
+  "starting_sentence": "I'd like to check my medical claims.",
+  "goals": {
+    "get_my_claims-1": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_my_claims-1",
+      "tool_name": "get_my_claims",
+      "args": {}
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "You have three medical claims: CLM1234567 (Processed, $120.00 approved), CLM7654321 (Pending, $300.00 claimed), and CLM9876543 (Rejected, $0.00 approved).",
+      "keywords": [
+        "CLM1234567",
+        "CLM7654321",
+        "CLM9876543",
+        "Processed",
+        "Pending",
+        "Rejected",
+        "$120.00",
+        "$300.00",
+        "$0.00"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+[
+    {
+        "role": "user",
+        "content": "I'd like to check my medical claims.",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_my_claims\", \"args\": {}, \"id\": \"06bf454bf\"}",
+        "type": "tool_call",
+        "event": "run.step.thinking",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"Observation: [{'claimId': 'CLM1234567', 'claimStatus': 'Processed', 'amountClaimed': 150.0, 'amountApproved': 120.0, 'provider': {'name': 'Healthcare Clinic ABC', 'providerId': 'PRV001234', 'providerType': 'Clinic'}, 'services': [{'serviceId': 'SVC001', 'description': 'General Consultation', 'dateOfService': '2025-02-28', 'amount': 100.0}, {'serviceId': 'SVC002', 'description': 'Blood Test', 'dateOfService': '2025-02-28', 'amount': 50.0}]}, {'claimId': 'CLM7654321', 'claimStatus': 'Pending', 'amountClaimed': 300.0, 'amountApproved': None, 'provider': 'City Health Hospital', 'services': [{'serviceId': 'SVC003', 'description': 'X-ray Imaging', 'dateOfService': '2025-02-14', 'amount': 300.0}]}, {'claimId': 'CLM9876543', 'claimStatus': 'Rejected', 'amountClaimed': 200.0, 'amountApproved': 0.0, 'rejectionReason': 'Service not covered by policy', 'provider': 'Downtown Diagnostics', 'services': [{'serviceId': 'SVC003', 'description': 'MRI Scan', 'dateOfService': '2025-02-05', 'amount': 200.0}]}]\", \"name\": \"get_my_claims\", \"tool_call_id\": \"06bf454bf\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "Here are the details of your medical claims:\n\n| Claim ID | Claim Status | Amount Claimed | Amount Approved | Provider | Services |\n| --- | --- | --- | --- | --- | --- |\n| CLM1234567 | Processed | $150.00 | $120.00 | Healthcare Clinic ABC | General Consultation ($100.00), Blood Test ($50.00) |\n| CLM7654321 | Pending | $300.00 | - | City Health Hospital | X-ray Imaging ($300.00) |\n| CLM9876543 | Rejected | $200.00 | $0.00 | Downtown Diagnostics | MRI Scan ($200.00) |\n\nPlease note that the claim status, amount approved, and services may change over time.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "Is this correct?",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_my_claims\", \"args\": {}, \"id\": \"3374ba9f9\"}",
+        "type": "tool_call",
+        "event": "run.step.thinking",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"Observation: [{'claimId': 'CLM1234567', 'claimStatus': 'Processed', 'amountClaimed': 150.0, 'amountApproved': 120.0, 'provider': {'name': 'Healthcare Clinic ABC', 'providerId': 'PRV001234', 'providerType': 'Clinic'}, 'services': [{'serviceId': 'SVC001', 'description': 'General Consultation', 'dateOfService': '2025-02-28', 'amount': 100.0}, {'serviceId': 'SVC002', 'description': 'Blood Test', 'dateOfService': '2025-02-28', 'amount': 50.0}]}, {'claimId': 'CLM7654321', 'claimStatus': 'Pending', 'amountClaimed': 300.0, 'amountApproved': None, 'provider': 'City Health Hospital', 'services': [{'serviceId': 'SVC003', 'description': 'X-ray Imaging', 'dateOfService': '2025-02-14', 'amount': 300.0}]}, {'claimId': 'CLM9876543', 'claimStatus': 'Rejected', 'amountClaimed': 200.0, 'amountApproved': 0.0, 'rejectionReason': 'Service not covered by policy', 'provider': 'Downtown Diagnostics', 'services': [{'serviceId': 'SVC003', 'description': 'MRI Scan', 'dateOfService': '2025-02-05', 'amount': 200.0}]}]\", \"name\": \"get_my_claims\", \"tool_call_id\": \"3374ba9f9\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "I apologize, but it seems like I repeated the same output. The original output was correct. Here it is again:\n\nHere are the details of your medical claims:\n\n| Claim ID | Claim Status | Amount Claimed | Amount Approved | Provider | Services |\n| --- | --- | --- | --- | --- | --- |\n| CLM1234567 | Processed | $150.00 | $120.00 | Healthcare Clinic ABC | General Consultation ($100.00), Blood Test ($50.00) |\n| CLM7654321 | Pending | $300.00 | - | City Health Hospital | X-ray Imaging ($300.00) |\n| CLM9876543 | Rejected | $200.00 | $0.00 | Downtown Diagnostics | MRI Scan ($200.00) |\n\nPlease note that the claim status, amount approved, and services may change over time.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "YES",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "The details of your medical claims are correct.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    }
+]

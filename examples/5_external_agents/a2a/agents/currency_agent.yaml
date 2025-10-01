@@ -1,0 +1,11 @@
+spec_version: v1
+kind: external
+name: currency_agent
+title: Currency Conversion Agent
+description: An external agent that provides currency conversion services using the A2A protocol
+provider: external_chat/A2A/0.2.1
+api_url: https://currency-a2a-agent.20xwvftb34mw.us-east.codeengine.appdomain.cloud
+auth_scheme: NONE
+chat_params:
+  agentProtocol: A2A
+  stream: false

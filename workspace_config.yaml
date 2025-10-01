@@ -1,0 +1,7 @@
+folder_paths:
+  agents: /9_agentic_agent_generation/agents
+  tools: /9_agentic_agent_generation/tools
+  connections: /9_agentic_agent_generation/connections
+  knowledge_bases: /9_agentic_agent_generation/knowledge-bases
+  toolkits: /9_agentic_agent_generation/toolkits
+  models: /9_agentic_agent_generation/models

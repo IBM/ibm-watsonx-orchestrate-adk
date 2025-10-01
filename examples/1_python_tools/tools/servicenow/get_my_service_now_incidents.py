@@ -18,8 +18,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType
 CONNECTION_SNOW = 'service-now'
 
 class ServiceNowIncident(BaseModel):
-    """
-    Represents the details of a ServiceNow incident.
+    """Represents the details of a ServiceNow incident.
     """
     incident_number: str = Field(..., description='The incident number assigned by ServiceNow')
     short_description: str = Field(..., description='A brief summary of the incident')
@@ -34,10 +33,11 @@ class ServiceNowIncident(BaseModel):
     ]
 )
 def get_my_service_now_incidents() -> List[ServiceNowIncident]:
-    """
-    Fetch all ServiceNow that the user was the author of.
+    """Fetch all ServiceNow incidents that the user was the author of.
 
-    :returns: The incident details including number, system ID, description, state, and urgency.
+    Returns:
+        List[ServiceNowIncident]: The incident details including number, system ID,
+            description, state, and urgency.
     """
     creds = connections.basic_auth('service-now')
     base_url = creds.url

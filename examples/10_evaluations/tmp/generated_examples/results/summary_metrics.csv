@@ -1,0 +1,3 @@
+dataset_name,total_steps,llm_step,total_tool_calls,expected_tool_calls,correct_tool_calls,relevant_tool_calls,total_routing_calls,relevant_routing_calls,tool_calls_with_incorrect_parameter,text_match,is_success,avg_resp_time,tool_call_recall,tool_call_precision,agent_routing_accuracy
+synthetic_test_case_1,10,5,2,1,1,2,0,0,0,Summary Matched,False,3.52,1.0,0.5,0.0
+synthetic_test_case_2,4,2,1,1,1,1,0,0,0,Summary Matched,True,3.66,1.0,1.0,0.0
