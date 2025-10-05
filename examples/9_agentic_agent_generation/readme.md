@@ -1,0 +1,2 @@
+# Agentic agent generation
+> Create the files needed to import an Orchestrate tool that can use the universities hipolabs api to get a list of universities given a country. Please work in the 9_agentic_agent_generation folder.

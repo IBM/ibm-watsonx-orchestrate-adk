@@ -6,8 +6,9 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 orchestrate connections import -f ${SCRIPT_DIR}/connections/service-now.yaml
 set +x
 . ../../.env
-orchestrate connections set-credentials -a service-now --env draft -u "$SERVICE_NOW_USERNAME" -p "$SERVICE_NOW_PASSWORD"
-orchestrate connections set-credentials -a service-now --env live -u "$SERVICE_NOW_USERNAME" -p "$SERVICE_NOW_PASSWORD"
+for env in draft live; do
+  orchestrate connections set-credentials -a service-now --env $env  -u "$SERVICE_NOW_USERNAME" -p "$SERVICE_NOW_PASSWORD";
+done;
 set -x
 
 

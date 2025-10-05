@@ -1,11 +1,9 @@
 
 
-import json
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import requests
 from pydantic import Field, BaseModel
-import base64
 
 from requests.auth import HTTPBasicAuth
 
@@ -32,45 +30,49 @@ class ServiceNowIncident(BaseModel):
         {"app_id": CONNECTION_SNOW, "type": ConnectionType.BASIC_AUTH}
     ]
 )
-def get_my_service_now_incidents() -> List[ServiceNowIncident]:
+def list_my_service_now_incidents() -> Union[List[ServiceNowIncident], str]:
     """Fetch all ServiceNow incidents that the user was the author of.
 
     Returns:
         List[ServiceNowIncident]: The incident details including number, system ID,
             description, state, and urgency.
     """
-    creds = connections.basic_auth('service-now')
-    base_url = creds.url
-    url = f"{base_url}/api/now/table/incident"
+    try:
+        creds = connections.basic_auth('service-now')
+        base_url = creds.url
+        url = f"{base_url}/api/now/table/incident"
 
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    query_params = {}
-    query_params['sys_created_by'] = 'admin'
-    
-    response = requests.get(
-        url,
-        headers=headers,
-        params=query_params,
-        auth=HTTPBasicAuth(creds.username, creds.password)
-    )
-    response.raise_for_status()
-    data = response.json()['result']
-    
-    lst =  [ServiceNowIncident(
-        incident_number=d['number'],
-        short_description=d['short_description'],
-        description=d.get('description', ''),
-        state=d['state'],
-        urgency=d['urgency'],
-        created_on=d['opened_at']
-    ) for d in data]
-    lst.sort(key=lambda o: o.created_on, reverse=True)
-    lst = lst[:min(len(lst), 10)]
-    return lst
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        query_params = {}
+        query_params['sys_created_by'] = 'admin'
+        
+        response = requests.get(
+            url,
+            headers=headers,
+            params=query_params,
+            auth=HTTPBasicAuth(creds.username, creds.password)
+        )
+        response.raise_for_status()
+        return response.text
+        data = response.json()['result']
+        
+        lst =  [ServiceNowIncident(
+            incident_number=d['number'],
+            short_description=d['short_description'],
+            description=d.get('description', ''),
+            state=d['state'],
+            urgency=d['urgency'],
+            created_on=d['opened_at']
+        ) for d in data]
+        lst.sort(key=lambda o: o.created_on, reverse=True)
+        lst = lst[:min(len(lst), 10)]
+        return lst
+    except Exception as e:
+        return f"Error: {e}"
 
 # if __name__ == '__main__':
 #     incidents = get_my_service_now_incidents()

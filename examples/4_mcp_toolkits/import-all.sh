@@ -10,6 +10,9 @@ orchestrate connections set-credentials -a tavily --env draft -e "TAVILY_API_KEY
 orchestrate connections set-credentials -a tavily --env live -e "TAVILY_API_KEY=$TAVILY_API_KEY"
 set -x
 
+orchestrate toolkits remove -n tavily
+orchestrate toolkits remove -n orchestrate-docs
+
 orchestrate toolkits import --kind mcp \
   --name tavily \
   --description "Search the internet" \
@@ -23,8 +26,14 @@ orchestrate toolkits import --kind mcp \
   --name orchestrate-docs \
   --description "Search the documentation for the watsonx Orchestrate ADK" \
   --transport "streamable_http" \
-  --url https://developer.watson-orchestrate.ibm.com/mcp \
+  --url "https://developer.watson-orchestrate.ibm.com/mcp" \
   --tools "*" 
+
+# orchestrate toolkits import --kind mcp \
+#   --name orchestrate-docs \
+#   --description "Search the documentation for the watsonx Orchestrate ADK" \
+#   --command "uvx mcp-proxy --transport streamablehttp 'https://developer.watson-orchestrate.ibm.com/mcp'" \
+#   --tools "*"
 
 for agent in internet_searcher.yaml; do
   orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}

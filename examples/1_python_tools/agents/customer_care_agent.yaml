@@ -1,5 +1,5 @@
 spec_version: v1
-style: react
+style: default
 name: customer_care_agent
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 description: >

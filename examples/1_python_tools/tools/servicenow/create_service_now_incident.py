@@ -52,50 +52,53 @@ def create_service_now_incident(
     Returns:
         str: The created incident details including incident number and system ID.
     """
-    creds = connections.basic_auth(CONNECTION_SNOW)
-    base_url = creds.url
-    url = f"{base_url}/api/now/table/incident"
+    try:
+        creds = connections.basic_auth(CONNECTION_SNOW)
+        base_url = creds.url
+        url = f"{base_url}/api/now/table/incident"
 
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    payload = {
-        'short_description': short_description,
-        'description': description,
-        'urgency': urgency
-    }
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        payload = {
+            'short_description': short_description,
+            'description': description,
+            'urgency': urgency
+        }
 
-    response = requests.post(
-        url,
-        headers=headers,
-        json=payload,
-        auth=HTTPBasicAuth(creds.username, creds.password)
-    )
-    response.raise_for_status()
-    data = response.json()['result']
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            auth=HTTPBasicAuth(creds.username, creds.password)
+        )
+        response.raise_for_status()
+        data = response.json()['result']
 
-    number, sys_id = data['number'], data['sys_id']
+        number, sys_id = data['number'], data['sys_id']
 
-    url = f"{base_url}/api/now/table/incident/{sys_id}"
-    response = requests.get(
-        url,
-        headers=headers,
-        json=payload,
-        auth=HTTPBasicAuth(creds.username, creds.password)
-    )
-    response.raise_for_status()
-    data = response.json()['result']
+        url = f"{base_url}/api/now/table/incident/{sys_id}"
+        response = requests.get(
+            url,
+            headers=headers,
+            json=payload,
+            auth=HTTPBasicAuth(creds.username, creds.password)
+        )
+        response.raise_for_status()
+        data = response.json()['result']
 
-    return ServiceNowIncident(
-        incident_number=data['number'],
-        sys_id=data['sys_id'],
-        short_description=data['short_description'],
-        description=data.get('description', ''),
-        state=data['state'],
-        urgency=data['urgency'],
-        created_on=data['opened_at']
-    ).model_dump_json()
+        return ServiceNowIncident(
+            incident_number=data['number'],
+            sys_id=data['sys_id'],
+            short_description=data['short_description'],
+            description=data.get('description', ''),
+            state=data['state'],
+            urgency=data['urgency'],
+            created_on=data['opened_at']
+        ).model_dump_json()
+    except Exception as e:
+        return f"Error: {e}"
 
 # if __name__ == '__main__':
 #     incident = create_service_now_incident(short_description='Test Incident', description='This is a test incident')

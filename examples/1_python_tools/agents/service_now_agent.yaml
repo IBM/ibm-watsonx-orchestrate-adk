@@ -1,5 +1,5 @@
 spec_version: v1
-style: react
+style: default
 name: service_now_agent
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 description: >
@@ -17,5 +17,5 @@ instructions: >
 collaborators: []
 tools:
   - create_service_now_incident
-  - get_my_service_now_incidents
+  - list_my_service_now_incidents
   - get_service_now_incident_by_number

@@ -40,37 +40,40 @@ def get_service_now_incident_by_number(incident_number: str):
     Returns:
         str: The incident details including number, system ID, description, state, and urgency.
     """
-    creds = connections.basic_auth('service-now')
-    base_url = creds.url
-    url = f"{base_url}/api/now/table/incident"
+    try:
+        creds = connections.basic_auth('service-now')
+        base_url = creds.url
+        url = f"{base_url}/api/now/table/incident"
 
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    query_params = {}
-    if incident_number:
-        query_params['number'] = incident_number
-    
-    response = requests.get(
-        url,
-        headers=headers,
-        params=query_params,
-        auth=HTTPBasicAuth(creds.username, creds.password)
-    )
-    response.raise_for_status()
-    data = response.json()['result']
-    data = data[0]  # Assuming only one incident is returned
-    
-    return ServiceNowIncident(
-        incident_number=data['number'],
-        short_description=data['short_description'],
-        description=data.get('description', ''),
-        state=data['state'],
-        urgency=data['urgency'],
-        created_on=data['opened_at']
-    ).model_dump_json()
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        
+        query_params = {}
+        if incident_number:
+            query_params['number'] = incident_number
+        
+        response = requests.get(
+            url,
+            headers=headers,
+            params=query_params,
+            auth=HTTPBasicAuth(creds.username, creds.password)
+        )
+        response.raise_for_status()
+        data = response.json()['result']
+        data = data[0]  # Assuming only one incident is returned
+        
+        return ServiceNowIncident(
+            incident_number=data['number'],
+            short_description=data['short_description'],
+            description=data.get('description', ''),
+            state=data['state'],
+            urgency=data['urgency'],
+            created_on=data['opened_at']
+        ).model_dump_json()
+    except Exception as e:
+        return f"Error: {e}"
 
 # if __name__ == '__main__':
 #     incident = fetch_service_now_incident(incident_number='INC0010311')
