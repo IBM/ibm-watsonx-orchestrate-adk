@@ -3,6 +3,7 @@ import os
 import sys
 import csv
 import difflib
+import re
 from datetime import datetime
 
 import rich
@@ -218,12 +219,12 @@ def get_deployed_tools_agents_and_knowledge_bases():
     return {"tools": all_tools, "collaborators": all_agents, "knowledge_bases": all_knowledge_bases}
 
 
-def pre_cpe_step(cpe_client):
+def pre_cpe_step(cpe_client, chat_llm):
     tools_agents_and_knowledge_bases = get_deployed_tools_agents_and_knowledge_bases()
     user_message = ""
     with _get_progress_spinner() as progress:
         task = progress.add_task(description="Initializing Prompt Engine", total=None)
-        response = cpe_client.submit_pre_cpe_chat(user_message=user_message)
+        response = cpe_client.submit_pre_cpe_chat(chat_llm=chat_llm, user_message=user_message)
         progress.remove_task(task)
 
     res = {}
@@ -258,7 +259,7 @@ def pre_cpe_step(cpe_client):
             return res
         with _get_progress_spinner() as progress:
             task = progress.add_task(description="Thinking...", total=None)
-            response = cpe_client.submit_pre_cpe_chat(**message_content)
+            response = cpe_client.submit_pre_cpe_chat(chat_llm=chat_llm,**message_content)
             progress.remove_task(task)
 
 
@@ -314,7 +315,7 @@ def gather_examples(samples_file=None):
     return examples
 
 
-def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
+def talk_to_cpe(cpe_client, chat_llm, samples_file=None, context_data=None):
     context_data = context_data or {}
     examples = gather_examples(samples_file)
     # upload or gather input examples
@@ -322,7 +323,7 @@ def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
     response = None
     with _get_progress_spinner() as progress:
         task = progress.add_task(description="Thinking...", total=None)
-        response = cpe_client.init_with_context(context_data=context_data)
+        response = cpe_client.init_with_context(chat_llm=chat_llm, context_data=context_data)
         progress.remove_task(task)
     accepted_prompt = None
     while accepted_prompt is None:
@@ -334,13 +335,13 @@ def talk_to_cpe(cpe_client, samples_file=None, context_data=None):
             message = Prompt.ask("\n👤 You").strip()
             with _get_progress_spinner() as progress:
                 task = progress.add_task(description="Thinking...", total=None)
-                response = cpe_client.invoke(prompt=message)
+                response = cpe_client.invoke(chat_llm=chat_llm, prompt=message)
                 progress.remove_task(task)
 
     return accepted_prompt
 
 
-def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | None, dry_run_flag: bool) -> None:
+def prompt_tune(agent_spec: str, chat_llm: str | None, output_file: str | None, samples_file: str | None, dry_run_flag: bool) -> None:
     agent = AgentsController.import_agent(file=agent_spec, app_id=None)[0]
     agent_kind = agent.kind
 
@@ -353,6 +354,7 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
         output_file = agent_spec
 
     _validate_output_file(output_file, dry_run_flag)
+    _validate_chat_llm(chat_llm)
 
     client = get_cpe_client()
 
@@ -365,6 +367,7 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
     knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
     try:
         new_prompt = talk_to_cpe(cpe_client=client,
+                                 chat_llm=chat_llm,
                                  samples_file=samples_file,
                                  context_data={
                                      "initial_instruction": instr,
@@ -393,15 +396,21 @@ def prompt_tune(agent_spec: str, output_file: str | None, samples_file: str | No
                 os.makedirs(os.path.dirname(output_file), exist_ok=True)
             AgentsController.persist_record(agent, output_file=output_file)
 
+def _validate_chat_llm(chat_llm):
+    if chat_llm:
+        formatted_chat_llm = re.sub(r'[^a-zA-Z0-9/]', '-', chat_llm)
+        if "llama-3-3-70b-instruct" not in formatted_chat_llm:
+            raise BadRequest(f"Unsupported chat model for copilot {chat_llm}. Copilot supports only llama-3-3-70b-instruct at this point.")
 
-def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_flag: bool = False) -> None:
+def create_agent(output_file: str, llm: str, chat_llm: str | None, samples_file: str | None, dry_run_flag: bool = False) -> None:
     _validate_output_file(output_file, dry_run_flag)
+    _validate_chat_llm(chat_llm)
     # 1. prepare the clients
     cpe_client = get_cpe_client()
 
     # 2. Pre-CPE stage:
     try:
-        res = pre_cpe_step(cpe_client)
+        res = pre_cpe_step(cpe_client, chat_llm=chat_llm)
     except ConnectionError:
         logger.error(
             "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
@@ -419,7 +428,7 @@ def create_agent(output_file: str, llm: str, samples_file: str | None, dry_run_f
     agent_style = res["agent_style"]
 
     # 4. discuss the instructions
-    instructions = talk_to_cpe(cpe_client, samples_file,
+    instructions = talk_to_cpe(cpe_client, chat_llm, samples_file,
                                {'description': description, 'tools': tools, 'collaborators': collaborators,
                                 'knowledge_bases': knowledge_bases})
 
@@ -493,7 +502,8 @@ def _suggest_sorted(user_input: str, options: List[str]) -> List[str]:
     return sorted(options, key=lambda x: difflib.SequenceMatcher(None, user_input, x).ratio(), reverse=True)
 
 
-def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use_last_chat: bool=False, dry_run_flag: bool = False) -> None:
+def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output_file: str | None,
+                                   use_last_chat: bool=False, dry_run_flag: bool = False) -> None:
     """
     Refines an existing agent's instructions using user selected chat trajectories and saves the updated agent configuration.
 
@@ -510,6 +520,7 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
 
     Parameters:
         agent_name (str): The name of the agent to refine.
+        chat_llm (str): The name of the model used by the refiner. If None, default model (llama-3-3-70b) is used.
         output_file (str): Path to the file where the refined agent configuration will be saved.
         use_last_chat(bool): If true, optimize by using the last conversation with the agent, otherwise let the use choose
         dry_run_flag (bool): If True, prints the refined agent configuration without saving it to disk.
@@ -519,6 +530,7 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
     """
 
     _validate_output_file(output_file, dry_run_flag)
+    _validate_chat_llm(chat_llm)
     agents_controller = AgentsController()
     agents_client = get_native_client()
     threads_client = get_threads_client()
@@ -617,8 +629,9 @@ def refine_agent_with_trajectories(agent_name: str, output_file: str | None, use
             knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
             if agent.instructions is None:
                 raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate copilot prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
-            response = cpe_client.refine_agent_with_chats(agent.instructions, tools=tools, collaborators=collaborators,
-                                                          knowledge_bases=knowledge_bases, trajectories_with_feedback=threads_messages)
+            response = cpe_client.refine_agent_with_chats(instruction=agent.instructions, chat_llm=chat_llm, tools=tools,
+                                                          collaborators=collaborators, knowledge_bases=knowledge_bases,
+                                                          trajectories_with_feedback=threads_messages)
             progress.remove_task(task)
             progress.refresh()
     except ConnectionError:

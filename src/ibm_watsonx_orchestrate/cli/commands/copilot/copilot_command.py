@@ -43,6 +43,10 @@ def prompt_tume_command(
         str,
         typer.Option("--llm", help="Select the agent LLM"),
     ] = None,
+    chat_llm: Annotated[
+        str,
+        typer.Option("--chat-llm", help="Select the underlying model for the copilot. Currently only llama-3-3-70b-instruct is supported."),
+    ] = None,
     samples: Annotated[
         str,
         typer.Option("--samples", "-s", help="Path to utterances sample file (txt file where each line is a utterance, or csv file with a single \"input\" column)"),
@@ -51,6 +55,7 @@ def prompt_tume_command(
     if file is None:
         # create agent yaml from scratch
         create_agent(
+            chat_llm=chat_llm,
             llm=llm,
             output_file=output_file,
             samples_file=samples,
@@ -59,6 +64,7 @@ def prompt_tume_command(
     else:
         # improve existing agent instruction
         prompt_tune(
+            chat_llm=chat_llm,
             agent_spec=file,
             samples_file=samples,
             output_file=output_file,
@@ -77,12 +83,17 @@ def agent_refine(
     ] = None,
     use_last_chat: Annotated[
         bool,
-        typer.Option("--use_last_chat", "-l", help="Tuning by using the last conversation with the agent instead of prompting the user to choose chats"),
+        typer.Option("--use-last-chat", "-l", help="Tuning by using the last conversation with the agent instead of prompting the user to choose chats"),
     ] = False,
     dry_run_flag: Annotated[
         bool,
         typer.Option("--dry-run",
                      help="Dry run will prevent the tuned content being saved and output the results to console"),
     ] = False,
+    chat_llm: Annotated[
+        str,
+        typer.Option("--chat-llm", help="Select the underlying model for the copilot. Currently only llama-3-3-70b-instruct is supported."),
+    ] = None,
+
 ):
-    refine_agent_with_trajectories(agent_name, output_file, use_last_chat, dry_run_flag)
+    refine_agent_with_trajectories(agent_name, chat_llm=chat_llm, output_file=output_file, use_last_chat=use_last_chat, dry_run_flag=dry_run_flag)
