@@ -414,7 +414,7 @@ class AgentsController:
         
         ref_tools = []
         for id in agent.tools:
-            name = id_name_lookup[id]
+            name = id_name_lookup.get(id)
             if not name:
                 logger.error(f"Failed to find tool. No tools found with the id '{id}'")
                 sys.exit(1)
