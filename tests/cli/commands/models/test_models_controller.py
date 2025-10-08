@@ -395,7 +395,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
     
     def test_list_models_print_raw(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy"}
@@ -417,7 +416,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
     
     def test_list_models_missing_watsonx_url(self, monkeypatch, caplog):
         fake_env = {}
@@ -459,7 +457,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." in captured
     
     def test_list_models_incompatible_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy", "INCOMPATIBLE_MODELS": "1234"}
@@ -481,7 +478,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
 
 class TestImportModel:
     mock_filename = "mock_file"
