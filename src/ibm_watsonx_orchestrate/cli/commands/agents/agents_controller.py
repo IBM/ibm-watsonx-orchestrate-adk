@@ -669,13 +669,13 @@ class AgentsController:
             assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
-            existing_external_clients = external_client.get_draft_by_name(agent_name)
-            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
-            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
+            existing_native_agents = [Agent.model_construct(**agent) for agent in existing_native_agents]
+            existing_external_agents = external_client.get_draft_by_name(agent_name)
+            existing_external_agents = [ExternalAgent.model_construct(**agent) for agent in existing_external_agents]
+            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_agents = [AssistantAgent.model_construct(**agent) for agent in existing_assistant_agents]
 
-            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
