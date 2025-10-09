@@ -35,7 +35,7 @@ dependencies = [
     "urllib3>=2.2.3",
     "pytz>=2025.2",
     "redis>=6.0.0",
-    "ibm_watsonx_orchestrate_evaluation_framework==1.1.5"
+    "ibm_watsonx_orchestrate_evaluation_framework==1.1.6"
 ]
 
 [project.optional-dependencies]
