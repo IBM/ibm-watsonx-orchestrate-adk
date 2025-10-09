@@ -1,7 +1,7 @@
 import os
 import zipfile
 import tempfile
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 from pydantic import BaseModel
 import logging
 import sys
@@ -371,22 +371,44 @@ class ToolkitController:
                 toolkit_spec.tools = tool_names
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
+    
+    def _fetch_and_parse_toolkits(self) -> Tuple[List[BaseToolkit], List[List[str]]]:
+        parse_errors = []
+        client = self.get_client()
+        response = client.get()
+
+        toolkits = []
+        for toolkit in response:
+            try:
+                spec = ToolkitSpec.model_validate(toolkit)
+                toolkits.append(BaseToolkit(spec=spec))
+            except Exception as e:
+                name = toolkit.get('name', None)
+                parse_errors.append([
+                    f"Toolkit '{name}' could not be parsed",
+                    json.dumps(toolkit),
+                    e
+                ])
+        return (toolkits, parse_errors)
+
+    def _log_parse_errors(self, parse_errors: List[List[str]]) -> None:
+        for error in parse_errors:
+                for l in error:
+                    logger.error(l)
 
     def list_toolkits(self, verbose=False, format: ListFormats| None = None) -> List[dict[str, Any]] | List[ToolkitListEntry] | str | None:
         if verbose and format:
             logger.error("For toolkits list, `--verbose` and `--format` are mutually exclusive options")
             sys.exit(1)
-
-        client = self.get_client()
-        response = client.get()
-        toolkit_spec = [ToolkitSpec.model_validate(toolkit) for toolkit in response]
-        toolkits = [BaseToolkit(spec=spec) for spec in toolkit_spec]
+        
+        toolkits, parse_errors = self._fetch_and_parse_toolkits()
 
         if verbose:
             tools_list = []
             for toolkit in toolkits:
                 tools_list.append(json.loads(toolkit.dumps_spec()))
             rich.print(JSON(json.dumps(tools_list, indent=4)))
+            self._log_parse_errors(parse_errors)
             return tools_list
         else:
             toolkit_details = []
@@ -433,11 +455,16 @@ class ToolkitController:
                     toolkit_details.append(entry)
                 else:
                     table.add_row(*entry.get_row_details())
-
+            
+            response = None
             match format:
                 case ListFormats.JSON:
-                    return toolkit_details
+                    response = toolkit_details
                 case ListFormats.Table:
-                    return rich_table_to_markdown(table)
+                    response = rich_table_to_markdown(table)
                 case _:
                     rich.print(table)
+            
+            self._log_parse_errors(parse_errors)
+            
+            return response
