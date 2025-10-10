@@ -8,9 +8,9 @@ import sys
 from wxo_agentic_evaluation import main as evaluate
 from wxo_agentic_evaluation import quick_eval
 from wxo_agentic_evaluation.tool_planner import build_snapshot
-from wxo_agentic_evaluation.analyze_run import Analyzer
+from wxo_agentic_evaluation.analyze_run import run as run_analyze
 from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
-from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig
+from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
 from wxo_agentic_evaluation.record_chat import record_chats
 from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
 from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
@@ -19,7 +19,16 @@ from wxo_agentic_evaluation.red_teaming import attack_generator
 from wxo_agentic_evaluation.red_teaming.attack_runner import run_attacks
 from wxo_agentic_evaluation.arg_configs import AttackGeneratorConfig
 from ibm_watsonx_orchestrate import __version__
-from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, AUTH_CONFIG_FILE, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT
+from ibm_watsonx_orchestrate.cli.config import (
+    Config,
+    ENV_WXO_URL_OPT,
+    AUTH_CONFIG_FILE,
+    AUTH_CONFIG_FILE_FOLDER,
+    AUTH_SECTION_HEADER,
+    AUTH_MCSP_TOKEN_OPT,
+    PROTECTED_ENV_NAME,
+    DEFAULT_LOCAL_SERVICE_URL,
+)
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind
@@ -37,11 +46,33 @@ class EvaluationsController:
 
     def _get_env_config(self) -> tuple[str, str, str | None]:
         cfg = Config()
-        auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
-        
-        url = cfg.get_active_env_config(ENV_WXO_URL_OPT)
-        tenant_name = cfg.get_active_env()
 
+        try:
+            url = cfg.get_active_env_config(ENV_WXO_URL_OPT)
+        except Exception as e:
+            logger.error(f"Error retrieving service url: {e}")
+            url = None
+
+        try:
+            tenant_name = cfg.get_active_env()
+        except Exception as e:
+            logger.error(f"Error retrieving active environment: {e}")
+            tenant_name = None
+        
+        if url is None:
+            logger.warning(
+                "No active service URL found in config. Falling back to local URL '%s'.",
+                DEFAULT_LOCAL_SERVICE_URL,
+            )
+            url = DEFAULT_LOCAL_SERVICE_URL
+        if tenant_name is None:
+            logger.warning(
+                "No active tenant/environment found in config. Falling back to local environment '%s'.",
+                PROTECTED_ENV_NAME,
+            )
+            tenant_name = PROTECTED_ENV_NAME
+
+        auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
         existing_auth_config = auth_cfg.get(AUTH_SECTION_HEADER).get(tenant_name, {})
         token = existing_auth_config.get(AUTH_MCSP_TOKEN_OPT) if existing_auth_config else None
 
@@ -173,13 +204,19 @@ class EvaluationsController:
 
         logger.info("Test cases stored at: %s", output_dir)
 
-    def analyze(self, data_path: str, tool_definition_path: str) -> None:
+    def analyze(self, data_path: str, tool_definition_path: str, mode: AnalyzeMode) -> None:
+        if mode not in AnalyzeMode.__members__:
+            logger.error(
+                f"Invalid mode '{mode}' passed. `mode` must be either `enhanced` or `default`."
+            )
+            sys.exit(1)
+
         config = AnalyzeConfig(
             data_path=data_path,
-            tool_definition_path=tool_definition_path
-            )
-        analyzer = Analyzer()
-        analyzer.analyze(config)
+            tool_definition_path=tool_definition_path,
+            mode=mode
+        )
+        run_analyze(config)
 
     def summarize(self) -> None:
         pass
@@ -212,7 +249,7 @@ class EvaluationsController:
         self,
         attacks_list: str,
         datasets_path: str,
-        agents_path: str,
+        agents_list_or_path: str,
         target_agent_name: str,
         output_dir: Optional[str] = None,
         max_variants: Optional[int] = None,
@@ -222,14 +259,23 @@ class EvaluationsController:
             os.makedirs(output_dir, exist_ok=True)
             logger.info(f"No output directory specified. Using default: {output_dir}")
 
+        url, tenant_name, token = self._get_env_config()
+
         results = attack_generator.main(
             AttackGeneratorConfig(
                 attacks_list=attacks_list.split(","),
                 datasets_path=datasets_path.split(","),
-                agents_path=agents_path,
+                agents_list_or_path=agents_list_or_path
+                if os.path.exists(agents_list_or_path)
+                else agents_list_or_path.split(","),
                 target_agent_name=target_agent_name,
                 output_dir=output_dir,
                 max_variants=max_variants,
+                auth_config=AuthConfig(
+                    url=url,
+                    tenant_name=tenant_name,
+                    token=token,
+                ),
             )
         )
         logger.info(f"Generated {len(results)} attacks and saved to {output_dir}")

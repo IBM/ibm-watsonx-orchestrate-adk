@@ -16,8 +16,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAu
 from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
-from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_bool_safe_and_get_raw_val
-
+from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +141,9 @@ class EnvService:
     def __get_default_registry_env_vars_by_dev_edition_source (default_env: dict, user_env: dict, source: str) -> dict[str, str]:
         component_registry_var_names = {key for key in default_env if key.endswith("_REGISTRY")} | {'REGISTRY_URL'}
 
-        registry_url = user_env.get("REGISTRY_URL", None)
+        registry_url = parse_string_safe(value=user_env.get("REGISTRY_URL", None), override_empty_to_none=True)
         user_env["HAS_USER_PROVIDED_REGISTRY_URL"] = registry_url is not None
+
         if not registry_url:
             if source == DeveloperEditionSources.INTERNAL:
                 registry_url = "us.icr.io/watson-orchestrate-private"
@@ -440,29 +440,18 @@ class EnvService:
 
 class EnvSettingsService:
 
-    @staticmethod
-    def __get_string_safe(value) -> str | None:
-        if value is not None and isinstance(value, str):
-            value = value.strip()
-
-            if value == "":
-                value = None
-
-            return value
-
-        return None
-
     def __init__(self, env_file: Path | str) -> None:
         self.__env_dict = dotenv_values(str(env_file))
+        self.__warns = {}
 
     def get_env(self) -> dict:
         return self.__env_dict
 
     def get_user_provided_docker_os_type(self) -> str | None:
-        return self.__get_string_safe(self.__env_dict.get("DOCKER_IMAGE_OS_TYPE"))
+        return parse_string_safe(value=self.__env_dict.get("DOCKER_IMAGE_OS_TYPE"), override_empty_to_none=True)
 
     def get_user_provided_docker_arch_type(self) -> str | None:
-        return self.__get_string_safe(self.__env_dict.get("DOCKER_IMAGE_ARCH_TYPE"))
+        return parse_string_safe(value=self.__env_dict.get("DOCKER_IMAGE_ARCH_TYPE"), override_empty_to_none=True)
 
     def get_wo_instance_url(self) -> str:
         return self.__env_dict["WO_INSTANCE"]
@@ -486,21 +475,53 @@ class EnvSettingsService:
     def get_wo_api_key(self) -> str:
         return self.__env_dict.get("WO_API_KEY")
 
-    def use_parallel_docker_image_layer_pulls(self):
-        return parse_bool_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_LAYERS_PARALLELISM"), fallback=True)
+    def use_parallel_docker_image_layer_pulls(self) -> bool:
+        parsed = parse_bool_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_LAYERS_PARALLELISM"), fallback=True)
+        if parsed is True and self.get_docker_pull_parallel_worker_count() < 2:
+            self.__issue_warning(key=self.use_parallel_docker_image_layer_pulls.__name__,
+                                 msg="DOCKER_IMAGE_PULL_LAYERS_PARALLELISM has been disabled due to DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT being less than 2.")
 
-    def get_docker_pull_parallel_worker_count(self):
-        fallback = 7
-        parsed = parse_int_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT"),
-                                fallback=fallback)
-
-        if parsed < 1:
-            parsed = fallback
+            return False
 
         return parsed
 
-    def use_ranged_requests_during_docker_pulls(self):
-        return parse_bool_safe(value=self.__env_dict.get("USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS"), fallback=True)
+    def get_docker_pull_parallel_worker_count(self) -> int:
+        fallback = 7
+        min = 1
+        max = 10
+
+        parsed = parse_int_safe(value=self.__env_dict.get("DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT"),
+                                fallback=fallback)
+
+        if parsed < min:
+            self.__issue_warning(key=self.get_docker_pull_parallel_worker_count.__name__,
+                                 msg=f"DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT is less than minimum ({min}). Defaulting to {fallback}.")
+
+            parsed = fallback
+
+        elif parsed > max:
+            self.__issue_warning(key=self.get_docker_pull_parallel_worker_count.__name__,
+                                 msg=f"DOCKER_IMAGE_PULL_PARALLEL_WORKERS_COUNT is greater than allowed maximum ({max}). Falling back to maximuim.")
+
+            parsed = max
+
+        return parsed
+
+    def use_ranged_requests_during_docker_pulls(self) -> bool:
+        use_ranged_requests = parse_bool_safe(value=self.__env_dict.get("USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS"), fallback=None)
+        is_user_provided = True
+
+        if use_ranged_requests is None:
+            use_ranged_requests = True
+            is_user_provided = False
+
+        if not self.use_parallel_docker_image_layer_pulls() and use_ranged_requests is True:
+            use_ranged_requests = False
+            if is_user_provided:
+                self.__issue_warning(key=self.use_ranged_requests_during_docker_pulls.__name__,
+                                     msg="USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS is not supported when DOCKER_IMAGE_PULL_LAYERS_PARALLELISM is enabled. Disabled USE_RANGE_REQUESTS_IN_DOCKER_IMAGE_PULLS.")
+
+        return use_ranged_requests
 
     def get_wo_instance_ssl_verify(self) -> bool | str:
         ssl_verify, path = parse_bool_safe_and_get_raw_val(value=self.__env_dict.get("WO_VERIFY_SSL"), fallback=True)
@@ -512,3 +533,11 @@ class EnvSettingsService:
             return str(path)
 
         return ssl_verify
+
+    def ignore_docker_layer_caching(self) -> bool:
+        return parse_bool_safe(value=self.__env_dict.get("IGNORE_DOCKER_LAYER_CACHING"), fallback=False)
+
+    def __issue_warning(self, key: str, msg: str) -> None:
+        if self.__warns.get(key) is None or self.__warns.get(key) is not True:
+            logger.warn(msg)
+            self.__warns[key] = True
