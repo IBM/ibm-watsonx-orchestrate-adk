@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentStyle
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 
@@ -414,7 +414,7 @@ class AgentsController:
         
         ref_tools = []
         for id in agent.tools:
-            name = id_name_lookup[id]
+            name = id_name_lookup.get(id)
             if not name:
                 logger.error(f"Failed to find tool. No tools found with the id '{id}'")
                 sys.exit(1)
@@ -669,13 +669,13 @@ class AgentsController:
             assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
-            existing_external_clients = external_client.get_draft_by_name(agent_name)
-            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
-            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
+            existing_native_agents = [Agent.model_construct(**agent) for agent in existing_native_agents]
+            existing_external_agents = external_client.get_draft_by_name(agent_name)
+            existing_external_agents = [ExternalAgent.model_construct(**agent) for agent in existing_external_agents]
+            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_agents = [AssistantAgent.model_construct(**agent) for agent in existing_assistant_agents]
 
-            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
@@ -1362,8 +1362,10 @@ class AgentsController:
                         ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
                     )
         
+        knowledge_base_controller = KnowledgeBaseController()
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
-            logger.warning(f"Skipping {kb_name}, knowledge_bases are currently unsupported by export")
+            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/{kb_name}.yaml"
+            knowledge_base_controller.knowledge_base_export(name=kb_name, output_path=knowledge_base_file_path, zip_file_out=zip_file_out)
         
         if kind == AgentKind.NATIVE:
             for collaborator_id in agent.collaborators:

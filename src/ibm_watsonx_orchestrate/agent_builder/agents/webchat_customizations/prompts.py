@@ -31,4 +31,4 @@ def validate_agent_prompt_fields(values: Dict):
 
 class StarterPrompts(BaseModel):
     is_default_prompts: bool = False
-    prompts: Annotated[List[AgentPrompt], Len(min_length=1)]
+    prompts: List[AgentPrompt]

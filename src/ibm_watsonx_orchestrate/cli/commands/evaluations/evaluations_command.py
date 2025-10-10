@@ -17,9 +17,12 @@ from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
+from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 
 logger = logging.getLogger(__name__)
+
+HIDE_ENVIRONMENT_MGR_PANEL = os.environ.get("HIDE_ENVIRONMENT_MGR_PANEL", "true").lower() == "true"
 
 evaluation_app = typer.Typer(no_args_is_help=True)
 
@@ -142,14 +145,38 @@ def evaluate(
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
-    ] = None
+    ] = None,
+    env_manager_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-manager-path",
+            help="""
+                Path to YAML configuration file containing environment settings.\n
+                See `./examples/evaluations/environment_manager` on how to create the environment manager file.
+                Note: When using this feature, you must pass the `output_dir`.
+            """,
+            rich_help_panel="Environment Manager",
+            hidden=HIDE_ENVIRONMENT_MGR_PANEL
+        )
+    ] = None,
 ):
+    validate_watsonx_credentials(user_env_file)
+
+    if env_manager_path:
+        if output_dir:
+            return run_environment_manager(
+                environment_manager_path=env_manager_path,
+                output_dir=output_dir,
+            )
+        else:
+            logger.error("Error: `--env_manager_path`, `--output_dir` must be provided to use the environment manager feature.")
+            sys.exit(1)
+
     if not config_file:
         if not test_paths or not output_dir:
             logger.error("Error: Both --test-paths and --output-dir must be provided when not using a config file")
             exit(1)
-    
-    validate_watsonx_credentials(user_env_file)
+
     controller = EvaluationsController()
     controller.evaluate(config_file=config_file, test_paths=test_paths, output_dir=output_dir)
 
@@ -234,14 +261,25 @@ def analyze(data_path: Annotated[
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
-    ] = None):
+    ] = None,
+    mode: Annotated[
+        Optional[str],
+        typer.Option(
+            "--mode", "-m", 
+            help="""
+            Either `default` or `enhanced`. `enhanced` mode optionally provides doc string enrichments for tools.
+            """
+        ),
+    ] = "default"
+):
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.analyze(
         data_path=data_path,
-        tool_definition_path=tool_definition_path
-        )
+        tool_definition_path=tool_definition_path,
+        mode=mode
+    )
 
 @evaluation_app.command(name="validate-external", help="Validate an external agent against a set of inputs")
 def validate_external(
@@ -499,7 +537,7 @@ def quick_eval(
 
 
 red_teaming_app = typer.Typer(no_args_is_help=True)
-evaluation_app.add_typer(red_teaming_app, name="red-teaming")
+evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and run red-teaming attacks on your agents")
 
 
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
@@ -526,8 +564,8 @@ def plan(
             help="Path to datasets for red-teaming. This can also be a comma-separated list of files or directories.",
         ),
     ],
-    agents_path: Annotated[
-        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions.")
+    agents_list_or_path: Annotated[
+        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions or a comma-separated list of agent names.")
     ],
     target_agent_name: Annotated[
         str,
@@ -564,7 +602,7 @@ def plan(
     controller.generate_red_teaming_attacks(
         attacks_list=attacks_list,
         datasets_path=datasets_path,
-        agents_path=agents_path,
+        agents_list_or_path=agents_list_or_path,
         target_agent_name=target_agent_name,
         output_dir=output_dir,
         max_variants=max_variants,

@@ -6,4 +6,4 @@
 
 #### Using IBM Cloud Pak for Data (CPD)
 To run the evaluator with IBM Cloud Pak for Data (with or without IFM), see:
-- examples/evaluations/cpd/README.md
+- examples/evaluations/cpd/README.md 

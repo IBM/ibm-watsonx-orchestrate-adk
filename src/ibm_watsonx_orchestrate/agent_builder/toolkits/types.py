@@ -22,13 +22,13 @@ class LocalMcpModel(BaseModel):
     command: str
     args: List[str]
     tools: List[str]
-    connections: Dict[str, str]
+    connections: Dict[str, str] = {}
 
 class RemoteMcpModel(BaseModel):
     server_url: str
     transport: ToolkitTransportKind
     tools: List[str]
-    connections: Dict[str, str]
+    connections: Dict[str, str] = {}
 
 McpModel = Union[LocalMcpModel, RemoteMcpModel]
 

@@ -511,7 +511,8 @@ class Flow(Node):
             classes: type[BaseModel]| None = None, 
             description: str | None = None,
             min_confidence: float = 0.0,
-            input_map: DataMap = None) -> DocClassifierNode:
+            input_map: DataMap = None,
+            enable_review: bool = False) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -532,7 +533,8 @@ class Flow(Node):
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj,
             config=doc_classifier_config,
-            version=version
+            version=version,
+            enable_review=enable_review
         )
         node = DocClassifierNode(spec=task_spec)
 
@@ -584,7 +586,8 @@ class Flow(Node):
             input_map: DataMap = None,
             enable_hw: bool = False,
             min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
-            review_fields: List[str] = []) -> tuple[DocExtNode, type[BaseModel]]:
+            review_fields: List[str] = [],
+            enable_review: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -611,7 +614,8 @@ class Flow(Node):
             version=version,
             enable_hw=enable_hw,
             min_confidence=min_confidence,
-            review_fields=review_fields
+            review_fields=review_fields,
+            enable_review=enable_review
         )
         node = DocExtNode(spec=task_spec)
 

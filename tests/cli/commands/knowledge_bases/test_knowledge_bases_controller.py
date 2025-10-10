@@ -105,6 +105,7 @@ def existing_external_knowledge_base_content() -> dict:
 
 class MockListConnectionResponse(BaseModel):
     connection_id: str
+    app_id: str
 
 class MockSDKResponse:
     def __init__(self, response_obj):
@@ -159,10 +160,11 @@ class MockClient:
         
     
 class MockConnectionClient:
-    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[]):
+    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[], list_response=[]):
         self.get_by_id_response = get_by_id_response
         self.get_response = get_response
         self.get_conn_by_id_response = get_conn_by_id_response
+        self.list_response = list_response
 
     def get_draft_by_app_id(self, app_id: str):
         return self.get_by_id_response
@@ -174,7 +176,7 @@ class MockConnectionClient:
         return self.get_conn_by_id_response
     
     def list(self):
-        return []
+        return self.list_response
 
 class MockConnection:
     def __init__(self, appid, connection_type):
@@ -316,8 +318,8 @@ class TestImportKnowledgeBase:
              patch('ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.get_connections_client') as conn_client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
             
-            mock_response = MockListConnectionResponse(connection_id="12345")
-            conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
+            mock_response = [MockListConnectionResponse(connection_id="12345", app_id="my-app-id")]
+            conn_client_mock.return_value = MockConnectionClient(list_response=mock_response)
                         
             knowledge_base = KnowledgeBase(**external_knowledge_base_content)
             from_spec_mock.return_value = knowledge_base
@@ -363,8 +365,8 @@ class TestImportKnowledgeBase:
              patch('ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.get_connections_client') as conn_client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
             
-            mock_response = MockListConnectionResponse(connection_id="12345")
-            conn_client_mock.return_value = MockConnectionClient(get_by_id_response=mock_response)
+            mock_response = [MockListConnectionResponse(connection_id="12345", app_id="my-app-id")]
+            conn_client_mock.return_value = MockConnectionClient(list_response=mock_response)
                         
             knowledge_base = KnowledgeBase(**existing_external_knowledge_base_content)
             from_spec_mock.return_value = knowledge_base

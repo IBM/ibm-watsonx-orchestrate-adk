@@ -45,7 +45,7 @@ class MockCPEClient:
         else:
             return self.pre_chat_responses[response_index]
 
-    def invoke(self, prompt):
+    def invoke(self, chat_llm, prompt):
         if not len(self.invoke_responses):
             return {}
         response_index = self.invoke_responses_index
@@ -56,10 +56,10 @@ class MockCPEClient:
         else:
             return self.invoke_responses[response_index]
 
-    def init_with_context(self, context_data):
+    def init_with_context(self, chat_llm, context_data):
         return self.mock_init_response
 
-    def refine_agent_with_chats(self, instruction: str, tools: Dict[str, Any], collaborators: Dict[str, Any],
+    def refine_agent_with_chats(self, chat_llm: str | None, instruction: str, tools: Dict[str, Any], collaborators: Dict[str, Any],
                                 knowledge_bases: Dict[str, Any], trajectories_with_feedback: List[List[dict]],
                                 model: str | None = None) -> dict:
         return self.mock_refine_with_chat_response
@@ -273,7 +273,7 @@ class TestPreCPEStep:
             get_deployed_tools_agents_and_knowledge_bases.return_value = {"tools": [], "collaborators": [],
                                                                           "knowledge_bases": []}
 
-            pre_cpe_step(cpe_client)
+            pre_cpe_step(cpe_client, chat_llm=None)
 
 
 class TestFindToolsByDescription:
@@ -377,7 +377,7 @@ class TestTalkToCPE:
                     "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.gather_examples") as mock_gather_examples:
             mock_input.side_effect = ["test"]
 
-            response = talk_to_cpe(cpe_client, None)
+            response = talk_to_cpe(cpe_client, None,None)
 
             assert response == "Testing"
 
@@ -408,6 +408,7 @@ class TestPromptTune:
             mock_dirname.return_value = False
 
             prompt_tune(
+                chat_llm=None,
                 agent_spec="test_agent_spec.yaml",
                 output_file=None,
                 samples_file=None,
@@ -444,6 +445,7 @@ class TestPromptTune:
             mock_dirname.return_value = False
 
             prompt_tune(
+                chat_llm=None,
                 agent_spec="test_agent_spec.yaml",
                 output_file=None,
                 samples_file=None,
@@ -489,6 +491,7 @@ class TestPromptTune:
 
             with pytest.raises(SystemExit):
                 prompt_tune(
+                    chat_llm=None,
                     agent_spec="test_agent_spec.yaml",
                     output_file=None,
                     samples_file=None,
@@ -529,6 +532,7 @@ class TestCreateAgent:
             mock_dirname.return_value = False
 
             create_agent(
+                chat_llm=None,
                 output_file="test.yaml",
                 llm=None,
                 samples_file=None,
@@ -565,6 +569,7 @@ class TestCreateAgent:
             mock_dirname.return_value = False
 
             create_agent(
+                chat_llm=None,
                 output_file=None,
                 llm=None,
                 samples_file=None,
@@ -624,6 +629,7 @@ class TestRefineAgentWithChat:
             mock_get_cpe_client.return_value = MockCPEClient(refine_with_chat_response=self.refine_with_chat_response)
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
             refine_agent_with_trajectories(
+                chat_llm=None,
                 output_file="test.yaml",
                 agent_name="test_agent",
                 dry_run_flag=False
@@ -660,6 +666,7 @@ class TestRefineAgentWithChat:
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
             
             refine_agent_with_trajectories(
+                chat_llm=None,
                 agent_name="test_agent",
                 output_file=None,
                 use_last_chat=False,

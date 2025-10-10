@@ -256,6 +256,7 @@ class DocProcCommonNodeSpec(NodeSpec):
 class DocClassifierSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocClassifierConfig
+    enable_review: bool = Field(description="Indicate if enable human in the loop review", default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -266,6 +267,7 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
         model_spec["version"] = self.version
         model_spec["config"] = self.config.model_dump()
         model_spec["task"] = DocProcTask.custom_document_classification
+        model_spec["enable_review"] = self.enable_review
         return model_spec
     
 class DocExtSpec(DocProcCommonNodeSpec):
@@ -273,6 +275,7 @@ class DocExtSpec(DocProcCommonNodeSpec):
     config : DocExtConfig
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     review_fields: List[str] = Field(description="The fields that require user to review", default=[])
+    enable_review: bool = Field(description="Enable human in the loop review", default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -285,6 +288,7 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec["task"] = DocProcTask.custom_field_extraction
         model_spec["min_confidence"] = self.min_confidence
         model_spec["review_fields"] = self.review_fields
+        model_spec["enable_review"] = self.enable_review
         return model_spec
     
 class DocProcField(BaseModel):
