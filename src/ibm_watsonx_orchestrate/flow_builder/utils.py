@@ -170,18 +170,10 @@ async def import_flow_model(model):
 
     return tool_id
 
-def import_flow_support_tools(model):
-
-    if not is_local_dev():
-        # we can't import support tools into non-local environments yet
-        return []
-
-        
+def import_flow_support_tools(model):     
     schedulable = False
     if "schedulable" in model["spec"]:
         schedulable = model["spec"]["schedulable"]
-
-    client = instantiate_client(TempusClient)
 
     logger.info(f"Import 'get_flow_status' tool spec...")
     tools = [create_flow_status_tool("i__get_flow_status_intrinsic_tool__")]

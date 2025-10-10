@@ -12,7 +12,7 @@ class TempusClient(BaseAPIClient):
     This may be temporary and may want to create a proxy API in wxo-server 
     to redirect to the internal tempus runtime, and add a new operation in the ToolClient instead
     """
-    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, authenticator: MCSPAuthenticator = None):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, authenticator: MCSPAuthenticator = None, *args, **kwargs):
         parsed_url = urlparse(base_url)
        
         # Reconstruct netloc with new port - use default above - eventually we need to open up a way through the wxo-server API
@@ -26,7 +26,9 @@ class TempusClient(BaseAPIClient):
             base_url=new_url,
             api_key=api_key,
             is_local=is_local,
-            authenticator=authenticator
+            authenticator=authenticator,
+            *args,
+            **kwargs
         )
         
     def get_tempus_endpoint(self) -> str:

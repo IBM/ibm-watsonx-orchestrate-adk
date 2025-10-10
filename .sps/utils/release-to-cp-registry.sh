@@ -12,6 +12,7 @@ source $ENV_FILE
 images=$(cat <<EOF
 wxo-server-db:${DBTAG}
 wxo-connections:${CM_TAG}
+wxo-connections-ui:${CONNECTIONS_UI_TAG}
 ai-gateway:${AI_GATEWAY_TAG}
 wxo-agent-gateway:${AGENT_GATEWAY_TAG}
 wxo-chat:${UITAG}

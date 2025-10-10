@@ -1365,6 +1365,7 @@ class TestAgentsControllerExportAgent:
         )
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
             
@@ -1374,6 +1375,10 @@ class TestAgentsControllerExportAgent:
                 download_tool=MagicMock(return_value=b"abc")
                 )
             
+            mock_kb_controller.return_value = MagicMock(
+                knowledge_base_export=MagicMock()
+            )
+
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
 
             ac.export_agent(
@@ -1386,7 +1391,6 @@ class TestAgentsControllerExportAgent:
 
         assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
         assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
-        assert f"Skipping {self.mock_kb_name}, knowledge_bases are currently unsupported by export"
 
     @pytest.mark.parametrize(
             "kind",
@@ -1541,6 +1545,7 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
             
@@ -1551,6 +1556,10 @@ class TestAgentsControllerExportAgent:
                 download_tool=MagicMock(return_value=b"abc")
                 )
             
+            mock_kb_controller.return_value = MagicMock(
+                knowledge_base_export=MagicMock()
+            )
+
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
 
             ac.export_agent(
