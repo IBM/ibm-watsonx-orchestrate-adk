@@ -5,8 +5,11 @@ import requests
 import logging
 import importlib
 import inspect
+import yaml
 from pathlib import Path
-from typing import List, Any
+from typing import List, Any, Optional
+from zipfile import ZipFile
+from io import BytesIO
 
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
@@ -15,6 +18,7 @@ from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,32 @@ def build_file_object(file_dir: str, file: str | FileUpload):
         return ('files', (get_file_name(file.path), open(get_relative_file_path(file.path, file_dir), 'rb')))
     return ('files', (get_file_name(file), open(get_relative_file_path(file, file_dir), 'rb')))
 
+def build_connections_map(key_attr: str) -> dict:
+    connections_client = get_connections_client()
+    connections = connections_client.list()
+
+    return {getattr(conn, key_attr): conn for conn in connections}
+
+def get_index_config(kb: KnowledgeBase, index: int = 0) -> IndexConnection | None:
+    if kb.conversational_search_tool is not None \
+        and kb.conversational_search_tool.index_config is not None \
+        and len(kb.conversational_search_tool.index_config) > index:
+
+        return kb.conversational_search_tool.index_config[index]
+    return None
+
+def get_kb_app_id(kb: KnowledgeBase) -> str | None:
+    index_config = get_index_config(kb)
+    if not index_config:
+        return
+    return index_config.app_id
+
+def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
+    index_config = get_index_config(kb)
+    if not index_config:
+        return
+    return index_config.connection_id
+
 class KnowledgeBaseController:
     def __init__(self):
         self.client = None
@@ -79,24 +109,23 @@ class KnowledgeBaseController:
 
         knowledge_bases = parse_file(file=file)
         
-        if app_id:
-            connections_client = get_connections_client()
-            connection_id = None
-                
-            connections = connections_client.get_draft_by_app_id(app_id=app_id)
-            if not connections:
-                logger.error(f"No connection exists with the app-id '{app_id}'")
-                exit(1)
-
-            connection_id = connections.connection_id
-
-            for kb in knowledge_bases:
-                if kb.conversational_search_tool and kb.conversational_search_tool.index_config and len(kb.conversational_search_tool.index_config) > 0:
-                    kb.conversational_search_tool.index_config[0].connection_id = connection_id
+        connections_map = None
         
         existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
         
         for kb in knowledge_bases:
+            app_id = app_id if app_id else get_kb_app_id(kb)
+            if app_id:
+                if not connections_map:
+                    connections_map = build_connections_map("app_id")
+                conn = connections_map.get(app_id)
+                if conn:
+                    index_config = get_index_config(kb)
+                    if index_config:
+                        index_config.connection_id = conn.connection_id
+                else:
+                    logger.error(f"No connection exists with the app-id '{app_id}'")
+                    exit(1)
             try:
                 file_dir = "/".join(file.split("/")[:-1])
 
@@ -265,19 +294,13 @@ class KnowledgeBaseController:
             for column in column_args:
                 table.add_column(column, **column_args[column])
             
-            connections_client = get_connections_client()
-            connections = connections_client.list()
-
-            connections_dict = {conn.connection_id: conn for conn in connections}
+            connections_dict = build_connections_map("connection_id")
             
             for kb in knowledge_bases:
                 app_id = ""
-                
-                if kb.conversational_search_tool is not None \
-                   and kb.conversational_search_tool.index_config is not None \
-                   and len(kb.conversational_search_tool.index_config) > 0 \
-                   and kb.conversational_search_tool.index_config[0].connection_id is not None:
-                    conn = connections_dict.get(kb.conversational_search_tool.index_config[0].connection_id)
+                connection_id = get_kb_connection_id(kb)
+                if connection_id is not None:
+                    conn = connections_dict.get(connection_id)
                     if conn:
                         app_id = conn.app_id
 
@@ -312,4 +335,68 @@ class KnowledgeBaseController:
                 logger.warning(f"No knowledge base {logEnding} found")
             logger.error(e.response.text)
             exit(1)
+    
+    def get_knowledge_base(self, id) -> KnowledgeBase:
+        client = self.get_client()
+        try:
+            return KnowledgeBase.model_validate(client.get_by_id(id))
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"No knowledge base {id} found")
+            else:
+                logger.error(e.response.text)
+            exit(1)
 
+
+    def knowledge_base_export(self,
+            output_path: str,
+            id: Optional[str] = None,
+            name: Optional[str] = None, 
+            zip_file_out: Optional[ZipFile] = None) -> None:
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+        if output_file_extension not in  {".yaml", ".yml"} :
+            logger.error(f"Output file must end with the extension '.yaml'/'.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+        
+        knowledge_base_id = self.get_id(id, name)
+        logEnding = f"with ID '{id}'" if id else f"'{name}'"  
+        
+        logger.info(f"Exporting spec for knowledge base {logEnding}'")
+
+        knowledge_base = self.get_knowledge_base(knowledge_base_id)
+
+        if not knowledge_base:
+            logger.error(f"Knowledge base'{knowledge_base_id}' not found.'")
+            return
+        
+        knowledge_base.tenant_id = None
+        knowledge_base.id = None
+        knowledge_base.spec_version = SpecVersion.V1
+        knowledge_base.kind = KnowledgeBaseKind.KNOWLEDGE_BASE
+        
+        connection_id = get_kb_connection_id(knowledge_base)
+        if connection_id:
+            connections_map = build_connections_map("connection_id")
+            conn = connections_map.get(connection_id)
+            if conn:
+                index_config = get_index_config(knowledge_base)
+                index_config.app_id = conn.app_id
+                index_config.connection_id = None
+            else:
+                logger.warning(f"Connection '{connection_id}' not found, unable to resolve app_id for Knowledge base {logEnding}")
+
+        knowledge_base_spec = knowledge_base.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        if zip_file_out:
+            knowledge_base_spec_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+            knowledge_base_spec_yaml_bytes = knowledge_base_spec_yaml.encode("utf-8")
+            knowledge_base_spec_yaml_file = BytesIO(knowledge_base_spec_yaml_bytes)
+            zip_file_out.writestr(
+                output_path,
+                knowledge_base_spec_yaml_file.getvalue()
+            )
+        else:
+            with open(output_path, 'w') as outfile:
+                yaml.dump(knowledge_base_spec, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
+        
+        logger.info(f"Successfully exported for knowledge base {logEnding} to '{output_path}'")

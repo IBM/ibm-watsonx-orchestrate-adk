@@ -175,6 +175,7 @@ services:
       ENABLE_EDIT_PROMPTS: "true"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
+      ENABLE_BULK_TESTING: "true"
     command: 'npm start'
     ports:
       - "4025:4025"

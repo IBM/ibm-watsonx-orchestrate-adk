@@ -11,6 +11,7 @@ class SpecVersion(str, Enum):
 
 class KnowledgeBaseKind(str, Enum):
     KNOWLEDGE_BASE = "knowledge_base"
+
 class RetrievalConfidenceThreshold(str, Enum):
     Off = "Off"
     Lowest = "Lowest"
@@ -240,6 +241,7 @@ class AstraDBConnection(BaseModel):
 
 class IndexConnection(BaseModel):
     connection_id: Optional[str] = None
+    app_id: Optional[str] = None
     milvus: Optional[MilvusConnection] = None
     elastic_search: Optional[ElasticSearchConnection] = None
     custom_search: Optional[CustomSearchConnection] = None
