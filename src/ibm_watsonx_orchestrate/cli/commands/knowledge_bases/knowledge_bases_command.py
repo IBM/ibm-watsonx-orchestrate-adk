@@ -59,3 +59,29 @@ def knowledge_base_status(
 ):  
     controller = KnowledgeBaseController()
     controller.knowledge_base_status(id=id, name=name)
+
+@knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml. Does not export the documents contained in the knowledge base.')
+def knowledge_base_export(
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to a where the yaml file containing the exported spec should be saved",
+        ),
+    ],
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="The name of the knowledge base you want to export"),
+    ]=None,
+    id: Annotated[
+        str,
+        typer.Option("--id", "-i", help="The ID of the knowledge base you wish export"),
+    ]=None,
+):
+    controller = KnowledgeBaseController()
+    controller.knowledge_base_export(
+        id=id,
+        name=name,
+        output_path=output_file
+    )

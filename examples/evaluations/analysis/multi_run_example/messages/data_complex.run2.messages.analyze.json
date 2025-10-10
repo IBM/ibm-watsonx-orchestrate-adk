@@ -1,0 +1,189 @@
+[
+    {
+        "message": {
+            "role": "user",
+            "content": "I want to know the timeoff schedule for my reports for a certain period",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_direct_reports_hr_usecase\", \"args\": {\"username\": \"your username\"}, \"id\": \"chatcmpl-tool-78a9461218f748aa956b5b6c3d\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "username": "your username"
+            },
+            "expected": [
+                {
+                    "username": "nken"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"nwaters\\\", \\\"johndoe\\\"]\", \"name\": \"get_direct_reports_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-78a9461218f748aa956b5b6c3d\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"nwaters\"}, \"id\": \"chatcmpl-tool-bc0c8c192ee44e47804a3860a9\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"15778303\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-bc0c8c192ee44e47804a3860a9\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"assignment_id\": \"15778303\", \"start_date\": \"2025-01-01\", \"end_date\": \"2025-12-31\"}, \"id\": \"chatcmpl-tool-f38593f69ebd4609aa4fb3b031\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "assignment_id": "15778303",
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31"
+            },
+            "expected": [
+                {
+                    "assignment_id": "15778303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                },
+                {
+                    "assignment_id": "15338303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-f38593f69ebd4609aa4fb3b031\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"johndoe\"}, \"id\": \"chatcmpl-tool-a838fd7fb7b9411bafa17f5931\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"15338303\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-a838fd7fb7b9411bafa17f5931\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"assignment_id\": \"15338303\", \"start_date\": \"2025-01-01\", \"end_date\": \"2025-12-31\"}, \"id\": \"chatcmpl-tool-a3f25f261ed94fd99b1afcf221\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "assignment_id": "15338303",
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31"
+            },
+            "expected": [
+                {
+                    "assignment_id": "15778303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                },
+                {
+                    "assignment_id": "15338303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-05-05"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250411\\\", \\\"20250311\\\", \\\"20250101\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-a3f25f261ed94fd99b1afcf221\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "The timeoff schedule for your direct reports, nwaters and johndoe, for the period of January 1, 2025, to December 31, 2025, is as follows:\n\n- nwaters: January 5, 2025\n- johndoe: January 1, 2025, March 11, 2025, and April 11, 2025",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "meta": {
+            "expected_tool_calls": [
+                "get_direct_reports_hr_usecase",
+                "get_assignment_id_hr_usecase",
+                "get_assignment_id_hr_usecase",
+                "get_timeoff_schedule_hr_usecase",
+                "get_timeoff_schedule_hr_usecase"
+            ],
+            "actual_tool_calls": [
+                "get_direct_reports_hr_usecase",
+                "get_assignment_id_hr_usecase",
+                "get_timeoff_schedule_hr_usecase",
+                "get_assignment_id_hr_usecase",
+                "get_timeoff_schedule_hr_usecase"
+            ],
+            "missed_tool_calls": []
+        }
+    }
+]

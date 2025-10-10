@@ -175,6 +175,7 @@ services:
       ENABLE_EDIT_PROMPTS: "true"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
+      ENABLE_BULK_TESTING: "true"
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -396,6 +397,7 @@ services:
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -500,6 +502,8 @@ services:
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      WDU_RUNTIME_URL: ${WDU_RUNTIME_URL:-http://wdu-runtime:8080}
+      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}

@@ -5,6 +5,7 @@ import json
 import yaml
 import importlib
 import inspect
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -30,14 +31,20 @@ class ModelHighlighter(rich.highlighter.RegexHighlighter):
     base_style = "model."
     highlights = [r"(?P<name>(watsonx|virtual[-]model|virtual[-]policy)\/.+\/.+):"]
 
-def _get_wxai_foundational_models() -> dict:
+def _get_wxai_foundational_models(max_retries=1) -> dict:
     foundation_models_url = WATSONX_URL + "/ml/v1/foundation_model_specs?version=2024-05-01"
 
-    try:
-        response = requests.get(foundation_models_url)
-    except requests.exceptions.RequestException as e:
-        logger.exception(f"Exception when connecting to Watsonx URL: {foundation_models_url}")
-        raise
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.get(foundation_models_url)
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries:
+                logger.warning(f"Attempt {attempt + 1} failed. Retrying connecting to Watsonx URL {foundation_models_url}")
+                time.sleep(1)
+                continue
+            logger.error(f"Exception when connecting to Watsonx URL: {foundation_models_url}")
+            return { "resources": [] }
 
     if response.status_code != 200:
         error_message = (
@@ -186,82 +193,79 @@ class ModelsController:
         incompatible_list = _string_to_list(incompatible_str)
 
         models = found_models.get("resources", [])
-        if not models:
-            logger.error("No models found.")
+        # Remove incompatible models
+        filtered_models = []
+        for model in models:
+            model_id = model.get("model_id", "")
+            short_desc = model.get("short_description", "")
+            if any(incomp in model_id.lower() for incomp in incompatible_list):
+                continue
+            if any(incomp in short_desc.lower() for incomp in incompatible_list):
+                continue
+            filtered_models.append(model)
+        
+        # Sort to put the preferred first
+        def sort_key(model):
+            model_id = model.get("model_id", "").lower()
+            is_preferred = any(pref in model_id for pref in preferred_list)
+            return (0 if is_preferred else 1, model_id)
+        
+        sorted_models = sorted(filtered_models, key=sort_key)
+        
+        if print_raw:
+            theme = rich.theme.Theme({"model.name": "bold cyan"})
+            console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
+            console.print("[bold]Available Models:[/bold]")
+
+            for model in (virtual_models + virtual_model_policies):
+                console.print(f"- ✨️ {model.name}:", model.description or 'No description provided.')
+
+            for model in sorted_models:
+                model_id = model.get("model_id", "N/A")
+                short_desc = model.get("short_description", "No description provided.")
+                full_model_name = f"watsonx/{model_id}: {short_desc}"
+                marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
+                console.print(f"- [yellow]{marker}[/yellow]{full_model_name}")
+
+            console.print("[yellow]★[/yellow] [italic dim]indicates a supported and preferred model[/italic dim]\n[blue dim]✨️[/blue dim] [italic dim]indicates a model from a custom provider[/italic dim]" )
         else:
-            # Remove incompatible models
-            filtered_models = []
-            for model in models:
-                model_id = model.get("model_id", "")
-                short_desc = model.get("short_description", "")
-                if any(incomp in model_id.lower() for incomp in incompatible_list):
-                    continue
-                if any(incomp in short_desc.lower() for incomp in incompatible_list):
-                    continue
-                filtered_models.append(model)
-            
-            # Sort to put the preferred first
-            def sort_key(model):
-                model_id = model.get("model_id", "").lower()
-                is_preferred = any(pref in model_id for pref in preferred_list)
-                return (0 if is_preferred else 1, model_id)
-            
-            sorted_models = sorted(filtered_models, key=sort_key)
-            
-            if print_raw:
-                theme = rich.theme.Theme({"model.name": "bold cyan"})
-                console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
-                console.print("[bold]Available Models:[/bold]")
+            model_details = []
+            table = rich.table.Table(
+                show_header=True,
+                title="[bold]Available Models[/bold]",
+                caption="[yellow]★ [/yellow] indicates a supported and preferred model from watsonx\n[blue]✨️[/blue] indicates a model from a custom provider",
+                show_lines=True)
+            columns = ["Model", "Description"]
+            for col in columns:
+                table.add_column(col)
 
-                for model in (virtual_models + virtual_model_policies):
-                    console.print(f"- ✨️ {model.name}:", model.description or 'No description provided.')
+            for model in (virtual_models + virtual_model_policies):
+                entry = ModelListEntry(
+                    name=model.name,
+                    description=model.description,
+                    is_custom=True
+                )
+                model_details.append(entry)
+                table.add_row(*entry.get_row_details())
 
-                for model in sorted_models:
-                    model_id = model.get("model_id", "N/A")
-                    short_desc = model.get("short_description", "No description provided.")
-                    full_model_name = f"watsonx/{model_id}: {short_desc}"
-                    marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
-                    console.print(f"- [yellow]{marker}[/yellow]{full_model_name}")
+            for model in sorted_models:
+                name = model.get("model_id", "N/A")
+                entry = ModelListEntry(
+                    name=name,
+                    description=model.get("short_description"),
+                    is_custom=False,
+                    recommended=any(pref in name.lower() for pref in preferred_list)
+                )
+                model_details.append(entry)
+                table.add_row(*entry.get_row_details())
 
-                console.print("[yellow]★[/yellow] [italic dim]indicates a supported and preferred model[/italic dim]\n[blue dim]✨️[/blue dim] [italic dim]indicates a model from a custom provider[/italic dim]" )
-            else:
-                model_details = []
-                table = rich.table.Table(
-                    show_header=True,
-                    title="[bold]Available Models[/bold]",
-                    caption="[yellow]★ [/yellow] indicates a supported and preferred model from watsonx\n[blue]✨️[/blue] indicates a model from a custom provider",
-                    show_lines=True)
-                columns = ["Model", "Description"]
-                for col in columns:
-                    table.add_column(col)
-
-                for model in (virtual_models + virtual_model_policies):
-                    entry = ModelListEntry(
-                        name=model.name,
-                        description=model.description,
-                        is_custom=True
-                    )
-                    model_details.append(entry)
-                    table.add_row(*entry.get_row_details())
-
-                for model in sorted_models:
-                    name = model.get("model_id", "N/A")
-                    entry = ModelListEntry(
-                        name=name,
-                        description=model.get("short_description"),
-                        is_custom=False,
-                        recommended=any(pref in name.lower() for pref in preferred_list)
-                    )
-                    model_details.append(entry)
-                    table.add_row(*entry.get_row_details())
-
-                match format:
-                    case ListFormats.JSON:
-                        return model_details
-                    case ListFormats.Table:
-                        return rich_table_to_markdown(table)
-                    case _: 
-                        rich.print(table)
+            match format:
+                case ListFormats.JSON:
+                    return model_details
+                case ListFormats.Table:
+                    return rich_table_to_markdown(table)
+                case _: 
+                    rich.print(table)
 
     def import_model(self, file: str, app_id: str | None) -> List[VirtualModel]:
         from ibm_watsonx_orchestrate.cli.commands.models.model_provider_mapper import validate_ProviderConfig # lazily import this because the lut building is expensive

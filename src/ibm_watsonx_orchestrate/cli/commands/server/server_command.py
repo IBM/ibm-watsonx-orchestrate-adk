@@ -1,30 +1,32 @@
 import logging
 import os
 import platform
-import sys
+import re
 import shutil
+import sys
 import time
 from pathlib import Path
 
-import re
 import jwt
 import requests
 import typer
 
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
-
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
-
+from ibm_watsonx_orchestrate.cli.commands.server.images.images_command import images_app
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
     AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, LICENSE_HEADER, \
     ENV_ACCEPT_LICENSE
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
+
 
 logger = logging.getLogger(__name__)
 
 server_app = typer.Typer(no_args_is_help=True)
+server_app.add_typer(images_app, name="images", help="Manage docker images pulled by app.")
 
 _EXPORT_FILE_TYPES: set[str] = {
     'py',
@@ -491,23 +493,39 @@ def server_stop(
 
 @server_app.command(name="reset")
 def server_reset(
-    user_env_file: str = typer.Option(
-        None,
-        "--env-file", '-e',
-        help="Path to a .env file that overrides default.env. Then environment variables override both."
-    )
+        user_env_file: str = typer.Option(
+            None,
+            "--env-file", '-e',
+            help="Path to a .env file that overrides default.env. Then environment variables override both."
+        ),
 ):
-    
     DockerUtils.ensure_docker_installed()
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(
-        default_env_path,
-        Path(user_env_file) if user_env_file else None
-    )
+
+    user_env_file = parse_string_safe(value=user_env_file, override_empty_to_none=True)
+    if user_env_file is not None:
+        user_env_file = Path(user_env_file)
+
+        if not user_env_file.exists() or not user_env_file.is_file():
+            logger.error(f"Provided .env file does not exist or cannot be accessed: {user_env_file}")
+            sys.exit(1)
+
+    cli_config = Config()
+    env_service = EnvService(cli_config)
+
+    if user_env_file is not None:
+        user_env = env_service.get_user_env(user_env_file=user_env_file, fallback_to_persisted_env=False)
+        merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False)
+
+    else:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, None)
+
     merged_env_dict['WATSONX_SPACE_ID']='X'
     merged_env_dict['WATSONX_APIKEY']='X'
-    EnvService.apply_llm_api_key_defaults(merged_env_dict)
+
+    env_service.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
+
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
 
 @server_app.command(name="logs")
@@ -552,7 +570,6 @@ def run_db_migration() -> None:
     migration_command = f'''
         APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
         touch "$APPLIED_MIGRATIONS_FILE"
-
         for file in /docker-entrypoint-initdb.d/*.sql; do
             filename=$(basename "$file")
 
@@ -565,6 +582,37 @@ def run_db_migration() -> None:
                 else
                     echo "Error applying $filename. Stopping migrations."
                     exit 1
+                fi
+            fi
+        done
+
+        # Create wxo_observability database if it doesn't exist
+        if psql -U {pg_user} -lqt | cut -d \\| -f 1 | grep -qw wxo_observability; then
+            echo 'Existing wxo_observability DB found'
+        else
+            echo 'Creating wxo_observability DB'
+            createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
+            psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
+        fi
+
+        # Run observability-specific migrations
+        OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
+        touch "$OBSERVABILITY_MIGRATIONS_FILE"
+
+        for file in /docker-entrypoint-initdb.d/observability/*.sql; do
+            if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                
+                if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
+                    echo "Skipping already applied observability migration: $filename"
+                else
+                    echo "Applying observability migration: $filename"
+                    if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
+                        echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
+                    else
+                        echo "Error applying observability migration: $filename. Stopping migrations."
+                        exit 1
+                    fi
                 fi
             fi
         done
@@ -689,6 +737,7 @@ def server_eject(
     env_service.write_merged_env_file(merged_env=merged_env_dict,target_path=env_output_file)
 
     logger.info(f"To make use of the exported configuration file run \"orchestrate server start -e {env_output_file} -f {compose_output_file}\"")
+
 
 if __name__ == "__main__":
     server_app()

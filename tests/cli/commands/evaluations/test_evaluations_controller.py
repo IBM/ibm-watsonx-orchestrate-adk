@@ -136,8 +136,8 @@ class TestEvaluationsController:
         (tmp_path / ".cache" / "orchestrate").mkdir(parents=True, exist_ok=True)
         (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
         mock_runs = []
-        # Mock get_all_runs to prevent HTTP requests but allow record_chats to execute
-        with patch("wxo_agentic_evaluation.record_chat.get_all_runs", return_value=mock_runs), \
+        # Mock get_recent_runs to prevent HTTP requests but allow record_chats to execute
+        with patch("wxo_agentic_evaluation.record_chat.get_recent_runs", return_value=mock_runs), \
              patch.object(controller, "_get_env_config", return_value=("https://test-url", "test-tenant", "test-token")), \
              patch("time.sleep", side_effect=KeyboardInterrupt):  # Simulate Ctrl+C
             output_dir = "test_output"
@@ -305,7 +305,7 @@ def tool2():
             controller.generate_red_teaming_attacks(
                 attacks_list="attackA,attackB",
                 datasets_path="datasets",
-                agents_path="agents",
+                agents_list_or_path="agents",
                 target_agent_name="target_agent",
                 output_dir="test_output",
                 max_variants=2,
@@ -317,7 +317,7 @@ def tool2():
             assert isinstance(passed_cfg, AttackGeneratorConfig)
             assert passed_cfg.attacks_list == ["attackA", "attackB"]
             assert passed_cfg.datasets_path == ["datasets"]
-            assert passed_cfg.agents_path == "agents"
+            assert passed_cfg.agents_list_or_path == ["agents"]
             assert passed_cfg.target_agent_name == "target_agent"
             assert passed_cfg.output_dir == "test_output"
             assert passed_cfg.max_variants == 2

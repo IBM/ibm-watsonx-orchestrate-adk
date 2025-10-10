@@ -8,6 +8,7 @@ class TestPromptTuneCommand:
         "output_file": "test_output_file",
         "dry_run_flag": False,
         "llm": "test_llm",
+        "chat_llm": "chat_llm",
         "samples": "test_samples"
     }
 
@@ -22,6 +23,7 @@ class TestPromptTuneCommand:
         
             mock_create_agent.assert_called_once_with(
                 llm=params.get("llm"),
+                chat_llm = params.get("chat_llm"),
                 output_file=params.get("output_file"),
                 samples_file=params.get("samples"),
                 dry_run_flag=params.get("dry_run_flag")
@@ -31,6 +33,7 @@ class TestPromptTuneCommand:
     @pytest.mark.parametrize(
         ("missing_param", "default_value"),
         [
+            ("chat_llm", None),
             ("output_file", None),
             ("dry_run_flag", False),
             ("llm", None),
@@ -65,6 +68,7 @@ class TestPromptTuneCommand:
         
             mock_create_agent.assert_not_called()
             mock_prompt_tune.assert_called_once_with(
+                chat_llm=params.get("chat_llm"),
                 agent_spec=params.get("file"),
                 output_file=params.get("output_file"),
                 samples_file=params.get("samples"),
@@ -74,6 +78,7 @@ class TestPromptTuneCommand:
     @pytest.mark.parametrize(
         ("missing_param", "default_value"),
         [
+            ("chat_llm", None),
             ("output_file", None),
             ("dry_run_flag", False),
             ("samples", None),
@@ -82,7 +87,6 @@ class TestPromptTuneCommand:
     def test_prompt_tune_command_prompt_tune_missing_optional_params(self, missing_param, default_value):
         params = self.base_params.copy()
         expected_params = params.copy()
-
         params.pop(missing_param, None)
         expected_params[missing_param] = default_value
         expected_params["samples_file"] = expected_params["samples"]

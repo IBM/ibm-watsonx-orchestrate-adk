@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import ExtractionStrategy, KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
 from pydantic import Field, AliasChoices
@@ -117,7 +117,7 @@ def drop_catalog_fields(values: dict):
 
 class ChatWithDocsConfig(BaseModel):
     enabled: Optional[bool] = None
-    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
+    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = Field(default_factory=lambda: KnowledgeBaseBuiltInVectorIndexConfig(extraction_strategy=ExtractionStrategy.EXPRESS))
     generation:  Optional[GenerationConfiguration] = None
     query_rewrite:  Optional[QueryRewriteConfig] = None
     confidence_thresholds: Optional[ConfidenceThresholds] =None
