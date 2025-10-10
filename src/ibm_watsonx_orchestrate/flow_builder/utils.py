@@ -175,8 +175,6 @@ def import_flow_support_tools(model):
     if "schedulable" in model["spec"]:
         schedulable = model["spec"]["schedulable"]
 
-    client = instantiate_client(TempusClient)
-
     logger.info(f"Import 'get_flow_status' tool spec...")
     tools = [create_flow_status_tool("i__get_flow_status_intrinsic_tool__")]
 
