@@ -12,12 +12,10 @@ class SpecVersion(str, Enum):
 class KnowledgeBaseKind(str, Enum):
     KNOWLEDGE_BASE = "knowledge_base"
 
-
 class ExtractionStrategy(str, Enum):
     EXPRESS = 'express'
     STANDARD = 'standard'
     HIGH_QUALITY = 'high_quality'
-
 
 class RetrievalConfidenceThreshold(str, Enum):
     Off = "Off"
