@@ -444,7 +444,7 @@ class TestCreateAgentFromSpec:
 class TestParseFile:
     def test_parse_file_yaml(self, native_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = native_agent_content
@@ -457,7 +457,7 @@ class TestParseFile:
 
     def test_parse_file_json(self, native_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.Agent.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.json.load") as mock_loader:
             
             mock_loader.return_value = native_agent_content
@@ -470,7 +470,7 @@ class TestParseFile:
 
     def test_parse_file_yaml_external(self, external_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExternalAgent.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = external_agent_content
@@ -483,7 +483,7 @@ class TestParseFile:
 
     def test_parse_file_json_external(self, external_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ExternalAgent.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.json.load") as mock_loader:
             
             mock_loader.return_value = external_agent_content
@@ -1414,7 +1414,7 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml") as mock_yaml, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
-            patch("builtins.open", mock_open()) as mock_file:
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_yaml.return_value = MagicMock(dump=MagicMock())

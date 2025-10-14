@@ -17,6 +17,7 @@ from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ class EnvService:
             with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".env") as ntf:
                 target_file = ntf.name
 
-        with open(target_file, "w") as file:
+        with safe_open(target_file, "w") as file:
             for key, val in merged_env.items():
                 file.write(f"{key}={val}\n")
 

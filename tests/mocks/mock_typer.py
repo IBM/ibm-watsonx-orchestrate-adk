@@ -13,7 +13,6 @@ def get_mock_typer():
             add_typer(*args, **kwargs)
 
         def command(self, *args, **kwargs):
-            add_command(*args, **kwargs)
-            return fn
+            return add_command(*args, **kwargs)
 
     return MockTyper, add_typer, add_command
