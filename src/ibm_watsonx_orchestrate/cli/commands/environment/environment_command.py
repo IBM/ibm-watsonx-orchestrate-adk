@@ -96,7 +96,7 @@ def add_env(
 def remove_env(
         name: Annotated[
             str,
-            typer.Option("--name", "-n", help="Name of the environment you wish to create"),
+            typer.Option("--name", "-n", help="Name of the environment you wish to remove"),
         ],
 ):
     environment_controller.remove(name=name)
