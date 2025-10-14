@@ -4,7 +4,7 @@ import uuid
 
 import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
-from enum import Enum
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from .types import Assignment, DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
@@ -21,7 +21,7 @@ class Node(BaseModel):
     def dump_spec(self, file: str) -> None:
         dumped = self.spec.model_dump(mode='json',
                                       exclude_unset=True, exclude_none=True, by_alias=True)
-        with open(file, 'w', encoding="utf-8") as f:
+        with safe_open(file, 'w', encoding="utf-8") as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 yaml.dump(dumped, f, allow_unicode=True)
             elif file.endswith('.json'):

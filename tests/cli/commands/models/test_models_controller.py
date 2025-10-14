@@ -227,7 +227,7 @@ class TestParseModelFile:
         "connection_id": "test_connection_id"
     }
     def test_parse_model_file_yaml(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = self.mock_model_spec
@@ -238,7 +238,7 @@ class TestParseModelFile:
             mock_loader.assert_called_once()
     
     def test_parse_model_file_json(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.json.load") as mock_loader:
             
             mock_loader.return_value = self.mock_model_spec
@@ -284,7 +284,7 @@ class TestParsePolicyFile:
         }
     }
     def test_parse_policy_file_yaml(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = self.mock_policy_spec
@@ -295,7 +295,7 @@ class TestParsePolicyFile:
             mock_loader.assert_called_once()
     
     def test_parse_policy_file_json(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.json.load") as mock_loader:
             
             mock_loader.return_value = self.mock_policy_spec
@@ -507,7 +507,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -546,7 +546,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file_no_provider(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -586,7 +586,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file_no_config(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -822,7 +822,7 @@ class TestImportModelPolicy:
         mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             
@@ -852,7 +852,7 @@ class TestImportModelPolicy:
         mock_models_client = MockModelsClient(list_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             

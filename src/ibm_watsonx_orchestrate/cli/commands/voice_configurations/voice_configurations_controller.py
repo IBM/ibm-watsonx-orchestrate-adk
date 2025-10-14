@@ -9,6 +9,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +27,11 @@ class VoiceConfigurationsController:
   def import_voice_config(self, file: str) -> VoiceConfiguration:
 
     if file.endswith('.yaml') or file.endswith('.yml'):
-      with open(file, 'r') as f:
+      with safe_open(file, 'r') as f:
         content = yaml.load(f, Loader=yaml.SafeLoader)
 
     elif file.endswith(".json"):
-      with open(file, 'r') as f:
+      with safe_open(file, 'r') as f:
         content = json.load(f)
 
     else:

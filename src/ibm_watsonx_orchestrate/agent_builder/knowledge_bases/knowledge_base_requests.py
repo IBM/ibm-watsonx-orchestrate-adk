@@ -1,12 +1,14 @@
 import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import KnowledgeBaseSpec
+
 
 class KnowledgeBaseCreateRequest(KnowledgeBaseSpec):
 
     @staticmethod
     def from_spec(file: str) -> 'KnowledgeBaseSpec':
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 content = yaml_safe_load(f)
             elif file.endswith('.json'):

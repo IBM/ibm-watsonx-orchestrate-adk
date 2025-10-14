@@ -32,6 +32,7 @@ from ibm_watsonx_orchestrate.cli.config import (
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class EvaluationsController:
 
         if config_file:
             logger.info(f"Loading configuration from {config_file}")
-            with open(config_file, 'r') as f:
+            with safe_open(config_file, 'r') as f:
                 file_config = yaml_safe_load(f) or {}
                 
                 if "auth_config" in file_config:

@@ -25,6 +25,7 @@ from ibm_watsonx_orchestrate.agent_builder.models.types import ListVirtualModel
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ..types import (
     DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
     NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
@@ -1272,7 +1273,7 @@ class CompiledFlow(BaseModel):
     
     def dump_spec(self, file: str) -> None:
         dumped = self.flow.to_json()
-        with open(file, 'w') as f:
+        with safe_open(file, 'w') as f:
             if file.endswith(".yaml") or file.endswith(".yml"):
                 yaml.dump(dumped, f, allow_unicode=True)
             elif file.endswith(".json"):

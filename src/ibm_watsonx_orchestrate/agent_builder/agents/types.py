@@ -12,6 +12,7 @@ from pydantic import Field, AliasChoices
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
@@ -86,7 +87,7 @@ class BaseAgentSpec(BaseModel):
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
-        with open(file, 'w') as f:
+        with safe_open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 yaml.dump(dumped, f, sort_keys=False, allow_unicode=True)
             elif file.endswith('.json'):
