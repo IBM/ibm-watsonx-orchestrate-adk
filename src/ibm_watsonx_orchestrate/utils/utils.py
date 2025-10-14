@@ -87,3 +87,13 @@ def parse_string_safe(value: any, override_empty_to_none: bool = False,
         return value
 
     return "" if parse_bool_safe(value=force_default_to_empty, fallback=False) else None
+
+def singleton(cls):
+    instances = {}
+
+    def getinstance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    
+    return getinstance

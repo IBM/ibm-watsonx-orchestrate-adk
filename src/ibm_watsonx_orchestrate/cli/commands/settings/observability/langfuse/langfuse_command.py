@@ -13,6 +13,7 @@ from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import An
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 settings_observability_langfuse_app = typer.Typer(no_args_is_help=True)
 
@@ -22,7 +23,7 @@ def _validate_langfuse_input(**kwargs) -> AnalyticsLLMConfig:
     config = {}
     if kwargs['config_file'] is not None:
         file = kwargs['config_file']
-        with open(file, 'r') as fp:
+        with safe_open(file, 'r') as fp:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 content = yaml_safe_load(fp)
             elif file.endswith('.json'):
@@ -91,7 +92,7 @@ def get_langfuse(
     config = _reformat_output(client.get())
 
     if output:
-        with open(output, 'w') as f:
+        with safe_open(output, 'w') as f:
             if output.endswith('.yaml') or output.endswith('.yml'):
                 yaml.safe_dump(config, f, sort_keys=False)
                 logger.info(f"Langfuse configuration written to {output}")

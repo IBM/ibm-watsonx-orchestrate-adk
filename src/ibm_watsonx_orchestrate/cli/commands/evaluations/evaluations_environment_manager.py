@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller imp
     EvaluationsController,
     EvaluateMode,
 )
-
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ def run_environment_manager(
     mode: EvaluateMode = EvaluateMode.default,
     output_dir: str = None,
 ):
-    with open(environment_manager_path, encoding="utf-8", mode="r") as f:
+    with safe_open(environment_manager_path, encoding="utf-8", mode="r") as f:
         env_settings = yaml.load(f, Loader=yaml.SafeLoader)
 
     for env in env_settings:

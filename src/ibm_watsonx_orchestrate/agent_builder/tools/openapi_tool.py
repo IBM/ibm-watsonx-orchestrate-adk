@@ -11,6 +11,7 @@ import re
 import httpx
 import jsonref
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import ToolSpec
 from .base_tool import BaseTool
 from .types import HTTP_METHOD, ToolPermission, ToolRequestBody, ToolResponseBody, \
@@ -49,7 +50,7 @@ class OpenAPITool(BaseTool):
 
     @staticmethod
     def from_spec(file: str) -> 'OpenAPITool':
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 spec = ToolSpec.model_validate(yaml_safe_load(f))
             elif file.endswith('.json'):
@@ -308,7 +309,7 @@ def create_openapi_json_tool(
 
 async def _get_openapi_spec_from_uri(openapi_uri: str) -> Dict[str, Any]:
     if os.path.exists(openapi_uri) or openapi_uri.startswith('file://'):
-        with open(openapi_uri, 'r') as fp:
+        with safe_open(openapi_uri, 'r') as fp:
             if openapi_uri.endswith('.json'):
                 openapi_contents = json.load(fp)
             elif openapi_uri.endswith('.yaml') or openapi_uri.endswith('.yml'):

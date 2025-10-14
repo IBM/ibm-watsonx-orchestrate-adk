@@ -1,5 +1,6 @@
 from typing import Literal
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from typing_extensions import List
 
 class ToolClient(BaseAPIClient):
@@ -20,7 +21,7 @@ class ToolClient(BaseAPIClient):
         return self._delete(f"/tools/{tool_id}")
 
     def upload_tools_artifact(self, tool_id: str, file_path: str) -> dict:
-        return self._post(f"/tools/{tool_id}/upload", files={"file": (f"{tool_id}.zip", open(file_path, "rb"), "application/zip", {"Expires": "0"})})
+        return self._post(f"/tools/{tool_id}/upload", files={"file": (f"{tool_id}.zip", safe_open(file_path, "rb"), "application/zip", {"Expires": "0"})})
 
     def download_tools_artifact(self, tool_id: str) -> bytes:
         response = self._get(f"/tools/{tool_id}/download", return_raw=True)
