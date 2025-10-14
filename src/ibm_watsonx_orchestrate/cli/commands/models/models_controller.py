@@ -18,7 +18,8 @@ from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPoli
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_cpd_env
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
@@ -100,7 +101,7 @@ def validate_spec_content(content: dict) -> None:
 
 def parse_model_file(file: str) -> List[VirtualModel]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith(".json"):
                 content = json.load(f)
             else:
@@ -116,7 +117,7 @@ def parse_model_file(file: str) -> List[VirtualModel]:
 
 def parse_policy_file(file: str) -> List[ModelPolicy]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith(".json"):
                 content = json.load(f)
             else:

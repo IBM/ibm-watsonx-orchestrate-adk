@@ -305,14 +305,14 @@ class TestFindToolsByDescription:
 class TestGatherExamples:
     def test_gather_examples_txt(self):
         sample_data = "test1\ntest2\ntest3"
-        with patch('builtins.open', mock_open(read_data=sample_data)):
+        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=sample_data)):
             examples = gather_examples("sample_file.txt")
             assert len(examples) == 3
             assert examples == sample_data.split('\n')
 
     def test_gather_examples_csv(self):
         sample_data = "utterance\ntest1\ntest2\ntest3"
-        with patch('builtins.open', mock_open(read_data=sample_data)):
+        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=sample_data)):
             examples = gather_examples("sample_file.csv")
             assert len(examples) == 3
             assert examples == sample_data.split('\n')[1:]
@@ -326,7 +326,7 @@ class TestGatherExamples:
         ]
     )
     def test_gather_examples_csv_missing_header(self, content, caplog):
-        with patch('builtins.open', mock_open(read_data=content)):
+        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=content)):
             with pytest.raises(BadRequest):
                 examples = gather_examples("sample_file.csv")
 

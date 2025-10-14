@@ -19,6 +19,7 @@ from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_p
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -85,7 +86,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
 
 def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith(".json"):
                 content = json.load(f)
             else:
@@ -1300,7 +1301,7 @@ class AgentsController:
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
-            with open(output_path, 'w') as outfile:
+            with safe_open(output_path, 'w') as outfile:
                 yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
             return
         

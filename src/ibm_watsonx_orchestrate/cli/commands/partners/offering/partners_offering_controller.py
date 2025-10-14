@@ -19,11 +19,10 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     ExternalAgent,
     AgentKind,
 )
-from ibm_watsonx_orchestrate.client.connections import get_connections_client
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
 from ibm_watsonx_orchestrate.utils.utils import sanitize_catalog_label
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import *
 
 APPLICATIONS_FILE_VERSION = '1.16.0'
@@ -61,7 +60,7 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
         return
 
     for agent_yaml in agents_dir.glob("*.yaml"):
-        with open(agent_yaml, "r") as f:
+        with safe_open(agent_yaml, "r") as f:
             agent_data = yaml.safe_load(f) or {}
 
         if "tags" not in agent_data:
@@ -79,7 +78,7 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
         if "agent_role" not in agent_data:
             agent_data["agent_role"] = "manager" if agent_data.get("name") == parent_agent_name else "collaborator"
 
-        with open(agent_yaml, "w") as f:
+        with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
 
 
@@ -307,7 +306,7 @@ class PartnersOfferingController:
             raise FileNotFoundError(f"Offering file '{offering_file}' does not exist")
 
         # Load offering data
-        with open(offering_file) as f:
+        with safe_open(offering_file) as f:
             offering_obj = Offering(**yaml.safe_load(f))
 
         # Validate offering
@@ -334,7 +333,7 @@ class PartnersOfferingController:
                     logger.error(f"Agent {agent_name} not found")
                     sys.exit(1)
 
-                with open(agent_file) as f:
+                with safe_open(agent_file) as f:
                     agent_data = yaml.safe_load(f)
 
                 # Validate agent spec
@@ -383,7 +382,7 @@ class PartnersOfferingController:
                     
                     tool_data = ToolSpec.model_validate(tool_data[0]).model_dump(exclude_unset=True)
                 else:
-                    with open(spec_file) as f:
+                    with safe_open(spec_file) as f:
                         tool_data = json.load(f)
 
                 # Validate tool
@@ -421,7 +420,7 @@ class PartnersOfferingController:
 
             connections_folder_path = project_root / "connections"
             for connection_file in connections_folder_path.glob('*.yaml'):
-                with open(connection_file,"r") as f:
+                with safe_open(connection_file,"r") as f:
                     connection_data = yaml.safe_load(f)
                     applications.append(
                         _create_applications_entry(connection_data)

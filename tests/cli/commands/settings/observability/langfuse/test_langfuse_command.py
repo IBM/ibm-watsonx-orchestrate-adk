@@ -212,7 +212,7 @@ class TestObservabilityPrintToConsole:
         with (
             patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.instantiate_client") as instantiate_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.logger") as logger,
-            patch('builtins.open', unittest.mock.mock_open()) as o
+            patch('ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.safe_open', unittest.mock.mock_open()) as o
         ):
             AnalyticsLLMClientMock, update, delete, get = get_analytics_llm_mock()
             instantiate_client.return_value = AnalyticsLLMClientMock(base_url='')
@@ -240,7 +240,7 @@ class TestObservabilityPrintToConsole:
         with (
             patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.instantiate_client") as instantiate_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.logger") as logger,
-            patch('builtins.open', unittest.mock.mock_open()) as o
+            patch('ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.safe_open', unittest.mock.mock_open()) as o
         ):
             AnalyticsLLMClientMock, update, delete, get = get_analytics_llm_mock()
             instantiate_client.return_value = AnalyticsLLMClientMock(base_url='')

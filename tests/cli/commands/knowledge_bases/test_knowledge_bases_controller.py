@@ -183,10 +183,10 @@ class MockConnection:
         self.appid = appid
         self.connection_type = connection_type
         self.connection_id = "12345"
-        
+
 class TestParseFile:
     def test_parse_file_yaml(self, built_in_knowledge_base_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.yaml_safe_load") as mock_loader:
             
             mock_loader.return_value = built_in_knowledge_base_content
@@ -197,7 +197,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
 
     def test_parse_file_json(self, built_in_knowledge_base_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.json.load") as mock_loader:
             
             mock_loader.return_value = built_in_knowledge_base_content
@@ -228,7 +228,7 @@ class TestImportKnowledgeBase:
     def test_import_built_in_knowledge_base(self, caplog, built_in_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
@@ -255,7 +255,7 @@ class TestImportKnowledgeBase:
     def test_import_built_in_knowledge_base_with_url(self, caplog, built_in_knowledge_base_content_with_url):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
@@ -282,7 +282,7 @@ class TestImportKnowledgeBase:
     def test_update_built_in_knowledge_base(self, caplog, existing_built_in_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("builtins.open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
