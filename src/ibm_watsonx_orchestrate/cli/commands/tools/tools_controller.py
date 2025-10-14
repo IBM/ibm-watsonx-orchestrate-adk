@@ -42,6 +42,7 @@ from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 
 from  ibm_watsonx_orchestrate import __version__
@@ -339,7 +340,7 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
     requirements = []
 
     if requirements_file is not None:
-        with open(requirements_file, 'r') as fp:
+        with safe_open(requirements_file, 'r') as fp:
             requirements = fp.readlines()
 
     if remove_trailing_newlines is True:
@@ -535,7 +536,7 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                 break
 
         elif file_path.suffix.lower() == ".json":
-            with open(file) as f:
+            with safe_open(file) as f:
                 model = json.load(f)
         else:
             raise typer.BadParameter(f"Unknown file type.  Only python or json are supported.")
@@ -575,7 +576,7 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
         if file_path.suffix.lower() != ".json":
             raise typer.BadParameter(f"Unsupported langflow file type. Only json files are supported.")
         
-        with open(file) as f:
+        with safe_open(file) as f:
             imported_tool = json.load(f)
 
     except typer.BadParameter as ex:
@@ -897,7 +898,7 @@ class ToolsController:
 
                         requirements = list(dict.fromkeys(requirements))
 
-                        with open(requirements_file, 'w') as fp:
+                        with safe_open(requirements_file, 'w') as fp:
                             fp.writelines(requirements)
                         requirements_file_path = Path(requirements_file)
                         zip_tool_artifacts.write(requirements_file_path, arcname='requirements.txt')

@@ -3,7 +3,7 @@ import json
 import yaml
 
 from .types import ToolkitSpec
-
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 class BaseToolkit:
     __toolkit_spec__: ToolkitSpec
@@ -16,7 +16,7 @@ class BaseToolkit:
 
     def dump_spec(self, file: str) -> None:
         dumped = self.__toolkit_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
-        with open(file, 'w') as f:
+        with safe_open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 yaml.dump(dumped, f, allow_unicode=True)
             elif file.endswith('.json'):

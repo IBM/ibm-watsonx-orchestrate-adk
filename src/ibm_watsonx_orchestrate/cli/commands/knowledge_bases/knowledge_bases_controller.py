@@ -16,6 +16,7 @@ from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
@@ -65,8 +66,8 @@ def get_relative_file_path(path, dir):
     
 def build_file_object(file_dir: str, file: str | FileUpload):
     if isinstance(file, FileUpload):
-        return ('files', (get_file_name(file.path), open(get_relative_file_path(file.path, file_dir), 'rb')))
-    return ('files', (get_file_name(file), open(get_relative_file_path(file, file_dir), 'rb')))
+        return ('files', (get_file_name(file.path), safe_open(get_relative_file_path(file.path, file_dir), 'rb')))
+    return ('files', (get_file_name(file), safe_open(get_relative_file_path(file, file_dir), 'rb')))
 
 def build_connections_map(key_attr: str) -> dict:
     connections_client = get_connections_client()
@@ -396,7 +397,7 @@ class KnowledgeBaseController:
                 knowledge_base_spec_yaml_file.getvalue()
             )
         else:
-            with open(output_path, 'w') as outfile:
+            with safe_open(output_path, 'w') as outfile:
                 yaml.dump(knowledge_base_spec, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
         
         logger.info(f"Successfully exported for knowledge base {logEnding} to '{output_path}'")
