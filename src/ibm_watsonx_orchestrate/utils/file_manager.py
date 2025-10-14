@@ -70,7 +70,7 @@ class FileManager:
         **kwargs: Any
     ):  
 
-        if "encoding" not in kwargs:
+        if "encoding" not in kwargs and "b" not in mode:
             if not isinstance(file_path, Path):
                 file_path = Path(file_path)
             if self.__should_set_encoding(file_path=file_path):
