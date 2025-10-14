@@ -42,6 +42,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
 
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ def _create_connection_from_spec(content: dict) -> None:
     
 def _parse_file(file: str) -> None:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith(".json"):
                 content = json.load(f)
             else:
@@ -612,7 +613,7 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
 
             zip_file.close()
         case '.yaml' | '.yml':
-            with open(output_path,'w') as yaml_file:
+            with safe_open(output_path,'w') as yaml_file:
                 yaml_file.write(
                     yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
                 )

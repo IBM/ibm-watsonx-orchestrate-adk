@@ -3,6 +3,7 @@ import json
 import logging
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import FlowToolBinding, ToolBinding, ToolSpec
 from .base_tool import BaseTool
 from .types import ToolPermission
@@ -22,7 +23,7 @@ class FlowTool(BaseTool):
 
     @staticmethod
     def from_spec(file: str) -> 'FlowTool':
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 spec = ToolSpec.model_validate(yaml_safe_load(f))
             elif file.endswith('.json'):
