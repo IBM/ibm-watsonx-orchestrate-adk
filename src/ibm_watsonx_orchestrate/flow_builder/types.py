@@ -123,6 +123,8 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
             model_spec["anyOf"] = [_to_json_from_json_schema(schema) for schema in response_body.anyOf]
         if response_body.required and len(response_body.required) > 0:
             model_spec["required"] = response_body.required
+        if response_body.type == "string" and response_body.format is not None:
+            model_spec["format"] = response_body.format
     elif isinstance(schema, SchemaRef):
         model_spec["$ref"] = schema.ref
     
