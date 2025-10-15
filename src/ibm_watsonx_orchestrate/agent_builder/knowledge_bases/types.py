@@ -268,6 +268,7 @@ class ConversationalSearchConfig(BaseModel):
     confidence_thresholds: Optional[ConfidenceThresholds] = None
     query_source: QuerySource = QuerySource.SessionHistory
     agent_query_description: str = "The query to search for in the knowledge base"
+    supports_full_document: Optional[bool] = None
 
     @model_validator(mode="after")
     def validate_agent_query_description(self) -> 'ConversationalSearchConfig':
