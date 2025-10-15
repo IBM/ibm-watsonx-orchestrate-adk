@@ -10,3 +10,5 @@ knowledge_base:
   - ibm_knowledge_base_dynamic_mode
 tools:
   - get_stock_price
+chat_with_docs:
+  enabled: true
