@@ -221,6 +221,13 @@ def set_credentials_connection_command(
             help='For basic auth and oauth_auth_password_flow, the password to login with'
         )
     ] = None,
+    server_cert: Annotated[
+        str,
+        typer.Option(
+            '--server-cert',
+            help='For basic auth and oauth_auth_password_flow, the server certificate used to authenticate the server'
+        )
+    ] = None,
     token: Annotated[
         str,
         typer.Option(
@@ -315,6 +322,7 @@ def set_credentials_connection_command(
         app_id=app_id,
         environment=environment,
         username=username,
+        server_cert=server_cert,
         password=password,
         token=token,
         api_key=api_key,
