@@ -225,9 +225,14 @@ def _get_oauth_custom_fields(token_entries: List[ConnectionCredentialsEntry] | N
 def _get_credentials(type: ConnectionType, **kwargs):
     match type:
         case ConnectionType.BASIC_AUTH:
+            server_cert = kwargs.get("server_cert")
+            if server_cert is not None:
+                server_cert = server_cert.replace("\\n", "\n")
+                
             return BasicAuthCredentials(
                 username=kwargs.get("username"),
-                password=kwargs.get("password")
+                password=kwargs.get("password"),
+                server_cert=server_cert
             )
         case ConnectionType.BEARER_TOKEN:
             return BearerTokenAuthCredentials(
