@@ -159,6 +159,7 @@ services:
     restart: unless-stopped
     environment:
       WXO_DEPLOYMENT_TYPE: "laptop"
+      JWT_SECRET: ${JWT_SECRET}
       AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
       TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
@@ -176,6 +177,7 @@ services:
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
       ENABLE_BULK_TESTING: "true"
+      ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -913,7 +915,6 @@ services:
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
-      HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
