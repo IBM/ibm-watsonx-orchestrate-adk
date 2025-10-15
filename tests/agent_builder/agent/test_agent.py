@@ -175,7 +175,7 @@ class TestAgentString:
 class TestAgentFromSpec:
     def test_native_agent_from_spec_yaml(self, valid_native_agent_sample):
         with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.yaml_safe_load") as mock_loader, \
-            patch("builtins.open", mock_open()) as mock_file:
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.safe_open", mock_open()) as mock_file:
             native_spec_definition = valid_native_agent_sample
             mock_loader.return_value = native_spec_definition
             
@@ -196,7 +196,7 @@ class TestAgentFromSpec:
 
     def test_native_agent_from_spec_json(self, valid_native_agent_sample):
         with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.json.load") as mock_loader, \
-            patch("builtins.open", mock_open()) as mock_file:
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.safe_open", mock_open()) as mock_file:
             native_spec_definition = valid_native_agent_sample
             mock_loader.return_value = native_spec_definition
             
@@ -215,8 +215,8 @@ class TestAgentFromSpec:
             assert native_agent.tools == native_spec_definition["tools"]
             assert native_agent.knowledge_base == native_spec_definition["knowledge_base"]
 
-    def test_native_agent_from_spec_invalid_file_extentionl(self):
-       with patch("builtins.open", mock_open()) as mock_file:
+    def test_native_agent_from_spec_invalid_file_extention(self):
+       with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.safe_open", mock_open()) as mock_file:
            with pytest.raises(BadRequest) as e:
                 Agent.from_spec("test_file.test")
 
@@ -224,7 +224,7 @@ class TestAgentFromSpec:
 
     def test_native_agent_from_spec_no_spec_version(self, valid_native_agent_sample):
         with patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.yaml_safe_load") as mock_loader, \
-            patch("builtins.open", mock_open()) as mock_file:
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.agent.safe_open", mock_open()) as mock_file:
             native_spec_definition = valid_native_agent_sample
             native_spec_definition.pop("spec_version", None)
             mock_loader.return_value = native_spec_definition
