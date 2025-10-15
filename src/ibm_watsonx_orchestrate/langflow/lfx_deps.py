@@ -85,7 +85,7 @@ LFX_DEPENDENCIES = [
 
 
 MODULE_DEPENDENCIES = {
-    "bs4": ['lxml']
+    "bs4": ['lxml', 'tabulate']
 }
 
 MODULE_MAP = {
