@@ -913,7 +913,6 @@ services:
       SERVICE_URL: ${SERVICE_URL:-http://wxo-doc-processing-cache:8080}
       RATE_LIMITING_ENABLED: "false"
       SHOULD_CACHE_IMAGES: "false"
-      HANDWRITING_ENABLED: "true"
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
