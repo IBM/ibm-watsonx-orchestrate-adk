@@ -1,8 +1,12 @@
 from enum import Enum
+import os
 from typing import List, Any, Dict, Literal, Optional, Union
 import logging
 
-from pydantic import BaseModel, model_validator, ConfigDict, Field, AliasChoices, ValidationError, ValidationInfo
+from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, ValidationError, ValidationInfo, model_validator, ConfigDict, Field, AliasChoices
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import core_schema
+import requests
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.agent_builder.connections import KeyValueConnectionCredentials
 
@@ -67,6 +71,7 @@ class ToolResponseBody(BaseModel):
     uniqueItems: bool = None
     anyOf: List['JsonSchemaObject'] = None
     required: Optional[List[str]] = None
+    format: Optional[str] = None
 
 class OpenApiSecurityScheme(BaseModel):
     type: Literal['apiKey', 'http', 'oauth2', 'openIdConnect']
@@ -266,6 +271,78 @@ class ToolSpec(BaseModel):
             return False
 
         return True
+
+
+CONNECTION_TIMEOUT_SECONDS = 30
+READ_TIMEOUT_SECONDS = 30
+X_AMZ_META_HEADER_PREFIX = os.getenv("X_AMZ_META_HEADER_PREFIX", "x-amz-meta-")
+
+
+class WXOFile(str):
+
+    @classmethod
+    def get_file_name(cls, url: str) -> str | None:
+        """Returns the file name."""
+        return cls._get_headers(url).get(f"{X_AMZ_META_HEADER_PREFIX}filename", None)
+
+    @classmethod
+    def get_file_size(cls, url: str) -> int | None:
+        """Returns the file size in bytes."""
+        size = cls._get_headers(url).get(f"{X_AMZ_META_HEADER_PREFIX}size", None)
+        return int(size) if size is not None else None
+
+    @classmethod
+    def get_file_type(cls, url: str) -> str | None:
+        """Returns the MIME type of the file based on S3 metadata or file extension."""
+        return cls._get_headers(url).get(f"{X_AMZ_META_HEADER_PREFIX}content-type", None)
+
+    @classmethod
+    def get_content(cls, url: str) -> bytes:
+        """Retuns the contents"""
+        try:
+            res = requests.get(url)
+            return res.content
+        except Exception as e:
+            raise e
+
+    @classmethod
+    def _get_headers(cls, url: str) -> dict:
+        try:
+            res = requests.get(url, 
+                               headers={'Range': 'bytes=0-0'}, 
+                               timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+            return res.headers
+        except Exception as e:
+            raise e
+
+    @classmethod
+    def validate(cls, value: Any) -> "WXOFile":
+        if not isinstance(value, str):
+            raise TypeError("File must be a document reference (string)")
+        return cls(value)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_wrap_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda v: str(v))
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        return {
+            "type": "string",
+            "title": "File reference",
+            "format": "wxo-file",
+            "description": "A URL identifying the File to be used.",
+        }
+
 
 class ToolListEntry(BaseModel):
     name: str = Field(description="The name of the tool")

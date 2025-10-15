@@ -1096,3 +1096,49 @@ snapshots['test_http_put_with_json_request_body 1'] = {
     },
     'permission': 'read_only'
 }
+
+snapshots['test_wxo_file_format 1'] = {
+    'binding': {
+        'openapi': {
+            'http_method': 'POST',
+            'http_path': '/test/wxofile',
+            'security': [
+            ],
+            'servers': [
+                'https://{host}:{port}'
+            ]
+        }
+    },
+    'description': 'TEST POST WxO File',
+    'display_name': 'Test HTTP POST WxO File',
+    'input_schema': {
+        'properties': {
+            '__requestBody__': {
+                'description': 'The html request body used to satisfy this user utterance.',
+                'in': 'body',
+                'properties': {
+                    'file_url_input': {
+                        'format': 'wxo-file',
+                        'type': 'string'
+                    }
+                },
+                'title': 'RequestBody',
+                'type': 'object'
+            }
+        },
+        'required': [
+            '__requestBody__'
+        ],
+        'type': 'object'
+    },
+    'is_async': False,
+    'name': 'testPostWxoFile',
+    'output_schema': {
+        'description': 'POST response',
+        'format': 'wxo-file',
+        'required': [
+        ],
+        'type': 'string'
+    },
+    'permission': 'read_only'
+}
