@@ -60,14 +60,14 @@ def knowledge_base_status(
     controller = KnowledgeBaseController()
     controller.knowledge_base_status(id=id, name=name)
 
-@knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml. Does not export the documents contained in the knowledge base.')
+@knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml')
 def knowledge_base_export(
     output_file: Annotated[
         str,
         typer.Option(
             "--output",
             "-o",
-            help="Path to a where the yaml file containing the exported spec should be saved",
+            help="Path to a where the zip file containing the exported data should be saved",
         ),
     ],
     name: Annotated[
