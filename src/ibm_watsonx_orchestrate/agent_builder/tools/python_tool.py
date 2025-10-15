@@ -137,6 +137,10 @@ class PythonTool(BaseTool):
                 if '$defs' in _schema:
                     _schema.pop('$defs')
                 spec.output_schema = _fix_optional(ToolResponseBody(**_schema))
+
+                if _schema.get('type') == 'string' and _schema.get('format', None) is not None:
+                    spec.output_schema.format = _schema.get('format')
+
             else:
                 spec.output_schema = ToolResponseBody()
 
