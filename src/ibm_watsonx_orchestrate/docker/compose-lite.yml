@@ -159,6 +159,7 @@ services:
     restart: unless-stopped
     environment:
       WXO_DEPLOYMENT_TYPE: "laptop"
+      JWT_SECRET: ${JWT_SECRET}
       AGENT_RUNTIME_ENDPOINT: http://wxo-server:4321
       TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
       CONNECTIONS_MANAGER_ENDPOINT: http://wxo-server-connection-manager:3001
