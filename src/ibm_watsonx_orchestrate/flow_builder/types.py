@@ -475,6 +475,7 @@ class UserFieldKind(str, Enum):
     Boolean: str = "boolean"
     Object: str = "object"
     Choice: str = "any"
+    List: str = "array"  # used to display list output
 
     def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
         if inspect.isclass(python_type):
@@ -516,6 +517,10 @@ class UserFieldKind(str, Enum):
             model_spec["type"] = "boolean"
         elif kind == UserFieldKind.File:
             model_spec["format"] = "wxo-file"
+        elif kind == UserFieldKind.List:
+            model_spec["format"] = "array"
+        elif kind == UserFieldKind.Choice:
+            model_spec["format"] = "any"                        
         elif kind == UserFieldKind.Object:
             raise ValueError("Object user fields are not supported.")
         
