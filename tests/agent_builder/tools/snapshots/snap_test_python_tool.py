@@ -340,6 +340,37 @@ snapshots['test_should_support_typed_typings_inputs_and_outputs 1'] = {
     'permission': 'admin'
 }
 
+snapshots['test_should_support_wxo_file_format_inputs_and_outputs 1'] = {
+    'binding': {
+        'python': {
+            'function': 'tests.agent_builder.tools.test_python_tool:my_tool'
+        }
+    },
+    'description': 'the description',
+    'input_schema': {
+        'properties': {
+            'input': {
+                'description': 'A URL identifying the File to be used.',
+                'format': 'wxo-file',
+                'title': 'File reference',
+                'type': 'string'
+            }
+        },
+        'required': [
+            'input'
+        ],
+        'type': 'object'
+    },
+    'name': 'myName',
+    'output_schema': {
+        'description': 'A URL identifying the File to be used.',
+        'format': 'wxo-file',
+        'title': 'File reference',
+        'type': 'string'
+    },
+    'permission': 'admin'
+}
+
 snapshots['test_should_use_correct_defaults 1'] = {
     'binding': {
         'python': {
