@@ -159,6 +159,7 @@ class AgentSpec(BaseAgentSpec):
     kind: AgentKind = AgentKind.NATIVE
     llm: str = DEFAULT_LLM
     style: AgentStyle = AgentStyle.DEFAULT
+    hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
     structured_output: Optional[JsonSchemaObject] = None
     instructions: Annotated[Optional[str], Field(json_schema_extra={"min_length_str":1})] = None
