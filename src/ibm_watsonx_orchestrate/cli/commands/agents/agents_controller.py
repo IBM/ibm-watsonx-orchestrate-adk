@@ -13,7 +13,6 @@ from copy import deepcopy
 
 from typing import Iterable, List, TypeVar
 from pydantic import BaseModel
-from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentStyle
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
@@ -26,7 +25,9 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     ExternalAgent,
     AssistantAgent,
     AgentKind,
-    SpecVersion
+    SpecVersion,
+    AgentRestrictionType, 
+    AgentStyle
 )
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
@@ -1293,6 +1294,11 @@ class AgentsController:
             sys.exit(1)
         
         agent = self.get_agent(name, kind)
+
+        if agent.restrictions == AgentRestrictionType.NON_EDITABLE:
+            logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
+            sys.exit(1)
+
         agent_spec_file_content = self.get_spec_file_content(agent)
         
         agent_spec_file_content.pop("hidden", None)
@@ -1374,6 +1380,10 @@ class AgentsController:
 
                 if not collaborator:
                     logger.warning(f"Skipping {collaborator_id}, no agent with id {collaborator_id} found")
+                    continue
+
+                if collaborator.restrictions == AgentRestrictionType.NON_EDITABLE:
+                    logger.warning(f"Collaborator '{collaborator.name}' is not editable and cannot be exported")
                     continue
                 
                 self.export_agent(

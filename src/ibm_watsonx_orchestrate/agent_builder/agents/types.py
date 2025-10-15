@@ -57,6 +57,16 @@ class ExternalAgentAuthScheme(str, Enum):
     API_KEY = "API_KEY"
     NONE = 'NONE'
 
+class AgentRestrictionType(str, Enum):
+    EDITABLE = 'editable'
+    NON_EDITABLE = 'non_editable'
+
+    def __str__(self):
+        return self.value 
+
+    def __repr__(self):
+        return repr(self.value)
+
 class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
@@ -84,6 +94,7 @@ class BaseAgentSpec(BaseModel):
     context_variables: Optional[List[str]] = []
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
+    restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
