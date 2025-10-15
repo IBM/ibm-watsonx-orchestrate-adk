@@ -199,7 +199,7 @@ class TestCreateConnectionFromSpec:
 
 class TestParseFile:
     def test_parse_file_yaml(self, connections_spec_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.safe_open", mock_open()) as mock_file, \
             patch ("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller._create_connection_from_spec") as mock_from_spec, \
             patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.yaml.load") as mock_loader:
             
@@ -212,7 +212,7 @@ class TestParseFile:
             mock_loader.assert_called_once()
     
     def test_parse_file_json(self, connections_spec_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.safe_open", mock_open()) as mock_file, \
             patch ("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller._create_connection_from_spec") as mock_from_spec, \
             patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.json.load") as mock_loader:
             
@@ -922,7 +922,7 @@ class TestListConnections:
 
 class TestImportConnection:
     def test_import_connection_yaml(self, connections_spec_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.safe_open", mock_open()) as mock_file, \
             patch ("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller._create_connection_from_spec") as mock_from_spec, \
             patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.yaml.load") as mock_loader:
             
@@ -935,7 +935,7 @@ class TestImportConnection:
             mock_loader.assert_called_once()
     
     def test_import_connection_json(self, connections_spec_content):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.safe_open", mock_open()) as mock_file, \
             patch ("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller._create_connection_from_spec") as mock_from_spec, \
             patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.json.load") as mock_loader:
             

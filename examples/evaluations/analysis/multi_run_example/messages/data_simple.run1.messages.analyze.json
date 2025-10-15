@@ -1,0 +1,183 @@
+[
+    {
+        "message": {
+            "role": "user",
+            "content": "I want to know my timeoff schedule for a certain period",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"your username\"}, \"id\": \"chatcmpl-tool-08bc8039eaec4c62a99df979f5\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "username": "your username"
+            },
+            "expected": [
+                {
+                    "username": "nwaters"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"not found\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-08bc8039eaec4c62a99df979f5\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "runtime error"
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "What is your username?",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "My username is nwaters.",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"nwaters\"}, \"id\": \"chatcmpl-tool-067d832a6432457e84086d75cf\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"15778303\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-067d832a6432457e84086d75cf\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"start_date\": \"2025-01-01\", \"end_date\": \"2025-12-31\", \"assignment_id\": \"15778303\"}, \"id\": \"chatcmpl-tool-9d375452be7845b089bd6ea45a\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": {
+            "reason": "incorrect parameter",
+            "actual": {
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31",
+                "assignment_id": "15778303"
+            },
+            "expected": [
+                {
+                    "assignment_id": "15778303",
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-03-03"
+                }
+            ]
+        }
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-9d375452be7845b089bd6ea45a\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "Your timeoff schedule for the period of January 1, 2025, to December 31, 2025, is on January 5, 2025.",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "user",
+            "content": "That is not what I asked for. I want my timeoff schedule from 2025-01-01 to 2025-03-03, not the whole year.",
+            "type": "text",
+            "event": null,
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"start_date\": \"2025-01-01\", \"end_date\": \"2025-03-03\", \"assignment_id\": \"15778303\"}, \"id\": \"chatcmpl-tool-7936651684284712826be38e55\"}",
+            "type": "tool_call",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-7936651684284712826be38e55\"}",
+            "type": "tool_response",
+            "event": "run.step.delta",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "message": {
+            "role": "assistant",
+            "content": "Your timeoff schedule for the period of January 1, 2025, to March 3, 2025, is on January 5, 2025.",
+            "type": "text",
+            "event": "message.created",
+            "conversational_search_metadata": null
+        },
+        "reason": null
+    },
+    {
+        "meta": {
+            "expected_tool_calls": [
+                "get_assignment_id_hr_usecase",
+                "get_timeoff_schedule_hr_usecase"
+            ],
+            "actual_tool_calls": [
+                "get_assignment_id_hr_usecase",
+                "get_assignment_id_hr_usecase",
+                "get_timeoff_schedule_hr_usecase",
+                "get_timeoff_schedule_hr_usecase"
+            ],
+            "missed_tool_calls": []
+        }
+    }
+]

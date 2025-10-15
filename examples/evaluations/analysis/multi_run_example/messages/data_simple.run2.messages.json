@@ -1,0 +1,100 @@
+[
+    {
+        "role": "user",
+        "content": "I want to know my timeoff schedule for a certain period",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"your username\"}, \"id\": \"chatcmpl-tool-d54c8cd0cd0c4291b1499fdfa5\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"not found\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-d54c8cd0cd0c4291b1499fdfa5\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "What is your username?",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "My username is nwaters.",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_assignment_id_hr_usecase\", \"args\": {\"username\": \"nwaters\"}, \"id\": \"chatcmpl-tool-1db9f4eaf3304cfe8331fa90c4\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"15778303\", \"name\": \"get_assignment_id_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-1db9f4eaf3304cfe8331fa90c4\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"assignment_id\": \"15778303\", \"start_date\": \"2025-01-01\", \"end_date\": \"2025-12-31\"}, \"id\": \"chatcmpl-tool-d626ffa576da4345844c034f3b\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-d626ffa576da4345844c034f3b\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "Your timeoff schedule for the period of January 1, 2025, to December 31, 2025, is on January 5, 2025.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "user",
+        "content": "That is not what I asked for. I want my timeoff schedule from 2025-01-01 to 2025-03-03, not the whole year.",
+        "type": "text",
+        "event": null,
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_call\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"args\": {\"assignment_id\": \"15778303\", \"start_date\": \"2025-01-01\", \"end_date\": \"2025-03-03\"}, \"id\": \"chatcmpl-tool-e162ef78ad574ad8b08f8d954c\"}",
+        "type": "tool_call",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "{\"type\": \"tool_response\", \"content\": \"[\\\"20250105\\\"]\", \"name\": \"get_timeoff_schedule_hr_usecase\", \"tool_call_id\": \"chatcmpl-tool-e162ef78ad574ad8b08f8d954c\"}",
+        "type": "tool_response",
+        "event": "run.step.delta",
+        "conversational_search_metadata": null
+    },
+    {
+        "role": "assistant",
+        "content": "Your timeoff schedule for the period of January 1, 2025, to March 3, 2025, is on January 5, 2025.",
+        "type": "text",
+        "event": "message.created",
+        "conversational_search_metadata": null
+    }
+]

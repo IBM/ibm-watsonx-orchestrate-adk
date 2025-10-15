@@ -1,5 +1,5 @@
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
-from ibm_watsonx_orchestrate.client.utils import is_local_dev
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from typing_extensions import List
 import os
 import json
@@ -27,7 +27,7 @@ class ToolKitClient(BaseAPIClient):
             "args": args,
         }
 
-        with open(zip_file_path, "rb") as f:
+        with safe_open(zip_file_path, "rb") as f:
             files = {
                 "list_toolkit_obj": (None, json.dumps(list_toolkit_obj), "application/json"),
                 "file": (filename, f, "application/zip"),
@@ -61,7 +61,7 @@ class ToolKitClient(BaseAPIClient):
         Upload zip file to the toolkit.
         """
         filename = os.path.basename(zip_file_path)
-        with open(zip_file_path, "rb") as f:
+        with safe_open(zip_file_path, "rb") as f:
             files = {
                 "file": (filename, f, "application/zip", {"Expires": "0"})
             }

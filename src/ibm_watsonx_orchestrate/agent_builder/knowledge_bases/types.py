@@ -12,6 +12,11 @@ class SpecVersion(str, Enum):
 class KnowledgeBaseKind(str, Enum):
     KNOWLEDGE_BASE = "knowledge_base"
 
+class ExtractionStrategy(str, Enum):
+    EXPRESS = 'express'
+    STANDARD = 'standard'
+    HIGH_QUALITY = 'high_quality'
+
 class RetrievalConfidenceThreshold(str, Enum):
     Off = "Off"
     Lowest = "Lowest"
@@ -275,6 +280,7 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     limit: Optional[int] = None
+    extraction_strategy: Optional[ExtractionStrategy] = ExtractionStrategy.STANDARD
 
 class FileUpload(BaseModel):
     path: str

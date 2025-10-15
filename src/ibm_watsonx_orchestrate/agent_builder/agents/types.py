@@ -5,13 +5,14 @@ from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import ExtractionStrategy, KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
 from pydantic import Field, AliasChoices
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
@@ -86,7 +87,7 @@ class BaseAgentSpec(BaseModel):
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
-        with open(file, 'w') as f:
+        with safe_open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 yaml.dump(dumped, f, sort_keys=False, allow_unicode=True)
             elif file.endswith('.json'):
@@ -117,7 +118,7 @@ def drop_catalog_fields(values: dict):
 
 class ChatWithDocsConfig(BaseModel):
     enabled: Optional[bool] = None
-    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
+    vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = Field(default_factory=lambda: KnowledgeBaseBuiltInVectorIndexConfig(extraction_strategy=ExtractionStrategy.EXPRESS))
     generation:  Optional[GenerationConfiguration] = None
     query_rewrite:  Optional[QueryRewriteConfig] = None
     confidence_thresholds: Optional[ConfidenceThresholds] =None

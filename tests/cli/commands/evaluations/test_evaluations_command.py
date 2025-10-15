@@ -279,13 +279,18 @@ class TestAnalyze:
             mock_analyze.return_value = {"metrics": {"accuracy": 0.95}}
             data_path = "test_data"
             evaluations_command.analyze(data_path=data_path, user_env_file=user_env_file)
-            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None)
+            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None, mode="default")
 
     def test_analyze_with_empty_data_path(self, user_env_file):
         with pytest.raises(ValueError):
             with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze") as mock_analyze:
                 mock_analyze.side_effect = ValueError("Empty data path")
                 evaluations_command.analyze(data_path="", user_env_file=user_env_file)
+    
+    def test_analyze_with_invalid_mode(self, user_env_file):
+        with pytest.raises(SystemExit):
+            evaluations_command.analyze(data_path="", user_env_file=user_env_file, mode="wrong_mode")
+        
 
 class TestValidateExternal:
     @pytest.fixture
@@ -396,7 +401,7 @@ class TestRedTeaming:
             evaluations_command.plan(
                 attacks_list="attack1,attack2",
                 datasets_path="datasets",
-                agents_path="agents",
+                agents_list_or_path="agents",
                 target_agent_name="target_agent",
                 output_dir="test_output",
                 user_env_file=user_env_file,
@@ -406,7 +411,7 @@ class TestRedTeaming:
             mock_generate.assert_called_once_with(
                 attacks_list="attack1,attack2",
                 datasets_path="datasets",
-                agents_path="agents",
+                agents_list_or_path="agents",
                 target_agent_name="target_agent",
                 output_dir="test_output",
                 max_variants=5,
