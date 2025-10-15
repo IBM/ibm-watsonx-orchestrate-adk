@@ -75,3 +75,25 @@ def parse_int_safe (value, base: int = 10, fallback: int | None = None) -> int:
                 pass
 
     return fallback
+
+def parse_string_safe(value: any, override_empty_to_none: bool = False,
+                      force_default_to_empty: bool = False) -> str | None:
+    if value is not None and isinstance(value, str):
+        value = value.strip()
+
+        if value == "" and parse_bool_safe(value=override_empty_to_none, fallback=False):
+            value = None
+
+        return value
+
+    return "" if parse_bool_safe(value=force_default_to_empty, fallback=False) else None
+
+def singleton(cls):
+    instances = {}
+
+    def getinstance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    
+    return getinstance

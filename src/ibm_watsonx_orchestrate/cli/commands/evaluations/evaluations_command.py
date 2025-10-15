@@ -19,6 +19,7 @@ from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def validate_watsonx_credentials(user_env_file: str) -> bool:
 
 def read_csv(data_path: str, delimiter="\t"):
     data = []
-    with open(data_path, "r") as f:
+    with safe_open(data_path, "r") as f:
         tsv_reader = csv.reader(f, delimiter=delimiter)
         for line in tsv_reader:
             data.append(line)
@@ -109,7 +110,7 @@ def performance_test(agent_name, data_path, output_dir = None, user_env_file = N
 
     for idx, test in enumerate(generated_performance_tests):
         test_name = f"validate_external_agent_evaluation_test_{idx}.json"
-        with open(generated_perf_test_dir / test_name, encoding="utf-8", mode="w+") as f:
+        with safe_open(generated_perf_test_dir / test_name, encoding="utf-8", mode="w+") as f:
             json.dump(test, f, indent=4)
 
     rich.print(f"Performance test cases saved at path '{str(generated_perf_test_dir)}'")
@@ -261,14 +262,25 @@ def analyze(data_path: Annotated[
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
-    ] = None):
+    ] = None,
+    mode: Annotated[
+        Optional[str],
+        typer.Option(
+            "--mode", "-m", 
+            help="""
+            Either `default` or `enhanced`. `enhanced` mode optionally provides doc string enrichments for tools.
+            """
+        ),
+    ] = "default"
+):
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.analyze(
         data_path=data_path,
-        tool_definition_path=tool_definition_path
-        )
+        tool_definition_path=tool_definition_path,
+        mode=mode
+    )
 
 @evaluation_app.command(name="validate-external", help="Validate an external agent against a set of inputs")
 def validate_external(
@@ -321,7 +333,7 @@ def validate_external(
 
     validate_watsonx_credentials(user_env_file)
 
-    with open(external_agent_config, 'r') as f:
+    with safe_open(external_agent_config, 'r') as f:
         try:
             external_agent_config = json.load(f)
         except Exception:
@@ -338,7 +350,7 @@ def validate_external(
         Path(eval_dir).mkdir(exist_ok=True, parents=True)
         # save external agent config even though its not used for evaluation
         # it can help in later debugging customer agents
-        with open(os.path.join(eval_dir, f"external_agent_cfg.json"), "w+") as f:
+        with safe_open(os.path.join(eval_dir, f"external_agent_cfg.json"), "w+") as f:
             json.dump(external_agent_config, f, indent=4)
 
         logger.info("Registering External Agent")
@@ -380,7 +392,7 @@ def validate_external(
     else:
         controller = EvaluationsController()
         test_data = []
-        with open(data_path, "r") as f:
+        with safe_open(data_path, "r") as f:
             csv_reader = csv.reader(f, delimiter="\t")
             for line in csv_reader:
                 test_data.append(line[0])
@@ -399,7 +411,7 @@ def validate_external(
         rich.print("[gold3]Validating external agent against an array of messages.")
         block_input_summary = controller.external_validate(external_agent_config, test_data, credential, add_context=True)
         
-        with open(validation_folder / "validation_results.json", "w") as f:
+        with safe_open(validation_folder / "validation_results.json", "w") as f:
             json.dump([summary, block_input_summary], f, indent=4)
         
         user_validation_successful = all([item["success"] for item in summary])
@@ -458,7 +470,7 @@ def validate_native(
         generated_test_data = controller.generate_performance_test(agent_name=agent_name, test_data=dataset)
         for test_data in generated_test_data:
             test_name = f"native_agent_evaluation_test_{idx}.json"
-            with open(test_data_path / test_name, encoding="utf-8", mode="w+") as f:
+            with safe_open(test_data_path / test_name, encoding="utf-8", mode="w+") as f:
                 json.dump(test_data, f, indent=4)
     
     evaluate(output_dir=eval_dir, test_paths=str(test_data_path))
@@ -526,7 +538,7 @@ def quick_eval(
 
 
 red_teaming_app = typer.Typer(no_args_is_help=True)
-evaluation_app.add_typer(red_teaming_app, name="red-teaming")
+evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and run red-teaming attacks on your agents")
 
 
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
@@ -553,8 +565,8 @@ def plan(
             help="Path to datasets for red-teaming. This can also be a comma-separated list of files or directories.",
         ),
     ],
-    agents_path: Annotated[
-        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions.")
+    agents_list_or_path: Annotated[
+        str, typer.Option("--agents-path", "-g", help="Path to the directory containing all agent definitions or a comma-separated list of agent names.")
     ],
     target_agent_name: Annotated[
         str,
@@ -591,7 +603,7 @@ def plan(
     controller.generate_red_teaming_attacks(
         attacks_list=attacks_list,
         datasets_path=datasets_path,
-        agents_path=agents_path,
+        agents_list_or_path=agents_list_or_path,
         target_agent_name=target_agent_name,
         output_dir=output_dir,
         max_variants=max_variants,

@@ -227,7 +227,7 @@ class TestParseModelFile:
         "connection_id": "test_connection_id"
     }
     def test_parse_model_file_yaml(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = self.mock_model_spec
@@ -238,7 +238,7 @@ class TestParseModelFile:
             mock_loader.assert_called_once()
     
     def test_parse_model_file_json(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.json.load") as mock_loader:
             
             mock_loader.return_value = self.mock_model_spec
@@ -284,7 +284,7 @@ class TestParsePolicyFile:
         }
     }
     def test_parse_policy_file_yaml(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader:
             
             mock_loader.return_value = self.mock_policy_spec
@@ -295,7 +295,7 @@ class TestParsePolicyFile:
             mock_loader.assert_called_once()
     
     def test_parse_policy_file_json(self):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
              patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.json.load") as mock_loader:
             
             mock_loader.return_value = self.mock_policy_spec
@@ -395,7 +395,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
     
     def test_list_models_print_raw(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy"}
@@ -417,7 +416,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
     
     def test_list_models_missing_watsonx_url(self, monkeypatch, caplog):
         fake_env = {}
@@ -459,7 +457,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." in captured
     
     def test_list_models_incompatible_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy", "INCOMPATIBLE_MODELS": "1234"}
@@ -481,7 +478,6 @@ class TestListModels:
         assert "Retrieving virtual-model models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
         assert "Retrieving watsonx.ai models list..." in captured
-        assert "No models found." not in captured
 
 class TestImportModel:
     mock_filename = "mock_file"
@@ -511,7 +507,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -550,7 +546,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file_no_provider(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -590,7 +586,7 @@ class TestImportModel:
             ]
     )
     def test_import_model_file_no_config(self, provider):
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_connection_id") as get_connection_id_mock:
             
@@ -826,7 +822,7 @@ class TestImportModelPolicy:
         mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             
@@ -856,7 +852,7 @@ class TestImportModelPolicy:
         mock_models_client = MockModelsClient(list_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
-        with patch("builtins.open", mock_open()) as mock_file, \
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             

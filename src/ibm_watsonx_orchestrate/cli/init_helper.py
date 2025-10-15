@@ -25,7 +25,7 @@ def version_callback(checkVersion: bool=True):
 
         pprint("[bold]Developer Edition Image Tags[/bold] [italic](if not overridden in env file)[/italic]")
         for key, value in default_env.items():
-            if key.endswith('_TAG') or key == 'DBTAG':
+            if key.endswith('_TAG') or key == 'DBTAG' or key == 'UITAG':
                 pprint(f"  [bold]{key}[/bold]: {value}")
 
         raise typer.Exit()

@@ -19,6 +19,7 @@ from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_p
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -85,7 +86,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
 
 def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith(".json"):
                 content = json.load(f)
             else:
@@ -414,7 +415,7 @@ class AgentsController:
         
         ref_tools = []
         for id in agent.tools:
-            name = id_name_lookup[id]
+            name = id_name_lookup.get(id)
             if not name:
                 logger.error(f"Failed to find tool. No tools found with the id '{id}'")
                 sys.exit(1)
@@ -669,13 +670,13 @@ class AgentsController:
             assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
-            existing_external_clients = external_client.get_draft_by_name(agent_name)
-            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
-            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
+            existing_native_agents = [Agent.model_construct(**agent) for agent in existing_native_agents]
+            existing_external_agents = external_client.get_draft_by_name(agent_name)
+            existing_external_agents = [ExternalAgent.model_construct(**agent) for agent in existing_external_agents]
+            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_agents = [AssistantAgent.model_construct(**agent) for agent in existing_assistant_agents]
 
-            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
@@ -1300,7 +1301,7 @@ class AgentsController:
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
-            with open(output_path, 'w') as outfile:
+            with safe_open(output_path, 'w') as outfile:
                 yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
             return
         

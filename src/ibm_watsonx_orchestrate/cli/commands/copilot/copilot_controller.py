@@ -25,6 +25,7 @@ from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
@@ -294,10 +295,10 @@ def find_agents(agent_client):
 def gather_examples(samples_file=None):
     if samples_file:
         if samples_file.endswith('.txt'):
-            with open(samples_file) as f:
+            with safe_open(samples_file) as f:
                 examples = f.read().split('\n')
         elif samples_file.endswith('.csv'):
-            with open(samples_file, 'r', encoding='utf-8') as f:
+            with safe_open(samples_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 if 'utterance' not in reader.fieldnames:
                     raise BadRequest("CSV must have a column named 'utterance'")

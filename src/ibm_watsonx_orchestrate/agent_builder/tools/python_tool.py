@@ -8,6 +8,7 @@ import logging
 from pydantic import TypeAdapter, BaseModel
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
 from .types import PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
@@ -155,7 +156,7 @@ class PythonTool(BaseTool):
     
     @staticmethod
     def from_spec(file: str) -> 'PythonTool':
-        with open(file, 'r') as f:
+        with safe_open(file, 'r') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 spec = ToolSpec.model_validate(yaml_safe_load(f))
             elif file.endswith('.json'):
