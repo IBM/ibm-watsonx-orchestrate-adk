@@ -82,3 +82,12 @@ LFX_DEPENDENCIES = [
     "copy",
     "json"
 ]
+
+
+MODULE_DEPENDENCIES = {
+    "bs4": ['lxml', 'tabulate']
+}
+
+MODULE_MAP = {
+    "mem0":"mem0ai",
+}
