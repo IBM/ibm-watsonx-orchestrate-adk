@@ -24,6 +24,43 @@
         ]
       },
       "nodes": {
+        "Family": {
+          "spec": {
+            "kind": "user",
+            "name": "Family",
+            "display_name": "Family member names",
+            "input_schema": {
+              "$ref": "#/schemas/Family_input"
+            },
+            "output_schema": {
+              "$ref": "#/schemas/Family"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "Family",
+                "kind": "array",
+                "direction": "output",
+                "input_map": {
+                  "spec": {
+                    "maps": [
+                      {
+                        "target_variable": "self.input.value",
+                        "value_expression": "[\"Alice\", \"Bob\", \"Charlie\", \"Diana\", \"Ethan\", \"Fiona\", \"George\"]",
+                        "has_no_value": false,
+                        "default_value": null,
+                        "metadata": {}
+                      }
+                    ]
+                  }
+                },
+                "display_name": "Family member names"
+              }
+            ]
+          }
+        },
         "upload": {
           "spec": {
             "kind": "user",
@@ -181,26 +218,10 @@
       "edges": [
         {
           "start": "__start__",
-          "end": "upload"
+          "end": "Family"
         },
         {
-          "start": "upload",
-          "end": "download"
-        },
-        {
-          "start": "download",
-          "end": "display_first_name"
-        },
-        {
-          "start": "display_first_name",
-          "end": "last_name"
-        },
-        {
-          "start": "last_name",
-          "end": "age"
-        },
-        {
-          "start": "age",
+          "start": "Family",
           "end": "__end__"
         }
       ],
@@ -243,6 +264,28 @@
           "title": "First Name",
           "description": "First name",
           "default": "John Doe"
+        }
+      }
+    },
+    "Family_input": {
+      "type": "object",
+      "title": "Family_input",
+      "properties": {
+        "Family": {
+          "type": "string",
+          "title": "Family",
+          "format": "array"
+        }
+      }
+    },
+    "Family": {
+      "type": "object",
+      "title": "Family",
+      "properties": {
+        "Family": {
+          "type": "string",
+          "title": "Family",
+          "format": "array"
         }
       }
     },
@@ -355,6 +398,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-19T18:23:49.928131+00:00"
+    "compiled_on": "2025-10-15T14:22:15.412072+00:00"
   }
 }

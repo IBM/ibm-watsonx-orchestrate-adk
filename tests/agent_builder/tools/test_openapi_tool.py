@@ -714,6 +714,89 @@ async def test_http_put_with_json_request_body(mocker, snapshot, testitall):
 
 
 @pytest.fixture
+def openapi_wxo_file_spec():
+    return {
+        'openapi': '3.0.3',
+        'info': {},
+        "servers": [
+            {
+                "url": "https://{host}:{port}",
+                "description": "Your API server (with https enabled)",
+                "variables": {
+                    "host": {
+                        "default": "",
+                        "description": "Hostname of the API server"
+                    },
+                    "port": {
+                        "default": "443",
+                        "description": "Port of the API server"
+                    }
+                }
+            }
+        ],
+        'paths': {
+            '/test/wxofile': {
+                'POST': {
+                    'tags': [
+                        'API'
+                    ],
+                    'summary': 'Test HTTP POST WxO File',
+                    'description': 'TEST POST WxO File',
+                    'operationId': 'testPostWxoFile',
+                    'requestBody': {
+                        'content': {
+                            'application/json': {
+                                'schema': {
+                                    "type": "object",
+                                    "properties": {
+                                        "file_url_input": {
+                                            "type": "string",
+                                            "format": "wxo-file"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    'responses': {
+                        '200': {
+                            'description': 'POST response',
+                            'content': {
+                                'application/json': {
+                                    'schema': {
+                                        'type': 'string',
+                                        'format': 'wxo-file'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_wxo_file_format(mocker, snapshot, openapi_wxo_file_spec):
+    expected_response = 'https://a-mock-s3-presigned-url'
+    AsyncClient, requests = get_mock_async_client(
+        respond_with=MockResponse(json=expected_response))
+    mocker.patch('httpx.AsyncClient', AsyncClient)
+    tool = create_openapi_json_tool(
+        openapi_wxo_file_spec,
+        http_path='/test/wxofile',
+        http_method='POST'
+    )
+    spec = json.loads(tool.dumps_spec())
+    assert spec['input_schema']['properties']['__requestBody__']['properties']['file_url_input']['type'] == 'string'
+    assert spec['input_schema']['properties']['__requestBody__']['properties']['file_url_input']['format'] == 'wxo-file'
+    assert spec['output_schema']['type'] == 'string'
+    assert spec['output_schema']['format'] == 'wxo-file'
+    snapshot.assert_match(spec)
+
+
+@pytest.fixture
 def openapi_async_callback_spec():
     return {
         'openapi': '3.0.3',
