@@ -144,6 +144,7 @@ services:
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
       WXO_VOICE_URL: http://localhost:9876/v1
       DPS_CACHE_URL: http://localhost:18083
+      REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -177,6 +178,7 @@ services:
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
       ENABLE_BULK_TESTING: "true"
+      VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
     command: 'npm start'
     ports:
