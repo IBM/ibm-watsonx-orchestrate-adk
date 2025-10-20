@@ -70,6 +70,7 @@ LFX_DEPENDENCIES = [
     "zstandard",
     "langflow",
     "langchain_openai",
+    "langchain_google_genai",
     "langchain_core",
     "langchain_text_splitters",
     "collections",

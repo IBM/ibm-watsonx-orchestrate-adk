@@ -53,7 +53,7 @@ __supported_characters_pattern = re.compile("^(\\w|_)+$")
 
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
-    "lfx==0.1.8"
+    "lfx==0.1.13"
 ]
 
 DEFAULT_LANGFLOW_RUNNER_MODULES = [
