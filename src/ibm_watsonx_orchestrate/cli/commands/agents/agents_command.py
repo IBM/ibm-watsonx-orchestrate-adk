@@ -209,7 +209,7 @@ def agent_create(
 def list_agents(
     kind: Annotated[
         AgentKind,
-        typer.Option("--kind", "-k", help="The kind of agent you wish to create"),
+        typer.Option("--kind", "-k", help="The kind of agent you wish to list"),
     ] = None,
     verbose: Annotated[
         bool,
