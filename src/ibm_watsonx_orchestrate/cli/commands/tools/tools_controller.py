@@ -1037,19 +1037,8 @@ class ToolsController:
 
         tool_id = draft_tool.get("id")
 
-        if draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow:
+        if draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow or draft_tool_kind == ToolKind.flow:
             tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
-        elif draft_tool_kind == ToolKind.flow:
-            if not is_local_dev():
-                logger.warning("Skipping '{name}', Flow tool export is only supported in local dev mode")
-                return
-            
-            client = instantiate_client(TempusClient)
-            flow_model = client.get_flow_model(tool_id)
-            # we need to fix the name as sometimes it is left as 'untitled' by the builder
-            if "data" in flow_model:
-                flow_model["data"]["spec"]["name"] = name
-            tool_artifacts_bytes = self.serialize_to_json_in_zip(flow_model["data"], f"{name}.json")
 
         return tool_artifacts_bytes
     
