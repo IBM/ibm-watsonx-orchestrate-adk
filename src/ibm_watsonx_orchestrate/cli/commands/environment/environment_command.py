@@ -21,7 +21,7 @@ def activate_env(
         apikey: Annotated[
             str,
             typer.Option(
-                "--api-key", "-a", help="WXO or CPD API Key. Leave Blank if developing locally. For CPD, either a Passoword or Apikey is accepted for CPD, but not both."
+                "--api-key", "-a", help="WXO or CPD API Key. Leave Blank if developing locally. For CPD, either a Password or Apikey is accepted for CPD, but not both."
             ),
         ] = None,
         username: Annotated[
@@ -33,7 +33,7 @@ def activate_env(
         password: Annotated[
             str,
             typer.Option(
-                "--password", "-p", help="Password specifically for CPD Environments. Either a Passoword or Apikey is accepted for CPD, but not both."
+                "--password", "-p", help="Password specifically for CPD Environments. Either a Password or Apikey is accepted for CPD, but not both."
             ),
         ] = None,
         registry: Annotated[
