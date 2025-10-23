@@ -75,9 +75,9 @@ class DockerUtils:
     def check_exclusive_observability (langfuse_enabled: bool, ibm_tele_enabled: bool):
         if langfuse_enabled and ibm_tele_enabled:
             return False
-        if langfuse_enabled and DockerUtils.__is_docker_container_running("docker-frontend-server-1"):
+        if langfuse_enabled and DockerUtils.is_docker_container_running("docker-frontend-server-1"):
             return False
-        if ibm_tele_enabled and DockerUtils.__is_docker_container_running("docker-langfuse-web-1"):
+        if ibm_tele_enabled and DockerUtils.is_docker_container_running("docker-langfuse-web-1"):
             return False
         return True
 
@@ -115,7 +115,7 @@ class DockerUtils:
             sys.exit(1)
 
     @staticmethod
-    def __is_docker_container_running (container_name):
+    def is_docker_container_running (container_name):
         DockerUtils.ensure_docker_installed()
         command = ["docker",
                    "ps",

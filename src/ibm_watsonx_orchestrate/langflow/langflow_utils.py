@@ -6,7 +6,7 @@ import importlib.util
 
 from pydantic import BaseModel
 
-from .lfx_deps import LFX_DEPENDENCIES
+from .lfx_deps import LFX_DEPENDENCIES, MODULE_DEPENDENCIES, MODULE_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +19,6 @@ class LangflowComponent(BaseModel):
 class LangflowModelSpec(BaseModel):
     version: str
     components: list[LangflowComponent]
-
-_MODULE_MAP = {
-    "mem0":"mem0ai",
-}
 
 import math
 from collections import Counter
@@ -129,8 +125,8 @@ def _find_missing_requirements(imported_modules, requirements_modules: list[str]
     def normalize_module_name(name):
         module_name = name.split('.')[0].lower()
         # sometimes the module name in pipy is different than the real name
-        if module_name in _MODULE_MAP:
-            module_name = _MODULE_MAP[module_name]
+        if module_name in MODULE_MAP:
+            module_name = MODULE_MAP[module_name]
         return module_name
 
     # Normalize imported module names
@@ -141,6 +137,15 @@ def _find_missing_requirements(imported_modules, requirements_modules: list[str]
         module for module in normalized_imports
         if _is_builtin_module(module) is False
     ]
+
+
+    # pull in additional dependencies (these are usually dynamic dependencies that are not explicitly imported)
+    additional_imports = []
+    for module in filtered_imports:
+        if module in MODULE_DEPENDENCIES:
+            additional_imports.extend(MODULE_DEPENDENCIES[module])
+
+    filtered_imports.extend(additional_imports)
 
     # Compare and find missing modules
     missing_modules = [
