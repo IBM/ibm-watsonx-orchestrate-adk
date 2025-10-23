@@ -70,6 +70,7 @@ LFX_DEPENDENCIES = [
     "zstandard",
     "langflow",
     "langchain_openai",
+    "langchain_google_genai",
     "langchain_core",
     "langchain_text_splitters",
     "collections",
@@ -82,3 +83,12 @@ LFX_DEPENDENCIES = [
     "copy",
     "json"
 ]
+
+
+MODULE_DEPENDENCIES = {
+    "bs4": ['lxml', 'tabulate']
+}
+
+MODULE_MAP = {
+    "mem0":"mem0ai",
+}

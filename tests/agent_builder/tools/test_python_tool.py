@@ -4,7 +4,7 @@ from typing import Any, Optional, List, Dict
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
-from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
+from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind, WXOFile
 
 
 def test_should_allow_naked_decorators(snapshot):
@@ -53,6 +53,19 @@ def test_should_be_possible_to_override_defaults(snapshot):
     assert spec['description'] == 'the description'
     assert spec['permission'] == 'admin'
     assert spec['binding']['python']['function'] == 'test_python_tool:my_tool'
+
+
+def test_should_support_wxo_file_format_inputs_and_outputs(snapshot):
+    @tool(name='myName', description='the description', permission=ToolPermission.ADMIN)
+    def my_tool(input: WXOFile) -> WXOFile:
+        pass
+
+    spec = json.loads(my_tool.dumps_spec())
+    assert spec['input_schema']['properties']['input']['type'] == 'string'
+    assert spec['input_schema']['properties']['input']['format'] == 'wxo-file'
+    assert spec['output_schema']['type'] == 'string'
+    assert spec['output_schema']['format'] == 'wxo-file'
+    snapshot.assert_match(spec)
 
 
 def test_should_support_typed_typings_inputs_and_outputs(snapshot):

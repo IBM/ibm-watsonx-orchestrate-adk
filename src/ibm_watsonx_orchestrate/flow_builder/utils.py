@@ -127,6 +127,9 @@ def _get_tool_response_body(schema_obj: JsonSchemaObject) -> ToolResponseBody:
         if schema_obj.model_extra:
             response_obj.__pydantic_extra__ = schema_obj.model_extra
 
+        if schema_obj.type == 'string' and schema_obj.format is not None:
+            response_obj.format = schema_obj.format
+
         return response_obj
     
     raise ValueError(f"Invalid schema object: {schema_obj}")

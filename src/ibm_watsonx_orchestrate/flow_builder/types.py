@@ -123,6 +123,8 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
             model_spec["anyOf"] = [_to_json_from_json_schema(schema) for schema in response_body.anyOf]
         if response_body.required and len(response_body.required) > 0:
             model_spec["required"] = response_body.required
+        if response_body.type == "string" and response_body.format is not None:
+            model_spec["format"] = response_body.format
     elif isinstance(schema, SchemaRef):
         model_spec["$ref"] = schema.ref
     
@@ -473,6 +475,7 @@ class UserFieldKind(str, Enum):
     Boolean: str = "boolean"
     Object: str = "object"
     Choice: str = "any"
+    List: str = "array"  # used to display list output
 
     def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
         if inspect.isclass(python_type):
@@ -514,6 +517,10 @@ class UserFieldKind(str, Enum):
             model_spec["type"] = "boolean"
         elif kind == UserFieldKind.File:
             model_spec["format"] = "wxo-file"
+        elif kind == UserFieldKind.List:
+            model_spec["format"] = "array"
+        elif kind == UserFieldKind.Choice:
+            model_spec["format"] = "any"                        
         elif kind == UserFieldKind.Object:
             raise ValueError("Object user fields are not supported.")
         
