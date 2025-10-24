@@ -5,12 +5,12 @@ import csv
 import difflib
 import re
 from datetime import datetime
+from functools import wraps
 
 import rich
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.panel import Panel
 from rich.table import Table
 from requests import ConnectionError
 from typing import List, Dict
@@ -29,6 +29,30 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
+
+
+def _handle_cpe_server_errors(func=None, *args, **kwargs):
+    def decorator(inner_func):
+        @wraps(inner_func)
+        def wrapper(*args, **kwargs):
+            try:
+                return inner_func(*args, **kwargs)
+            except ConnectionError:
+                logger.error(
+                    "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
+                sys.exit(1)
+            except ClientAPIException:
+                logger.error(
+                    "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
+                sys.exit(1)
+        return wrapper
+
+    # If func is not None, it means the decorator is used without arguments
+    if func is not None and callable(func):
+        return decorator(func)(*args, **kwargs)
+
+    # Otherwise, return the actual decorator
+    return decorator
 
 
 def _validate_output_file(output_file: str, dry_run_flag: bool) -> None:
@@ -159,6 +183,11 @@ def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
 
     return knowledge_bases
 
+@_handle_cpe_server_errors()
+def _healthcheck_cpe_server(client: CPEClient | None = None):
+    if not client:
+        client = get_cpe_client()
+    client.healthcheck()
 
 def get_cpe_client() -> CPEClient:
     url = os.getenv('CPE_URL', "http://localhost:8081")
@@ -219,7 +248,7 @@ def get_deployed_tools_agents_and_knowledge_bases():
 
     return {"tools": all_tools, "collaborators": all_agents, "knowledge_bases": all_knowledge_bases}
 
-
+@_handle_cpe_server_errors()
 def pre_cpe_step(cpe_client, chat_llm):
     tools_agents_and_knowledge_bases = get_deployed_tools_agents_and_knowledge_bases()
     user_message = ""
@@ -315,7 +344,7 @@ def gather_examples(samples_file=None):
 
     return examples
 
-
+@_handle_cpe_server_errors()
 def talk_to_cpe(cpe_client, chat_llm, samples_file=None, context_data=None):
     context_data = context_data or {}
     examples = gather_examples(samples_file)
@@ -358,6 +387,7 @@ def prompt_tune(agent_spec: str, chat_llm: str | None, output_file: str | None, 
     _validate_chat_llm(chat_llm)
 
     client = get_cpe_client()
+    _healthcheck_cpe_server(client)
 
     instr = agent.instructions
 
@@ -366,25 +396,16 @@ def prompt_tune(agent_spec: str, chat_llm: str | None, output_file: str | None, 
     collaborators = _get_agents_from_names(agent.collaborators)
 
     knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
-    try:
-        new_prompt = talk_to_cpe(cpe_client=client,
-                                 chat_llm=chat_llm,
-                                 samples_file=samples_file,
-                                 context_data={
-                                     "initial_instruction": instr,
-                                     'tools': tools,
-                                     'description': agent.description,
-                                     "collaborators": collaborators,
-                                     "knowledge_bases": knowledge_bases
-                                 })
-    except ConnectionError:
-        logger.error(
-            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
-        sys.exit(1)
-    except ClientAPIException:
-        logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
-        sys.exit(1)
+    new_prompt = talk_to_cpe(cpe_client=client,
+                                chat_llm=chat_llm,
+                                samples_file=samples_file,
+                                context_data={
+                                    "initial_instruction": instr,
+                                    'tools': tools,
+                                    'description': agent.description,
+                                    "collaborators": collaborators,
+                                    "knowledge_bases": knowledge_bases
+                                })
 
     if new_prompt:
         logger.info(f"The new instruction is: {new_prompt}")
@@ -409,17 +430,11 @@ def create_agent(output_file: str, llm: str, chat_llm: str | None, samples_file:
     # 1. prepare the clients
     cpe_client = get_cpe_client()
 
-    # 2. Pre-CPE stage:
-    try:
-        res = pre_cpe_step(cpe_client, chat_llm=chat_llm)
-    except ConnectionError:
-        logger.error(
-            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
-        sys.exit(1)
-    except ClientAPIException:
-        logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
-        sys.exit(1)
+    # 2. Ensure the copilto server is started
+    _healthcheck_cpe_server(cpe_client)
+
+    # 3. Pre-CPE stage:
+    res = pre_cpe_step(cpe_client, chat_llm=chat_llm)
 
     tools = res["tools"]
     collaborators = res["collaborators"]
@@ -502,7 +517,6 @@ def _suggest_sorted(user_input: str, options: List[str]) -> List[str]:
     # Sort by similarity score
     return sorted(options, key=lambda x: difflib.SequenceMatcher(None, user_input, x).ratio(), reverse=True)
 
-
 def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output_file: str | None,
                                    use_last_chat: bool=False, dry_run_flag: bool = False) -> None:
     """
@@ -536,6 +550,8 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
     agents_client = get_native_client()
     threads_client = get_threads_client()
     all_agents = agents_controller.get_all_agents(client=agents_client)
+    cpe_client = get_cpe_client()
+    _healthcheck_cpe_server(cpe_client)
 
     # Step 1 - validate agent exist. If not - list the agents sorted by their distance from the user input name
     agent_id = all_agents.get(agent_name)
@@ -548,7 +564,6 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
                              f'Available agents:\n'
                              f'{available_sorted_str}')
 
-    cpe_client = get_cpe_client()
     # Step 2 - retrieve chats (threads)
     try:
         with _get_progress_spinner() as progress:
@@ -615,34 +630,31 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
         threads_messages = get_user_selection(last_10_chats)
 
     # Step 4 - run the refiner
-    try:
-        with _get_progress_spinner() as progress:
-            agent = agents_controller.get_agent_by_id(id=agent_id)
-            task = progress.add_task(description="Running Prompt Refiner", total=None)
-            tools_client = get_tool_client()
-            knowledge_base_client = get_knowledge_bases_client()
-            # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
-            agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
-            agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
-            agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
-            tools = _get_tools_from_names(agent.tools)
-            collaborators = _get_agents_from_names(agent.collaborators)
-            knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
-            if agent.instructions is None:
-                raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate copilot prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
-            response = cpe_client.refine_agent_with_chats(instruction=agent.instructions, chat_llm=chat_llm, tools=tools,
-                                                          collaborators=collaborators, knowledge_bases=knowledge_bases,
-                                                          trajectories_with_feedback=threads_messages)
-            progress.remove_task(task)
-            progress.refresh()
-    except ConnectionError:
-        logger.error(
-            "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
-        sys.exit(1)
-    except ClientAPIException:
-        logger.error(
-            "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
-        sys.exit(1)
+    with _get_progress_spinner() as progress:
+        agent = agents_controller.get_agent_by_id(id=agent_id)
+        task = progress.add_task(description="Running Prompt Refiner", total=None)
+        tools_client = get_tool_client()
+        knowledge_base_client = get_knowledge_bases_client()
+        # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
+        agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
+        agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
+        agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
+        tools = _get_tools_from_names(agent.tools)
+        collaborators = _get_agents_from_names(agent.collaborators)
+        knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
+        if agent.instructions is None:
+            raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate copilot prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
+        response = _handle_cpe_server_errors(
+            func=cpe_client.refine_agent_with_chats,
+            instruction=agent.instructions,
+            chat_llm=chat_llm,
+            tools=tools,
+            collaborators=collaborators,
+            knowledge_bases=knowledge_bases,
+            trajectories_with_feedback=threads_messages
+            )
+        progress.remove_task(task)
+        progress.refresh()
 
     # Step 5 - update the agent and print/save the results
     agent.instructions = response['instruction']
