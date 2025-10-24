@@ -147,5 +147,3 @@ class TestDocProcNode():
         assert aflow_json_spec["nodes"]["text_extraction"]["spec"]["kvp_force_schema_name"] == "MyInvoice"
         assert "kvp_enable_text_hints" in aflow_json_spec["nodes"]["text_extraction"]["spec"]
         assert aflow_json_spec["nodes"]["text_extraction"]["spec"]["kvp_enable_text_hints"] == False
-
-# Made with Bob
