@@ -411,7 +411,7 @@ async def create_openapi_json_tools_from_content(
 
     for path, methods in openapi_contents.get('paths', {}).items():
         for method, spec in methods.items():
-            if method.lower() == 'head':
+            if method.lower() == 'head' or not isinstance(spec, dict) :
                 continue
             success_codes = list(filter(lambda code: 200 <= int(code) < 300, spec['responses'].keys()))
             if len(success_codes) > 1:
