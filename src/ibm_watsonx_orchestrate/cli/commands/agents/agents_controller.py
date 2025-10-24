@@ -287,11 +287,6 @@ class AgentsController:
                 agent_details = parse_create_external_args(name, kind=kind, description=description, **kwargs)
                 agent = ExternalAgent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
-                # for agents command without --app-id
-                if kwargs.get("app_id") is not None:
-                    connection_id = get_conn_id_from_app_id(kwargs.get("app_id"))
-
-                    agent.connection_id = connection_id
             case AgentKind.ASSISTANT:
                 agent_details = parse_create_assistant_args(name, kind=kind, description=description, **kwargs)
                 agent = AssistantAgent.model_validate(agent_details)
@@ -988,9 +983,14 @@ class AgentsController:
                 agent.collaborators = collab_names
         return new_agents
 
-    def _bulk_resolve_agent_app_ids(self , agents: List[ExternalAgent]) -> List[ExternalAgent]:
+    def _bulk_resolve_agent_app_ids(self , agents: List[ExternalAgent] | List[AssistantAgent], is_assistant: bool = False) -> List[ExternalAgent] | List[AssistantAgent]:
         new_agents = agents.copy()
-        all_conn_ids = self._get_all_unique_agent_resources(new_agents, "connection_id")
+        all_conn_ids = []
+        if is_assistant:
+            configs = [a.config for a in new_agents] 
+            all_conn_ids = self._get_all_unique_agent_resources(configs, "connection_id")
+        else:
+            all_conn_ids = self._get_all_unique_agent_resources(new_agents, "connection_id")
         if not all_conn_ids:
             return new_agents
         
@@ -999,9 +999,13 @@ class AgentsController:
         connection_lut = self._construct_lut_agent_resource(all_connections, "connection_id", "app_id")
         
         for agent in new_agents:
-            app_id = self._lookup_agent_resource_value(agent, connection_lut, "connection_id", "Connection")
+            conn_id_location = agent.config if is_assistant else agent
+            app_id = self._lookup_agent_resource_value(conn_id_location, connection_lut, "connection_id", "Connection")
             if app_id:
-                agent.app_id = app_id
+                if is_assistant:
+                    agent.config.app_id = app_id
+                else:
+                    agent.app_id = app_id
         return new_agents
 
     def list_agents(self, kind: AgentKind=None, verbose: bool=False, format: ListFormats | None = None) -> dict[str, dict] | dict[str, str] | None:
@@ -1124,11 +1128,7 @@ class AgentsController:
                     for column in column_args:
                         external_table.add_column(column, **column_args[column])
                     
-                    for agent in external_agents:
-                        connections_client =  get_connections_client()
-                        app_id = connections_client.get_draft_by_id(agent.connection_id)
-                        resolved_native_agents = self._bulk_resolve_agent_app_ids(external_agents)
-
+                    for agent in resolved_external_agents:
                         agent_name = self._format_agent_display_name(agent)
                         external_table.add_row(
                             agent_name,
@@ -1139,7 +1139,7 @@ class AgentsController:
                             json.dumps(agent.chat_params),
                             str(agent.config),
                             agent.nickname,
-                            app_id,
+                            agent.app_id,
                             agent.id
                         )
                     if format == ListFormats.Table:
@@ -1157,11 +1157,11 @@ class AgentsController:
                     assistant_agents_list.append(json.loads(agent.dumps_spec()))
                 output_dictionary["assistant"] = assistant_agents_list
             else:
-                resolved_external_agents = self._bulk_resolve_agent_app_ids(assistant_agents)
+                resolved_assistant_agents = self._bulk_resolve_agent_app_ids(assistant_agents, is_assistant=True)
                 
                 if format and format == ListFormats.JSON:
                     assistant_agents_list = []
-                    for agent in resolved_external_agents:
+                    for agent in resolved_assistant_agents:
                         assistant_agents_list.append(json.loads(agent.dumps_spec()))
 
                     output_dictionary["assistant"] = assistant_agents_list
@@ -1187,7 +1187,7 @@ class AgentsController:
                     for column in column_args:
                         assistants_table.add_column(column, **column_args[column])
                     
-                    for agent in assistant_agents:
+                    for agent in resolved_assistant_agents:
                         agent_name = self._format_agent_display_name(agent)
                         assistants_table.add_row(
                             agent_name,
