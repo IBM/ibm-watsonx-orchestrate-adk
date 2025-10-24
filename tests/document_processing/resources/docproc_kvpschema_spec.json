@@ -1,0 +1,292 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "text_extraction_flow_example",
+    "display_name": "text_extraction_flow_example",
+    "schedulable": false
+  },
+  "nodes": {
+    "text_extraction": {
+      "spec": {
+        "kind": "docproc",
+        "name": "text_extraction",
+        "display_name": "text_extraction",
+        "description": "Extract text out of a document's contents.",
+        "input_schema": {
+          "$ref": "#/schemas/text_extraction_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/TextExtractionResponse"
+        },
+        "task": "text_extraction",
+        "enable_hw": false,
+        "document_structure": false,
+        "kvp_schemas": [
+          {
+            "document_type": "MyInvoice",
+            "document_description": "My own invoice document.",
+            "additional_prompt_instructions": "Focus on the total amount due.",
+            "fields": {
+              "invoice_number": {
+                "description": "The unique identifier for the invoice.",
+                "example": "INV-1001",
+                "default": ""
+              },
+              "total_amount": {
+                "description": "The total amount due on the invoice.",
+                "example": "1500.00",
+                "default": ""
+              },
+              "is_final_notice": {
+                "description": "Indicates if this invoice is a final notice. This is a checkbox field.",
+                "example": "Yes",
+                "default": "No",
+                "available_options": [
+                  "Yes",
+                  "No"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "edges": [],
+  "schemas": {
+    "text_extraction_input": {
+      "type": "object",
+      "title": "text_extraction_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
+            }
+          ]
+        },
+        "kvp_schemas": {
+          "title": "KVP schemas",
+          "description": "Optional list of key-value pair schemas to use for extraction.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "title": "DocProcKVPSchema",
+                "required": [
+                  "document_type",
+                  "document_description",
+                  "fields"
+                ],
+                "properties": {
+                  "document_type": {
+                    "type": "string",
+                    "title": "Document Type",
+                    "description": "A label for the kind of documents we want to extract"
+                  },
+                  "document_description": {
+                    "type": "string",
+                    "title": "Document Description",
+                    "description": "A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction."
+                  },
+                  "additional_prompt_instructions": {
+                    "title": "Additional Prompt Instructions",
+                    "description": "Additional instructions to guide the extraction. This is used to provide more context to the model about the document.",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fields": {
+                    "type": "object",
+                    "title": "Fields",
+                    "description": "The fields to extract from the document. These are the keys in the KVP extraction result.",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "description": {
+                              "description": "A description of the field to extract from the document.",
+                              "title": "Description",
+                              "type": "string"
+                            },
+                            "example": {
+                              "default": "",
+                              "description": "An example of the field to extract from the document.",
+                              "title": "Example",
+                              "type": "string"
+                            },
+                            "default": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "default": "",
+                              "description": "A default value for the field to extract from the document.",
+                              "title": "Default"
+                            },
+                            "available_options": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "default": null,
+                              "description": "A list of possible values for the field.",
+                              "title": "Available Options"
+                            }
+                          },
+                          "required": [
+                            "description"
+                          ],
+                          "title": "DocProcField",
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "type": {
+                              "const": "array",
+                              "title": "Type",
+                              "type": "string"
+                            },
+                            "description": {
+                              "description": "A description of the table to extract from the document.",
+                              "title": "Description",
+                              "type": "string"
+                            },
+                            "columns": {
+                              "additionalProperties": {
+                                "properties": {
+                                  "description": {
+                                    "description": "A description of the field to extract from the document.",
+                                    "title": "Description",
+                                    "type": "string"
+                                  },
+                                  "example": {
+                                    "default": "",
+                                    "description": "An example of the field to extract from the document.",
+                                    "title": "Example",
+                                    "type": "string"
+                                  },
+                                  "default": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": "",
+                                    "description": "A default value for the field to extract from the document.",
+                                    "title": "Default"
+                                  },
+                                  "available_options": {
+                                    "anyOf": [
+                                      {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "description": "A list of possible values for the field.",
+                                    "title": "Available Options"
+                                  }
+                                },
+                                "required": [
+                                  "description"
+                                ],
+                                "title": "DocProcField",
+                                "type": "object"
+                              },
+                              "description": "The columns to extract from the table. These are the keys in the table extraction result.",
+                              "title": "Columns",
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "description",
+                            "columns"
+                          ],
+                          "title": "DocProcTable",
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TextExtractionResponse": {
+      "type": "object",
+      "title": "TextExtractionResponse",
+      "description": "The text extraction operation response.\nAttributes:\n    output_file_ref (str): The url to the file that contains the extracted text and kvps. ",
+      "required": [
+        "output_file_ref"
+      ],
+      "properties": {
+        "output_file_ref": {
+          "type": "string",
+          "title": "output_file_ref",
+          "description": "The url to the file that contains the extracted text and kvps."
+        }
+      }
+    }
+  },
+  "metadata": {}
+}

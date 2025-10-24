@@ -297,6 +297,7 @@ class DocProcField(BaseModel):
     description: str = Field(description="A description of the field to extract from the document.")
     example: str = Field(description="An example of the field to extract from the document.", default='')
     default: Optional[str] = Field(description="A default value for the field to extract from the document.", default='')
+    available_options: Optional[list[str]] = Field(description="A list of possible values for the field.", default=None) 
 
 class DocProcTable(BaseModel):
     type: Literal["array"]
@@ -306,6 +307,7 @@ class DocProcTable(BaseModel):
 class DocProcKVPSchema(BaseModel):
     document_type: str = Field(description="A label for the kind of documents we want to extract")
     document_description: str = Field(description="A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction.")
+    additional_prompt_instructions: Optional[str] = Field(description="Additional instructions to guide the extraction. This is used to provide more context to the model about the document.", default=None)
     fields: dict[str, DocProcField | DocProcTable] = Field(description="The fields to extract from the document. These are the keys in the KVP extraction result.")
 
 class DocProcBoundingBox(BaseModel):
