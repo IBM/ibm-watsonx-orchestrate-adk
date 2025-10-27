@@ -71,8 +71,9 @@ class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
     SALESFORCE = "salesforce"
-    WATSONX = "watsonx"
-    A2A = 'external_chat/A2A/0.2.1' #provider type returned from an assistant agent
+    WATSONX = "watsonx" #provider type returned from an assistant agent
+    A2A = 'external_chat/A2A/0.2.1'
+    A2A_030 = 'external_chat/A2A/0.3.0'
 
 
 class AssistantAgentAuthType(str, Enum):
