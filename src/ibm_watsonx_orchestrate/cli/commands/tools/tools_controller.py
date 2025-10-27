@@ -5,6 +5,7 @@ import sys
 import io
 import re
 import tempfile
+from pydantic import BaseModel
 import requests
 import zipfile
 from enum import Enum
@@ -647,6 +648,11 @@ def get_whl_in_registry(registry_url: str, version: str) -> str| None:
     wheel_file = next(filter(lambda x: f"{version}-py3-none-any.whl" in x, wheel_files), None)
     return wheel_file
 
+    
+class DownloadResult(BaseModel):
+    content: bytes | None = None
+    kind: ToolKind
+
 class ToolsController:
     def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None):
         self.client = None
@@ -1035,8 +1041,9 @@ class ToolsController:
         zip_in_memory.seek(0)
     
         return zip_in_memory.getvalue()
-    
-    def download_tool(self, name: str) -> bytes | None:
+
+
+    def download_tool(self, name: str) -> DownloadResult | None:
         tool_client = self.get_client()
         draft_tools = tool_client.get_draft_by_name(tool_name=name)
         if len(draft_tools) > 1:
@@ -1055,19 +1062,31 @@ class ToolsController:
             return
 
         tool_id = draft_tool.get("id")
-
-        try:
-            tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code != 404:
-                raise e
-            if draft_tool_kind == ToolKind.openapi:
-                logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
-                return
-            else:
-                BadRequest(f"Could not find tool artifacts for tool '{name}'")
-
-        return tool_artifacts_bytes
+        
+        # Initialize tool_artifacts_bytes with an empty bytes object as default
+        tool_artifacts_bytes = b''
+        
+        if tool_id is not None:
+            try:
+                downloaded_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+                if downloaded_bytes is not None:
+                    tool_artifacts_bytes = downloaded_bytes
+                else:
+                    logger.warning(f"No artifacts found for tool '{name}' of kind {draft_tool_kind.value}")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise e
+                if draft_tool_kind == ToolKind.openapi:
+                    logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
+                    return None
+                else:
+                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
+            except Exception as e:
+                logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
+                return None
+        
+        # Always return a DownloadResult with at least empty content
+        return DownloadResult(content=tool_artifacts_bytes, kind=draft_tool_kind)
     
     def export_tool(
             self,
@@ -1085,7 +1104,7 @@ class ToolsController:
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
-        tool_artifact_bytes = self.download_tool(name)
+        tool_artifact: DownloadResult | None = self.download_tool(name)
         if not spec:
             client = self.get_client()
             specs = client.get_draft_by_name(name)
@@ -1100,7 +1119,7 @@ class ToolsController:
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
         app_ids = [conn.app_id for conn in connections]
 
-        if not tool_artifact_bytes:
+        if not tool_artifact:
             return
         
         zip_file_root_folder = "/"
@@ -1109,8 +1128,8 @@ class ToolsController:
         else:
             zip_file_out = zipfile.ZipFile(output_path, "w")
         
-        with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in:
-            
+        with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
+
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
