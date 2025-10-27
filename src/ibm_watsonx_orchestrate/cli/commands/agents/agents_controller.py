@@ -11,15 +11,16 @@ import logging
 from pathlib import Path
 from copy import deepcopy
 
-from typing import Iterable, List, TypeVar
+from typing import Any, Iterable, List, TypeVar
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind, import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -1281,7 +1282,6 @@ class AgentsController:
             return ExternalAgent.model_validate(external_result)
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
-        
 
     def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False) -> None:
         output_file = Path(output_path)
