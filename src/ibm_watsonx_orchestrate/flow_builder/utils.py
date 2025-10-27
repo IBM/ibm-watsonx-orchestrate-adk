@@ -2,6 +2,7 @@ import importlib
 import inspect
 import re
 import logging
+from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -325,3 +326,27 @@ def create_delete_schedule_tool(name: str, TEMPUS_ENDPOINT: str="http://wxo-temp
                                           description='Schedule deleted.')
 
     return OpenAPITool(spec=spec)
+
+def get_all_tools_in_flow(flow: dict) -> list[str]:
+    '''Get all tool names used in the flow'''
+    tools: list[Any] = []
+
+    # iterate over all key and values in a dict
+    for key, value in flow['nodes'].items():
+        spec = value.get("spec")
+        kind: Any = spec.get("kind")
+        if kind == 'tool':
+            tool_name = spec.get('tool')
+            # the tool name might be the format of name:uuid.. we just need the name
+            tool_name = tool_name.split(':')[0]
+            if tool_name not in tools:
+                tools.append(tool_name)
+        elif kind == 'foreach' or kind == "loop" or kind == "user_flow" or kind == "userflow":
+            # recursively get all tools in the subflow
+            embedded_tools: list[str] = get_all_tools_in_flow(value)
+            # we need to merge with the tools in subflow but only if does not already exist in the parent tool list
+            for tool in embedded_tools:
+                if tool not in tools:
+                    tools.append(tool)
+    return tools
+
