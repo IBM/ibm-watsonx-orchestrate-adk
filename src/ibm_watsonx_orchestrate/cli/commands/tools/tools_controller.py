@@ -669,6 +669,10 @@ class ToolsController:
 
         if not isinstance(tools,list):
             tools = [tools]
+        
+        if len(tools) == 0:
+            kind_str = kind.value if isinstance(kind, ToolKind) else kind
+            logger.warning(f"No valid '{kind_str}' tools found in provided file '{args.get('file')}'. No tools have been imported")
 
         for tool in tools:
             yield tool
