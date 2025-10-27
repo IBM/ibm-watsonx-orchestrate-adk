@@ -5,7 +5,7 @@ from unittest.mock import call
 
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind, _get_kind_from_spec
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolsController, ToolKind, _get_kind_from_spec
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolPermission, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -1631,9 +1631,10 @@ def test_download_tool_python():
     download_tools_artifact_response=mock_download_reponse
     )
 
-    response = tc.download_tool(mock_tool_name)
+    response: DownloadResult | None = tc.download_tool(mock_tool_name)
 
-    assert response == mock_download_reponse
+    assert response is not None
+    assert response.content == mock_download_reponse
 
 def test_download_tool_openapi(caplog):
     mock_tool_name = "test_tool"
@@ -1651,7 +1652,7 @@ def test_download_tool_openapi(caplog):
     ],
     )
 
-    response = tc.download_tool(mock_tool_name)
+    response: DownloadResult | None = tc.download_tool(mock_tool_name)
 
     captured = caplog.text
 
@@ -1666,7 +1667,7 @@ def test_download_tool_no_tool(caplog):
     )
 
     with pytest.raises(SystemExit):
-        response = tc.download_tool(mock_tool_name)
+        response: DownloadResult | None = tc.download_tool(mock_tool_name)
 
     captured = caplog.text
     assert f"No tool named '{mock_tool_name}' found" in captured
@@ -1679,7 +1680,7 @@ def test_download_tool_multiple_tools(caplog):
     )
 
     with pytest.raises(SystemExit):
-        response = tc.download_tool(mock_tool_name)
+        response: DownloadResult | None = tc.download_tool(mock_tool_name)
 
     captured = caplog.text
     assert f"Multiple existing tools found with name '{mock_tool_name}'. Failed to get tool" in captured
@@ -1718,19 +1719,19 @@ def test_export_tool_no_data(caplog):
     mock_tool_name = "test_tool"
     mock_output_file = "test_file_out.zip"
     mock_tool_id = "test_tool_id"
-    mock_download_reponse = None
+    mock_download_reponse = DownloadResult(kind=ToolKind.openapi, content=None)
     tc = ToolsController()
 
     tc.client = MockToolClient(get_draft_by_name_response=[
-        {
-            "name": mock_tool_name,
-            "id": mock_tool_id,
-            "binding": {
-                "python": {}
+            {
+                "name": mock_tool_name,
+                "id": mock_tool_id,
+                "binding": {
+                    "openapi": {}
+                }
             }
-        }
-    ],
-    download_tools_artifact_response=mock_download_reponse
+        ],
+        download_tools_artifact_response=mock_download_reponse
     )
 
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
