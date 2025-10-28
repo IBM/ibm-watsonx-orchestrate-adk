@@ -63,20 +63,13 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
         with safe_open(agent_yaml, "r") as f:
             agent_data = yaml.safe_load(f) or {}
 
-        if "tags" not in agent_data:
-            agent_data["tags"] = []
-        if "publisher" not in agent_data:
-            agent_data["publisher"] = publisher_name
-        if "language_support" not in agent_data:
-            agent_data["language_support"] = ["English"]
-        if "icon" not in agent_data:
-            agent_data["icon"] = AGENT_CATALOG_ONLY_PLACEHOLDERS['icon']
-        if "category" not in agent_data:
-            agent_data["category"] = "agent"
-        if "supported_apps" not in agent_data:
-            agent_data["supported_apps"] = []
-        if "agent_role" not in agent_data:
-            agent_data["agent_role"] = "manager" if agent_data.get("name") == parent_agent_name else "collaborator"
+        extra_agent_fields = OfferingAgentExtras.from_agent_details(
+            agent_data,
+            publisher_name,
+            parent_agent_name
+        )
+
+        agent_data.update(extra_agent_fields.model_dump())
 
         with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
