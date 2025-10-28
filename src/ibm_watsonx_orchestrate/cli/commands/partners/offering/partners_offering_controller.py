@@ -67,9 +67,11 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
             agent_data,
             publisher_name,
             parent_agent_name
-        )
+        ).model_dump()
 
-        agent_data.update(extra_agent_fields.model_dump())
+        extra_agent_fields = {k: v for k, v in extra_agent_fields.items() if v is not None}
+
+        agent_data.update(extra_agent_fields)
 
         with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
