@@ -5,6 +5,7 @@ import sys
 import io
 import re
 import tempfile
+from pydantic import BaseModel
 import requests
 import zipfile
 from enum import Enum
@@ -619,6 +620,11 @@ def get_whl_in_registry(registry_url: str, version: str) -> str| None:
     wheel_file = next(filter(lambda x: f"{version}-py3-none-any.whl" in x, wheel_files), None)
     return wheel_file
 
+    
+class DownloadResult(BaseModel):
+    content: bytes | None = None
+    kind: ToolKind
+
 class ToolsController:
     def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None):
         self.client = None
@@ -1015,8 +1021,9 @@ class ToolsController:
         zip_in_memory.seek(0)
     
         return zip_in_memory.getvalue()
-    
-    def download_tool(self, name: str) -> bytes | None:
+
+
+    def download_tool(self, name: str) -> DownloadResult | None:
         tool_client = self.get_client()
         draft_tools = tool_client.get_draft_by_name(tool_name=name)
         if len(draft_tools) > 1:
@@ -1036,11 +1043,23 @@ class ToolsController:
             return
 
         tool_id = draft_tool.get("id")
-
-        if draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow or draft_tool_kind == ToolKind.flow:
-            tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
-
-        return tool_artifacts_bytes
+        
+        # Initialize tool_artifacts_bytes with an empty bytes object as default
+        tool_artifacts_bytes = b''
+        
+        if tool_id is not None and (draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow or draft_tool_kind == ToolKind.flow):
+            try:
+                downloaded_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+                if downloaded_bytes is not None:
+                    tool_artifacts_bytes = downloaded_bytes
+                else:
+                    logger.warning(f"No artifacts found for tool '{name}' of kind {draft_tool_kind.value}")
+            except Exception as e:
+                logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
+                return None
+        
+        # Always return a DownloadResult with at least empty content
+        return DownloadResult(content=tool_artifacts_bytes, kind=draft_tool_kind)
     
     def export_tool(self, name: str, output_path: str) -> None:
         
@@ -1052,12 +1071,12 @@ class ToolsController:
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
-        tool_artifact_bytes = self.download_tool(name)
+        tool_artifact: DownloadResult | None = self.download_tool(name)
 
-        if not tool_artifact_bytes:
+        if not tool_artifact:
             return
         
-        with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in, \
+        with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in, \
             zipfile.ZipFile(output_path, 'w') as zip_file_out:
             
             for item in zip_file_in.infolist():
