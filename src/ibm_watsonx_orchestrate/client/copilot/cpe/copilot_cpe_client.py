@@ -111,3 +111,6 @@ class CPEClient(BaseAPIClient):
 
         if response:
             return response[-1]
+    
+    def healthcheck(self):
+        self._get("/version")
