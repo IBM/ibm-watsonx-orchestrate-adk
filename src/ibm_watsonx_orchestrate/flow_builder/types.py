@@ -297,6 +297,7 @@ class DocProcField(BaseModel):
     description: str = Field(description="A description of the field to extract from the document.")
     example: str = Field(description="An example of the field to extract from the document.", default='')
     default: Optional[str] = Field(description="A default value for the field to extract from the document.", default='')
+    available_options: Optional[list[str]] = Field(description="A list of possible values for the field.", default=None) 
 
 class DocProcTable(BaseModel):
     type: Literal["array"]
@@ -306,6 +307,7 @@ class DocProcTable(BaseModel):
 class DocProcKVPSchema(BaseModel):
     document_type: str = Field(description="A label for the kind of documents we want to extract")
     document_description: str = Field(description="A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction.")
+    additional_prompt_instructions: Optional[str] = Field(description="Additional instructions to guide the extraction. This is used to provide more context to the model about the document.", default=None)
     fields: dict[str, DocProcField | DocProcTable] = Field(description="The fields to extract from the document. These are the keys in the KVP extraction result.")
 
 class DocProcBoundingBox(BaseModel):
@@ -352,6 +354,16 @@ class DocProcSpec(DocProcCommonNodeSpec):
         description="The LLM model to be used for key-value pair extraction",
         default=None
     )
+    kvp_force_schema_name: str | None = Field(
+        title='KVP Force Schema Name',
+        description='Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.',
+        default=None
+    )
+    kvp_enable_text_hints: bool | None = Field(
+        title='KVP Enable Text Hints',
+        description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
+        default=True
+    )
     plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
     document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
     
@@ -369,6 +381,10 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_schemas"] = self.kvp_schemas
         if self.kvp_model_name is not None:
             model_spec["kvp_model_name"] = self.kvp_model_name
+        if self.kvp_force_schema_name is not None:
+            model_spec["kvp_force_schema_name"] = self.kvp_force_schema_name
+        if self.kvp_enable_text_hints is not None:
+            model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -1364,7 +1380,10 @@ class DocProcInput(DocumentProcessingCommonInput):
     This class represents the input of a Document processing task. 
 
     Attributes:
-        kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPS.
+        kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPs.
+        kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
+        kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
+        kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
@@ -1376,6 +1395,16 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP Model Name',
         description="The LLM model to be used for key-value pair extraction",
         default=None
+    )
+    kvp_force_schema_name: str | None = Field(
+        title='KVP Force Schema Name',
+        description='Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.',
+        default=None
+    )
+    kvp_enable_text_hints: bool | None = Field(
+        title='KVP Enable Text Hints',
+        description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
+        default=True
     )
 
 class TextExtractionResponse(BaseModel):

@@ -672,17 +672,19 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(DecisionsNode, node)
     
-    def docproc(self, 
-            name: str, 
+    def docproc(self,
+            name: str,
             task: str,
             plain_text_reading_order : PlainTextReadingOrder = PlainTextReadingOrder.block_structure,
             display_name: str|None=None,
             description: str | None = None,
-            input_map: DataMap = None,
+            input_map: DataMap | None = None,
             document_structure: bool = False,
-            kvp_schemas: list[DocProcKVPSchema] = None,
+            kvp_schemas: list[DocProcKVPSchema] | None = None,
             enable_hw: bool = False,
-            kvp_model_name: str | None = None) -> DocProcNode:
+            kvp_model_name: str | None = None,
+            kvp_force_schema_name: str | None = None,
+            kvp_enable_text_hints: bool | None = True) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -709,7 +711,9 @@ class Flow(Node):
             plain_text_reading_order=plain_text_reading_order,
             enable_hw=enable_hw,
             kvp_schemas=kvp_schemas,
-            kvp_model_name=kvp_model_name
+            kvp_model_name=kvp_model_name,
+            kvp_force_schema_name=kvp_force_schema_name,
+            kvp_enable_text_hints=kvp_enable_text_hints
         )
 
         node = DocProcNode(spec=task_spec)
