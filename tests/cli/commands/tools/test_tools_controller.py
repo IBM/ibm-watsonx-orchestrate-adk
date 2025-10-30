@@ -1638,6 +1638,8 @@ def test_download_tool_python():
 def test_download_tool_openapi(caplog):
     mock_tool_name = "test_tool"
     mock_tool_id = "test_tool_id"
+    mock_download_reponse = b"1234"
+    
     tc = ToolsController()
 
     tc.client = MockToolClient(get_draft_by_name_response=[
@@ -1649,14 +1651,12 @@ def test_download_tool_openapi(caplog):
             }
         }
     ],
+    download_tools_artifact_response=mock_download_reponse
     )
 
     response = tc.download_tool(mock_tool_name)
 
-    captured = caplog.text
-
-    assert response is None
-    assert f"Skipping '{mock_tool_name}', openapi tools are currently unsupported by export" in captured
+    assert response == mock_download_reponse
 
 def test_download_tool_no_tool(caplog):
     mock_tool_name = "test_tool"
