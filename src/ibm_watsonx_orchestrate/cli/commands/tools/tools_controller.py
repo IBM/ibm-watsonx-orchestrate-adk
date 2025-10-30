@@ -948,7 +948,14 @@ class ToolsController:
                         requirements_content = '\n'.join(requirements) + '\n'
                         zip_tool_artifacts.writestr("requirements.txt",requirements_content)  
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
+                elif self.tool_kind == ToolKind.openapi:
+                    tool_artifact = path.join(tmpdir, "artifacts.zip")
 
+                    with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                        tool_path = Path(self.file)
+                        zip_tool_artifacts.write(tool_path, arcname=tool_path.name)
+
+                        zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
                 if exist:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
                 else:
@@ -962,7 +969,7 @@ class ToolsController:
 
         if tool_artifact is not None:
             match self.tool_kind:
-                case ToolKind.langflow | ToolKind.python:
+                case ToolKind.langflow | ToolKind.python | ToolKind.openapi:
                     self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
                 case _:
                     raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
@@ -978,7 +985,7 @@ class ToolsController:
 
         if tool_artifact is not None:
             match self.tool_kind:
-                case ToolKind.langflow | ToolKind.python:
+                case ToolKind.langflow | ToolKind.python | ToolKind.openapi:
                     self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
                 case _:
                     raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
@@ -1033,16 +1040,23 @@ class ToolsController:
         draft_tool = draft_tools[0]
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
-        # TODO: Add openapi tool support
-        supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow]
+        supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow, ToolKind.openapi]
         if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
 
         tool_id = draft_tool.get("id")
 
-        if draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow or draft_tool_kind == ToolKind.flow:
+        try:
             tool_artifacts_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code != 404:
+                raise e
+            if draft_tool_kind == ToolKind.openapi:
+                logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
+                return
+            else:
+                BadRequest(f"Could not find tool artifacts for tool '{name}'")
 
         return tool_artifacts_bytes
     
