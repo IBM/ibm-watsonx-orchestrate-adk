@@ -1105,6 +1105,7 @@ class ToolsController:
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
         tool_artifact: DownloadResult | None = self.download_tool(name)
+
         if not spec:
             client = self.get_client()
             specs = client.get_draft_by_name(name)
@@ -1129,7 +1130,7 @@ class ToolsController:
             zip_file_out = zipfile.ZipFile(output_path, "w")
         
         with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
-
+          
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
