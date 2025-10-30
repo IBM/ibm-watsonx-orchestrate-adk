@@ -5,6 +5,8 @@ import uuid
 import requests
 from unittest import mock
 import sys
+
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import logging
 
@@ -1373,8 +1375,10 @@ class TestAgentsControllerExportAgent:
             mock_get_connection_client.return_value = mock_connection_client
 
             mock_tools_controller.return_value = MagicMock(
-                download_tool=MagicMock(return_value=b"abc")
-                )
+                download_tool=MagicMock(return_value=DownloadResult(
+                    kind=ToolKind.python,
+                    content=b"abc"
+                )))
             
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
@@ -1450,8 +1454,10 @@ class TestAgentsControllerExportAgent:
             mock_get_connection_client.return_value = mock_connection_client
             mock_zip_check.return_value = True
             mock_tools_controller.return_value = MagicMock(
-                download_tool=MagicMock(return_value=b"abc")
-                )
+                download_tool=MagicMock(return_value=DownloadResult(
+                    kind=ToolKind.python,
+                    content=b"abc"
+                )))
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1483,8 +1489,10 @@ class TestAgentsControllerExportAgent:
             mock_get_connection_client.return_value = mock_connection_client
             mock_zip_check.side_effect = lambda file_path, zip_file : True if "tools" in file_path else False
             mock_tools_controller.return_value = MagicMock(
-                download_tool=MagicMock(return_value=b"abc")
-                )
+                download_tool=MagicMock(return_value=DownloadResult(
+                    kind=ToolKind.python,
+                    content=b"abc"
+                )))
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1516,8 +1524,10 @@ class TestAgentsControllerExportAgent:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_tools_controller.return_value = MagicMock(
-                download_tool=MagicMock(return_value=None)
-                )
+                download_tool=MagicMock(return_value=DownloadResult(
+                    kind=ToolKind.python,
+                    content=b"abc"
+                )))
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1554,8 +1564,10 @@ class TestAgentsControllerExportAgent:
             mock_get_agent.return_value = None
 
             mock_tools_controller.return_value = MagicMock(
-                download_tool=MagicMock(return_value=b"abc")
-                )
+                download_tool=MagicMock(return_value=DownloadResult(
+                    kind=ToolKind.python,
+                    content=b"abc"
+                )))
             
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
