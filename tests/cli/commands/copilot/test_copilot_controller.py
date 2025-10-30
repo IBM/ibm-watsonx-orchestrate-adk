@@ -64,6 +64,9 @@ class MockCPEClient:
                                 model: str | None = None) -> dict:
         return self.mock_refine_with_chat_response
 
+    def healthcheck(self):
+        return
+
 
 class MockToolClient:
     def __init__(self, get_response=[], get_drafts_by_names_response=[]):
