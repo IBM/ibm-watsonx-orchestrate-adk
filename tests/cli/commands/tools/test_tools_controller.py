@@ -1640,7 +1640,7 @@ def test_download_tool_python():
     assert response is not None
     assert response.content == mock_download_reponse
 
-def test_download_tool_openapi(caplog):
+def test_download_tool_openapi():
     mock_tool_name = "test_tool"
     mock_tool_id = "test_tool_id"
     mock_download_reponse = b"1234"
@@ -1735,6 +1735,7 @@ def test_export_tool_no_data(caplog):
     mock_description = "test_description"
     mock_function = "test_function"
     mock_download_reponse = None
+
     tc = ToolsController()
 
     tc.client = MockToolClient(get_draft_by_name_response=[
