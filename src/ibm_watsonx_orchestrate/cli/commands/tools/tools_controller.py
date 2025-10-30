@@ -1146,7 +1146,7 @@ class ToolsController:
             for t in tools_in_flow:
                 self.export_tool(
                     name=t,
-                    output_path=f"{zip_file_root_folder}/tools/{t}",
+                    output_path=f"{output_file.parent}/{t}",
                     zip_file_out=zip_file_out,
                     connections_output_path=connections_output_path
                 )
