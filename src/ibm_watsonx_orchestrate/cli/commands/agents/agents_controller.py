@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import import_python_tool, ToolsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -1335,45 +1336,57 @@ class AgentsController:
             agent_spec_yaml_file.getvalue()
         )
 
+        # Export Connections
+        app_id = None
+        if kind == AgentKind.EXTERNAL:
+            app_id = agent_spec_file_content.get("app_id")
+        elif kind == AgentKind.ASSISTANT:
+            app_id = agent_spec_file_content.get("config", {}).get("app_id")
+        
+        if app_id:
+            export_connection(output_file=f"{output_file_name}/connections/", app_id=app_id, zip_file_out=zip_file_out)
+
+        # Export Tools
         agent_tools = agent_spec_file_content.get("tools", [])
 
         tools_controller = ToolsController()
         tools_client = tools_controller.get_client() 
         tool_specs = None
-        if with_tool_spec_file:
-            tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
+        tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
 
         for tool_name in agent_tools:
 
             base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
             if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
                 continue
-            
-            logger.info(f"Exporting tool '{tool_name}'")
-            tool_artifact_bytes = tools_controller.download_tool(tool_name)
-            if not tool_artifact_bytes:
-                continue
-            
-            with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in:
-                for item in zip_file_in.infolist():
-                    buffer = zip_file_in.read(item.filename)
-                    if (item.filename != 'bundle-format'):
-                        zip_file_out.writestr(
-                            f"{base_tool_file_path}{item.filename}",
-                            buffer
-                        )
-                if with_tool_spec_file and tool_specs:
-                    current_spec = tool_specs[tool_name]
-                    zip_file_out.writestr(
-                        f"{base_tool_file_path}config.json",
-                        ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
-                    )
+
+            current_spec = tool_specs.get(tool_name)
+            tools_controller.export_tool(
+                name=tool_name,
+                output_path=base_tool_file_path,
+                zip_file_out=zip_file_out, 
+                spec=current_spec, 
+                connections_output_path=f"{output_file_name}/connections/"
+            )
+
+            if with_tool_spec_file and tool_specs:
+                zip_file_out.writestr(
+                    f"{base_tool_file_path}config.json",
+                    ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
+                )
         
+        # Export Knowledge Bases
         knowledge_base_controller = KnowledgeBaseController()
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
-            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/{kb_name}.yaml"
-            knowledge_base_controller.knowledge_base_export(name=kb_name, output_path=knowledge_base_file_path, zip_file_out=zip_file_out)
+            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/"
+            knowledge_base_controller.knowledge_base_export(
+                name=kb_name,
+                output_path=knowledge_base_file_path,
+                zip_file_out=zip_file_out,
+                connections_output_path=f"{output_file_name}/connections/"
+                )
         
+        # Export Collaborators
         if kind == AgentKind.NATIVE:
             for collaborator_id in agent.collaborators:
                 collaborator = self.get_agent_by_id(collaborator_id)

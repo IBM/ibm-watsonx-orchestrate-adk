@@ -139,10 +139,11 @@ class MockToolClient:
 
 
 class MockConnectionClient:
-    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[], list_conn_response=[]):
+    def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[], list_conn_response=[], get_drafts_by_ids_response=[]):
         self.get_by_id_response = get_by_id_response
         self.get_response = get_response
         self.get_conn_by_id_response = get_conn_by_id_response
+        self.get_drafts_by_ids_response = get_drafts_by_ids_response
         self.list_conn_response = list_conn_response
 
     def get_draft_by_app_id(self, app_id: str):
@@ -153,6 +154,9 @@ class MockConnectionClient:
     
     def get_draft_by_id(self, conn_id: str):
         return self.get_conn_by_id_response
+    
+    def get_drafts_by_ids(self, conn_ids):
+        return self.get_drafts_by_ids_response
 
     def list(self):
         return self.list_conn_response
@@ -1688,6 +1692,8 @@ def test_export_tool(caplog):
     mock_tool_name = "test_tool"
     mock_output_file = "test_file_out.zip"
     mock_tool_id = "test_tool_id"
+    mock_description = "test_description"
+    mock_function = "test_function"
     mock_download_reponse = b"1234"
     tc = ToolsController()
 
@@ -1695,16 +1701,23 @@ def test_export_tool(caplog):
         {
             "name": mock_tool_name,
             "id": mock_tool_id,
+            "description": mock_description,
+            "permission": "admin",
             "binding": {
-                "python": {}
+                "python": {"function": mock_function}
             }
         }
     ],
     download_tools_artifact_response=mock_download_reponse
     )
 
-    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+    client = MockConnectionClient(
+        get_drafts_by_ids_response=[]
+    )
 
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile, \
+        mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client") as mock_get_connections_client:
+        mock_get_connections_client.return_value = client
         mock_zipfile().__enter__().infolist.return_value = [mock.MagicMock()]
 
         tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
@@ -1718,6 +1731,8 @@ def test_export_tool_no_data(caplog):
     mock_tool_name = "test_tool"
     mock_output_file = "test_file_out.zip"
     mock_tool_id = "test_tool_id"
+    mock_description = "test_description"
+    mock_function = "test_function"
     mock_download_reponse = None
     tc = ToolsController()
 
@@ -1725,15 +1740,23 @@ def test_export_tool_no_data(caplog):
         {
             "name": mock_tool_name,
             "id": mock_tool_id,
+            "description": mock_description,
+            "permission": "admin",
             "binding": {
-                "python": {}
+                "python": {"function": mock_function}
             }
         }
     ],
     download_tools_artifact_response=mock_download_reponse
     )
 
-    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile:
+    client = MockConnectionClient(
+        get_drafts_by_ids_response=[]
+    )
+
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.zipfile.ZipFile") as mock_zipfile, \
+        mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client") as mock_get_connections_client:
+        mock_get_connections_client.return_value = client
         tc.export_tool(name=mock_tool_name, output_path=mock_output_file)
 
     captured = caplog.text

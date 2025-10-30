@@ -43,6 +43,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -285,37 +286,37 @@ def _connection_credentials_parse_entry(text: str, default_location: ConnectionC
     
     return ConnectionCredentialsEntry(key=key, value=value, location=location)
     
-def _combine_connection_configs(configs: List[ConnectionConfiguration]) -> dict:
+def _combine_connection_configs(app_id: str, configs: List[ConnectionConfiguration], include_catalog: bool = False) -> dict:
     combined_configuration = {
-        'app_id': None,
+        'app_id': app_id,
         'spec_version': SpecVersion.V1.value,
         'kind': 'connection',
-        'environments': {
+        'environments': {}
+    }
 
-        },
-        'catalog': {
+    if include_catalog:
+        combined_configuration['catalog'] = {
             'name': None,
             'description': None,
             'icon': None
         }
-    }
+
     for config in configs:
         if combined_configuration.get('app_id') and config.app_id != combined_configuration.get('app_id'):
-            raise ValueError(f"Cannot combine config '{config.app_id}' with config '{combined_configuration.get('app_id')}'")
-        combined_configuration['app_id'] = config.app_id
+            raise BadRequest(f"Cannot combine config '{config.app_id}' with config '{combined_configuration.get('app_id')}'")
 
         current_env = config.environment.value.lower()
         combined_configuration['environments'][current_env] = {}
 
-        for k,v in config.model_dump().items():
+        for k,v in config.model_dump(mode='json', use_import_aliases=True).items():
             if not v:
                 continue
             match(k):
-                case "app_id" | "environment" | "spec_version":
+                case "app_id" | "environment" | "spec_version" | "tenant_id" | "config_id":
                     continue
                 case _:
                     try:
-                        combined_configuration['environments'][current_env][k] = str(v)
+                        combined_configuration['environments'][current_env][k] = v
                     except:
                         logger.error(f"Couldn't represent {k} as a string")
     
@@ -326,7 +327,11 @@ def _resolve_connection_ids(connection_ids: list[str]) -> list[str]:
     connections = client.list()
     return list(set([c.app_id for c in connections if c.connection_id in connection_ids]))
 
-
+def _check_connection_exists(app_id: str):
+    client = get_connections_client()
+    conn = client.get_draft_by_app_id(app_id=app_id)
+    if not conn:
+        raise BadRequest(f"Connection '{app_id}' not found.")
 
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
@@ -567,9 +572,13 @@ def list_connections(environment: ConnectionEnvironment | None = None, verbose: 
 def import_connection(file: str) -> None:
     _parse_file(file=file)
 
-def export_connection(output_file: str, app_id: str | None = None, connection_id: str | None = None) -> None:
+def export_connection(output_file: str, app_id: str | None = None, connection_id: str | None = None, include_catalog: bool = False, zip_file_out: Optional[zipfile.ZipFile] = None) -> None:
+    zip_file_file_path = f"{output_file}/{app_id}.yaml"
+    if zip_file_out and zip_file_file_path in zip_file_out.namelist():
+        return
+    
     if not app_id and not connection_id:
-        raise ValueError(f"Connection export requires at least one of 'app_id' or 'connection_id'")
+        raise BadRequest(f"Connection export requires at least one of 'app_id' or 'connection_id'")
     
     if app_id and connection_id:
         logger.warning(f"Connection export recieved both 'app_id' and 'connection_id', preferring 'app_id'")
@@ -579,44 +588,51 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
         if len(app_ids) > 0:
             app_id = app_ids[0]
         else:
-            raise ValueError(f"No connections found with connection_id of '{connection_id}'")
+            raise BadRequest(f"No connections found with connection_id of '{connection_id}'")
+    else:
+        _check_connection_exists(app_id)
 
-
-    # verify output folder
     output_path = Path(output_file)
-    if output_path.exists():
-        logger.error(f"Specified output file already exists")
-        sys.exit(0)
 
     output_type = output_path.suffix.lower()
-    if output_type not in ['.zip','.yaml','.yml']:
+    if not zip_file_out and output_type not in ['.zip','.yaml','.yml']:
         logger.error(f"Output file must end with the extension '.zip', '.yaml' or '.yml'")
         sys.exit(0)
 
     # get connection data
     connections = get_connection_configs(app_id=app_id)
-    combined_connections = _combine_connection_configs(connections)
+    combined_connections = _combine_connection_configs(app_id, connections, include_catalog=include_catalog)
 
     # write to folder
     match(output_type):
         case '.zip':
-            zip_file = zipfile.ZipFile(output_path, "w")
+            if output_path.exists():
+                zip_file_out = zipfile.ZipFile(output_path, "a")
+            else:
+                zip_file_out = zipfile.ZipFile(output_path, "w")
                 
             connection_yaml = yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
             connection_yaml_bytes = connection_yaml.encode("utf-8")
             connection_yaml_file = io.BytesIO(connection_yaml_bytes)
 
-            zip_file.writestr(
+            zip_file_out.writestr(
                 f"{output_path.stem}/{app_id}.yaml",
                 connection_yaml_file.getvalue()
             )
 
-            zip_file.close()
+            zip_file_out.close()
         case '.yaml' | '.yml':
             with safe_open(output_path,'w') as yaml_file:
                 yaml_file.write(
                     yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
                 )
+        case '':
+            if zip_file_out:
+                zip_file_out.writestr(
+                    zip_file_file_path, yaml.dump(combined_connections, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                )
+
+
                 
     logger.info(f"Successfully exported connection file for {app_id}")
 
