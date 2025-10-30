@@ -63,20 +63,15 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
         with safe_open(agent_yaml, "r") as f:
             agent_data = yaml.safe_load(f) or {}
 
-        if "tags" not in agent_data:
-            agent_data["tags"] = []
-        if "publisher" not in agent_data:
-            agent_data["publisher"] = publisher_name
-        if "language_support" not in agent_data:
-            agent_data["language_support"] = ["English"]
-        if "icon" not in agent_data:
-            agent_data["icon"] = AGENT_CATALOG_ONLY_PLACEHOLDERS['icon']
-        if "category" not in agent_data:
-            agent_data["category"] = "agent"
-        if "supported_apps" not in agent_data:
-            agent_data["supported_apps"] = []
-        if "agent_role" not in agent_data:
-            agent_data["agent_role"] = "manager" if agent_data.get("name") == parent_agent_name else "collaborator"
+        extra_agent_fields = OfferingAgentExtras.from_agent_details(
+            agent_data,
+            publisher_name,
+            parent_agent_name
+        ).model_dump()
+
+        extra_agent_fields = {k: v for k, v in extra_agent_fields.items() if v is not None}
+
+        agent_data.update(extra_agent_fields)
 
         with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
@@ -89,6 +84,17 @@ def _create_applications_entry(connection_config: dict) -> dict:
         'description': connection_config.get('catalog',{}).get('description',''),
         'icon': connection_config.get('catalog',{}).get('icon','')
     }
+
+def _compare_placeholders(value, placeholder) -> bool:
+    if isinstance(placeholder, BaseModel):
+        placeholder = placeholder.model_dump()
+    
+    return value == placeholder
+
+def _validate_agent_placeholders(agent_data: dict, agent_name: str) -> None:
+    for label, placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
+        if _compare_placeholders(agent_data.get(label),  placeholder):
+            logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
 
 
 
@@ -355,10 +361,7 @@ class PartnersOfferingController:
                         )
                         agent = ExternalAgent.model_validate(agent_details)
                 
-                # Placeholder detection
-                for label,placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
-                    if agent_data.get(label) == placeholder:
-                        logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
+                _validate_agent_placeholders(agent_data, agent_name)
 
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
                 zf.writestr(agent_json_path, json.dumps(agent_data, indent=2))
