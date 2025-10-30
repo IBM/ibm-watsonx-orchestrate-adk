@@ -26,7 +26,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTo
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection, export_connection
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
@@ -613,6 +613,34 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
         sys.exit(1) 
 
+def _get_connection_ids_from_spec(spec: ToolSpec | dict) -> list[str]:
+    if isinstance(spec, dict):
+        spec = ToolSpec.model_validate(spec)
+
+    connection_ids = []
+
+    binding = spec.binding
+    if binding is not None:
+        if binding.openapi is not None and hasattr(binding.openapi, "connection_id"):
+            connection_ids = [binding.openapi.connection_id]
+        elif binding.python is not None and hasattr(binding.python, "connections") and binding.python.connections is not None:
+            for conn in binding.python.connections:
+                connection_ids.append(binding.python.connections[conn])
+        elif binding.mcp is not None and hasattr(binding.mcp, "connections"):
+            if binding.mcp.connections is None:
+                connection_ids.append(None)
+            else:
+                for conn in binding.mcp.connections:
+                    connection_ids.append(binding.mcp.connections[conn])
+        elif binding.langflow is not None and hasattr(binding.langflow, "connections"):
+            if binding.langflow.connections is None:
+                connection_ids.append(None)
+            else:
+                for conn in binding.langflow.connections:
+                    connection_ids.append(binding.langflow.connections[conn])
+        
+        return connection_ids
+
 def get_whl_in_registry(registry_url: str, version: str) -> str| None:
     orchestrate_links = requests.get(registry_url).text
     wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
@@ -729,26 +757,7 @@ class ToolsController:
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
 
-                connection_ids = []
-
-                if tool_binding is not None:
-                    if tool_binding.openapi is not None and hasattr(tool_binding.openapi, "connection_id"):
-                        connection_ids = [tool_binding.openapi.connection_id]
-                    elif tool_binding.python is not None and hasattr(tool_binding.python, "connections") and tool_binding.python.connections is not None:
-                        for conn in tool_binding.python.connections:
-                            connection_ids.append(tool_binding.python.connections[conn])
-                    elif tool_binding.mcp is not None and hasattr(tool_binding.mcp, "connections"):
-                        if tool_binding.mcp.connections is None:
-                            connection_ids.append(None)
-                        else:
-                            for conn in tool_binding.mcp.connections:
-                                connection_ids.append(tool_binding.mcp.connections[conn])
-                    elif tool_binding.langflow is not None and hasattr(tool_binding.langflow, "connections"):
-                        if tool_binding.langflow.connections is None:
-                            connection_ids.append(None)
-                        else:
-                            for conn in tool_binding.langflow.connections:
-                                connection_ids.append(tool_binding.langflow.connections[conn])
+                connection_ids = _get_connection_ids_from_spec(spec=tool.__tool_spec__)
 
                 app_ids = []
                 for connection_id in connection_ids:
@@ -1060,27 +1069,54 @@ class ToolsController:
 
         return tool_artifacts_bytes
     
-    def export_tool(self, name: str, output_path: str) -> None:
+    def export_tool(
+            self,
+            name: str,
+            output_path: str, 
+            zip_file_out: Optional[zipfile.ZipFile] = None, 
+            connections_output_path: str = "/connections", 
+            spec: dict | None = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
-        if output_file_extension != ".zip":
+        if not zip_file_out and  output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
         tool_artifact_bytes = self.download_tool(name)
+        if not spec:
+            client = self.get_client()
+            specs = client.get_draft_by_name(name)
+            if len(specs):
+                spec = specs[0]
+            else:
+                logger.error(f"Could not find tool spec for tool '{name}'")
+                sys.exit(1)
+        
+        connection_ids = _get_connection_ids_from_spec(spec)
+        connection_ids = [c for c in connection_ids if c]
+        connections = get_connections_client().get_drafts_by_ids(connection_ids)
+        app_ids = [conn.app_id for conn in connections]
 
         if not tool_artifact_bytes:
             return
         
-        with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in, \
-            zipfile.ZipFile(output_path, 'w') as zip_file_out:
+        zip_file_root_folder = "/"
+        if zip_file_out:
+            zip_file_root_folder = output_path
+        else:
+            zip_file_out = zipfile.ZipFile(output_path, "w")
+        
+        with zipfile.ZipFile(io.BytesIO(tool_artifact_bytes), "r") as zip_file_in:
             
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
-                    zip_file_out.writestr(item, buffer)
+                    zip_file_out.writestr(f"{zip_file_root_folder}/{item.filename}", buffer)
+        
+        for app_id in app_ids:
+            export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
         
         logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")
