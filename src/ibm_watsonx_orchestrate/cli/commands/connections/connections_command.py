@@ -79,9 +79,9 @@ def export_connection_command(
             '--output', '-o',
             help='Path to where the exported connection should be saved.'
         )
-    ] = None
+    ]
 ):
-    export_connection(app_id=app_id,output_file=output_file)
+    export_connection(app_id=app_id, output_file=output_file)
 
 @connections_app.command(name="configure")
 def configure_connection_command(

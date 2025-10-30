@@ -1367,7 +1367,8 @@ class TestAgentsControllerExportAgent:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.export_connection") as mock_export_connection:
             
             mock_get_connection_client.return_value = mock_connection_client
 

@@ -280,7 +280,7 @@ class PartnersOfferingController:
                     conn_file = project_root / "connections" / f"{app_id}.yaml"
                     
                     # Using connection Id instead of app_id because app_id has been sanitized in the binding
-                    export_connection(connection_id=conn_id, output_file=conn_file)
+                    export_connection(connection_id=conn_id, output_file=conn_file, include_catalog=True)
 
 
     def package(self, offering: str, folder_path: Optional[str] = None):
