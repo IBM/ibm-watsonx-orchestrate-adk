@@ -24,16 +24,16 @@ from rich.panel import Panel
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection, export_connection
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
-from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
@@ -44,7 +44,7 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -1119,7 +1119,7 @@ class ToolsController:
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
         app_ids = [conn.app_id for conn in connections]
 
-        if not tool_artifact:
+        if not tool_artifact or not tool_artifact.content:
             return
         
         zip_file_root_folder = "/"
@@ -1139,3 +1139,14 @@ class ToolsController:
             export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
         
         logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")
+
+        if tool_artifact.kind == ToolKind.flow:
+            tools_in_flow = get_all_tools_in_flow(json.loads(buffer))
+
+            for t in tools_in_flow:
+                self.export_tool(
+                    name=t,
+                    output_path=f"/tools/{t}",
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path
+                )

@@ -1661,7 +1661,7 @@ def test_download_tool_openapi(caplog):
 
     response: DownloadResult | None = tc.download_tool(mock_tool_name)
 
-    assert response == mock_download_reponse
+    assert response.content == mock_download_reponse
 
 def test_download_tool_no_tool(caplog):
     mock_tool_name = "test_tool"
