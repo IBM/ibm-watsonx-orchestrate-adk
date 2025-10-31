@@ -1688,7 +1688,43 @@ class UserFlow(Flow):
 
         node = self._add_node(node)
         return cast(UserNode, node)
+    
+    def form(self, 
+              name: str, 
+              display_name: str | None = None,
+              instructions: str | None = None,
+              submit_button_label: str | None = "Submit",
+              cancel_button_label: str | None = None ) -> UserNode:
+        '''create a node in the flow with a form'''
+        # create a json schema object based on the single field
+        if not name:
+            raise AssertionError("name cannot be empty")
 
+        schema_obj = JsonSchemaObject(type="object",
+                                      title=name,
+                                      description=instructions)
+        
+        schema_obj.properties = {}
+       
+        task_spec = UserNodeSpec(
+            name=name,
+            display_name=display_name,
+            description=instructions,
+            owners=[CURRENT_USER],
+            output_schema_object = schema_obj
+        )
+
+        node = UserNode(spec = task_spec)
+        node.form(name = name,
+                   display_name = display_name,
+                   instructions = instructions,
+                   submit_button_label = submit_button_label,
+                   cancel_button_label = cancel_button_label
+                 )
+
+        node = self._add_node(node)
+        return cast(UserNode, node)
+    
     def user(
         self,
         name: str | None = None,
