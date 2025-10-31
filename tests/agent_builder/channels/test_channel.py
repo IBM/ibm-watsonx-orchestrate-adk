@@ -3,7 +3,7 @@ import tempfile
 import os
 from unittest.mock import patch
 from pathlib import Path
-from ibm_watsonx_orchestrate.agent_builder.channels import ChannelLoader, TwilioWhatsappChannel, SlackChannel
+from ibm_watsonx_orchestrate.agent_builder.channels import ChannelLoader, TwilioWhatsappChannel, SlackChannel, WebchatChannel
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
@@ -304,86 +304,83 @@ class TestChannelFromPython:
 
     def test_from_python_single_channel(self):
         """Test loading single channel from Python file."""
-        python_content = """
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel
+        channel1 = TwilioWhatsappChannel(
+            channel="twilio_whatsapp",
+            name="python_channel",
+            account_sid="AC12345678901234567890123456789012",
+            twilio_authentication_token="python_token"
+        )
 
-channel1 = TwilioWhatsappChannel(
-    channel="twilio_whatsapp",
-    name="python_channel",
-    account_sid="AC12345678901234567890123456789012",
-    twilio_authentication_token="python_token"
-)
-"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(python_content)
-            temp_path = f.name
+        with patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.inspect.getmembers") as getmembers_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.importlib.import_module") as import_module_mock:
 
-        try:
-            channels = ChannelLoader.from_python(temp_path)
+            getmembers_mock.return_value = [
+                ("channel1", channel1) 
+            ]
+            channels = ChannelLoader.from_python("test.py")
 
-            assert len(channels) == 1
-            assert isinstance(channels[0], TwilioWhatsappChannel)
-            assert channels[0].name == "python_channel"
-            assert channels[0].account_sid == "AC12345678901234567890123456789012"
-        finally:
-            os.unlink(temp_path)
+        import_module_mock.assert_called_with("test")
+        assert len(channels) == 1
+        assert isinstance(channels[0], TwilioWhatsappChannel)
+        assert channels[0].name == "python_channel"
+        assert channels[0].account_sid == "AC12345678901234567890123456789012"
 
     def test_from_python_multiple_channels(self):
         """Test loading multiple channels from Python file."""
-        python_content = """
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, WebchatChannel
 
-whatsapp_channel = TwilioWhatsappChannel(
-    channel="twilio_whatsapp",
-    name="whatsapp_channel",
-    account_sid="AC12345678901234567890123456789012",
-    twilio_authentication_token="token1"
-)
+        whatsapp_channel = TwilioWhatsappChannel(
+            channel="twilio_whatsapp",
+            name="whatsapp_channel",
+            account_sid="AC12345678901234567890123456789012",
+            twilio_authentication_token="token1"
+        )
 
-webchat_channel = WebchatChannel(
-    channel="webchat",
-    name="webchat_channel"
-)
+        webchat_channel = WebchatChannel(
+            channel="webchat",
+            name="webchat_channel"
+        )
 
-another_whatsapp = TwilioWhatsappChannel(
-    channel="twilio_whatsapp",
-    name="another_channel",
-    account_sid="AC98765432109876543210987654321098",
-    twilio_authentication_token="token2"
-)
-"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(python_content)
-            temp_path = f.name
+        another_whatsapp = TwilioWhatsappChannel(
+            channel="twilio_whatsapp",
+            name="another_channel",
+            account_sid="AC98765432109876543210987654321098",
+            twilio_authentication_token="token2"
+        )
 
-        try:
-            channels = ChannelLoader.from_python(temp_path)
+        with patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.inspect.getmembers") as getmembers_mock, \
+            patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.importlib.import_module") as import_module_mock:
 
-            assert len(channels) == 3
+            getmembers_mock.return_value = [
+                ("whatsapp_channel", whatsapp_channel),
+                ("webchat_channel", webchat_channel),
+                ("another_whatsapp", another_whatsapp),
+            ]
 
-            # Check that we got different channel types
-            channel_names = [ch.name for ch in channels]
-            assert "whatsapp_channel" in channel_names
-            assert "webchat_channel" in channel_names
-            assert "another_channel" in channel_names
-        finally:
-            os.unlink(temp_path)
+            channels = ChannelLoader.from_python("test.py")
+
+        import_module_mock.assert_called_with("test")
+        assert len(channels) == 3
+
+        # Check that we got different channel types
+        channel_names = [ch.name for ch in channels]
+        assert "whatsapp_channel" in channel_names
+        assert "webchat_channel" in channel_names
+        assert "another_channel" in channel_names
 
     def test_from_python_no_channels(self):
         """Test loading from Python file with no channel instances."""
-        python_content = """
-some_variable = "value"
-another_variable = 123
-"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(python_content)
-            temp_path = f.name
+        with patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.inspect.getmembers") as getmembers_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.importlib.import_module") as import_module_mock:
 
-        try:
-            channels = ChannelLoader.from_python(temp_path)
-            assert len(channels) == 0
-        finally:
-            os.unlink(temp_path)
+            getmembers_mock.return_value = [
+                ("some_var", "not a channel")  # Should be filtered out
+            ]
+
+            channels = ChannelLoader.from_python("test.py")
+
+        import_module_mock.assert_called_with("test")
+        getmembers_mock.assert_called_once()
+        assert len(channels) == 0
 
     def test_from_python_mocked(self):
         """Test from_python with mocked inspect.getmembers and importlib."""
@@ -421,30 +418,28 @@ another_variable = 123
 
     def test_slack_from_python_file(self):
         """Test loading Slack channel from Python file."""
-        python_content = """
-from ibm_watsonx_orchestrate.agent_builder.channels import SlackChannel
+        slack_channel = SlackChannel(
+            channel="byo_slack",
+            name="test_slack",
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            signing_secret="test_signing_secret",
+            teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}]
+        )
 
-slack_channel = SlackChannel(
-    channel="byo_slack",
-    name="test_slack",
-    client_id="test_client_id",
-    client_secret="test_client_secret",
-    signing_secret="test_signing_secret",
-    teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}]
-)
-"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(python_content)
-            temp_path = f.name
+        with patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.inspect.getmembers") as getmembers_mock, \
+            patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.importlib.import_module") as import_module_mock:
 
-        try:
-            channels = ChannelLoader.from_python(temp_path)
+            getmembers_mock.return_value = [
+                ("slack_channel", slack_channel)
+            ]
 
-            assert len(channels) == 1
-            assert isinstance(channels[0], SlackChannel)
-            assert channels[0].name == "test_slack"
-            assert channels[0].client_id == "test_client_id"
-            assert channels[0].client_secret == "test_client_secret"
-            assert channels[0].signing_secret == "test_signing_secret"
-        finally:
-            os.unlink(temp_path)
+            channels = ChannelLoader.from_python("test.py")
+
+        import_module_mock.assert_called_with("test")
+        assert len(channels) == 1
+        assert isinstance(channels[0], SlackChannel)
+        assert channels[0].name == "test_slack"
+        assert channels[0].client_id == "test_client_id"
+        assert channels[0].client_secret == "test_client_secret"
+        assert channels[0].signing_secret == "test_signing_secret"
