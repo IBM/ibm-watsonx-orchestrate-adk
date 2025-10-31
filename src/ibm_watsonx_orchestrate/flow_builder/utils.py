@@ -2,7 +2,8 @@ import importlib
 import inspect
 import re
 import logging
-from typing import Any
+from copy import deepcopy
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -13,6 +14,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool, create_openapi_json_tools_from_content
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, OpenApiToolBinding, ToolBinding, ToolRequestBody, ToolResponseBody, ToolSpec
+from typing import Dict, List, Any, Optional
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
@@ -327,6 +329,271 @@ def create_delete_schedule_tool(name: str, TEMPUS_ENDPOINT: str="http://wxo-temp
 
     return OpenAPITool(spec=spec)
 
+# Schema templates for UserForm fields
+FORM_SCHEMA_TEMPLATES = {
+    # Text input templates
+    "text": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"default": {"type": "string"}},
+            required=[]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "string"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "TextWidget",
+            "ui:title": ""  # Will be filled in
+        }
+    },
+    
+    # Boolean input templates
+    "boolean": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"default": {"type": "boolean"}},
+            required=[]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "boolean"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "CheckboxWidget",
+            "ui:title": ""  # Will be filled in
+        }
+    },
+    
+    # Number input templates
+    "number": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={},
+            required=[]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "number"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "NumberWidget",
+            "ui:title": ""  # Will be filled in
+        }
+    },
+    
+    # Date input templates
+    "date": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={
+                "default": {"type": "string", "format": "date"},
+                "maximum": {"type": "string", "format": "date"},
+                "minimum": {"type": "string", "format": "date"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "string", "format": "date"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "DateWidget",
+            "ui:title": "",  # Will be filled in
+            "format": "YYYY-MM-DD"
+        }
+    },
+    
+    # Date range templates
+    "date_range": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={
+                "value": {
+                    "type": "object",
+                    "properties": {
+                        "maximum": {"type": "string", "format": "date"},
+                        "minimum": {"type": "string", "format": "date"}
+                    }
+                }
+            },
+            required=["value"]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={
+                "value": {
+                    "type": "object",
+                    "properties": {
+                        "end": {"type": "string", "format": "date"},
+                        "start": {"type": "string", "format": "date"}
+                    }
+                }
+            },
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "DateWidget",
+            "format": "YYYY-MM-DD",
+            "ui-options": {"range": "true"},
+            "ui-order": ["start", "end"]
+        }
+    },
+    
+    # Choice input templates
+    "choice": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={
+                "choices": {"type": "array", "items": {}},
+                "display_items": {"type": "array", "items": {}},
+                "display_text": {"type": "string"}
+            },
+            required=["choices"]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "object", "properties": {}}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "ComboboxWidget",
+            "ui:placeholder": ""
+        }
+    },
+    
+    # File upload templates
+    "file": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={},
+            required=[]
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "string", "format": "wxo-file"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "FileUpload",
+            "ui:upload_button_label": ""
+        }
+    },
+    
+    # Message output templates
+    "message": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "string"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "DataWidget",
+            "ui-options": {"label": "false"}
+        }
+    },
+    
+    # List output templates
+    "list": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"choices": {"type": "array", "items": {}}},
+            required=["choices"]
+        ),
+        "ui": {
+            "ui:widget": "BulletList"
+        }
+    },
+    
+    # Field output templates
+    "field": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"value": {"anyOf": [
+                {"type": "string"}, {"type": "number"}, {"type": "integer"}, {"type": "boolean"}]}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "DataWidget",
+            "ui-options": {"label": "true"}
+        }
+    }
+}
+
+def get_form_schema_template(template_type: str) -> Dict[str, Any]:
+    """
+    Get a schema template by type
+    
+    Args:
+        template_type: The type of template to get ('text', 'boolean', etc.)
+        
+    Returns:
+        dict: A dictionary containing the template schemas
+        
+    Raises:
+        ValueError: If the template type is not found
+    """
+    if template_type not in FORM_SCHEMA_TEMPLATES:
+        raise ValueError(f"Unknown template type: {template_type}")
+        
+    return FORM_SCHEMA_TEMPLATES[template_type]
+
+def clone_form_schema(template_type: str, customize: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Clone a schema template and optionally customize it
+    
+    Args:
+        template_type: The type of template to clone ('text', 'boolean', etc.)
+        customize: Optional dict of customizations to apply
+        
+    Returns:
+        dict: A dictionary containing cloned input_schema, output_schema, and ui_schema
+        
+    Raises:
+        ValueError: If the template type is not found
+    """
+    template = get_form_schema_template(template_type)
+    
+    # Deep copy the schemas to avoid modifying templates
+    result = {
+        "input_schema": JsonSchemaObject.model_validate(template["input"].model_dump()),
+        "output_schema": JsonSchemaObject.model_validate(template["output"].model_dump()) if "output" in template else None,
+        "ui_schema": deepcopy(template["ui"])  # Simple dict copy is sufficient for UI schema
+    }
+    
+    # Apply customizations if provided
+    if customize:
+        if "input" in customize and result["input_schema"]:
+            for key, value in customize["input"].items():
+                if key == "properties":
+                    # Merge properties
+                    if not result["input_schema"].properties:
+                        result["input_schema"].properties = {}
+                    result["input_schema"].properties.update(value)
+                else:
+                    # Set attribute directly
+                    setattr(result["input_schema"], key, value)
+                    
+        if "output" in customize and result["output_schema"]:
+            for key, value in customize["output"].items():
+                if key == "properties":
+                    # Merge properties
+                    if not result["output_schema"].properties:
+                        result["output_schema"].properties = {}
+                    result["output_schema"].properties.update(value)
+                else:
+                    # Set attribute directly
+                    setattr(result["output_schema"], key, value)
+                    
+        if "ui" in customize and result["ui_schema"]:
+            result["ui_schema"].update(customize["ui"])
+            
+    return result
+
 def get_all_tools_in_flow(flow: dict) -> list[str]:
     '''Get all tool names used in the flow'''
     tools: list[Any] = []
@@ -349,4 +616,3 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
                 if tool not in tools:
                     tools.append(tool)
     return tools
-
