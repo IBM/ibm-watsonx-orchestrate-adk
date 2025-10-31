@@ -96,12 +96,6 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
-    # Catalog Only
-    publisher: Optional[Annotated[str,Field(description="A field exclusive to IBM catalog published agents")]] = None
-    language_support: Optional[Annotated[str,Field(description="A field exclusive to IBM catalog published agents")]] = None
-    icon: Optional[Annotated[str,Field(description="A field exclusive to IBM catalog published agents")]] = None
-    category: Optional[Annotated[str,Field(description="A field exclusive to IBM catalog published agents")]] = None
-    supported_apps: Optional[Annotated[str,Field(description="A field exclusive to IBM catalog published agents")]] = None
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
@@ -116,14 +110,6 @@ class BaseAgentSpec(BaseModel):
     def dumps_spec(self) -> str:
         dumped = self.model_dump(mode='json', exclude_none=True)
         return json.dumps(dumped, indent=2)
-
-
-def drop_catalog_fields(values: dict):
-    for field in CATALOG_ONLY_FIELDS:
-        if values.get(field):
-            logger.warning(f"Field '{field}' is only used when publishing to the catalog, dropping this field for import")
-            del values[field]
-    return values
 
 
 # ===============================
