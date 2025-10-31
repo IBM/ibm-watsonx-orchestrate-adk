@@ -13,6 +13,7 @@ from typing import (
 from typing_extensions import Doc
 
 import docstring_parser
+from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
 from pydantic import computed_field, field_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler, RootModel
 from pydantic_core import core_schema
@@ -22,11 +23,12 @@ from langchain_core.tools.base import create_schema_from_function
 from langchain_core.utils.json_schema import dereference_refs
 
 from ibm_watsonx_orchestrate.agent_builder.tools import PythonTool
+from ibm_watsonx_orchestrate.flow_builder.data_map import Assignment, DataMap, add_assignment, ensure_datamap
 from ibm_watsonx_orchestrate.flow_builder.flows.constants import ANY_USER
 from ibm_watsonx_orchestrate.agent_builder.tools.types import (
     ToolSpec, ToolRequestBody, ToolResponseBody, JsonSchemaObject
 )
-from .utils import get_valid_name
+
 
 
 logger = logging.getLogger(__name__)
@@ -492,6 +494,9 @@ class UserFieldKind(str, Enum):
     Object: str = "object"
     Choice: str = "any"
     List: str = "array"  # used to display list output
+    DateRange: str = "date-range",
+    Field: str = "field",
+    MultiChoice: str = "array"
 
     def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
         if inspect.isclass(python_type):
@@ -564,6 +569,9 @@ class UserField(BaseModel):
     is_list: bool = False
     custom: dict[str, Any] | None = None
     widget: str | None = None
+    input_schema: JsonSchemaObject | None = None
+    output_schema:  JsonSchemaObject | None = None
+    uiSchema: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -591,7 +599,7 @@ class UserField(BaseModel):
         if self.min:
             model_spec["min"] = self.min
         if self.max:
-            model_spec["min"] = self.max
+            model_spec["max"] = self.max
         if self.is_list:
             model_spec["is_list"] = self.is_list
         if self.option:
@@ -600,12 +608,718 @@ class UserField(BaseModel):
             model_spec["custom"] = self.custom
         if self.widget:
             model_spec["widget"] = self.widget
+        if self.input_schema:
+           model_spec["input_schema"] = _to_json_from_json_schema(self.input_schema)
+        if self.output_schema:
+           model_spec["output_schema"] = _to_json_from_json_schema(self.output_schema) 
+        if self.uiSchema:
+            model_spec["uiSchema"] = self.uiSchema     
         return model_spec
+
+class UserFormButton(BaseModel):
+    name: str
+    kind: Literal["submit", "cancel"]
+    display_name: str | None = None
+    visible: bool
+    edge_id: str | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.display_name:
+            model_spec["display_name"] = self.display_name
+        if self.visible:
+            model_spec["visible"] = self.visible
+        if self.edge_id: 
+            model_spec["edge_id"] = self.edge_id
+        return model_spec    
+
+class UserForm(BaseModel):
+
+    name: str
+    kind: str = "form"
+    display_name: str | None = None
+    instructions: str | None = None
+    fields: list[UserField] = []  
+    jsonSchema: JsonSchemaObject | None = None
+    buttons: list[UserFormButton]
+
+    @field_validator("buttons", mode="before")
+    def default_buttons(cls, v):
+        if not v:
+            return [
+                UserFormButton(name="submit", kind="submit", display_name="Submit", visible=True),
+                UserFormButton(name="cancel", kind="cancel", display_name="Cancel", visible=True),
+            ]
+        return v
+        
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.kind = "form"
+        
+        # Initialize jsonSchema if not provided
+        if not hasattr(self, 'jsonSchema') or self.jsonSchema is None:
+            self.jsonSchema = JsonSchemaObject(
+                type='object', 
+                properties={}, 
+                required=[], 
+                description=self.instructions if hasattr(self, 'instructions') else None
+            )
+        
+        if not hasattr(self, 'fields') or self.fields is None:
+            self.fields = []
+
+        if not hasattr(self, 'buttons') or self.buttons is None:
+            self.buttons = [
+                UserFormButton(name="submit", kind="submit", display_name="Submit", visible=True),
+                UserFormButton(name="cancel", kind="cancel", display_name="Cancel", visible=True),
+            ]
+
+    def to_json(self) -> dict[str, Any]:
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.display_name:
+            model_spec["display_name"] = self.display_name
+        if self.fields and len(self.fields) > 0:
+            model_spec["fields"] = [field.to_json() for field in self.fields]
+        if self.jsonSchema:
+             model_spec["jsonSchema"] = _to_json_from_json_schema(self.jsonSchema)
+        if self.buttons and len(self.buttons) > 0:
+            model_spec["buttons"] = [button.to_json() for button in self.buttons]     
+
+        return model_spec
+
+    def _add_or_replace_field(self, name: str, userfield):
+        """
+        Replace an existing field (by name) in self.fields or append a new one.
+        """
+        for i, field in enumerate(self.fields):
+            if field.name == name:
+                self.fields[i] = userfield
+                return
+        # if no match found, append it
+        self.fields.append(userfield)
+
+    def text_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            single_line: bool = True,
+            placeholder_text: str| None = None,
+            help_text: str | None = None,
+            input_map: Any| None=None,
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("text", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "TextWidget" if single_line else "TextareaWidget"
+            }
+        })
+        
+        # Add additional UI properties if provided
+        if help_text is not None:
+            schemas["ui_schema"]["ui:help"] = help_text
+        if placeholder_text is not None:
+            schemas["ui_schema"]["ui:placeholder"] = placeholder_text
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Text,
+            display_name=label,
+            direction="input",
+            input_map=input_map,
+            output_schema=schemas["output_schema"],
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+    def boolean_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            single_checkbox: bool = True,
+            input_map: Any| None=None,
+            true_label: str = "True",
+            false_label: str = "False"
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("boolean", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "CheckboxWidget" if single_checkbox else "RadioWidget"
+            }
+        })
+        
+        # Set up default input_map if not provided
+        if input_map is None:
+            input_map = DataMap(maps=[
+                Assignment(
+                    target_variable=f"self.input.default",
+                    value_expression="False",
+                    metadata={"assignmentType": "literal"}
+                )
+            ])
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Boolean,
+            display_name=label,
+            direction="input",
+            input_map=input_map,
+            output_schema=schemas["output_schema"],
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {
+            "type": "boolean",
+                "oneOf": [
+                    {"const": True, "title": true_label},
+                    {"const": False, "title": false_label}
+            ],
+            "title": label
+        }
+    def date_range_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            start_date_label:str | None = None,
+            end_date_label:str | None = None,
+            default_start: Any| None = None,
+            default_end: Any| None = None
+    ) -> UserField:
+        ensure_datamap(default_start, "default_start")
+        ensure_datamap(default_end, "default_end")
+        
+        # Use the template system from utils
+        schemas = clone_form_schema("date_range", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "DateWidget",
+                "format": "YYYY-MM-DD",
+                "ui-options": {"range": "true"},
+                "ui-order": ["start", "end"]
+            }
+        })
+        
+        # Add additional UI properties if provided
+        if start_date_label:
+            schemas["ui_schema"]["ui:start_label"] = start_date_label
+        if end_date_label:
+            schemas["ui_schema"]["ui:end_label"] = end_date_label
+        
+        # Set up input_map
+        if default_start:
+            input_map = default_start
+            add_assignment(input_map, default_end)
+        else:
+            input_map = default_end
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.DateRange,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {"type": "string", "format": "date"},
+            "title": label
+        }
+        
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+         
+    def date_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            initial_value: Any| None=None,
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("date", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "DateWidget",
+                "format": "YYYY-MM-DD"
+            }
+        })
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Date,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=initial_value,
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {
+            "type": "string",
+            "title": label,
+            "format": "date"
+        }
+        
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+    def choice_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            source: Any| None=None,
+            show_as_dropdown: bool = True,
+            dropdown_item_column: str | None = None,
+            placeholder_text: str | None = None,
+            initial_value: Any | None = None,
+            columns: dict[str, str]| None = None,
+            isMultiSelect: bool = False,
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("choice", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "ComboboxWidget" if (show_as_dropdown or columns is None) else
+                             "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else
+                             "Table",
+                "ui:placeholder": placeholder_text
+            }
+        })
+        
+        # Validate inputs
+        if source is None:
+            raise TypeError("source must be provided")
+        ensure_datamap(source, "source")
+        ensure_datamap(initial_value, "initial value")
+        
+        # Configure source data mapping
+        if show_as_dropdown and dropdown_item_column is not None:
+            # Build a list of strings like "item.name", "item.address", etc.
+            source.add(
+                Assignment(
+                    target_variable="self.input.display_text",
+                    value_expression=f"item.{dropdown_item_column}"
+                )
+            )
+        
+        if not show_as_dropdown and columns is not None:
+            # Build a list of strings like "item.name", "item.address", etc.
+            item_fields = [f'item.{key}' for key in columns.keys()]
+            # Convert that list into a JSON-style string list
+            value_expression = "[" + ", ".join(f'"{field}"' for field in item_fields) + "]"
+            # Create the assignment and add it to source
+            source.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression=value_expression
+                )
+            )
+        else:
+            # If there are no columns, create the empty list
+            source.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression="[]"
+                )
+            )
+        
+        # Add initial value if provided
+        add_assignment(source, initial_value)
+
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.MultiChoice if isMultiSelect else UserFieldKind.Choice,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=source,
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        if isMultiSelect and columns is not None:
+            properties = {}
+            for key, val in columns.items():
+                properties[key] = {
+                    "type": "string",
+                    "title": val if val else key  # use value if present, else fallback to key
+                }
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "object", "properties": properties},
+                "title": label
+            }
+        elif isMultiSelect:
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "any"},
+                "title": label
+            }
+        else:
+            self.jsonSchema.properties[name] = {"title": label}
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+    def number_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            is_integer: bool = True,
+            help_text: str | None = None,
+            initial_value: Any| None=None,
+            minimum_value: Any | None=None,
+            maximum_value: Any | None=None
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("number", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "NumberWidget"
+            }
+        })
+        
+        # Add help text if provided
+        if help_text is not None:
+            schemas["ui_schema"]["ui:help"] = help_text
+        
+        # Validate inputs
+        ensure_datamap(initial_value, "initial value")
+        ensure_datamap(minimum_value, "minimum_value")
+        ensure_datamap(minimum_value, "maximum_value")
+        
+        # Customize input schema based on parameters
+        num_type = "integer" if is_integer else "number"
+        
+        # Build the input_map by computing all assignments from the initial_value, min and max value
+        if initial_value is not None:
+            add_assignment(initial_value, minimum_value)
+            add_assignment(initial_value, maximum_value)
+        elif minimum_value is not None:
+            initial_value = minimum_value
+            add_assignment(initial_value, maximum_value)
+        elif maximum_value is not None:
+            initial_value = maximum_value
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Number,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=initial_value,
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {"type": num_type, "title": label}
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+    def file_upload_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            instructions: str | None = None,
+            button_label : str | None = None,
+            allow_multiple_files: bool = False,
+            file_max_size: int=10,
+            supported_file_types : List[str] | None = None,
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("file", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "FileUpload"
+            }
+        })
+        
+        # Add button label if provided
+        if button_label:
+            schemas["ui_schema"]["ui:upload_button_label"] = button_label
+        
+        # Customize output schema based on whether multiple files are allowed
+        if allow_multiple_files:
+            output_schema = JsonSchemaObject(
+                type='object',
+                properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-file"}}},
+                required=["value"]
+            )
+        else:
+            output_schema = schemas["output_schema"]
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.File,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=output_schema,
+            uiSchema=schemas["ui_schema"],
+            input_map=None
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {
+            "description": instructions,
+            "file_max_size": file_max_size,
+            "multi": allow_multiple_files,
+            "type": "array",
+            "title": label,
+            "file_types": supported_file_types
+        }
+        
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+    def message_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            message: str | None = None,
+    ) -> UserField:
+        # Use the template system from utils
+        schemas = clone_form_schema("message", {
+            "ui": {
+                "ui:title": label if label is not None else name
+            }
+        })
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Text,
+            display_name=label,
+            direction="output",
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+            text=message,
+            input_map=None
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+    def field_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            source: Any | None = None,
+    ) -> UserField:
+        ensure_datamap(source, "source")
+        
+        # Use the template system from utils
+        schemas = clone_form_schema("field", {
+            "ui": {
+                "ui:title": label if label is not None else name
+            }
+        })
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.Field,
+            display_name=label,
+            direction="output",
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+            input_map=source
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+    def list_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            source: Any | None = None,
+            # A dictionary or columns names and their corresponding labels
+            columns: dict[str, str]| None = None
+    ) -> UserField:
+        ensure_datamap(source, "source")
+        isBulletList = columns is None
+        
+        # Use the template system from utils
+        schemas = clone_form_schema("list", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "BulletList" if isBulletList else "Table"
+            }
+        })
+        
+        # Configure input schema based on list type
+        if not isBulletList:
+            schemas["input_schema"].properties["display_items"] = {"type": "array", "items": {}}
+        
+        # Configure source data mapping
+        if columns is not None:
+            # Build a list of strings like "item.name", "item.address", etc.
+            item_fields = [f'item.{key}' for key in columns.keys()]
+            # Convert into a JSON-style string list
+            value_expression = "[" + ", ".join(f'"{field}"' for field in item_fields) + "]"
+            # Create the assignment and add it to source
+            source.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression=value_expression,
+                    metadata={"assignmentType": "variable"}
+                )
+            )
+        else:
+            # If there are no columns create the empty list
+            source.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression="[]"
+                )
+            )
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.List,
+            display_name=label,
+            direction="output",
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+            input_map=source
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema based on list type
+        if isBulletList:
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "string"},
+                "title": label
+            }
+        else:
+            properties = {}
+            if columns is not None:
+                for key, val in columns.items():
+                    properties[key] = {
+                        "type": "string",
+                        "title": val if val else key  # use value if present, else fallback to key
+                    }
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "object", "properties": properties},
+                "title": label
+            }
+
+    def file_download_field(
+            self,
+            name: str,
+            label: str | None = None,
+            source_file: Any | None = None,
+    ) -> UserField:
+        ensure_datamap(source_file, "source_file")
+        
+        # Create a custom schema since there's no direct template for file download
+        # We'll use the file template but customize it for download
+        schemas = clone_form_schema("file", {
+            "input": {
+                "properties": {"value": {"type": "string", "format": "wxo-file"}},
+                "required": ["value"]
+            },
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "FileDownloadWidget"
+            }
+        })
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.File,
+            display_name=label,
+            direction="output",
+            input_schema=schemas["input_schema"],
+            uiSchema=schemas["ui_schema"],
+            input_map=source_file
+        )
+        
+        # Add or replace the field
+        self._add_or_replace_field(name, userfield)
+        
+        # Update JSON schema
+        self.jsonSchema.properties[name] = {"type": "string", "title": label}
 
 class UserNodeSpec(NodeSpec):
     owners: Sequence[str] | None = None
     text: str | None = None
     fields: list[UserField] | None = None
+    form: UserForm | None = None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -625,6 +1339,10 @@ class UserNodeSpec(NodeSpec):
             model_spec["text"] = self.text
         if self.fields and len(self.fields) > 0:
             model_spec["fields"] = [field.to_json() for field in self.fields]
+        else : 
+             model_spec["fields"] = []
+        if self.form:
+            model_spec["form"] = self.form.to_json()
 
         return model_spec
 
@@ -706,7 +1424,19 @@ class UserNodeSpec(NodeSpec):
         else:
             return None
 
+    def get_or_create_form(self, name: str, display_name: str | None = None, instructions: str | None = None) -> UserForm:
 
+        if hasattr(self, "form") and self.form is not None:
+            self.form.name = name
+            self.form.display_name = display_name
+            self.form.jsonSchema.description = instructions
+        else:
+            self.form = UserForm(name=name, 
+                              kind="form", 
+                              display_name=display_name, 
+                              instructions=instructions,
+                              buttons=None) 
+        return self.form
 
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
@@ -1061,22 +1791,22 @@ class FlowEvent:
     error: dict | None = None # error message if any
 
 
-class Assignment(BaseModel):
-    '''
-    This class represents an assignment in the system.  Specify an expression that 
-    can be used to retrieve or set a value in the FlowContext
+# class Assignment(BaseModel):
+#     '''
+#     This class represents an assignment in the system.  Specify an expression that 
+#     can be used to retrieve or set a value in the FlowContext
 
-    Attributes:
-        target (str): The target of the assignment.  Always assume the context is the current Node. e.g. "name"
-        source (str): The source code of the assignment.  This can be a simple variable name or a more python expression.  
-            e.g. "node.input.name" or "=f'{node.output.name}_{node.output.id}'"
+#     Attributes:
+#         target (str): The target of the assignment.  Always assume the context is the current Node. e.g. "name"
+#         source (str): The source code of the assignment.  This can be a simple variable name or a more python expression.  
+#             e.g. "node.input.name" or "=f'{node.output.name}_{node.output.id}'"
 
-    '''
-    target_variable: str
-    value_expression: str | None = None
-    has_no_value: bool = False
-    default_value: Any | None = None
-    metadata: dict = Field(default_factory=dict[str, Any])
+#     '''
+#     target_variable: str
+#     value_expression: str | None = None
+#     has_no_value: bool = False
+#     default_value: Any | None = None
+#     metadata: dict = Field(default_factory=dict[str, Any])
 
 class Style(BaseModel):
     style_id: str = Field(default="", description="Style Identifier which will be used for reference in other objects")
