@@ -55,18 +55,22 @@ def to_column_name(col: str):
 def get_file_name(file: str | FileUpload):
     path = file.path if isinstance(file, FileUpload) else file
     # This name prettifying currently screws up file type detection on ingestion
-    # return to_column_name(path.split("/")[-1].split(".")[0]) 
-    return path.split("/")[-1]
+    # return to_column_name(path.split("/")[-1].split(".")[0])
+    path = Path(path)
+    return path.name
 
 def get_relative_file_path(path, dir):
-    if path.startswith("/"):
-        return path
-    elif path.startswith("./"):
-        return f"{dir}{path.removeprefix('.')}"
-    else:
-        return f"{dir}/{path}"
+    file_path = Path(path)
     
-def build_file_object(file_dir: str, file: str | FileUpload):
+    if file_path.is_absolute():
+        return file_path
+    
+    return dir / file_path
+
+    
+def build_file_object(file_dir: str | Path, file: str | FileUpload):
+    if isinstance(file_dir, str):
+        file_dir = Path(file_dir)
     if isinstance(file, FileUpload):
         return ('files', (get_file_name(file.path), safe_open(get_relative_file_path(file.path, file_dir), 'rb')))
     return ('files', (get_file_name(file), safe_open(get_relative_file_path(file, file_dir), 'rb')))
@@ -111,6 +115,8 @@ class KnowledgeBaseController:
         client = self.get_client()
 
         knowledge_bases = parse_file(file=file)
+
+        file_path: Path = Path(file)
         
         connections_map = None
         
@@ -130,7 +136,7 @@ class KnowledgeBaseController:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
             try:
-                file_dir = "/".join(file.split("/")[:-1])
+                file_dir = file_path.parent
 
                 existing = list(filter(lambda ex: ex.get('name') == kb.name, existing_knowledge_bases))
                 if len(existing) > 0:
@@ -191,8 +197,10 @@ class KnowledgeBaseController:
 
 
     def update_knowledge_base(
-        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str
-    ) -> None:        
+        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str | Path
+    ) -> None:
+        if isinstance(file_dir, str):
+            file_dir = Path(file_dir)
         if kb.documents:
             status = self.get_client().status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
