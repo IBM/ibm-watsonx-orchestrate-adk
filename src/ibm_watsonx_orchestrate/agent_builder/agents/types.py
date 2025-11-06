@@ -97,6 +97,14 @@ class BaseAgentSpec(BaseModel):
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
 
+    # Catalog Only
+    publisher: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
+    language_support: Annotated[Optional[List],Field(description="A field exclusive to IBM catalog published agents")] = None
+    icon: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
+    category: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
+    supported_apps: Annotated[Optional[List],Field(description="A field exclusive to IBM catalog published agents")] = None
+
+
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
         with safe_open(file, 'w') as f:
