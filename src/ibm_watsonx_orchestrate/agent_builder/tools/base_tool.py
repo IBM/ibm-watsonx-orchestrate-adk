@@ -16,8 +16,8 @@ class BaseTool:
     def __call__(self, **kwargs):
         pass
 
-    def dump_spec(self, file: str) -> None:
-        dumped = self.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
+    def dump_spec(self, file: str, exclude_none=True) -> None:
+        dumped = self.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=exclude_none, by_alias=True)
         with safe_open(file, 'w') as f:
             if file.endswith('.yaml') or file.endswith('.yml'):
                 yaml.dump(dumped, f, allow_unicode=True)
@@ -26,8 +26,8 @@ class BaseTool:
             else:
                 raise BadRequest('file must end in .json, .yaml, or .yml')
 
-    def dumps_spec(self) -> str:
-        dumped = self.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
+    def dumps_spec(self, exclude_none=True) -> str:
+        dumped = self.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=exclude_none, by_alias=True)
         return json.dumps(dumped, indent=2)
 
     def to_langchain_tool(self):
