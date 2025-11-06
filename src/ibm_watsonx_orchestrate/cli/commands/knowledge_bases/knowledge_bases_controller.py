@@ -5,6 +5,7 @@ import requests
 import logging
 import importlib
 import inspect
+import io
 import yaml
 from pathlib import Path
 from typing import List, Any, Optional
@@ -20,6 +21,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +55,22 @@ def to_column_name(col: str):
 def get_file_name(file: str | FileUpload):
     path = file.path if isinstance(file, FileUpload) else file
     # This name prettifying currently screws up file type detection on ingestion
-    # return to_column_name(path.split("/")[-1].split(".")[0]) 
-    return path.split("/")[-1]
+    # return to_column_name(path.split("/")[-1].split(".")[0])
+    path = Path(path)
+    return path.name
 
 def get_relative_file_path(path, dir):
-    if path.startswith("/"):
-        return path
-    elif path.startswith("./"):
-        return f"{dir}{path.removeprefix('.')}"
-    else:
-        return f"{dir}/{path}"
+    file_path = Path(path)
     
-def build_file_object(file_dir: str, file: str | FileUpload):
+    if file_path.is_absolute():
+        return file_path
+    
+    return dir / file_path
+
+    
+def build_file_object(file_dir: str | Path, file: str | FileUpload):
+    if isinstance(file_dir, str):
+        file_dir = Path(file_dir)
     if isinstance(file, FileUpload):
         return ('files', (get_file_name(file.path), safe_open(get_relative_file_path(file.path, file_dir), 'rb')))
     return ('files', (get_file_name(file), safe_open(get_relative_file_path(file, file_dir), 'rb')))
@@ -109,6 +115,8 @@ class KnowledgeBaseController:
         client = self.get_client()
 
         knowledge_bases = parse_file(file=file)
+
+        file_path: Path = Path(file)
         
         connections_map = None
         
@@ -128,7 +136,7 @@ class KnowledgeBaseController:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
             try:
-                file_dir = "/".join(file.split("/")[:-1])
+                file_dir = file_path.parent
 
                 existing = list(filter(lambda ex: ex.get('name') == kb.name, existing_knowledge_bases))
                 if len(existing) > 0:
@@ -189,8 +197,10 @@ class KnowledgeBaseController:
 
 
     def update_knowledge_base(
-        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str
-    ) -> None:        
+        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str | Path
+    ) -> None:
+        if isinstance(file_dir, str):
+            file_dir = Path(file_dir)
         if kb.documents:
             status = self.get_client().status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
@@ -353,11 +363,13 @@ class KnowledgeBaseController:
             output_path: str,
             id: Optional[str] = None,
             name: Optional[str] = None, 
-            zip_file_out: Optional[ZipFile] = None) -> None:
+            zip_file_out: Optional[ZipFile] = None,
+            connections_output_path: str = "/connections") -> None:
+        
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
-        if output_file_extension not in  {".yaml", ".yml"} :
-            logger.error(f"Output file must end with the extension '.yaml'/'.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
+        if not zip_file_out and output_file_extension not in  {".yaml", ".yml", ".zip"} :
+            logger.error(f"Output file must end with the extension '.yaml', '.yml' or '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
         knowledge_base_id = self.get_id(id, name)
@@ -377,27 +389,57 @@ class KnowledgeBaseController:
         knowledge_base.kind = KnowledgeBaseKind.KNOWLEDGE_BASE
         
         connection_id = get_kb_connection_id(knowledge_base)
+        app_id = None
         if connection_id:
             connections_map = build_connections_map("connection_id")
             conn = connections_map.get(connection_id)
             if conn:
+                app_id = conn.app_id
                 index_config = get_index_config(knowledge_base)
-                index_config.app_id = conn.app_id
+                index_config.app_id = app_id
                 index_config.connection_id = None
             else:
                 logger.warning(f"Connection '{connection_id}' not found, unable to resolve app_id for Knowledge base {logEnding}")
 
         knowledge_base_spec = knowledge_base.model_dump(mode="json", exclude_none=True, exclude_unset=True)
-        if zip_file_out:
-            knowledge_base_spec_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
-            knowledge_base_spec_yaml_bytes = knowledge_base_spec_yaml.encode("utf-8")
-            knowledge_base_spec_yaml_file = BytesIO(knowledge_base_spec_yaml_bytes)
-            zip_file_out.writestr(
-                output_path,
-                knowledge_base_spec_yaml_file.getvalue()
-            )
-        else:
-            with safe_open(output_path, 'w') as outfile:
-                yaml.dump(knowledge_base_spec, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
+        
+        output_path = Path(output_path)
+        match(output_file_extension):
+            case '.zip':
+                if output_path.exists():
+                    zip_file_out = ZipFile(output_path, "a")
+                else:
+                    zip_file_out = ZipFile(output_path, "w")
+                    
+                kb_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                kb_yaml_bytes = kb_yaml.encode("utf-8")
+                kb_yaml_file = io.BytesIO(kb_yaml_bytes)
+                zip_file_out.writestr(
+                    f"{output_path.stem}/{knowledge_base.name}.yaml",
+                    kb_yaml_file.getvalue()
+                )
+
+                if app_id:
+                    export_connection(output_file=f"{output_path.stem}/{connections_output_path}", app_id=app_id, zip_file_out=zip_file_out)
+
+                zip_file_out.close()
+            case '.yaml' | '.yml':
+                if app_id:
+                    logger.warning(f"Connection '{app_id}' found. Connections cannot be exported when output path is not '.zip'.")
+                with safe_open(output_path, 'w') as outfile:
+                    yaml.dump(knowledge_base_spec, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
+            case '':
+                if zip_file_out:
+                    knowledge_base_spec_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                    knowledge_base_spec_yaml_bytes = knowledge_base_spec_yaml.encode("utf-8")
+                    knowledge_base_spec_yaml_file = BytesIO(knowledge_base_spec_yaml_bytes)
+                    zip_file_out.writestr(
+                        f"{output_path}/{knowledge_base.name}.yaml",
+                        knowledge_base_spec_yaml_file.getvalue()
+                    )
+
+                    if app_id:
+                        export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
+
         
         logger.info(f"Successfully exported for knowledge base {logEnding} to '{output_path}'")

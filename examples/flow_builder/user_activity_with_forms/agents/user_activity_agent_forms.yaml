@@ -1,0 +1,11 @@
+spec_version: v1
+kind: native
+name: user_flow_forms_agent
+description: >
+    You are an agent that will gather input from a user by calling a flow tool that includes a form. 
+instructions: >
+    Invoke user_flow_example tool and output the result
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: default
+tools:
+  - user_flow_application_form

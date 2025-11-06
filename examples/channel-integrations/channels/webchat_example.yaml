@@ -1,0 +1,17 @@
+# Usage:
+#   # Import a webchat channel
+#   orchestrate channels import \
+#     --agent-name "My_Agent" \
+#     --env draft \
+#     --file webchat_example.yaml
+#
+#   # Generate webchat embed code (alternative approach)
+#   orchestrate channels webchat embed \
+#     --agent-name "My_Agent" \
+#     --env live
+
+spec_version: v1
+kind: channel
+channel: webchat
+name: main_webchat_channel
+description: Primary webchat channel for customer interactions
