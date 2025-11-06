@@ -3,7 +3,7 @@ import os
 from typing import List, Any, Dict, Literal, Optional, Union
 import logging
 
-from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, ValidationError, ValidationInfo, model_validator, ConfigDict, Field, AliasChoices
+from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, SerializerFunctionWrapHandler, ValidationError, ValidationInfo, field_serializer, model_serializer, model_validator, ConfigDict, Field, AliasChoices
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 import requests
@@ -22,8 +22,14 @@ class PythonToolKind(str, Enum):
     JOIN_TOOL = 'join_tool'
     TOOL = 'tool'
 
+class JsonSchemaTokens(str, Enum):
+    NONE = '__null__'
+
+
 class JsonSchemaObject(BaseModel):
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(
+        extra='allow'
+    )
 
     type: Optional[Union[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null'], List[Literal['object', 'string', 'number', 'integer', 'boolean', 'array', 'null']]]] = None
     title: str | None = None
@@ -51,6 +57,18 @@ class JsonSchemaObject(BaseModel):
         if isinstance(self.type, list):
             self.type = self.type[0]
         return self
+    
+
+    @model_serializer(mode='wrap')
+    def default_field_serializer(self, handler: SerializerFunctionWrapHandler):
+        # JsonSchemaTokens will automatically be converted to string
+        serialized = handler(self)
+
+        if serialized and serialized.get('default') == JsonSchemaTokens.NONE:
+            serialized['default'] = None
+
+        return serialized
+    
 
 
 class ToolRequestBody(BaseModel):

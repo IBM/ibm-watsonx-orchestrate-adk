@@ -705,7 +705,7 @@ class ToolsController:
         if verbose:
             tools_list = []
             for tool in tools:
-                tools_list.append(json.loads(tool.dumps_spec()))
+                tools_list.append(json.loads(tool.dumps_spec(exclude_none=False)))
 
             rich.print_json(json.dumps(tools_list, indent=4))
             return tools_list

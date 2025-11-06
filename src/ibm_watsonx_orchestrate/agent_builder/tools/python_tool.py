@@ -11,7 +11,7 @@ from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
-from .types import PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
+from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
@@ -210,8 +210,9 @@ def _fix_optional(schema):
             else:
             # not required with default -> no change
             # not required without default -> means default input is 'None'
-                v.default = v.default if v.default else 'null'
-
+            # if None is returned here then the creation of the jsonchema will remove the key
+            # so instead we use an Identifier, which is replaced later
+                v.default = v.default if v.default else JsonSchemaTokens.NONE
 
     schema.required = list(filter(lambda x: x not in not_required, schema.required if schema.required is not None else []))
     for k, v in replacements.items():
