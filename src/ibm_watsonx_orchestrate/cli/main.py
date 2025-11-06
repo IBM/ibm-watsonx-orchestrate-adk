@@ -41,7 +41,7 @@ app.add_typer(voice_configurations_app, name="voice-configs", help="Configure vo
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires entitlement]')
 app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Developer Edition server [requires entitlement]')
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
-app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat)")
+app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)")
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
 app.add_typer(copilot_app, name="copilot", help='Access AI powered assistance to help refine your agents')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')

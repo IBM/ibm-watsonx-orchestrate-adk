@@ -7,6 +7,7 @@ import pytest
 import uuid
 from unittest import mock
 from pydantic import BaseModel
+from pathlib import Path
 
 knowledge_base_controller = KnowledgeBaseController()
 
@@ -247,7 +248,7 @@ class TestImportKnowledgeBase:
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
-            mock_file.assert_has_calls([ mock.call("my_dir/document_1.pdf", "rb"), mock.call("my_dir/document_2.pdf", "rb") ])
+            mock_file.assert_has_calls([ mock.call(Path("my_dir/document_1.pdf"), "rb"), mock.call(Path("my_dir/document_2.pdf"), "rb") ])
 
             captured = caplog.text
             assert f"Successfully imported knowledge base 'test_built_in_knowledge_base'" in captured
@@ -274,7 +275,7 @@ class TestImportKnowledgeBase:
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
-            mock_file.assert_has_calls([ mock.call("my_dir/document_1.pdf", "rb"), mock.call("my_dir/document_2.pdf", "rb") ])
+            mock_file.assert_has_calls([ mock.call(Path("my_dir/document_1.pdf"), "rb"), mock.call(Path("my_dir/document_2.pdf"), "rb") ])
 
             captured = caplog.text
             assert f"Successfully imported knowledge base 'test_built_in_knowledge_base'" in captured
@@ -305,7 +306,7 @@ class TestImportKnowledgeBase:
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
-            mock_file.assert_has_calls([ mock.call("my_dir/document_1.pdf", "rb"), mock.call("my_dir/document_2.pdf", "rb") ])
+            mock_file.assert_has_calls([ mock.call(Path("my_dir/document_1.pdf"), "rb"), mock.call(Path("my_dir/document_2.pdf"), "rb") ])
 
             captured = caplog.text
             assert f"Document \"document_1.pdf\" already exists in knowledge base. Updating..." in captured
@@ -473,7 +474,7 @@ class TestKnowledgeBaseControllerKnowledgeBaseStatus:
 class TestRelativeFilePath:
 
     def test_relative_file_path(self):
-        assert get_relative_file_path("./more/my_file.pdf", "current/dir") == "current/dir/more/my_file.pdf"
-        assert get_relative_file_path("more/my_file.pdf", "current/dir") == "current/dir/more/my_file.pdf"
-        assert get_relative_file_path("/more/my_file.pdf", "current/dir") == "/more/my_file.pdf"
+        assert get_relative_file_path("./more/my_file.pdf", "current/dir") == Path("current/dir/more/my_file.pdf")
+        assert get_relative_file_path("more/my_file.pdf", "current/dir") == Path("current/dir/more/my_file.pdf")
+        assert get_relative_file_path("/more/my_file.pdf", "current/dir") == Path("/more/my_file.pdf")
         

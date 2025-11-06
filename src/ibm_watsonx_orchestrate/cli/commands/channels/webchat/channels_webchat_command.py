@@ -8,7 +8,7 @@ channel_webchat = typer.Typer(no_args_is_help=True)
 
 @channel_webchat.command(
     name="embed",
-    help="Creates an embedded webchat code snippet with the command 'orchestrate channel webchat embed --agent-name=some_agent --env=live"
+    help="Creates an embedded webchat code snippet with the command 'orchestrate channels webchat embed --agent-name some_agent --env live'."
 )
 def create_webchat_embed_code(
     agent_name: Annotated[
@@ -16,7 +16,7 @@ def create_webchat_embed_code(
         typer.Option(
             '--agent-name',
             '-a',
-            help='The name of the agent you wish to have embedded'
+            help='The name of the agent you wish to have embedded.'
         )
     ],
     env: Annotated[
@@ -24,7 +24,7 @@ def create_webchat_embed_code(
         typer.Option(
             '--env',
             '-e',
-            help='The environment in which your agent resides. This will default to live if no environment is provided'
+            help='The environment name (draft or live) in which your agent resides. This will default to live if no environment is provided.'
         )
     ] = EnvironmentType.LIVE,
 ):

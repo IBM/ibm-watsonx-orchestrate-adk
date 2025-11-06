@@ -71,8 +71,9 @@ class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
     SALESFORCE = "salesforce"
-    WATSONX = "watsonx"
-    A2A = 'external_chat/A2A/0.2.1' #provider type returned from an assistant agent
+    WATSONX = "watsonx" #provider type returned from an assistant agent
+    A2A = 'external_chat/A2A/0.2.1'
+    A2A_030 = 'external_chat/A2A/0.3.0'
 
 
 class AssistantAgentAuthType(str, Enum):
@@ -95,12 +96,14 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
+
     # Catalog Only
     publisher: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
     language_support: Annotated[Optional[List],Field(description="A field exclusive to IBM catalog published agents")] = None
     icon: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
     category: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
     supported_apps: Annotated[Optional[List],Field(description="A field exclusive to IBM catalog published agents")] = None
+
 
     def dump_spec(self, file: str) -> None:
         dumped = self.model_dump(mode='json', exclude_unset=True, exclude_none=True)
@@ -115,14 +118,6 @@ class BaseAgentSpec(BaseModel):
     def dumps_spec(self) -> str:
         dumped = self.model_dump(mode='json', exclude_none=True)
         return json.dumps(dumped, indent=2)
-
-
-def drop_catalog_fields(values: dict):
-    for field in CATALOG_ONLY_FIELDS:
-        if values.get(field):
-            logger.warning(f"Field '{field}' is only used when publishing to the catalog, dropping this field for import")
-            del values[field]
-    return values
 
 
 # ===============================

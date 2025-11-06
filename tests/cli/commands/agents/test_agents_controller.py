@@ -45,6 +45,7 @@ def native_agent_content(request) -> dict:
             "spec_version": SpecVersion.V1,
             "kind": AgentKind.NATIVE,
             "name": "test_native_agent",
+            "id": "e021226b-9888-44fe-801b-1a34e7472fee",
             "description": "Test Object for planner agent",
             "llm": "test_llm",
             "style": AgentStyle.PLANNER,
@@ -63,6 +64,7 @@ def native_agent_content(request) -> dict:
             "spec_version": SpecVersion.V1,
             "kind": AgentKind.NATIVE,
             "name": "test_native_agent",
+            "id": "e021226b-9888-44fe-801b-1a34e7472fee",
             "description": "Test Object for planner agent",
             "llm": "test_llm",
             "style": AgentStyle.PLANNER,
@@ -76,11 +78,12 @@ def native_agent_content(request) -> dict:
                 "test_tool_2"
             ]
         }
-        
+
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
         "name": "test_native_agent",
+        "id": "e021226b-9888-44fe-801b-1a34e7472fee",
         "description": "Test Object for native agent",
         "llm": "test_llm",
         "style": AgentStyle.DEFAULT,
@@ -108,6 +111,7 @@ def external_agent_content() -> dict:
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.EXTERNAL,
         "name": "test_external_agent",
+        "id": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
         "title": "Test External",
         "description": "Test Object for external agent",
         "tags": [
@@ -132,6 +136,7 @@ def assistant_agent_content() -> dict:
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.ASSISTANT,
         "name": "test_assistant_agent",
+        "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
         "title": "Test Assistant",
         "description": "Test Object for assistant agent",
         "tags": [
@@ -366,9 +371,12 @@ class MockAgent:
 
     def get_draft_by_id(self, agent_id):
         return self.fake_agent
-    
+
     def get_by_id(self, knowledge_base_id):
         return self.fake_agent
+
+    def get_environments_for_agent(self, agent_id):
+        return []
 
 class TestImportPythonAgent:
     def test_import_python_agent(self, native_agent_content):
@@ -1368,9 +1376,11 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ChannelsController") as mock_channels_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
-            
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.export_connection") as mock_export_connection:
+
             mock_get_connection_client.return_value = mock_connection_client
 
             mock_tools_controller.return_value = MagicMock(
@@ -1378,9 +1388,14 @@ class TestAgentsControllerExportAgent:
                     kind=ToolKind.python,
                     content=b"abc"
                 )))
-            
+
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
+            )
+
+            mock_channels_controller.return_value = MagicMock(
+                get_channels_client=MagicMock(return_value=MagicMock(list=MagicMock(return_value=[]))),
+                export_channel=MagicMock()
             )
 
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
@@ -1390,11 +1405,11 @@ class TestAgentsControllerExportAgent:
                 kind = kind,
                 output_path = self.mock_zip_file_path
             )
-        
+
         captured = caplog.text
 
         assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
-        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+        assert f"Successfully wrote agents, tools, knowledge bases, and channels to '{self.mock_zip_file_path}'" in captured
 
     @pytest.mark.parametrize(
             "kind",
@@ -1481,10 +1496,11 @@ class TestAgentsControllerExportAgent:
         )
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ChannelsController") as mock_channels_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.check_file_in_zip") as mock_zip_check, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
-            
+
             mock_get_connection_client.return_value = mock_connection_client
             mock_zip_check.side_effect = lambda file_path, zip_file : True if "tools" in file_path else False
             mock_tools_controller.return_value = MagicMock(
@@ -1492,6 +1508,11 @@ class TestAgentsControllerExportAgent:
                     kind=ToolKind.python,
                     content=b"abc"
                 )))
+
+            mock_channels_controller.return_value = MagicMock(
+                get_channels_client=MagicMock(return_value=MagicMock(list=MagicMock(return_value=[]))),
+                export_channel=MagicMock()
+            )
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1504,8 +1525,8 @@ class TestAgentsControllerExportAgent:
         assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
         assert f"Skipping {native_agent_content.get('name')}, agent with that name already exists in the output folder" not in captured
         assert f"Exporting tool" not in captured
-        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
-    
+        assert f"Successfully wrote agents, tools, knowledge bases, and channels to '{self.mock_zip_file_path}'" in captured
+
     def test_export_agent_no_tool(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
         ac = AgentsController()
         ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content], return_get_drafts_by_ids=False)
@@ -1518,9 +1539,10 @@ class TestAgentsControllerExportAgent:
         )
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ChannelsController") as mock_channels_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
-            
+
             mock_get_connection_client.return_value = mock_connection_client
             mock_tools_controller.return_value = MagicMock(
                 download_tool=MagicMock(return_value=DownloadResult(
@@ -1528,17 +1550,22 @@ class TestAgentsControllerExportAgent:
                     content=b"abc"
                 )))
 
+            mock_channels_controller.return_value = MagicMock(
+                get_channels_client=MagicMock(return_value=MagicMock(list=MagicMock(return_value=[]))),
+                export_channel=MagicMock()
+            )
+
             ac.export_agent(
                 name = self.mock_agent_name,
                 kind = AgentKind.NATIVE,
                 output_path = self.mock_zip_file_path
             )
-        
+
         captured = caplog.text
 
         assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
-        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
- 
+        assert f"Successfully wrote agents, tools, knowledge bases, and channels to '{self.mock_zip_file_path}'" in captured
+
     def test_export_agent_missing_collaborators(self, caplog, native_agent_content, external_agent_content, assistant_agent_content):
         native_agent_content["knowledge_base"] = ["kb_1"]
 
@@ -1556,9 +1583,10 @@ class TestAgentsControllerExportAgent:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ChannelsController") as mock_channels_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
-            
+
             mock_get_connection_client.return_value = mock_connection_client
             mock_get_agent.return_value = None
 
@@ -1567,9 +1595,14 @@ class TestAgentsControllerExportAgent:
                     kind=ToolKind.python,
                     content=b"abc"
                 )))
-            
+
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
+            )
+
+            mock_channels_controller.return_value = MagicMock(
+                get_channels_client=MagicMock(return_value=MagicMock(list=MagicMock(return_value=[]))),
+                export_channel=MagicMock()
             )
 
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
@@ -1579,11 +1612,11 @@ class TestAgentsControllerExportAgent:
                 kind = AgentKind.NATIVE,
                 output_path = self.mock_zip_file_path
             )
-        
+
         captured = caplog.text
 
         assert f"Exporting agent definition for '{self.mock_agent_name}'" in captured
-        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" in captured
+        assert f"Successfully wrote agents, tools, knowledge bases, and channels to '{self.mock_zip_file_path}'" in captured
         assert f"Skipping {self.mock_kb_name}, knowledge_bases are currently unsupported by export"
         assert f"Skipping {native_agent_content.get('collaborators')[0]}, no agent with id {native_agent_content.get('collaborators')[0]} found" in captured
 
@@ -1601,8 +1634,8 @@ class TestAgentsControllerExportAgent:
 
         assert f"Output file must end with the extension '.zip'. Provided file '{self.mock_yaml_file_path}' ends with '.yaml'"
         assert f"Exporting agent definition for '{self.mock_agent_name}'" not in captured
-        assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" not in captured
-    
+        assert f"Successfully wrote agents, tools, knowledge bases, and channels to '{self.mock_zip_file_path}'" not in captured
+
     def test_export_agent_agent_only_bad_file_type(self, caplog):
         ac = AgentsController()
 
