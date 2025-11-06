@@ -672,17 +672,19 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(DecisionsNode, node)
     
-    def docproc(self, 
-            name: str, 
+    def docproc(self,
+            name: str,
             task: str,
             plain_text_reading_order : PlainTextReadingOrder = PlainTextReadingOrder.block_structure,
             display_name: str|None=None,
             description: str | None = None,
-            input_map: DataMap = None,
+            input_map: DataMap | None = None,
             document_structure: bool = False,
-            kvp_schemas: list[DocProcKVPSchema] = None,
+            kvp_schemas: list[DocProcKVPSchema] | None = None,
             enable_hw: bool = False,
-            kvp_model_name: str | None = None) -> DocProcNode:
+            kvp_model_name: str | None = None,
+            kvp_force_schema_name: str | None = None,
+            kvp_enable_text_hints: bool | None = True) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -709,7 +711,9 @@ class Flow(Node):
             plain_text_reading_order=plain_text_reading_order,
             enable_hw=enable_hw,
             kvp_schemas=kvp_schemas,
-            kvp_model_name=kvp_model_name
+            kvp_model_name=kvp_model_name,
+            kvp_force_schema_name=kvp_force_schema_name,
+            kvp_enable_text_hints=kvp_enable_text_hints
         )
 
         node = DocProcNode(spec=task_spec)
@@ -1684,7 +1688,43 @@ class UserFlow(Flow):
 
         node = self._add_node(node)
         return cast(UserNode, node)
+    
+    def form(self, 
+              name: str, 
+              display_name: str | None = None,
+              instructions: str | None = None,
+              submit_button_label: str | None = "Submit",
+              cancel_button_label: str | None = None ) -> UserNode:
+        '''create a node in the flow with a form'''
+        # create a json schema object based on the single field
+        if not name:
+            raise AssertionError("name cannot be empty")
 
+        schema_obj = JsonSchemaObject(type="object",
+                                      title=name,
+                                      description=instructions)
+        
+        schema_obj.properties = {}
+       
+        task_spec = UserNodeSpec(
+            name=name,
+            display_name=display_name,
+            description=instructions,
+            owners=[CURRENT_USER],
+            output_schema_object = schema_obj
+        )
+
+        node = UserNode(spec = task_spec)
+        node.form(name = name,
+                   display_name = display_name,
+                   instructions = instructions,
+                   submit_button_label = submit_button_label,
+                   cancel_button_label = cancel_button_label
+                 )
+
+        node = self._add_node(node)
+        return cast(UserNode, node)
+    
     def user(
         self,
         name: str | None = None,

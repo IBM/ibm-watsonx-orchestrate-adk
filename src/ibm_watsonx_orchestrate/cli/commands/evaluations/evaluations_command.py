@@ -56,39 +56,7 @@ def read_env_file(env_path: Path|str) -> dict:
     return dotenv_values(str(env_path))
 
 def validate_watsonx_credentials(user_env_file: str) -> bool:
-    required_sets = [
-        ["WATSONX_SPACE_ID", "WATSONX_APIKEY"],
-        ["WO_INSTANCE", "WO_API_KEY"],
-        ["WO_INSTANCE", "WO_PASSWORD", "WO_USERNAME"]
-    ]
-    
-    def has_valid_keys(env: dict) -> bool:
-        return any(all(key in env for key in key_set) for key_set in required_sets)
-
-    if has_valid_keys(os.environ):
-        logger.info("WatsonX credentials validated successfully.")
-        return
-    
-    if user_env_file is None:
-        logger.error("WatsonX credentials are not set. Please set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables or include them in your environment file and pass it with --env-file option.")
-        sys.exit(1)
-
-    if not Path(user_env_file).exists():
-        logger.error(f"Error: The specified environment file '{user_env_file}' does not exist.")
-        sys.exit(1)
-    
-    user_env = read_env_file(user_env_file)
-    
-    if not has_valid_keys(user_env):
-        logger.error("Error: The environment file does not contain the required keys: either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY or WO_INSTANCE and WO_USERNAME and WO_PASSWORD.")
-        sys.exit(1)
-
-    # Update os.environ with whichever set is present
-    for key_set in required_sets:
-        if all(key in user_env for key in key_set):
-            os.environ.update({key: user_env[key] for key in key_set})
-            break
-    logger.info("WatsonX credentials validated successfully.")
+    return True #Use AI Gateway with active environment and cached token by default so credentials no longer required
 
 def read_csv(data_path: str, delimiter="\t"):
     data = []

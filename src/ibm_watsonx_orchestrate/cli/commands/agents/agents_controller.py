@@ -15,7 +15,9 @@ from typing import Any, Iterable, List, TypeVar
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind, import_python_tool, ToolsController
+from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -1281,51 +1283,6 @@ class AgentsController:
             return ExternalAgent.model_validate(external_result)
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
-        
-    def export_tools(self, output_file_name: str, zip_file_out, with_tool_spec_file: bool, tools: list[str], tools_exported: list[str]) -> None:
-        tools_controller = ToolsController()
-        tools_client = tools_controller.get_client() 
-        tool_specs = None
-        if with_tool_spec_file:
-            tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(tools) if t.get('name')}
-
-        tools_in_flow: list[Any] = []
-        for tool_name in tools:
-            if tool_name in tools_exported:
-                continue
-
-            base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
-            if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
-                continue
-            
-            logger.info(f"Exporting tool '{tool_name}'")
-            tool_artifact: DownloadResult | None = tools_controller.download_tool(tool_name)
-
-            tools_exported.append(tool_name)
-            if not tool_artifact:
-                continue
-            
-            with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
-                for item in zip_file_in.infolist():
-                    buffer = zip_file_in.read(item.filename)
-                    if (item.filename != 'bundle-format'):
-                        zip_file_out.writestr(
-                            f"{base_tool_file_path}{item.filename}",
-                            buffer
-                        )
-                        # check if this is a flow tool, if yes, get the list of dependent tools
-                        if tool_artifact.kind == ToolKind.flow:
-                            tools_in_flow.extend(get_all_tools_in_flow(json.loads(buffer)))
-
-                if with_tool_spec_file and tool_specs:
-                    current_spec = tool_specs[tool_name]
-                    zip_file_out.writestr(
-                        f"{base_tool_file_path}config.json",
-                        ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
-                    )
-        if tools_in_flow and len(tools_in_flow) > 0:
-            self.export_tools(output_file_name, zip_file_out, with_tool_spec_file, tools_in_flow, tools_exported)
-
 
     def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False) -> None:
         output_file = Path(output_path)
@@ -1380,22 +1337,57 @@ class AgentsController:
             agent_spec_yaml_file.getvalue()
         )
 
+        # Export Connections
+        app_id = None
+        if kind == AgentKind.EXTERNAL:
+            app_id = agent_spec_file_content.get("app_id")
+        elif kind == AgentKind.ASSISTANT:
+            app_id = agent_spec_file_content.get("config", {}).get("app_id")
+        
+        if app_id:
+            export_connection(output_file=f"{output_file_name}/connections/", app_id=app_id, zip_file_out=zip_file_out)
+
+        # Export Tools
         agent_tools = agent_spec_file_content.get("tools", [])
 
         tools_controller = ToolsController()
         tools_client = tools_controller.get_client() 
         tool_specs = None
-        if with_tool_spec_file:
-            tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
+        tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
 
-        tools_exported = []
-        self.export_tools(output_file_name, zip_file_out, with_tool_spec_file, agent_tools, tools_exported)
+        for tool_name in agent_tools:
+
+            base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
+            if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
+                continue
+
+            current_spec = tool_specs.get(tool_name)
+            tools_controller.export_tool(
+                name=tool_name,
+                output_path=base_tool_file_path,
+                zip_file_out=zip_file_out, 
+                spec=current_spec, 
+                connections_output_path=f"{output_file_name}/connections/"
+            )
+
+            if with_tool_spec_file and tool_specs:
+                zip_file_out.writestr(
+                    f"{base_tool_file_path}config.json",
+                    ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
+                )
         
+        # Export Knowledge Bases
         knowledge_base_controller = KnowledgeBaseController()
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
-            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/{kb_name}.yaml"
-            knowledge_base_controller.knowledge_base_export(name=kb_name, output_path=knowledge_base_file_path, zip_file_out=zip_file_out)
+            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/"
+            knowledge_base_controller.knowledge_base_export(
+                name=kb_name,
+                output_path=knowledge_base_file_path,
+                zip_file_out=zip_file_out,
+                connections_output_path=f"{output_file_name}/connections/"
+                )
         
+        # Export Collaborators
         if kind == AgentKind.NATIVE:
             for collaborator_id in agent.collaborators:
                 collaborator = self.get_agent_by_id(collaborator_id)
@@ -1415,10 +1407,54 @@ class AgentsController:
                     agent_only_flag=False,
                     zip_file_out=zip_file_out)
         
-        if close_file_flag:
-            logger.info(f"Successfully wrote agents and tools to '{output_path}'")
-            zip_file_out.close()
+        # Export channels for the agent from all environments
+        channels_controller = ChannelsController()
+        agent_id = agent.id
 
+        try:
+            # Get all environments for this agent
+            native_client = self.get_native_client()
+            environments = native_client.get_environments_for_agent(agent_id)
+
+            if not environments:
+                logger.warning(f"No environments found for agent '{agent.name}', skipping channel export")
+            else:
+                channels_client = channels_controller.get_channels_client()
+
+                # Export channels from each environment
+                for environment in environments:
+                    env_name = environment.get("name")
+                    env_id = environment.get("id")
+
+                    try:
+                        env_channels = channels_client.list(agent_id, env_id)
+
+                        if not env_channels:
+                            logger.debug(f"No channels found in environment '{env_name}' for agent '{agent.name}'")
+                            continue
+
+                        for channel in env_channels:
+                            channel_name = channel.get('name', channel.get('id'))
+                            # Include environment name in the path to avoid conflicts between environments
+                            channel_file_path = f"{output_file_name}/channels/{env_name}/{channel.get('channel')}/{channel_name}.yaml"
+
+                            logger.info(f"Exporting channel '{channel_name}' from environment '{env_name}'")
+                            channels_controller.export_channel(
+                                agent_id=agent_id,
+                                environment_id=env_id,
+                                channel_type=channel.get('channel'),
+                                channel_id=channel.get('id'),
+                                output_path=channel_file_path,
+                                zip_file_out=zip_file_out
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to export channels from environment '{env_name}': {e}")
+        except Exception as e:
+            logger.warning(f"Failed to export channels for agent '{agent.name}': {e}")
+
+        if close_file_flag:
+            logger.info(f"Successfully wrote agents, tools, knowledge bases, and channels to '{output_path}'")
+            zip_file_out.close()
 
     def deploy_agent(self, name: str):
         if is_local_dev():
@@ -1475,7 +1511,7 @@ class AgentsController:
         if is_local_dev():
             logger.error("Agents cannot be undeployed in Developer Edition")
             sys.exit(1)
-        
+
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
