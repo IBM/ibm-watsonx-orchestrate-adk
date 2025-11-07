@@ -31,7 +31,7 @@ from ..types import (
     NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, File, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
+    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (

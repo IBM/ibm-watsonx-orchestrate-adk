@@ -6,7 +6,7 @@ from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass
 import os
 import json
 
-from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass, File, DocumentClassificationResponse
+from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass, DocumentClassificationResponse
 
 
 class CustomClasses(BaseModel):
