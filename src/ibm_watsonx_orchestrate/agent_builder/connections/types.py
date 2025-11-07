@@ -151,6 +151,45 @@ class ConnectionConfiguration(BaseModel):
                 kwargs["security_scheme"] = CONNECTION_KIND_SCHEME_MAPPING.get(kind)
         
         super().__init__(*args, **kwargs)
+    
+    def __get_import_aliases_mapping(self) -> dict:
+        return {
+            "security_scheme": "kind",
+            "preference": "type",
+            "auth_type": None,
+            "idp_config_data": "idp_config",
+            "app_config_data": "app_config"
+        }
+    
+    def __get_kind(self, security_scheme: ConnectionSecurityScheme, auth_type: Optional[ConnectionAuthType]) -> str | None:
+        def reverse_lookup(d: dict[str, str], value: str) -> str | None:
+            for k, v in d.items():
+                if v == value:
+                    return k
+            return None
+
+        if auth_type:
+            return reverse_lookup(CONNECTION_KIND_OAUTH_TYPE_MAPPING, auth_type)
+        else:
+            return reverse_lookup(CONNECTION_KIND_SCHEME_MAPPING, security_scheme)
+
+
+    def model_dump(self, *args, use_import_aliases: bool = False, **kwargs):
+            data = super().model_dump(*args, **kwargs)
+            if use_import_aliases:
+                kind = self.__get_kind(data.get("security_scheme"), data.get("auth_type"))
+                if kwargs.get("mode") and kwargs.get("mode") == "json":
+                    kind = str(kind) 
+
+                key_aliases = self.__get_import_aliases_mapping()
+                for k, v in key_aliases.items():
+                    if v:
+                        data[v] = data.pop(k)
+                    else:
+                        data.pop(k)
+                data["kind"] = kind
+            return data
+
 
     @model_validator(mode="before")
     def validate_auth_scheme(self):

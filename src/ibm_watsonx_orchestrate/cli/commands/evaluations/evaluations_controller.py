@@ -87,10 +87,7 @@ class EvaluationsController:
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
         else:
-            logger.error(
-                "No provider found. Please either provide a config_file or set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables."
-            )
-            sys.exit(1)
+            provider = "gateway"
         
         config_data = {
             "wxo_lite_version": __version__,
@@ -289,10 +286,7 @@ class EvaluationsController:
         elif "WO_INSTANCE" in os.environ and "WO_API_KEY" in os.environ:
             provider = "model_proxy"
         else:
-            logger.error(
-                "No provider found. Please either provide a config_file or set either WATSONX_SPACE_ID and WATSONX_APIKEY or WO_INSTANCE and WO_API_KEY in your system environment variables."
-            )
-            sys.exit(1)
+            provider = "gateway"
 
         config_data = {
             "auth_config": AuthConfig(

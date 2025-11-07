@@ -24,16 +24,16 @@ from rich.panel import Panel
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
-from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri,create_openapi_json_tools_from_content
+from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import configure_connection, remove_connection, add_connection
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.connections.types import  ConnectionType, ConnectionEnvironment, ConnectionPreference
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
-from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme, ExpectedCredentials
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
@@ -44,7 +44,7 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
+from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -614,6 +614,34 @@ def _get_kind_from_spec(spec: dict) -> ToolKind:
         logger.error(f"Could not determine 'kind' of tool '{name}'")
         sys.exit(1) 
 
+def _get_connection_ids_from_spec(spec: ToolSpec | dict) -> list[str]:
+    if isinstance(spec, dict):
+        spec = ToolSpec.model_validate(spec)
+
+    connection_ids = []
+
+    binding = spec.binding
+    if binding is not None:
+        if binding.openapi is not None and hasattr(binding.openapi, "connection_id"):
+            connection_ids = [binding.openapi.connection_id]
+        elif binding.python is not None and hasattr(binding.python, "connections") and binding.python.connections is not None:
+            for conn in binding.python.connections:
+                connection_ids.append(binding.python.connections[conn])
+        elif binding.mcp is not None and hasattr(binding.mcp, "connections"):
+            if binding.mcp.connections is None:
+                connection_ids.append(None)
+            else:
+                for conn in binding.mcp.connections:
+                    connection_ids.append(binding.mcp.connections[conn])
+        elif binding.langflow is not None and hasattr(binding.langflow, "connections"):
+            if binding.langflow.connections is None:
+                connection_ids.append(None)
+            else:
+                for conn in binding.langflow.connections:
+                    connection_ids.append(binding.langflow.connections[conn])
+        
+        return connection_ids
+
 def get_whl_in_registry(registry_url: str, version: str) -> str| None:
     orchestrate_links = requests.get(registry_url).text
     wheel_files = [x.group(1) for x in re.finditer( r'href="(.*\.whl).*"', orchestrate_links)]
@@ -675,6 +703,10 @@ class ToolsController:
 
         if not isinstance(tools,list):
             tools = [tools]
+        
+        if len(tools) == 0:
+            kind_str = kind.value if isinstance(kind, ToolKind) else kind
+            logger.warning(f"No valid '{kind_str}' tools found in provided file '{args.get('file')}'. No tools have been imported")
 
         for tool in tools:
             yield tool
@@ -705,7 +737,7 @@ class ToolsController:
         if verbose:
             tools_list = []
             for tool in tools:
-                tools_list.append(json.loads(tool.dumps_spec()))
+                tools_list.append(json.loads(tool.dumps_spec(exclude_none=False)))
 
             rich.print_json(json.dumps(tools_list, indent=4))
             return tools_list
@@ -731,26 +763,7 @@ class ToolsController:
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
 
-                connection_ids = []
-
-                if tool_binding is not None:
-                    if tool_binding.openapi is not None and hasattr(tool_binding.openapi, "connection_id"):
-                        connection_ids = [tool_binding.openapi.connection_id]
-                    elif tool_binding.python is not None and hasattr(tool_binding.python, "connections") and tool_binding.python.connections is not None:
-                        for conn in tool_binding.python.connections:
-                            connection_ids.append(tool_binding.python.connections[conn])
-                    elif tool_binding.mcp is not None and hasattr(tool_binding.mcp, "connections"):
-                        if tool_binding.mcp.connections is None:
-                            connection_ids.append(None)
-                        else:
-                            for conn in tool_binding.mcp.connections:
-                                connection_ids.append(tool_binding.mcp.connections[conn])
-                    elif tool_binding.langflow is not None and hasattr(tool_binding.langflow, "connections"):
-                        if tool_binding.langflow.connections is None:
-                            connection_ids.append(None)
-                        else:
-                            for conn in tool_binding.langflow.connections:
-                                connection_ids.append(tool_binding.langflow.connections[conn])
+                connection_ids = _get_connection_ids_from_spec(spec=tool.__tool_spec__)
 
                 app_ids = []
                 for connection_id in connection_ids:
@@ -950,7 +963,14 @@ class ToolsController:
                         requirements_content = '\n'.join(requirements) + '\n'
                         zip_tool_artifacts.writestr("requirements.txt",requirements_content)  
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
+                elif self.tool_kind == ToolKind.openapi:
+                    tool_artifact = path.join(tmpdir, "artifacts.zip")
 
+                    with zipfile.ZipFile(tool_artifact, "w", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                        tool_path = Path(self.file)
+                        zip_tool_artifacts.write(tool_path, arcname=tool_path.name)
+
+                        zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
                 if exist:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
                 else:
@@ -964,7 +984,7 @@ class ToolsController:
 
         if tool_artifact is not None:
             match self.tool_kind:
-                case ToolKind.langflow | ToolKind.python:
+                case ToolKind.langflow | ToolKind.python | ToolKind.openapi:
                     self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
                 case _:
                     raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
@@ -980,7 +1000,7 @@ class ToolsController:
 
         if tool_artifact is not None:
             match self.tool_kind:
-                case ToolKind.langflow | ToolKind.python:
+                case ToolKind.langflow | ToolKind.python | ToolKind.openapi:
                     self.get_client().upload_tools_artifact(tool_id=tool_id, file_path=tool_artifact)
                 case _:
                     raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
@@ -1036,8 +1056,7 @@ class ToolsController:
         draft_tool = draft_tools[0]
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
-        # TODO: Add openapi tool support
-        supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow]
+        supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow, ToolKind.openapi]
         if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
@@ -1047,13 +1066,21 @@ class ToolsController:
         # Initialize tool_artifacts_bytes with an empty bytes object as default
         tool_artifacts_bytes = b''
         
-        if tool_id is not None and (draft_tool_kind == ToolKind.python or draft_tool_kind == ToolKind.langflow or draft_tool_kind == ToolKind.flow):
+        if tool_id is not None:
             try:
                 downloaded_bytes = tool_client.download_tools_artifact(tool_id=tool_id)
                 if downloaded_bytes is not None:
                     tool_artifacts_bytes = downloaded_bytes
                 else:
                     logger.warning(f"No artifacts found for tool '{name}' of kind {draft_tool_kind.value}")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise e
+                if draft_tool_kind == ToolKind.openapi:
+                    logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
+                    return None
+                else:
+                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
@@ -1061,11 +1088,17 @@ class ToolsController:
         # Always return a DownloadResult with at least empty content
         return DownloadResult(content=tool_artifacts_bytes, kind=draft_tool_kind)
     
-    def export_tool(self, name: str, output_path: str) -> None:
+    def export_tool(
+            self,
+            name: str,
+            output_path: str, 
+            zip_file_out: Optional[zipfile.ZipFile] = None, 
+            connections_output_path: str = "/connections", 
+            spec: dict | None = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
-        if output_file_extension != ".zip":
+        if not zip_file_out and  output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
@@ -1073,15 +1106,48 @@ class ToolsController:
 
         tool_artifact: DownloadResult | None = self.download_tool(name)
 
-        if not tool_artifact:
+        if not spec:
+            client = self.get_client()
+            specs = client.get_draft_by_name(name)
+            if len(specs):
+                spec = specs[0]
+            else:
+                logger.error(f"Could not find tool spec for tool '{name}'")
+                sys.exit(1)
+        
+        connection_ids = _get_connection_ids_from_spec(spec)
+        connection_ids = [c for c in connection_ids if c]
+        connections = get_connections_client().get_drafts_by_ids(connection_ids)
+        app_ids = [conn.app_id for conn in connections]
+
+        if not tool_artifact or not tool_artifact.content:
             return
         
-        with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in, \
-            zipfile.ZipFile(output_path, 'w') as zip_file_out:
-            
+        zip_file_root_folder = "/"
+        if zip_file_out:
+            zip_file_root_folder = output_path
+        else:
+            zip_file_out = zipfile.ZipFile(output_path, "w")
+        
+        with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
+          
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
-                    zip_file_out.writestr(item, buffer)
+                    zip_file_out.writestr(f"{zip_file_root_folder}/{item.filename}", buffer)
+        
+        for app_id in app_ids:
+            export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
         
         logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")
+
+        if tool_artifact.kind == ToolKind.flow:
+            tools_in_flow = get_all_tools_in_flow(json.loads(buffer))
+
+            for t in tools_in_flow:
+                self.export_tool(
+                    name=t,
+                    output_path=f"{output_file.parent}/{t}",
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path
+                )
