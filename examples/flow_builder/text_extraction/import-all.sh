@@ -4,7 +4,7 @@ orchestrate env activate local
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 
-for flow_tool in  text_extraction_flow.py; do
+for flow_tool in  text_extraction_flow.py text_extraction_doc_struct_flow.py text_extraction_kvps_flow.py; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
 done
 

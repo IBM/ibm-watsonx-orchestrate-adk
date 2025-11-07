@@ -8,7 +8,7 @@
 ## The source code for this program is not published or otherwise divested of its trade secrets, irrespective of what has been deposited with the U.S Copyright Office.
 ##
 upload_document_to_s3() {
-    local resp=$(curl -X POST ${URL}/orchestrate/upload-to-s3/\
+    local resp=$(curl -s -X POST ${URL}/orchestrate/upload-to-s3/\
     -H "Authorization: Bearer $JWT_TOKEN" \
     -H 'accept: application/json' \
     -H 'Content-Type: multipart/form-data' \
@@ -17,8 +17,7 @@ upload_document_to_s3() {
 
     decoded_json=$(echo "$resp" | jq -r '.')
     ref=$(echo "$decoded_json" | jq '.[0].url' | jq -r .)
-    echo ""
-    echo "URL: $ref"
+    echo "$ref"
 }
 
 upload_document_to_wxo_document_store() {
