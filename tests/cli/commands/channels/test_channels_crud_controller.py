@@ -4,7 +4,7 @@ import os
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from pathlib import Path
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, SlackChannel
+from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, SlackChannel, WebchatChannel
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType, SlackTeam
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
@@ -145,42 +145,42 @@ name: test
 
     def test_import_from_python_multiple_channels(self, controller):
         """Test importing multiple channels from Python file."""
-        python_content = """
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, WebchatChannel
+        whatsapp_channel = TwilioWhatsappChannel(
+            channel="twilio_whatsapp",
+            name="whatsapp_channel",
+            account_sid="AC12345678901234567890123456789012",
+            twilio_authentication_token="token1"
+        )
 
-channel1 = TwilioWhatsappChannel(
-    channel="twilio_whatsapp",
-    name="python_channel_1",
-    account_sid="AC12345678901234567890123456789012",
-    twilio_authentication_token="token1"
-)
+        webchat_channel = WebchatChannel(
+            channel="webchat",
+            name="webchat_channel"
+        )
 
-channel2 = WebchatChannel(
-    channel="webchat",
-    name="python_channel_2"
-)
+        another_whatsapp = TwilioWhatsappChannel(
+            channel="twilio_whatsapp",
+            name="another_channel",
+            account_sid="AC98765432109876543210987654321098",
+            twilio_authentication_token="token2"
+        )
 
-channel3 = TwilioWhatsappChannel(
-    channel="twilio_whatsapp",
-    name="python_channel_3",
-    account_sid="AC98765432109876543210987654321098",
-    twilio_authentication_token="token3"
-)
-"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(python_content)
-            temp_path = f.name
+        with patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.inspect.getmembers") as getmembers_mock, \
+            patch("ibm_watsonx_orchestrate.agent_builder.channels.channel.importlib.import_module") as import_module_mock, \
+            patch.object(Path, "exists", return_value=True):
 
-        try:
-            channels = controller.import_channel(temp_path)
+            getmembers_mock.return_value = [
+                ("whatsapp_channel", whatsapp_channel),
+                ("webchat_channel", webchat_channel),
+                ("another_whatsapp", another_whatsapp),
+            ]
+
+            channels = controller.import_channel("test.py")
 
             assert len(channels) == 3
             channel_names = [ch.name for ch in channels]
-            assert "python_channel_1" in channel_names
-            assert "python_channel_2" in channel_names
-            assert "python_channel_3" in channel_names
-        finally:
-            os.unlink(temp_path)
+            assert "whatsapp_channel" in channel_names
+            assert "webchat_channel" in channel_names
+            assert "another_channel" in channel_names
 
 
 class TestCreateChannelFromArgs:
