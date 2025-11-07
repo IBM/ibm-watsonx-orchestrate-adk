@@ -1,0 +1,588 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "user_flow_application_form",
+    "display_name": "Application form",
+    "description": "Creates an application form.",
+    "input_schema": {
+      "$ref": "#/schemas/user_flow_application_form_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "Application",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
+      },
+      "nodes": {
+        "ApplicationForm": {
+          "spec": {
+            "kind": "user",
+            "name": "ApplicationForm",
+            "display_name": "Application",
+            "output_schema": {
+              "$ref": "#/schemas/ApplicationForm"
+            },
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [],
+            "form": {
+              "name": "ApplicationForm",
+              "kind": "form",
+              "display_name": "Application",
+              "fields": [
+                {
+                  "name": "Salutation",
+                  "kind": "any",
+                  "direction": "input",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.salutations",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "display_name": "Salutation",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [
+                      "choices"
+                    ],
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "ComboboxWidget",
+                    "ui:placeholder": "Please enter your title",
+                    "ui:title": "Salutation"
+                  }
+                },
+                {
+                  "name": "Married",
+                  "kind": "boolean",
+                  "direction": "input",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "False",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {
+                            "assignmentType": "literal"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "display_name": "Married",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                      "default": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "CheckboxWidget",
+                    "ui:title": "Married"
+                  }
+                },
+                {
+                  "name": "LastName",
+                  "kind": "text",
+                  "direction": "input",
+                  "display_name": "Last name",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TextWidget",
+                    "ui:title": "Last name",
+                    "ui:help": "Enter name",
+                    "ui:placeholder": "Enter your name here"
+                  }
+                },
+                {
+                  "name": "Age",
+                  "kind": "number",
+                  "direction": "input",
+                  "display_name": "Age",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "NumberWidget",
+                    "ui:title": "Age",
+                    "ui:help": "Please enter your age"
+                  }
+                },
+                {
+                  "name": "Salary",
+                  "kind": "number",
+                  "direction": "input",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.salary_expectation",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "display_name": "Desired salary",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "NumberWidget",
+                    "ui:title": "Desired salary",
+                    "ui:help": "Your dream salary is here"
+                  }
+                },
+                {
+                  "name": "acknowledge",
+                  "kind": "field",
+                  "direction": "output",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.value",
+                          "value_expression": "flow.input.salary_expectation",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "display_name": "Desired salary",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DataWidget",
+                    "ui-options": {
+                      "label": "true"
+                    },
+                    "ui:title": "Desired salary"
+                  }
+                },
+                {
+                  "name": "strength",
+                  "kind": "array",
+                  "direction": "output",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.listOfLanguages",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "display_name": "Qualification",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [
+                      "choices"
+                    ],
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "BulletList",
+                    "ui:title": "Qualification"
+                  }
+                },
+                {
+                  "name": "success",
+                  "kind": "text",
+                  "direction": "output",
+                  "text": "Application successfully completed.",
+                  "display_name": "Successful submision",
+                  "min": [
+                    null
+                  ],
+                  "max": [
+                    null
+                  ],
+                  "input_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DataWidget",
+                    "ui-options": {
+                      "label": "false"
+                    },
+                    "ui:title": "Successful submision"
+                  }
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "required": [
+                  "Salutation",
+                  "LastName",
+                  "Age"
+                ],
+                "properties": {
+                  "Salutation": {
+                    "title": "Salutation"
+                  },
+                  "Married": {
+                    "type": "boolean",
+                    "title": "Married",
+                    "oneOf": [
+                      {
+                        "const": true,
+                        "title": "Married"
+                      },
+                      {
+                        "const": false,
+                        "title": "Not married"
+                      }
+                    ]
+                  },
+                  "LastName": {
+                    "type": "string",
+                    "title": "Last name"
+                  },
+                  "Age": {
+                    "type": "integer",
+                    "title": "Age"
+                  },
+                  "Salary": {
+                    "type": "number",
+                    "title": "Desired salary"
+                  },
+                  "acknowledge": {
+                    "type": "string",
+                    "title": "Desired salary"
+                  },
+                  "strength": {
+                    "type": "array",
+                    "title": "Qualification",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "success": {
+                    "type": "string",
+                    "title": "Successful submision"
+                  }
+                }
+              },
+              "buttons": [
+                {
+                  "name": "submit",
+                  "kind": "submit",
+                  "display_name": "Submit",
+                  "visible": true
+                },
+                {
+                  "name": "cancel",
+                  "kind": "cancel",
+                  "display_name": "Cancel"
+                }
+              ]
+            }
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "ApplicationForm"
+        },
+        {
+          "start": "ApplicationForm",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "user_flow_application_form_input": {
+      "type": "object",
+      "title": "user_flow_application_form_input",
+      "required": [],
+      "properties": {
+        "salutations": {
+          "type": "array",
+          "title": "Salutations",
+          "description": "A list of string salutations.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Mr",
+            "Mrs"
+          ]
+        },
+        "listOfLanguages": {
+          "type": "array",
+          "title": "Listoflanguages",
+          "description": "A list of languages.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "java",
+            "python",
+            "typescript"
+          ]
+        },
+        "salary_expectation": {
+          "type": "integer",
+          "title": "Salary Expectation",
+          "description": "Expected salary as an integer number.",
+          "default": 200000
+        }
+      }
+    },
+    "ApplicationForm": {
+      "type": "object",
+      "title": "ApplicationForm",
+      "properties": {}
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-10-30T16:30:01.588359+00:00"
+  }
+}

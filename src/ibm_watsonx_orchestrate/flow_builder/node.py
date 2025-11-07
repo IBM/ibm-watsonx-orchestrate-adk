@@ -1,15 +1,15 @@
 import json
-from typing import Any, cast, Type
+from typing import Any, List, cast, Type
 import uuid
 
 import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
-from .types import Assignment, DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserFieldKind, UserFieldOption, UserNodeSpec, DocProcSpec, \
+from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
 
-from .data_map import DataMap
+from .data_map import DataMap, Assignment
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
@@ -151,8 +151,7 @@ class UserNode(Node):
 
     def get_spec(self) -> UserNodeSpec:
         return cast(UserNodeSpec, self.spec)
-    
-    def field(self, 
+    def field(self,
               name: str,
               kind: UserFieldKind = UserFieldKind.Text,
               text: str | None = None,
@@ -181,7 +180,416 @@ class UserNode(Node):
                               widget=widget,
                               direction=direction,
                               input_map=input_map)
+    def form(self,
+              name: str,
+              display_name: str | None = None,
+              instructions: str | None = None,
+              submit_button_label: str | None = "Submit",
+              cancel_button_label: str | None = None ) -> UserForm :
+        """
+        Creates or retrieves a form in the user node and configures its buttons.
 
+        Args:
+            name: The internal name of the form.
+            display_name: Optional display name for the form.
+            instructions: Optional instructions text for the form.
+            submit_button_label: Label for the submit button. Defaults to "Submit".
+            cancel_button_label: Optional label for the cancel button. If None, the cancel button is hidden.
+
+        Returns:
+            UserForm: The created or retrieved form object.
+        """
+        user_form = self.get_spec().get_or_create_form(name=name,
+                              display_name=display_name,
+                              instructions=instructions
+                              )
+        
+        self.get_spec().form.buttons[0].display_name = submit_button_label
+
+        if (cancel_button_label) :
+            self.get_spec().form.buttons[1].display_name = cancel_button_label
+        else: 
+            self.get_spec().form.buttons[1].visible = False
+
+        return user_form
+    def text_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            single_line: bool = True,
+            placeholder_text: str| None = None,
+            help_text: str | None = None,
+            default: Any| None=None,
+    ) -> UserField:
+        """
+        Creates a text input field in the form.
+        
+        The field can be configured as a single-line input or a multi-line text area.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            single_line: Whether the field should be a single line input. If False, creates a multi-line text area. Defaults to True.
+            placeholder_text: Optional placeholder text for the field.
+            help_text: Optional help text for the field.
+            default: Optional default value for the field, passed as DataMap.
+
+        Returns:
+            UserField: The created text input field.
+        """
+        return self.get_spec().form.text_input_field(
+            name=name,
+            label=label,
+            required=required,
+            single_line=single_line,
+            placeholder_text=placeholder_text,
+            help_text=help_text,
+            input_map=default,
+    )
+    def boolean_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            single_checkbox: bool = True,
+            default: Any| None=None,
+            true_label: str = "True",
+            false_label: str = "False"
+        ) -> UserField:
+        """
+        Creates a boolean input field in the form.
+        
+        The field can be rendered as a checkbox or radio buttons.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            single_checkbox: Whether to display as a single checkbox. If False, displays as radio buttons. Defaults to True.
+            default: Optional default value for the field, passed as input_map to the underlying implementation.
+            true_label: Label for the true option. Defaults to "True".
+            false_label: Label for the false option. Defaults to "False".
+
+        Returns:
+            UserField: The created boolean input field.
+        """
+        return self.get_spec().form.boolean_input_field(
+            name=name,
+            label=label,
+            single_checkbox=single_checkbox,
+            true_label=true_label,
+            false_label=false_label,
+            input_map=default
+        )
+    def date_range_input_field(self,
+                                name: str,
+                                label: str | None = None,
+                                required: bool = False,
+                                start_date_label: str | None = None,
+                                end_date_label: str | None = None,
+                                default_start: Any| None = None,
+                                default_end: Any| None = None
+        ) -> UserField:
+            """
+            Creates a date range input field in the form with start and end date pickers.
+
+            Args:
+                name: The internal name of the field.
+                label: Optional display label for the field.
+                required: Whether the field is required. Defaults to False.
+                start_date_label: Optional label for the start date field.
+                end_date_label: Optional label for the end date field.
+                default_start: Optional default value for the start date, passed as DataMap.
+                default_end: Optional default value for the end date, passed as DataMap.
+
+            Returns:
+                UserField: The created date range input field.
+            """
+            return self.get_spec().form.date_range_input_field(
+                name = name,
+                label = label,
+                required = required,
+                start_date_label = start_date_label,
+                end_date_label = end_date_label,
+                default_start = default_start,
+                default_end = default_end
+            )
+    def date_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            default: Any| None=None,
+    ) -> UserField:
+         """
+         Creates a date input field in the form.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             required: Whether the field is required. Defaults to False.
+             default: Optional default value for the field, passed as DataMap.
+
+         Returns:
+             UserField: The created date input field.
+         """
+         return self.get_spec().form.date_input_field(
+                name = name,
+                label = label,
+                required = required,
+                initial_value = default,
+            )
+    def number_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            is_integer: bool = True,
+            help_text: str | None = None,
+            default: Any| None=None,
+            minimum: Any | None=None,
+            maximum: Any | None=None
+
+    ) -> UserField:
+         """
+         Creates a number input field in the form.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             required: Whether the field is required. Defaults to False.
+             is_integer: Whether the field should accept only integers. If False, accepts decimal numbers. Defaults to True.
+             help_text: Optional help text for the field.
+             default: Optional default value for the field, passed as DataMap.
+             minimum: Optional minimum allowed value, passed as DataMap.
+             maximum: Optional maximum allowed value, passed as DataMap.
+
+         Returns:
+             UserField: The created number input field.
+         """
+         return self.get_spec().form.number_input_field(
+                name = name,
+                label = label,
+                required = required,
+                is_integer = is_integer,
+                help_text= help_text,
+                initial_value=default,
+                minimum_value= minimum,
+                maximum_value= maximum
+            )
+    def file_upload_field(
+            self,
+            name: str,
+            label: str | None = None,
+            instructions: str | None = None,
+            required: bool = False,
+            allow_multiple_files: bool = False,
+            file_max_size: int=10,
+            supported_file_types : List[str] | None = None,
+
+    ) -> UserField:
+            """
+            Creates a file upload field in the form.
+
+            Args:
+                name: The internal name of the field.
+                label: Optional display label for the field.
+                instructions: Optional instructions for the file upload.
+                required: Whether the field is required. Defaults to False.
+                allow_multiple_files: Whether multiple files can be uploaded. Defaults to False.
+                file_max_size: Maximum file size in MB. Defaults to 10.
+                supported_file_types: Optional list of supported file extensions (e.g., ["pdf", "docx"]).
+
+            Returns:
+                UserField: The created file upload field.
+            """
+            return self.get_spec().form.file_upload_field(
+                name = name,
+                label = label,
+                instructions=instructions,
+                required = required,
+                allow_multiple_files=allow_multiple_files,
+                file_max_size=file_max_size,
+                supported_file_types = supported_file_types,
+            )
+    def message_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            message: str | None = None
+        ) -> UserField:
+            """
+            Creates a message output field in the form to display static text.
+
+            Args:
+                name: The internal name of the field.
+                label: Optional display label for the field.
+                message: The message text to display.
+
+            Returns:
+                UserField: The created message output field.
+            """
+            return self.get_spec().form.message_output_field(
+                    name = name,
+                    label = label,
+                    message = message
+                )
+    def field_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            value: Any | None = None
+        ) -> UserField:
+            """
+            Creates a field output field in the form to display dynamic values.
+
+            Args:
+                name: The internal name of the field.
+                label: Optional display label for the field.
+                value: The value to display in the field, passed as DataMap.
+
+            Returns:
+                UserField: The created field output field.
+            """
+            return self.get_spec().form.field_output_field(
+                        name = name,
+                        label = label,
+                        source = value
+                )
+    def list_output_field(
+            self,
+            name: str,
+            label: str | None = None,
+            choices: Any | None = None,
+            columns: dict[str, str] | None = None
+    ) -> UserField:
+         """
+         Creates a list output field in the form to display tabular data.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             choices: The list of items to display, passed in a DataMap.
+             columns: Optional mapping of source property names to table column labels. When present, only those columns will be displayed.
+
+         Returns:
+             UserField: The created list output field.
+         """
+         return self.get_spec().form.list_output_field(
+                        name = name,
+                        label = label,
+                        source = choices,
+                        columns=columns
+                )
+    def file_download_field(
+            self,
+            name: str,
+            label: str | None = None,
+            value: Any | None = None,
+    ) -> UserField:
+         """
+         Creates a file download field in the form.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             value: The file to be downloaded, passed as DataMap.
+
+         Returns:
+             UserField: The created file download field.
+         """
+         return self.get_spec().form.file_download_field(
+                        name = name,
+                        label = label,
+                        source_file = value
+                )
+    def single_choice_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            choices: Any| None=None,
+            show_as_dropdown: bool = True,
+            dropdown_item_column: str | None = None,
+            placeholder_text: str | None = None,
+            default: Any | None = None,
+            columns: dict[str, str]| None = None,
+
+    ) -> UserField:
+        """
+        Creates a single-choice input field in the form (dropdown or radio buttons).
+        
+        This method delegates to the choice_input_field method with isMultiSelect=False (default).
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            choices: The list of available choices, passed as DataMap.
+            show_as_dropdown: Whether to display as a dropdown. If False, displays as radio buttons. Defaults to True.
+            dropdown_item_column: Optional column name to use for display text in dropdown.
+            placeholder_text: Optional placeholder text for the dropdown.
+            default: Optional default selected value, passed as DataMap.
+            columns: Optional mapping of source property names to display labels for complex choice objects.
+
+        Returns:
+            UserField: The created single-choice input field.
+        """
+        return self.get_spec().form.choice_input_field(
+                        name = name,
+                        label = label,
+                        required = required,
+                        source = choices,
+                        show_as_dropdown = show_as_dropdown,
+                        dropdown_item_column = dropdown_item_column,
+                        placeholder_text = placeholder_text,
+                        initial_value = default,
+                        columns = columns
+                )
+    def multi_choice_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            choices: Any| None=None,
+            show_as_dropdown: bool = True,
+            dropdown_item_column: str | None = None,
+            placeholder_text: str | None = None,
+            default: Any | None = None,
+            columns: dict[str, str]| None = None
+
+    ) -> UserField:
+        """
+        Creates a multi-choice input field in the form (multi-select dropdown or checkboxes).
+        
+        This method delegates to the choice_input_field method with isMultiSelect=True.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            choices: The list of available choices, passed as DataMap.
+            show_as_dropdown: Whether to display as a dropdown. If False, displays as checkboxes. Defaults to True.
+            dropdown_item_column: Optional column name to use for display text in dropdown.
+            placeholder_text: Optional placeholder text for the dropdown.
+            default: Optional default selected values, passed as DataMap.
+            columns: Optional mapping of source property names to display labels for complex choice objects.
+
+        Returns:
+            UserField: The created multi-choice input field.
+        """
+        return self.get_spec().form.choice_input_field(
+                        name = name,
+                        label = label,
+                        required= required,
+                        source = choices,
+                        show_as_dropdown = show_as_dropdown,
+                        dropdown_item_column = dropdown_item_column,
+                        placeholder_text = placeholder_text,
+                        initial_value = default,
+                        columns = columns,
+                        isMultiSelect=True
+                ) 
 class AgentNode(Node):
     def __repr__(self):
         return f"AgentNode(name='{self.spec.name}', description='{self.spec.description}')"
