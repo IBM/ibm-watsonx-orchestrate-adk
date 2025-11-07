@@ -1,8 +1,8 @@
 from typing import List
 
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
-from pydantic import BaseModel, ValidationError
-from typing import Optional
+from pydantic import BaseModel, ValidationError, Field, AliasChoices
+from typing import Optional, Annotated
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, FetchConfigAuthTypes
@@ -31,8 +31,8 @@ class GetConfigResponse(BaseModel):
     sso: bool = None
     security_scheme: ConnectionSecurityScheme = None
     server_url: str | None = None
-    idp_config_data: Optional[IdpConfigData] = None
-    app_config_data: Optional[AppConfigData] = None
+    idp_config_data: Annotated[Optional[IdpConfigData], Field(validation_alias=AliasChoices('idp_config_data', 'idp_config'), serialization_alias='idp_config_data')] = None
+    app_config_data: Annotated[Optional[AppConfigData], Field(validation_alias=AliasChoices('app_config_data', 'app_config'), serialization_alias='app_config_data')] = None
 
     def as_config(self):
         return ConnectionConfiguration(**dict(self))
@@ -169,6 +169,8 @@ class ConnectionsClient(BaseAPIClient):
             raise e
 
     def get_drafts_by_ids(self, conn_ids) -> List[ListConfigsResponse]:
+        if not conn_ids:
+            return []
         try:
             res = self._get(f"/connections/applications?connectionIds={','.join(conn_ids)}")
             import json

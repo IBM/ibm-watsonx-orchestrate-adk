@@ -6,13 +6,6 @@ class EnvironmentType(str, Enum):
 
     def __str__(self):
         return self.value
-    
-
-class ChannelType(str, Enum):
-    WEBCHAT ='webchat'
-
-    def __str__(self):
-        return self.value
 
 
 class RuntimeEnvironmentType(str, Enum):
