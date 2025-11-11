@@ -2,6 +2,8 @@ import importlib
 import inspect
 import json
 import os
+import sys
+from types import MappingProxyType
 from typing import Any, Callable, Dict, List, get_type_hints
 import logging
 
@@ -35,6 +37,18 @@ def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict
     
     return parsed_expected_credentials
 
+def _create_immutable_struct(input):
+    match input:
+        case dict():
+            return MappingProxyType({k:_create_immutable_struct(v) for k,v in input})
+        case list() | set():
+            return tuple([_create_immutable_struct(v) for v in input])
+        case _:
+            return input
+
+    
+
+
 class PythonTool(BaseTool):
     def __init__(self,
                 fn,
@@ -62,6 +76,12 @@ class PythonTool(BaseTool):
             self._spec = spec
 
     def __call__(self, *args, **kwargs):
+        run_context_param = self.get_run_param()
+        if run_context_param:
+            context_param_value = kwargs.get(run_context_param)
+            if context_param_value:
+                kwargs[run_context_param] = _create_immutable_struct(context_param_value)
+            
         return self.fn(*args, **kwargs)
     
     @property
@@ -157,6 +177,12 @@ class PythonTool(BaseTool):
 
         self._spec = spec
         return spec
+    
+    def add_run_param(self, param_name: str):
+        self.__tool_spec__.binding.python.agent_run_paramater = param_name
+    
+    def get_run_param(self):
+        return self.__tool_spec__.binding.python.agent_run_paramater
     
     @staticmethod
     def from_spec(file: str) -> 'PythonTool':
@@ -283,7 +309,18 @@ def tool(
     :return:
     """
     # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
+    agent_run_param = None
+
+    if input_schema and input_schema.type == 'object':
+        for k,v in input_schema.properties:
+            if v.get('title','') == 'AgentRun':
+                if agent_run_param:
+                    raise BadRequest(f"Tool {name} has multiple run context objects")
+                del input_schema.properties[k]
+                agent_run_param = k
+
     def _tool_decorator(fn):
+
         t = PythonTool(
             fn=fn,
             name=name,
@@ -295,6 +332,9 @@ def tool(
             display_name=display_name,
             kind=kind
         )
+
+        if agent_run_param:
+            t.add_run_param(agent_run_param)
             
         _all_tools.append(t)
         return t
