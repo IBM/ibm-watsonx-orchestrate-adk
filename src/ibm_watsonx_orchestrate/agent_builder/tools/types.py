@@ -157,6 +157,7 @@ class PythonToolBinding(BaseModel):
     function: str
     requirements: Optional[List[str]] = []
     connections: dict[str, str] = None
+    agent_run_paramater: Optional[str] = None
 
 
 class WxFlowsToolBinding(BaseModel):
