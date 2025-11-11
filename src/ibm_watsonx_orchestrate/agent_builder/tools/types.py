@@ -68,7 +68,6 @@ class JsonSchemaObject(BaseModel):
             serialized['default'] = None
 
         return serialized
-    
 
 
 class ToolRequestBody(BaseModel):
