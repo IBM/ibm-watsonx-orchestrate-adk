@@ -5,6 +5,7 @@ from .types import (
     SlackChannel,
     SlackTeam,
     WebchatChannel,
+    GenesysBotConnectorChannel,
     ChannelType,
 )
 from .channel import ChannelLoader
@@ -16,6 +17,7 @@ __all__ = [
     "SlackChannel",
     "SlackTeam",
     "WebchatChannel",
+    "GenesysBotConnectorChannel",
     "ChannelLoader",
     "ChannelType",
 ]

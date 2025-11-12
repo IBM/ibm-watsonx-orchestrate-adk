@@ -12,9 +12,9 @@ class TestChannelType:
         assert ChannelType.TWILIO_WHATSAPP.value == "twilio_whatsapp"
         assert ChannelType.TWILIO_SMS.value == "twilio_sms"
         assert ChannelType.SLACK.value == "byo_slack"
+        assert ChannelType.GENESYS_BOT_CONNECTOR.value == "genesys_bot_connector"
         # assert ChannelType.TEAMS.value == "teams"
         # assert ChannelType.MESSENGER.value == "messenger"
-        # assert ChannelType.GENESYS_BOT_CONNECTOR.value == "genesys_bot_connector"
         # assert ChannelType.GENESYS_AUDIO_CONNECTOR.value == "genesys_audio_connector"
 
     def test_channel_type_string_representation(self):
@@ -23,6 +23,7 @@ class TestChannelType:
         assert str(ChannelType.TWILIO_WHATSAPP) == "twilio_whatsapp"
         assert str(ChannelType.TWILIO_SMS) == "twilio_sms"
         assert str(ChannelType.SLACK) == "byo_slack"
+        assert str(ChannelType.GENESYS_BOT_CONNECTOR) == "genesys_bot_connector"
 
 
 class TestChannelKind:

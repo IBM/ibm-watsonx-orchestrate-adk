@@ -11,6 +11,8 @@ class ChannelType(str, Enum):
     TWILIO_WHATSAPP = "twilio_whatsapp"
     TWILIO_SMS = "twilio_sms"
     SLACK = "byo_slack"
+    GENESYS_BOT_CONNECTOR = "genesys_bot_connector"
+    # GENESYS_AUDIO_CONNECTOR = "genesys_audio_connector"
     # TEAMS = "teams"
     # MESSENGER = "messenger"
     # GENESYS_BOT_CONNECTOR = "genesys_bot_connector"
@@ -130,7 +132,7 @@ class TwilioWhatsappChannel(BaseChannel):
         None,
         min_length=34,
         max_length=34,
-        pattern="^AC[0-9a-fA-F]{32}$",
+        pattern=r"^AC[a-zA-Z0-9]{32}$",
         description="Twilio Account SID"
     )
     twilio_authentication_token: Optional[str] = Field(
@@ -267,6 +269,72 @@ class SlackChannel(BaseChannel):
         if not self.teams or len(self.teams) == 0:
             raise ValueError("at least one team with bot_access_token is required for byo_slack channels")
         return self
+    
+class GenesysBotConnectorChannel(BaseChannel):
+    """Genesys Bot Connector channel configuration.
+
+    Required credentials:
+        - client_id
+        - client_secret
+        - verification_token
+        - bot_connector_id
+
+    Attributes:
+        channel: Always "genesys_bot_connector"
+        client_id: Genesys cloud client id
+        client_secret: Genesys cloud client secret
+        verification_token: The secret value defined in the Genesys Credentials tab
+        bot_connector_id: The integration ID from your Genesys Bot Connector
+        api_url: Genesys API Server URI
+    """
+
+    channel: Literal["genesys_bot_connector"] = "genesys_bot_connector"
+    client_id: Optional[str] = Field(
+        None,
+        min_length=36,
+        max_length=36,
+        pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        description="Genesys cloud client id"
+    )
+    client_secret: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Genesys cloud client secret"
+    )
+    verification_token: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="The secret value defined in the Genesys Credentials tab"
+    )
+    bot_connector_id: Optional[str] = Field(
+        None,
+        min_length=36,
+        max_length=36,
+        pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        description="The integration ID from your Genesys Bot Connector"
+    )
+    api_url: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=64,
+        pattern="^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$",
+        description="Genesys API Server URI"
+    )
+
+    @model_validator(mode='after')
+    def validate_required_fields(self):
+        """Validate that required Genesys credentials are provided."""
+        if not self.client_id:
+            raise ValueError("client_id is required for genesys_bot_connector channels")
+        if not self.client_secret:
+            raise ValueError("client_secret is required for genesys_bot_connector channels")
+        if not self.verification_token:
+            raise ValueError("verification_token is required for genesys_bot_connector channels")
+        if not self.bot_connector_id:
+            raise ValueError("bot_connector_id is required for genesys_bot_connector channels")
+        if not self.api_url:
+            raise ValueError("api_url is required for genesys_bot_connector channels")
+        return self
 
 # Union type for all channel types (will expand)
-Channel = Union[TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, WebchatChannel]
+Channel = Union[WebchatChannel, TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, GenesysBotConnectorChannel]
