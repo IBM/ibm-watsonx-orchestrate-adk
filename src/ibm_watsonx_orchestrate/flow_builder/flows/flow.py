@@ -39,7 +39,7 @@ from ..node import (
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
-    NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, _to_json_from_json_schema
+    NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema
 )
 
 from ..data_map import DataMap
@@ -1371,7 +1371,8 @@ class FlowFactory(BaseModel):
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
                     llm_model: str|ListVirtualModel|None=None,
-                    agent_conversation_memory_turns_limit: int|None = None) -> Flow:
+                    agent_conversation_memory_turns_limit: int|None = None,
+                    context_window: FlowContextWindow|None=None) -> Flow:
         if isinstance(name, Callable):
             flow_spec = getattr(name, "__flow_spec__", None)
             if not flow_spec:
@@ -1396,6 +1397,7 @@ class FlowFactory(BaseModel):
             private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
+            context_window=context_window,
         )
 
         return Flow(spec = flow_spec, llm_model=llm_model, agent_conversation_memory_turns_limit=agent_conversation_memory_turns_limit)
