@@ -180,6 +180,7 @@ services:
       ENABLE_BULK_TESTING: "true"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
+      LLM_DEFAULT_FLOW_MODEL: ""
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
     command: 'npm start'
     ports:
