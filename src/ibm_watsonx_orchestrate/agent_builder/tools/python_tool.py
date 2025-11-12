@@ -249,9 +249,17 @@ def _fix_optional(schema):
         schema.properties[k] = JsonSchemaObject(**combined)
         schema.properties[k].anyOf = None
         
-    for k in schema.properties.keys():
-        if schema.properties[k].type == 'object':
-            schema.properties[k] = _fix_optional(schema.properties[k])
+    for k, v in schema.properties.items():
+        if v.anyOf:
+            new_any_of = []
+            for item in v.anyOf:
+                if item.type == 'object':
+                    new_any_of.append(_fix_optional(item))
+                else:
+                    new_any_of.append(item)
+            v.anyOf = new_any_of
+        elif v.type == 'object':
+            schema.properties[k] = _fix_optional(v)
 
     return schema
 
