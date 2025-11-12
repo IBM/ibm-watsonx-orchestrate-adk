@@ -396,7 +396,7 @@ def server_start(
 
     env_service = EnvService(cli_config)
 
-    env_service.define_saas_wdu_runtime()
+    env_service.define_saas_wdu_runtime() # Set WDU_RUNTIME_SOURCE=none initially
     
     #Run regardless, to allow this to set compose as 'None' when not in use 
     env_service.set_compose_file_path_in_env(custom_compose_file)
@@ -417,7 +417,11 @@ def server_start(
 
     if with_doc_processing:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
-        env_service.define_saas_wdu_runtime("local")
+        merged_env_dict["WDU_RUNTIME_SOURCE"] = "local" # Set WDU_RUNTIME_SOURCE=local to use local WDU service
+    elif merged_env_dict.get("WO_INSTANCE") and merged_env_dict.get("WO_API_KEY"):
+        merged_env_dict["WDU_RUNTIME_SOURCE"] = "remote" # Set WDU_RUNTIME_SOURCE=remote to use WDU proxy
+    else:
+        logger.warning("IBM Document Processing is not enabled. The following two features will be disabled: \n1. Agent Knowledge - Upload files \n2. Agent Workflow - Document Processing. \nTo enable these features, please use '--with-doc-processing' argument or provide WO_INSTANCE and WO_API_KEY in your env file to start the server.")
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'

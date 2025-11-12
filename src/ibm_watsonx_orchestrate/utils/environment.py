@@ -52,7 +52,7 @@ class EnvService:
         "USE_SAAS_ML_TOOLS_RUNTIME",
         "AUTHORIZATION_URL",
         "OPENSOURCE_REGISTRY_PROXY",
-        "SAAS_WDU_RUNTIME",
+        "WDU_RUNTIME_SOURCE",
         "LATEST_ENV_FILE",
     }
 
@@ -427,7 +427,7 @@ class EnvService:
         return merged_env_dict
 
     def define_saas_wdu_runtime (self, value: str = "none") -> None:
-        self.__config.write(USER_ENV_CACHE_HEADER, "SAAS_WDU_RUNTIME", value)
+        self.__config.write(USER_ENV_CACHE_HEADER, "WDU_RUNTIME_SOURCE", value)
 
     @staticmethod
     def did_user_provide_registry_url (env_dict: dict) -> bool:

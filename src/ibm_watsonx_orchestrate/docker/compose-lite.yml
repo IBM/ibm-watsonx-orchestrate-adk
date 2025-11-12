@@ -180,6 +180,7 @@ services:
       ENABLE_BULK_TESTING: "true"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
+      WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -401,7 +402,7 @@ services:
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
-      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
+      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -507,7 +508,8 @@ services:
       AGENTOPS_BACKEND_URL: https://frontend-server:443
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
       WDU_RUNTIME_URL: ${WDU_RUNTIME_URL:-http://wdu-runtime:8080}
-      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
+      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
+      WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
