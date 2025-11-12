@@ -181,18 +181,30 @@ class NodeSpec(BaseModel):
 
 class DocExtConfigField(BaseModel):
     name: str = Field(description="Entity name")
-    type: Literal["string", "date", "number"] = Field(default="string",  description="The type of the entity values")
+    type: Literal["string", "date", "number", "table"] = Field(default="string",  description="The type of the entity values")
     description: str = Field(title="Description", description="Description of the entity", default="")
     field_name: str = Field(title="Field Name", description="The normalized name of the entity", default="")
     multiple_mentions: bool = Field(title="Multiple mentions",description="When true, we can produce multiple mentions of this entity", default=False)
     example_value: str = Field(description="Value of example", default="")
     examples: list[str] = Field(title="Examples", description="Examples that help the LLM understand the expected entity mentions", default=[])
 
+class DocExtConfigTableField(DocExtConfigField):
+    """
+    A table field in the Document Extraction Config.
+    """
+    fields: List[DocExtConfigField] = Field(description="Fields within the table.")
+    
+    def __init__(self, **data):
+        # Set type to "table" for table fields
+        data['type'] = 'table'
+        super().__init__(**data)
+
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
     llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
-    fields: list[DocExtConfigField] = Field(default=[])
+    fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
+    field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
 
 class LanguageCode(StrEnum):
     en = auto()
