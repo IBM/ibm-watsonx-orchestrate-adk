@@ -53,7 +53,7 @@ class TestChannelCommands:
             mock_controller.get_environment_id.assert_called_once_with("test_agent", "live")
             # Verify list_channels_agent was called with resolved UUID
             mock_controller.list_channels_agent.assert_called_once_with(
-                "agent-123", "env-12345678", None, False, None
+                "agent-123", "env-12345678", None, False, None, agent_name="test_agent"
             )
 
     def test_create_channel_resolves_environment(self):

@@ -26,9 +26,11 @@ def list_channel():
 def import_channel(
     agent_name: str = typer.Option(..., "--agent-name", help="Agent name"),
     env: EnvironmentType = typer.Option(..., "--env", "-e", help="Environment name (draft or live)"),
-    file: str = typer.Option(..., "--file", "-f", help="Path to channel configuration file (YAML, JSON, or Python)")
+    file: str = typer.Option(..., "--file", "-f", help="Path to channel configuration file (YAML, JSON, or Python)"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Import channel(s) from a configuration file (creates or updates by name)."""
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     channels = controller.import_channel(file)
@@ -45,12 +47,14 @@ def list_channels_command(
     env: EnvironmentType = typer.Option(..., "--env", "-e", help="Environment name (draft or live)"),
     channel_type: Optional[ChannelType] = typer.Option(None, "--type", "-t", help="Filter by channel type (e.g., twilio_whatsapp)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full JSON output"),
-    format: Optional[ListFormats] = typer.Option(None, "--format", "-f", help="Output format (table, json)")
+    format: Optional[ListFormats] = typer.Option(None, "--format", "-f", help="Output format (table, json)"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """List channels for an agent environment."""
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
-    controller.list_channels_agent(agent_id, environment_id, channel_type, verbose, format)
+    controller.list_channels_agent(agent_id, environment_id, channel_type, verbose, format, agent_name=agent_name)
 
 
 @channel_app.command(name="get", help="Get details of a specific channel by ID or name")
@@ -58,11 +62,13 @@ def get_channel(
     agent_name: str = typer.Option(..., "--agent-name", help="Agent name"),
     env: EnvironmentType = typer.Option(..., "--env", "-e", help="Environment name (draft or live)"),
     channel_type: ChannelType = typer.Option(..., "--type", "-t", help="Channel type (e.g., twilio_whatsapp)"),
-    channel_id: Optional[str] = typer.Option(None, "--id", "-i", help="Channel ID"),
-    channel_name: Optional[str] = typer.Option(None, "--name", "-n", help="Channel name"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full JSON output")
+    channel_id: Optional[str] = typer.Option(None, "--id", "-i", help="Channel ID (either --id or --name required)"),
+    channel_name: Optional[str] = typer.Option(None, "--name", "-n", help="Channel name (either --id or --name required)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full JSON output"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Get a specific channel by ID or name."""
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
@@ -77,7 +83,8 @@ def create_channel(
     name: str = typer.Option(..., "--name", "-n", help="Channel name"),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="Channel description"),
     field: Optional[list[str]] = typer.Option(None, "--field", "-f", help="Channel-specific field in key=value format (can be used multiple times). Examples: --field account_sid=ACxxx --field twilio_authentication_token=xxx"),
-    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="Write the channel spec to a file instead of creating it")
+    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="Write the channel spec to a file instead of creating it"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Create a new channel using CLI arguments.
 
@@ -88,6 +95,7 @@ def create_channel(
         # Create a Webchat channel
         orchestrate channels create --agent-name my_agent --env draft --type webchat --name "Web Chat"
     """
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
 
     # Parse field arguments into a dictionary
@@ -120,9 +128,11 @@ def export_channel(
     channel_type: ChannelType = typer.Option(..., "--type", "-t", help="Channel type (e.g., twilio_whatsapp, webchat)"),
     channel_id: Optional[str] = typer.Option(None, "--id", "-i", help="Channel ID to export"),
     channel_name: Optional[str] = typer.Option(None, "--name", "-n", help="Channel name to export"),
-    output: str = typer.Option(..., "--output", "-o", help="Path where the YAML file should be saved")
+    output: str = typer.Option(..., "--output", "-o", help="Path where the YAML file should be saved"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Export a channel configuration to a YAML file."""
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
@@ -136,9 +146,11 @@ def delete_channel(
     channel_type: ChannelType = typer.Option(..., "--type", "-t", help="Channel type"),
     channel_id: Optional[str] = typer.Option(None, "--id", "-i", help="Channel ID to delete"),
     channel_name: Optional[str] = typer.Option(None, "--name", "-n", help="Channel name to delete"),
-    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt")
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Delete a channel by ID or name."""
+    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
