@@ -112,6 +112,43 @@ class Flow(Node):
         self._sequence_id += 1
         return self._sequence_id
     
+
+    def _rewrite_local_refs(self, node):
+        """Turn '#/$defs/Name' -> '#/schemas/Name' everywhere in a schema node."""
+        if node is None:
+            return
+        # JsonSchemaObject / Pydantic-style
+        if hasattr(node, "model_extra"):
+            # rewrite model_extra in place
+            self._rewrite_local_refs(node.model_extra)
+            # walk common containers present on JsonSchemaObject
+            for attr in ("properties", "items", "anyOf", "oneOf", "allOf"):
+                if hasattr(node, attr):
+                    self._rewrite_local_refs(getattr(node, attr))
+            # discriminator.mapping holds strings that can be $ref-like targets
+            if hasattr(node, "discriminator") and isinstance(node.discriminator, dict):
+                mapping = node.discriminator.get("mapping")
+                if isinstance(mapping, dict):
+                    for k, v in list(mapping.items()):
+                        if isinstance(v, str) and v.startswith("#/$defs/"):
+                            mapping[k] = "#/schemas/" + v[len("#/$defs/"):]
+            return
+
+        # dict
+        if isinstance(node, dict):
+            for k, v in list(node.items()):
+                if k == "$ref" and isinstance(v, str) and v.startswith("#/$defs/"):
+                    node[k] = "#/schemas/" + v[len("#/$defs/"):]
+                else:
+                    self._rewrite_local_refs(v)
+            return
+
+        # list
+        if isinstance(node, list):
+            for i, v in enumerate(node):
+                self._rewrite_local_refs(v)
+            return 
+    
     def _add_schema(self, schema: JsonSchemaObject, title: str = None) -> JsonSchemaObject:
         '''
         Adds a schema to the dictionary of schemas. If a schema with the same name already exists, it returns the existing schema. Otherwise, it creates a deep copy of the schema, adds it to the dictionary, and returns the new schema.
@@ -161,9 +198,27 @@ class Flow(Node):
             if isinstance(schema, dict):
                 # recast schema to support direct access
                 schema = JsonSchemaObject.model_validate(schema)
+
+            
             # we should only add schema when it is a complex object
-            if schema.type != "object" and schema.type != "array":
-                return schema
+            complex_types = {"object", "array"}
+            if schema.type not in complex_types:
+                # Register simple defs (string/number/boolean/null) so they can be $ref’d
+                new_schema = copy.deepcopy(schema)
+                if not title:
+                    if schema.title:
+                        title = get_valid_name(schema.title)
+                    elif schema.aliasName:
+                        title = get_valid_name(schema.aliasName)
+                    else:
+                        title = "bo_" + str(self._next_sequence_id())
+                new_schema.title = title
+
+                top_flow = self._find_topmost_flow()
+                
+                self._rewrite_local_refs(new_schema)
+                top_flow.schemas[title] = new_schema
+                return new_schema
 
             new_schema = copy.deepcopy(schema)
             if not title:
@@ -203,7 +258,17 @@ class Flow(Node):
             if hasattr(new_schema, "model_extra") and "$defs" in new_schema.model_extra:
                 for schema_name, schema_def in new_schema.model_extra["$defs"].items():
                     self._add_schema(schema_def, schema_name)
+                     # remove inline $defs now that they’ve been promoted
+                    if hasattr(new_schema, "model_extra") and isinstance(new_schema.model_extra, dict):
+                        # promote local defs
+                        local_defs = new_schema.model_extra.get("$defs") or {}
+                        for schema_name, schema_def in local_defs.items():
+                            self._add_schema(schema_def, schema_name)
+                        # strip inline $defs
+                        new_schema.model_extra.pop("$defs", None)
 
+            # makes sure every lingering #/$defs/... becomes #/schemas/... before serialization.            
+            self._rewrite_local_refs(new_schema)
             # set the title
             new_schema.title = title
             top_flow.schemas[title] = new_schema
