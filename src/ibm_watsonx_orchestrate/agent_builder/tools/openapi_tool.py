@@ -413,7 +413,7 @@ async def create_openapi_json_tools_from_content(
         for method, spec in methods.items():
             if method.lower() == 'head' or not isinstance(spec, dict) :
                 continue
-            success_codes = list(filter(lambda code: 200 <= int(code) < 300, spec['responses'].keys()))
+            success_codes = list(filter(lambda code: code != 'default' and 200 <= int(code) < 300, spec['responses'].keys()))
             if len(success_codes) > 1:
                 logger.warning(
                     f"There were multiple candidate success codes for {method} {path}, using {success_codes[0]} to generate output schema")

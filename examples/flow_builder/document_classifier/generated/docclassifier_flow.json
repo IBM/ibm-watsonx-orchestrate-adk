@@ -3,7 +3,7 @@
     "kind": "flow",
     "name": "custom_flow_docclassifier_example",
     "display_name": "custom_flow_docclassifier_example",
-    "description": "Extraction of custom classes from a document, specified by the user.",
+    "description": "Classifies documents into custom classes.",
     "input_schema": {
       "$ref": "#/schemas/custom_flow_docclassifier_example_input"
     },
@@ -15,35 +15,29 @@
         "kind": "docclassifier",
         "name": "document_classifier_node",
         "display_name": "document_classifier_node",
-        "description": "Classify custom classes from a document",
+        "description": "Classifies documents into one custom class.",
         "input_schema": {
           "$ref": "#/schemas/document_classifier_node_input"
         },
         "output_schema": {
           "$ref": "#/schemas/DocumentClassificationResponse"
         },
+        "task": "custom_document_classification",
+        "enable_hw": false,
         "version": "TIP",
         "config": {
           "domain": "other",
           "type": "class_configuration",
-          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
+          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
           "min_confidence": 0.0,
           "classes": [
             {
-              "class_name": "Buyer",
-              "class_id": "b96c4253-0313-57fb-9849-8ad1652763e9"
-            },
-            {
-              "class_name": "Seller",
-              "class_id": "36523c04-5a39-5b77-81b1-eed40628c248"
-            },
-            {
-              "class_name": "Agreement_Date",
-              "class_id": "50099c0f-34ac-545d-89ad-8f9b4154c0f0"
+              "class_name": "Invoice",
+              "class_id": "6d0c113f-a81d-5ec9-ae68-93dec9335e17"
             }
           ]
         },
-        "task": "custom_document_classification"
+        "enable_review": false
       }
     },
     "__start__": {
@@ -88,10 +82,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -113,10 +109,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -150,6 +148,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-06T19:08:13.105889+00:00"
+    "compiled_on": "2025-10-24T08:01:14.536935+00:00"
   }
 }

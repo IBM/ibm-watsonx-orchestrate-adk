@@ -44,6 +44,22 @@ class ChannelsController:
         """Alias for get_agent_client() for backward compatibility."""
         return self.get_agent_client()
 
+    def get_channel_api_path(self, channel_type: str) -> str:
+        """Convert channel type to API path.
+        Some channel types have different API paths than their type name.
+
+        Args:
+            channel_type: Channel type (e.g., 'byo_slack')
+
+        Returns:
+            API path for the channel type
+        """
+        # Mapping for channel types that differ from their API paths
+        channel_type_to_api_path = {
+            'byo_slack': 'slack',
+        }
+        return channel_type_to_api_path.get(channel_type, channel_type)
+
     def get_agent_id_by_name(self, agent_name: str) -> str:
         """Look up agent ID by agent name.
 
@@ -104,10 +120,6 @@ class ChannelsController:
         if not filtered_environments:
             if env == 'live':
                 logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
-            exit(1)
-
-        if target_env == 'draft' and is_saas == True:
-            logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
             exit(1)
 
         return filtered_environments[0].get("id")
@@ -171,10 +183,19 @@ class ChannelsController:
             SystemExit if validation fails or required fields missing
         """
 
+        # Webchat channels work differently - they don't require explicit creation
+        if channel_type == ChannelType.WEBCHAT:
+            logger.error(
+                "Webchat channels cannot be created using the 'create' command.\n"
+                "Webchat is automatically available for all agents.\n"
+                "To generate webchat embed code, use:\n"
+                "  orchestrate channels webchat embed --agent-name <agent_name> --env <draft|live>"
+            )
+            sys.exit(1)
+
         channel_class_map = {
             ChannelType.TWILIO_WHATSAPP: TwilioWhatsappChannel,
             ChannelType.TWILIO_SMS: TwilioSMSChannel,
-            ChannelType.WEBCHAT: WebchatChannel,
             ChannelType.SLACK: SlackChannel,
         }
 
@@ -246,10 +267,28 @@ class ChannelsController:
         Returns:
             List of channel dictionaries or formatted output
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
+        # Check if trying to list webchat channels specifically
+        if channel_type == ChannelType.WEBCHAT:
+            logger.error(
+                "Webchat channels cannot be listed via the channels API.\n"
+                "Webchat is automatically available for all agents.\n"
+                "To generate webchat embed code, use:\n"
+                "  orchestrate channels webchat embed --agent-name <agent_name> --env <draft|live>"
+            )
+            sys.exit(1)
+
         client = self.get_channels_client()
 
+        # Convert channel type to API path if provided
+        api_path = self.get_channel_api_path(channel_type) if channel_type else None
+
         try:
-            channels = client.list(agent_id, environment_id, channel_type)
+            channels = client.list(agent_id, environment_id, api_path)
         except Exception as e:
             logger.error(f"Failed to list channels: {e}")
             sys.exit(1)
@@ -318,12 +357,25 @@ class ChannelsController:
             logger.error("Either --id or --name must be provided")
             sys.exit(1)
 
+        # Warn about Twilio SMS name field issue
+        if channel_type == ChannelType.TWILIO_SMS and channel_name and not channel_id:
+            logger.error(
+                "Twilio SMS channels cannot currently be looked up by name.\n"
+                "Please use --id instead of --name to specify the channel.\n"
+                "You can find the channel ID by running:\n"
+                "  orchestrate channels list-channels --agent-name <agent_name> --env <draft|live>"
+            )
+            sys.exit(1)
+
         client = self.get_channels_client()
+
+        # Convert channel type to API path
+        api_path = self.get_channel_api_path(channel_type)
 
         # If both provided, validate they match
         if channel_id and channel_name:
             try:
-                channel = client.get(agent_id, environment_id, channel_type, channel_id)
+                channel = client.get(agent_id, environment_id, api_path, channel_id)
                 if not channel:
                     logger.error(f"Channel with ID '{channel_id}' not found")
                     sys.exit(1)
@@ -344,7 +396,7 @@ class ChannelsController:
 
         # Resolve by channel name
         try:
-            channels = client.list(agent_id, environment_id, channel_type)
+            channels = client.list(agent_id, environment_id, api_path)
             matching_channels = [ch for ch in channels if ch.get('name') == channel_name]
 
             if not matching_channels:
@@ -381,10 +433,28 @@ class ChannelsController:
         Returns:
             Channel dictionary or None if not found
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
+        # Check if trying to get a webchat channel
+        if channel_type == ChannelType.WEBCHAT:
+            logger.error(
+                "Webchat channels cannot be retrieved via the channels API.\n"
+                "Webchat is automatically available for all agents.\n"
+                "To generate webchat embed code, use:\n"
+                "  orchestrate channels webchat embed --agent-name <agent_name> --env <draft|live>"
+            )
+            sys.exit(1)
+
         client = self.get_channels_client()
 
+        # Convert channel type to API path
+        api_path = self.get_channel_api_path(channel_type)
+
         try:
-            channel = client.get(agent_id, environment_id, channel_type, channel_id)
+            channel = client.get(agent_id, environment_id, api_path, channel_id)
         except Exception as e:
             logger.error(f"Failed to get channel: {e}")
             sys.exit(1)
@@ -423,11 +493,18 @@ class ChannelsController:
         Raises:
             SystemExit if a channel of the same type already exists in the same environment
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
         client = self.get_channels_client()
 
         try:
             # Check if a channel of this type already exists in this environment
-            existing_channels = client.list(agent_id, environment_id, channel.channel)
+            # Convert channel type to API path for the list call
+            api_path = self.get_channel_api_path(channel.channel)
+            existing_channels = client.list(agent_id, environment_id, api_path)
             if existing_channels:
                 logger.error(
                     f"A channel of type '{channel.channel}' already exists in this environment. "
@@ -435,7 +512,11 @@ class ChannelsController:
                     f"To use multiple channels of the same type, create them in different environments (draft/live)."
                 )
                 sys.exit(1)
+        except Exception:
+            # If list fails (e.g., 404 for unopened endpoint), continue with creation, WILL support these endpoints soon
+            pass
 
+        try:
             result = client.create(agent_id, environment_id, channel)
             channel_id = result.get('id')
 
@@ -467,6 +548,11 @@ class ChannelsController:
         Returns:
             Updated channel dictionary
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
         client = self.get_channels_client()
 
         try:
@@ -497,10 +583,19 @@ class ChannelsController:
 
         Returns:
             Full event URL in the format:
-            {instance_uri}/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs
+            - Local: /v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs
+            - SaaS: {instance_uri}/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs
         """
         client = self.get_channels_client()
-        instance_uri = client.base_url.replace('/v1/orchestrate', '').replace('/v1', '')
+        base_url = client.base_url
+
+        # Check if this is a local environment
+        if is_local_dev(base_url):
+            logger.info("Local environment detected")
+            return f"/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
+
+        # For non-local environments
+        instance_uri = base_url.replace('/v1/orchestrate', '').replace('/v1', '')
         return f"{instance_uri}/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
 
     def publish_or_update_channel(
@@ -522,13 +617,31 @@ class ChannelsController:
         Returns:
             Event URL for the channel
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
+        # Webchat channels work differently - they don't require explicit creation
+        if channel.channel == ChannelType.WEBCHAT:
+            logger.warning(
+                "Webchat channels cannot be created or updated via the channels API.\n"
+                "Webchat is automatically available for all agents.\n"
+                "To generate webchat embed code, use:\n"
+                "  orchestrate channels webchat embed --agent-name <agent_name> --env <draft|live>"
+            )
+            # Return a placeholder URL since webchat doesn't have a traditional event URL
+            return f"Webchat is available for agent {agent_id} in environment {environment_id}"
+
         client = self.get_channels_client()
 
         # Try to find existing channel by name
         existing_channel = None
         if channel.name:
             try:
-                channels = client.list(agent_id, environment_id, channel.channel)
+                # Convert channel type to API path for the list call
+                api_path = self.get_channel_api_path(channel.channel)
+                channels = client.list(agent_id, environment_id, api_path)
                 for ch in channels:
                     if ch.get('name') == channel.name:
                         existing_channel = ch
@@ -575,6 +688,11 @@ class ChannelsController:
             output_path: Path where the YAML file should be saved (or path within zip)
             zip_file_out: Optional ZipFile object for recursive export
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
         from pathlib import Path
         from io import BytesIO
 
@@ -588,8 +706,12 @@ class ChannelsController:
 
         # Get the channel
         client = self.get_channels_client()
+
+        # Convert channel type to API path
+        api_path = self.get_channel_api_path(channel_type)
+
         try:
-            channel = client.get(agent_id, environment_id, channel_type, channel_id)
+            channel = client.get(agent_id, environment_id, api_path, channel_id)
         except Exception as e:
             if zip_file_out:
                 logger.warning(f"Failed to get channel: {e}")
@@ -645,10 +767,18 @@ class ChannelsController:
             channel_type: Channel type
             channel_id: Channel identifier to delete
         """
+        # Check if trying to use channels in SaaS environment
+        if not is_local_dev():
+            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
+            sys.exit(1)
+
         client = self.get_channels_client()
 
+        # Convert channel type to API path
+        api_path = self.get_channel_api_path(channel_type)
+
         try:
-            client.delete(agent_id, environment_id, channel_type, channel_id)
+            client.delete(agent_id, environment_id, api_path, channel_id)
 
             logger.info(f"Successfully deleted channel '{channel_id}'")
 

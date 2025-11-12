@@ -286,10 +286,11 @@ class TestCreateChannelFromArgs:
             )
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestListChannels:
     """Tests for list_channels() method."""
 
-    def test_list_channels_success(self, controller, mock_channels_client):
+    def test_list_channels_success(self, mock_is_local_dev, controller, mock_channels_client):
         """Test listing channels successfully."""
         mock_channels_client.list.return_value = [
             {"id": "ch1", "name": "channel1", "channel": "twilio_whatsapp", "created_on": "2024-01-01"},
@@ -303,7 +304,7 @@ class TestListChannels:
                 assert len(result) == 2
                 mock_channels_client.list.assert_called_once_with("agent-123", "draft", None)
 
-    def test_list_channels_with_type_filter(self, controller, mock_channels_client):
+    def test_list_channels_with_type_filter(self, mock_is_local_dev, controller, mock_channels_client):
         """Test listing channels filtered by type."""
         mock_channels_client.list.return_value = [
             {"id": "ch1", "name": "channel1", "channel": "twilio_whatsapp", "created_on": "2024-01-01"}
@@ -313,9 +314,9 @@ class TestListChannels:
             with patch('rich.console.Console.print'):
                 controller.list_channels_agent("agent-123", "draft", channel_type=ChannelType.TWILIO_WHATSAPP)
 
-                mock_channels_client.list.assert_called_once_with("agent-123", "draft", ChannelType.TWILIO_WHATSAPP)
+                mock_channels_client.list.assert_called_once_with("agent-123", "draft", "twilio_whatsapp")
 
-    def test_list_channels_empty(self, controller, mock_channels_client):
+    def test_list_channels_empty(self, mock_is_local_dev, controller, mock_channels_client):
         """Test listing when no channels exist."""
         mock_channels_client.list.return_value = []
 
@@ -324,7 +325,7 @@ class TestListChannels:
 
             assert result == []
 
-    def test_list_channels_verbose(self, controller, mock_channels_client):
+    def test_list_channels_verbose(self, mock_is_local_dev, controller, mock_channels_client):
         """Test listing channels in verbose mode (JSON output)."""
         mock_channels_client.list.return_value = [
             {"id": "ch1", "name": "channel1"}
@@ -337,10 +338,11 @@ class TestListChannels:
                 mock_print_json.assert_called_once()
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestGetChannel:
     """Tests for get_channel() method."""
 
-    def test_get_channel_success(self, controller, mock_channels_client):
+    def test_get_channel_success(self, mock_is_local_dev, controller, mock_channels_client):
         """Test getting a channel successfully."""
         mock_channels_client.get.return_value = {
             "id": "ch1",
@@ -356,7 +358,7 @@ class TestGetChannel:
                 assert result["id"] == "ch1"
                 mock_channels_client.get.assert_called_once_with("agent-123", "draft", "twilio_whatsapp", "ch1")
 
-    def test_get_channel_not_found(self, controller, mock_channels_client):
+    def test_get_channel_not_found(self, mock_is_local_dev, controller, mock_channels_client):
         """Test getting non-existent channel raises SystemExit."""
         mock_channels_client.get.return_value = None
 
@@ -365,10 +367,11 @@ class TestGetChannel:
                 controller.get_channel("agent-123", "draft", "twilio_whatsapp", "nonexistent")
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestCreateChannel:
     """Tests for create_channel() method."""
 
-    def test_create_channel_success(self, controller, mock_channels_client, sample_channel):
+    def test_create_channel_success(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test creating a channel successfully."""
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             channel_id = controller.create_channel("agent-123", "draft", sample_channel)
@@ -377,7 +380,7 @@ class TestCreateChannel:
             mock_channels_client.list.assert_called_once_with("agent-123", "draft", "twilio_whatsapp")
             mock_channels_client.create.assert_called_once_with("agent-123", "draft", sample_channel)
 
-    def test_create_channel_failure(self, controller, mock_channels_client, sample_channel):
+    def test_create_channel_failure(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test creating channel with API error raises SystemExit."""
         mock_channels_client.create.side_effect = Exception("API Error")
 
@@ -385,7 +388,7 @@ class TestCreateChannel:
             with pytest.raises(SystemExit):
                 controller.create_channel("agent-123", "draft", sample_channel)
 
-    def test_create_channel_duplicate_type_same_environment(self, controller, mock_channels_client, sample_channel):
+    def test_create_channel_duplicate_type_same_environment(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test creating a duplicate channel type in the same environment raises SystemExit."""
 
         mock_channels_client.list.return_value = [
@@ -399,7 +402,7 @@ class TestCreateChannel:
             mock_channels_client.list.assert_called_once_with("agent-123", "draft", "twilio_whatsapp")
             mock_channels_client.create.assert_not_called()
 
-    def test_create_channel_same_type_different_environment(self, controller, mock_channels_client):
+    def test_create_channel_same_type_different_environment(self, mock_is_local_dev, controller, mock_channels_client):
         """Test creating same channel type in different environments is allowed."""
         channel_draft = TwilioWhatsappChannel(
             channel="twilio_whatsapp",
@@ -429,7 +432,7 @@ class TestCreateChannel:
 
             assert mock_channels_client.create.call_count == 2
 
-    def test_create_channel_after_deletion(self, controller, mock_channels_client, sample_channel):
+    def test_create_channel_after_deletion(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test creating a channel of same type after deleting the previous one is allowed."""
         new_channel = TwilioWhatsappChannel(
             channel="twilio_whatsapp",
@@ -458,10 +461,11 @@ class TestCreateChannel:
             mock_channels_client.create.assert_called_once_with("agent-123", "draft", new_channel)
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestUpdateChannel:
     """Tests for update_channel() method."""
 
-    def test_update_channel_partial(self, controller, mock_channels_client, sample_channel):
+    def test_update_channel_partial(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test partial update of a channel."""
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             result = controller.update_channel("agent-123", "draft", "ch-123", sample_channel, partial=True)
@@ -469,7 +473,7 @@ class TestUpdateChannel:
             assert result["id"] == "ch-123"
             mock_channels_client.update.assert_called_once_with("agent-123", "draft", "ch-123", sample_channel, True)
 
-    def test_update_channel_full(self, controller, mock_channels_client, sample_channel):
+    def test_update_channel_full(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test full update of a channel."""
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             controller.update_channel("agent-123", "draft", "ch-123", sample_channel, partial=False)
@@ -477,22 +481,26 @@ class TestUpdateChannel:
             mock_channels_client.update.assert_called_once_with("agent-123", "draft", "ch-123", sample_channel, False)
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestPublishOrUpdateChannel:
     """Tests for publish_or_update_channel() method."""
 
-    def test_publish_new_channel(self, controller, mock_channels_client, sample_channel):
+    def test_publish_new_channel(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test publishing a new channel (no existing channel)."""
         mock_channels_client.list.return_value = []
         mock_channels_client.base_url = "https://example.com/v1/orchestrate"
 
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             with patch.object(controller, 'create_channel', return_value="new-id") as mock_create:
-                event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
+                # Mock is_local_dev to return False only for get_channel_event_url
+                with patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev') as mock_local:
+                    mock_local.side_effect = lambda url=None: False if url else True
+                    event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
 
                 assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/runs"
                 mock_create.assert_called_once()
 
-    def test_update_existing_channel(self, controller, mock_channels_client, sample_channel):
+    def test_update_existing_channel(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test updating an existing channel by name."""
         mock_channels_client.list.return_value = [
             {"id": "existing-id", "name": "test_channel", "channel": "twilio_whatsapp"}
@@ -501,12 +509,15 @@ class TestPublishOrUpdateChannel:
 
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             with patch.object(controller, 'update_channel') as mock_update:
-                event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
+                # Mock is_local_dev to return False only for get_channel_event_url
+                with patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev') as mock_local:
+                    mock_local.side_effect = lambda url=None: False if url else True
+                    event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
 
                 assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/existing-id/runs"
                 mock_update.assert_called_once_with("agent-123", "draft", "existing-id", sample_channel, partial=True)
 
-    def test_publish_with_new_name(self, controller, mock_channels_client):
+    def test_publish_with_new_name(self, mock_is_local_dev, controller, mock_channels_client):
         """Test publishing channel with name that doesn't exist creates new channel."""
         channel = TwilioWhatsappChannel(
             name="new_channel",
@@ -519,16 +530,20 @@ class TestPublishOrUpdateChannel:
 
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             with patch.object(controller, 'create_channel', return_value="new-id") as mock_create:
-                event_url = controller.publish_or_update_channel("agent-123", "draft", channel)
+                # Mock is_local_dev to return False only for get_channel_event_url
+                with patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev') as mock_local:
+                    mock_local.side_effect = lambda url=None: False if url else True
+                    event_url = controller.publish_or_update_channel("agent-123", "draft", channel)
 
                 assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/runs"
                 mock_create.assert_called_once()
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestExportChannel:
     """Tests for export_channel() method."""
 
-    def test_export_channel_to_file(self, controller, mock_channels_client):
+    def test_export_channel_to_file(self, mock_is_local_dev, controller, mock_channels_client):
         """Test exporting a channel to YAML file."""
         mock_channels_client.get.return_value = {
             "id": "ch1",
@@ -558,24 +573,25 @@ class TestExportChannel:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
-    def test_export_channel_invalid_extension(self, controller, mock_channels_client):
+    def test_export_channel_invalid_extension(self, mock_is_local_dev, controller, mock_channels_client):
         """Test exporting with invalid file extension raises SystemExit."""
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             with pytest.raises(SystemExit):
                 controller.export_channel("agent-123", "draft", "twilio_whatsapp", "ch1", "output.txt")
 
 
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestDeleteChannel:
     """Tests for delete_channel() method."""
 
-    def test_delete_channel_success(self, controller, mock_channels_client):
+    def test_delete_channel_success(self, mock_is_local_dev, controller, mock_channels_client):
         """Test deleting a channel successfully."""
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             controller.delete_channel("agent-123", "draft", "twilio_whatsapp", "ch-123")
 
             mock_channels_client.delete.assert_called_once_with("agent-123", "draft", "twilio_whatsapp", "ch-123")
 
-    def test_delete_channel_failure(self, controller, mock_channels_client):
+    def test_delete_channel_failure(self, mock_is_local_dev, controller, mock_channels_client):
         """Test deleting channel with API error raises SystemExit."""
         mock_channels_client.delete.side_effect = Exception("Delete failed")
 
