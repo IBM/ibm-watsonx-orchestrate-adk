@@ -41,7 +41,7 @@ class TestChannelsClientList:
 
         result = channels_client.list("agent-123", "draft")
 
-        channels_client._get.assert_called_once_with("/orchestrate/agents/agent-123/environments/draft/channels")
+        channels_client._get.assert_called_once_with("/agents/agent-123/environments/draft/channels")
         assert len(result) == 2
         assert result[0]["id"] == "ch1"
 
@@ -55,7 +55,7 @@ class TestChannelsClientList:
 
         result = channels_client.list("agent-123", "draft", "twilio_whatsapp")
 
-        channels_client._get.assert_called_once_with("/orchestrate/agents/agent-123/environments/draft/channels/twilio_whatsapp")
+        channels_client._get.assert_called_once_with("/agents/agent-123/environments/draft/channels/twilio_whatsapp")
         assert len(result) == 1
 
     def test_list_empty_channels(self, channels_client):
@@ -81,7 +81,7 @@ class TestChannelsClientGet:
 
         result = channels_client.get("agent-123", "draft", "twilio_whatsapp", "ch1")
 
-        channels_client._get.assert_called_once_with("/orchestrate/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch1")
+        channels_client._get.assert_called_once_with("/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch1")
         assert result["id"] == "ch1"
         assert result["name"] == "test_channel"
 
@@ -111,7 +111,7 @@ class TestChannelsClientCreate:
         call_args = channels_client._post.call_args
 
         # Check endpoint
-        assert call_args[0][0] == "/orchestrate/agents/agent-123/environments/draft/channels/twilio_whatsapp"
+        assert call_args[0][0] == "/agents/agent-123/environments/draft/channels/twilio_whatsapp"
 
         # Check that data was passed
         data = call_args[1]["data"]
@@ -163,7 +163,7 @@ class TestChannelsClientUpdate:
         call_args = channels_client._patch.call_args
 
         # Check endpoint
-        assert call_args[0][0] == "/orchestrate/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch-123"
+        assert call_args[0][0] == "/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch-123"
 
         # Check result
         assert result["id"] == "ch-123"
@@ -208,7 +208,7 @@ class TestChannelsClientDelete:
 
         channels_client.delete("agent-123", "draft", "twilio_whatsapp", "ch-123")
 
-        channels_client._delete.assert_called_once_with("/orchestrate/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch-123")
+        channels_client._delete.assert_called_once_with("/agents/agent-123/environments/draft/channels/twilio_whatsapp/ch-123")
 
 
 class TestChannelsClientEndpointConstruction:

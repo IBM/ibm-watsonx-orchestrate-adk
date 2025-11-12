@@ -19,13 +19,24 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 logger = logging.getLogger(__name__)
 
 
-
 class ChannelsController:
     """Unified controller for all channel operations (CRUD, utilities, and webchat)."""
 
     def __init__(self):
         self.channels_client = None
         self.agent_client = None
+
+    def _check_local_dev_block(self, enable_developer_mode: bool = False) -> None:
+        """Check if channel operations should be blocked in local dev."""
+        if is_local_dev():
+            if not enable_developer_mode:
+                logger.error("Channel authoring is not available in local development environment.")
+                sys.exit(1)
+            else:
+                # Show warning when developer mode is enabled
+                logger.warning("DEVELOPER MODE ENABLED - Proceed at your own risk! No official support will be provided.")
+                logger.warning("Channel operations in local development may cause unexpected behavior.")
+                logger.warning("This environment is not validated for production use.")
 
     def get_channels_client(self) -> ChannelsClient:
         """Get or create the channels client instance."""
@@ -118,8 +129,9 @@ class ChannelsController:
         filtered_environments = [e for e in agent_environments if e.get("name") == target_env]
 
         if not filtered_environments:
+            logger.error(f'This agent does not exist in the {target_env} environment.')
             if env == 'live':
-                logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
+                logger.error(f'You need to deploy the agent to {env} first.')
             exit(1)
 
         return filtered_environments[0].get("id")
@@ -253,7 +265,8 @@ class ChannelsController:
         environment_id: str,
         channel_type: Optional[ChannelType] = None,
         verbose: bool = False,
-        format: Optional[ListFormats] = None
+        format: Optional[ListFormats] = None,
+        agent_name: str = None,
     ) -> List[Dict[str, Any]] | str | None:
         """List channels for an agent environment.
 
@@ -263,15 +276,12 @@ class ChannelsController:
             channel_type: Optional filter by channel type
             verbose: If True, show full JSON output
             format: Output format (table, json)
+            agent_name: Optional agent name for display purposes
+            env: Optional environment name for display purposes
 
         Returns:
             List of channel dictionaries or formatted output
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         # Check if trying to list webchat channels specifically
         if channel_type == ChannelType.WEBCHAT:
             logger.error(
@@ -304,7 +314,7 @@ class ChannelsController:
         table = rich.table.Table(
             show_header=True,
             header_style="bold white",
-            title=f"Channels for Agent {agent_id} ({environment_id})",
+            title=f"Channels for Agent '{agent_name}' (id: {agent_id})",
             show_lines=True
         )
 
@@ -433,11 +443,6 @@ class ChannelsController:
         Returns:
             Channel dictionary or None if not found
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         # Check if trying to get a webchat channel
         if channel_type == ChannelType.WEBCHAT:
             logger.error(
@@ -493,11 +498,6 @@ class ChannelsController:
         Raises:
             SystemExit if a channel of the same type already exists in the same environment
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         client = self.get_channels_client()
 
         try:
@@ -548,11 +548,6 @@ class ChannelsController:
         Returns:
             Updated channel dictionary
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         client = self.get_channels_client()
 
         try:
@@ -565,6 +560,70 @@ class ChannelsController:
         except Exception as e:
             logger.error(f"Failed to update channel: {e}")
             sys.exit(1)
+
+    def _build_local_event_url(
+        self,
+        agent_id: str,
+        environment_id: str,
+        channel_api_path: str,
+        channel_id: str
+    ) -> str:
+        """Build event URL for local development environment.
+        
+        Args:
+            agent_id: Agent identifier
+            environment_id: Environment identifier
+            channel_api_path: Channel API path
+            channel_id: Channel identifier
+            
+        Returns:
+            Local event URL path
+        """
+        logger.info("Local environment detected")
+        return f"/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
+
+    def _build_saas_event_url(
+        self,
+        client,
+        agent_id: str,
+        environment_id: str,
+        channel_api_path: str,
+        channel_id: str
+    ) -> str:
+        """Build event URL for SaaS environment.
+
+        Args:
+            client: ChannelsClient instance
+            agent_id: Agent identifier
+            environment_id: Environment identifier
+            channel_api_path: Channel API path
+            channel_id: Channel identifier
+
+        Returns:
+            Full SaaS event URL
+        """
+        base_url = client.base_url
+
+        # Clean up base URL by removing API version paths
+        base_url_clean = base_url.replace('/v1/orchestrate', '').replace('/v1', '')
+
+        # Parse URL to extract domain and instance ID
+        if '/instances/' not in base_url_clean:
+            logger.warning("Could not parse base_url to construct proper event URL")
+            return f"{base_url_clean}/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/events"
+
+        parts = base_url_clean.split('/instances/')
+        domain = parts[0].replace('https://api.', 'https://channels.')
+        instance_id = parts[1].rstrip('/')
+
+        # Get subscription ID and construct tenant ID
+        subscription_id = client.get_subscription_id()
+        tenant_id = f"{subscription_id}_{instance_id}" if subscription_id else instance_id
+
+        if not subscription_id:
+            logger.debug("Subscription ID not found in token, using instance_id as tenant_id")
+
+        return f"{domain}/tenants/{tenant_id}/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/events"
 
     def get_channel_event_url(
         self,
@@ -583,20 +642,17 @@ class ChannelsController:
 
         Returns:
             Full event URL in the format:
+            - SaaS: https://channels.{environment}/tenants/{subscription_id}_{instance_id}/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/events
             - Local: /v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs
-            - SaaS: {instance_uri}/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs
         """
         client = self.get_channels_client()
-        base_url = client.base_url
 
         # Check if this is a local environment
-        if is_local_dev(base_url):
-            logger.info("Local environment detected")
-            return f"/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
+        if is_local_dev(client.base_url):
+            return self._build_local_event_url(agent_id, environment_id, channel_api_path, channel_id)
 
-        # For non-local environments
-        instance_uri = base_url.replace('/v1/orchestrate', '').replace('/v1', '')
-        return f"{instance_uri}/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
+        # Build SaaS environment URL
+        return self._build_saas_event_url(client, agent_id, environment_id, channel_api_path, channel_id)
 
     def publish_or_update_channel(
         self,
@@ -617,11 +673,6 @@ class ChannelsController:
         Returns:
             Event URL for the channel
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         # Webchat channels work differently - they don't require explicit creation
         if channel.channel == ChannelType.WEBCHAT:
             logger.warning(
@@ -688,11 +739,6 @@ class ChannelsController:
             output_path: Path where the YAML file should be saved (or path within zip)
             zip_file_out: Optional ZipFile object for recursive export
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         from pathlib import Path
         from io import BytesIO
 
@@ -767,11 +813,6 @@ class ChannelsController:
             channel_type: Channel type
             channel_id: Channel identifier to delete
         """
-        # Check if trying to use channels in SaaS environment
-        if not is_local_dev():
-            logger.error("Channels are not configurable in SaaS using the ADK. Support coming soon.")
-            sys.exit(1)
-
         client = self.get_channels_client()
 
         # Convert channel type to API path

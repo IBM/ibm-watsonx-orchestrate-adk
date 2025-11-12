@@ -4,7 +4,7 @@ import os
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from pathlib import Path
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, SlackChannel, WebchatChannel
+from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, SlackChannel
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType, SlackTeam
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
@@ -152,11 +152,6 @@ name: test
             twilio_authentication_token="token1"
         )
 
-        webchat_channel = WebchatChannel(
-            channel="webchat",
-            name="webchat_channel"
-        )
-
         another_whatsapp = TwilioWhatsappChannel(
             channel="twilio_whatsapp",
             name="another_channel",
@@ -170,21 +165,28 @@ name: test
 
             getmembers_mock.return_value = [
                 ("whatsapp_channel", whatsapp_channel),
-                ("webchat_channel", webchat_channel),
                 ("another_whatsapp", another_whatsapp),
             ]
 
             channels = controller.import_channel("test.py")
 
-            assert len(channels) == 3
+            assert len(channels) == 2
             channel_names = [ch.name for ch in channels]
             assert "whatsapp_channel" in channel_names
-            assert "webchat_channel" in channel_names
             assert "another_channel" in channel_names
 
 
 class TestCreateChannelFromArgs:
     """Tests for create_channel_from_args() method."""
+
+    def test_create_webchat_blocked(self, controller):
+        """Test creating webchat channel is blocked with helpful message."""
+        with pytest.raises(SystemExit):
+            controller.create_channel_from_args(
+                channel_type=ChannelType.WEBCHAT,
+                name="webchat_channel",
+                description="This should fail"
+            )
 
     def test_create_twilio_whatsapp_success(self, controller):
         """Test creating Twilio WhatsApp channel from CLI args."""
@@ -290,6 +292,11 @@ class TestCreateChannelFromArgs:
 class TestListChannels:
     """Tests for list_channels() method."""
 
+    def test_list_webchat_channels_blocked(self, mock_is_local_dev, controller):
+        """Test listing webchat channels is blocked with helpful message."""
+        with pytest.raises(SystemExit):
+            controller.list_channels_agent("agent-123", "draft", channel_type=ChannelType.WEBCHAT)
+
     def test_list_channels_success(self, mock_is_local_dev, controller, mock_channels_client):
         """Test listing channels successfully."""
         mock_channels_client.list.return_value = [
@@ -341,6 +348,11 @@ class TestListChannels:
 @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
 class TestGetChannel:
     """Tests for get_channel() method."""
+
+    def test_get_webchat_channel_blocked(self, mock_is_local_dev, controller):
+        """Test getting webchat channel is blocked with helpful message."""
+        with pytest.raises(SystemExit):
+            controller.get_channel("agent-123", "draft", ChannelType.WEBCHAT, "ch1")
 
     def test_get_channel_success(self, mock_is_local_dev, controller, mock_channels_client):
         """Test getting a channel successfully."""
@@ -485,6 +497,25 @@ class TestUpdateChannel:
 class TestPublishOrUpdateChannel:
     """Tests for publish_or_update_channel() method."""
 
+    def test_publish_webchat_channel_warning(self, mock_is_local_dev, controller):
+        """Test publishing webchat channel shows warning and doesn't create."""
+        from ibm_watsonx_orchestrate.agent_builder.channels import WebchatChannel
+
+        webchat_channel = WebchatChannel(
+            channel="webchat",
+            name="test_webchat"
+        )
+
+        with patch.object(controller, 'get_channels_client') as mock_get_client:
+            result = controller.publish_or_update_channel("agent-123", "draft", webchat_channel)
+
+            # Should return a message instead of trying to create
+            assert "Webchat is available" in result
+            assert "agent-123" in result
+            assert "draft" in result
+            # Should not attempt to get the client or create channel
+            mock_get_client.assert_not_called()
+
     def test_publish_new_channel(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
         """Test publishing a new channel (no existing channel)."""
         mock_channels_client.list.return_value = []
@@ -497,7 +528,8 @@ class TestPublishOrUpdateChannel:
                     mock_local.side_effect = lambda url=None: False if url else True
                     event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
 
-                assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/runs"
+                # Refactored code returns /events for SaaS (non-/instances/ URLs fall back to default format)
+                assert event_url == "https://example.com/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/events"
                 mock_create.assert_called_once()
 
     def test_update_existing_channel(self, mock_is_local_dev, controller, mock_channels_client, sample_channel):
@@ -514,7 +546,8 @@ class TestPublishOrUpdateChannel:
                     mock_local.side_effect = lambda url=None: False if url else True
                     event_url = controller.publish_or_update_channel("agent-123", "draft", sample_channel)
 
-                assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/existing-id/runs"
+                # Refactored code returns /events for SaaS (non-/instances/ URLs fall back to default format)
+                assert event_url == "https://example.com/agents/agent-123/environments/draft/channels/twilio_whatsapp/existing-id/events"
                 mock_update.assert_called_once_with("agent-123", "draft", "existing-id", sample_channel, partial=True)
 
     def test_publish_with_new_name(self, mock_is_local_dev, controller, mock_channels_client):
@@ -535,8 +568,116 @@ class TestPublishOrUpdateChannel:
                     mock_local.side_effect = lambda url=None: False if url else True
                     event_url = controller.publish_or_update_channel("agent-123", "draft", channel)
 
-                assert event_url == "https://example.com/v1/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/runs"
+                # Refactored code returns /events for SaaS (non-/instances/ URLs fall back to default format)
+                assert event_url == "https://example.com/agents/agent-123/environments/draft/channels/twilio_whatsapp/new-id/events"
                 mock_create.assert_called_once()
+
+
+class TestGetChannelEventUrl:
+    """Tests for get_channel_event_url() and helper methods."""
+
+    def test_build_local_event_url(self, controller):
+        """Test building event URL for local environment."""
+        result = controller._build_local_event_url(
+            agent_id="agent-123",
+            environment_id="env-456",
+            channel_api_path="slack",
+            channel_id="ch-789"
+        )
+        
+        assert result == "/v1/agents/agent-123/environments/env-456/channels/slack/ch-789/runs"
+
+    def test_build_saas_event_url_with_subscription(self, controller, mock_channels_client):
+        """Test building SaaS event URL with subscription ID."""
+        mock_channels_client.base_url = "https://api.example.com/instances/inst-456/v1/orchestrate"
+        mock_channels_client.get_subscription_id = Mock(return_value="sub-12345")
+
+        result = controller._build_saas_event_url(
+            client=mock_channels_client,
+            agent_id="agent-123",
+            environment_id="env-789",
+            channel_api_path="twilio_whatsapp",
+            channel_id="ch-abc"
+        )
+
+        expected = "https://channels.example.com/tenants/sub-12345_inst-456/agents/agent-123/environments/env-789/channels/twilio_whatsapp/ch-abc/events"
+        assert result == expected
+
+    def test_build_saas_event_url_without_subscription(self, controller, mock_channels_client):
+        """Test building SaaS event URL without subscription ID (fallback)."""
+        mock_channels_client.base_url = "https://api.example.com/instances/inst-456/v1/orchestrate"
+        mock_channels_client.get_subscription_id = Mock(return_value=None)
+
+        result = controller._build_saas_event_url(
+            client=mock_channels_client,
+            agent_id="agent-123",
+            environment_id="env-789",
+            channel_api_path="slack",
+            channel_id="ch-xyz"
+        )
+
+        expected = "https://channels.example.com/tenants/inst-456/agents/agent-123/environments/env-789/channels/slack/ch-xyz/events"
+        assert result == expected
+
+    def test_build_saas_event_url_no_instances_path(self, controller, mock_channels_client):
+        """Test building SaaS event URL when /instances/ is not in URL (fallback)."""
+        mock_channels_client.base_url = "https://api.example.com/v1/orchestrate"
+        mock_channels_client.get_subscription_id = Mock(return_value="sub-12345")
+
+        result = controller._build_saas_event_url(
+            client=mock_channels_client,
+            agent_id="agent-123",
+            environment_id="env-789",
+            channel_api_path="webchat",
+            channel_id="ch-def"
+        )
+
+        expected = "https://api.example.com/agents/agent-123/environments/env-789/channels/webchat/ch-def/events"
+        assert result == expected
+
+    def test_get_channel_event_url_local(self, controller, mock_channels_client):
+        """Test get_channel_event_url for local environment."""
+        mock_channels_client.base_url = "http://localhost:4321/v1/orchestrate"
+        
+        with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
+            result = controller.get_channel_event_url(
+                agent_id="agent-123",
+                environment_id="env-456",
+                channel_api_path="slack",
+                channel_id="ch-789"
+            )
+            
+            assert result == "/v1/agents/agent-123/environments/env-456/channels/slack/ch-789/runs"
+
+    def test_get_channel_event_url_saas(self, controller, mock_channels_client):
+        """Test get_channel_event_url for SaaS environment."""
+        mock_channels_client.base_url = "https://api.example.com/instances/inst-456/v1/orchestrate"
+        mock_channels_client.get_subscription_id = Mock(return_value="sub-12345")
+
+        with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
+            result = controller.get_channel_event_url(
+                agent_id="agent-123",
+                environment_id="env-789",
+                channel_api_path="twilio_whatsapp",
+                channel_id="ch-abc"
+            )
+
+            expected = "https://channels.example.com/tenants/sub-12345_inst-456/agents/agent-123/environments/env-789/channels/twilio_whatsapp/ch-abc/events"
+            assert result == expected
+
+    def test_get_channel_event_url_127_0_0_1(self, controller, mock_channels_client):
+        """Test get_channel_event_url recognizes 127.0.0.1 as local."""
+        mock_channels_client.base_url = "http://127.0.0.1:4321/v1/orchestrate"
+        
+        with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
+            result = controller.get_channel_event_url(
+                agent_id="agent-123",
+                environment_id="env-456",
+                channel_api_path="webchat",
+                channel_id="ch-999"
+            )
+            
+            assert result == "/v1/agents/agent-123/environments/env-456/channels/webchat/ch-999/runs"
 
 
 @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
@@ -598,3 +739,62 @@ class TestDeleteChannel:
         with patch.object(controller, 'get_channels_client', return_value=mock_channels_client):
             with pytest.raises(SystemExit):
                 controller.delete_channel("agent-123", "draft", "twilio_whatsapp", "ch-123")
+
+
+class TestLocalDevBlock:
+    """Tests for local dev blocking functionality."""
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    def test_block_when_local_dev_without_developer_mode(self, mock_is_local_dev, controller):
+        """Test that operations are blocked in local dev without developer mode."""
+        mock_is_local_dev.return_value = True
+
+        with pytest.raises(SystemExit) as exc_info:
+            controller._check_local_dev_block(enable_developer_mode=False)
+
+        assert exc_info.value.code == 1
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.logger")
+    def test_allow_when_local_dev_with_developer_mode(self, mock_logger, mock_is_local_dev, controller):
+        """Test that operations are allowed in local dev with developer mode enabled."""
+        mock_is_local_dev.return_value = True
+
+        # Should not raise
+        controller._check_local_dev_block(enable_developer_mode=True)
+
+        # Verify warning messages were shown
+        assert mock_logger.warning.call_count == 3
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        assert "DEVELOPER MODE ENABLED - Proceed at your own risk! No official support will be provided." in warning_calls
+        assert "Channel operations in local development may cause unexpected behavior." in warning_calls
+        assert "This environment is not validated for production use." in warning_calls
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    def test_allow_when_not_local_dev(self, mock_is_local_dev, controller):
+        """Test that operations are allowed when not in local dev."""
+        mock_is_local_dev.return_value = False
+
+        controller._check_local_dev_block(enable_developer_mode=False)
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    def test_allow_when_not_local_dev_with_developer_mode(self, mock_is_local_dev, controller):
+        """Test that operations are allowed when not in local dev with developer mode."""
+        mock_is_local_dev.return_value = False
+
+        controller._check_local_dev_block(enable_developer_mode=True)
+
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.logger")
+    def test_error_message_when_blocked(self, mock_logger, mock_is_local_dev, controller):
+        """Test that correct error messages are shown when blocked."""
+        mock_is_local_dev.return_value = True
+
+        with pytest.raises(SystemExit):
+            controller._check_local_dev_block(enable_developer_mode=False)
+
+        assert mock_logger.error.call_count == 1
+        mock_logger.warning.assert_not_called()
+
+        mock_logger.error.assert_called_once_with("Channel authoring is not available in local development environment.")
+        

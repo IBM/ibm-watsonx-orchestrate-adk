@@ -335,9 +335,13 @@ class TestChannelFromPython:
             twilio_authentication_token="token1"
         )
 
-        webchat_channel = WebchatChannel(
-            channel="webchat",
-            name="webchat_channel"
+        slack_channel = SlackChannel(
+            channel="byo_slack",
+            name="slack_channel",
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            signing_secret="test_signing_secret",
+            teams=[{"id": "T12345", "bot_access_token": "xoxb-test"}]
         )
 
         another_whatsapp = TwilioWhatsappChannel(
@@ -352,7 +356,7 @@ class TestChannelFromPython:
 
             getmembers_mock.return_value = [
                 ("whatsapp_channel", whatsapp_channel),
-                ("webchat_channel", webchat_channel),
+                ("slack_channel", slack_channel),
                 ("another_whatsapp", another_whatsapp),
             ]
 
@@ -364,7 +368,7 @@ class TestChannelFromPython:
         # Check that we got different channel types
         channel_names = [ch.name for ch in channels]
         assert "whatsapp_channel" in channel_names
-        assert "webchat_channel" in channel_names
+        assert "slack_channel" in channel_names
         assert "another_channel" in channel_names
 
     def test_from_python_no_channels(self):
