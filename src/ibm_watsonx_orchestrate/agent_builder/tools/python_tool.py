@@ -227,7 +227,7 @@ def _fix_optional(schema):
             if k in schema.required:
             # required with default -> not required 
             # required without default -> required & remove null from union
-                if v.default:
+                if v.default is not None:
                     not_required.append(k)
                 else:
                     v.anyOf = list(filter(lambda x: x.type != 'null', v.anyOf))
@@ -238,7 +238,7 @@ def _fix_optional(schema):
             # not required without default -> means default input is 'None'
             # if None is returned here then the creation of the jsonchema will remove the key
             # so instead we use an Identifier, which is replaced later
-                v.default = v.default if v.default else JsonSchemaTokens.NONE
+                v.default = JsonSchemaTokens.NONE if v.default is None else v.default
 
     schema.required = list(filter(lambda x: x not in not_required, schema.required if schema.required is not None else []))
     for k, v in replacements.items():
