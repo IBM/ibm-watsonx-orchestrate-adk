@@ -39,4 +39,4 @@ account_sid: ${TWILIO_ACCOUNT_SID}
 twilio_authentication_token: ${TWILIO_AUTH_TOKEN}
 
 # Optional: Twilio Phone number for SMS
-phone_number: +1234567890
+phone_number: "+1234567890"
