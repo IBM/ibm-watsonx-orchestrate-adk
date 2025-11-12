@@ -1,0 +1,280 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "structured_document_extractor_tool",
+    "display_name": "structured_document_extractor_tool",
+    "description": "Extraction of custom fields from a document with tables, specified by the user.",
+    "input_schema": {
+      "$ref": "#/schemas/structured_document_extractor_tool_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "structured_document_extractor": {
+      "spec": {
+        "kind": "docext",
+        "name": "structured_document_extractor",
+        "display_name": "Extract fields from an invoice",
+        "description": "Extracts fields from an input invoice file",
+        "input_schema": {
+          "$ref": "#/schemas/structured_document_extractor_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/DocExtFieldValue"
+        },
+        "task": "custom_field_extraction",
+        "enable_hw": true,
+        "version": "TIP",
+        "config": {
+          "domain": "other",
+          "type": "agreement",
+          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+          "fields": [
+            {
+              "name": "Buyer",
+              "type": "string",
+              "description": "",
+              "field_name": "buyer",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Seller",
+              "type": "string",
+              "description": "",
+              "field_name": "seller",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Agreement Date",
+              "type": "date",
+              "description": "",
+              "field_name": "agreement_date",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "pincode",
+              "type": "number",
+              "description": "",
+              "field_name": "pincode",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Invoice Line Items",
+              "type": "table",
+              "description": "The line items of the invoice.",
+              "field_name": "line_items",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": [],
+              "fields": [
+                {
+                  "name": "Item Name",
+                  "type": "string",
+                  "description": "Name of the item",
+                  "field_name": "item",
+                  "multiple_mentions": false,
+                  "example_value": "Product ABC",
+                  "examples": []
+                },
+                {
+                  "name": "Quantity",
+                  "type": "number",
+                  "description": "Quantity of items ordered",
+                  "field_name": "quantity",
+                  "multiple_mentions": false,
+                  "example_value": "10",
+                  "examples": []
+                },
+                {
+                  "name": "Unit Price",
+                  "type": "number",
+                  "description": "Price per unit",
+                  "field_name": "unit_price",
+                  "multiple_mentions": false,
+                  "example_value": "50.00",
+                  "examples": []
+                },
+                {
+                  "name": "Amount",
+                  "type": "number",
+                  "description": "The total amount for the line item.",
+                  "field_name": "amount",
+                  "multiple_mentions": false,
+                  "example_value": "500.00",
+                  "examples": []
+                }
+              ]
+            }
+          ],
+          "field_extraction_method": "layout"
+        },
+        "min_confidence": 0.0,
+        "review_fields": [],
+        "enable_review": false
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "structured_document_extractor"
+    },
+    {
+      "start": "structured_document_extractor",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "structured_document_extractor_tool_input": {
+      "type": "object",
+      "title": "structured_document_extractor_tool_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
+            }
+          ]
+        }
+      }
+    },
+    "structured_document_extractor_input": {
+      "type": "object",
+      "title": "structured_document_extractor_input",
+      "required": [],
+      "properties": {
+        "document_ref": {
+          "title": "Document reference",
+          "description": "Either an ID or a URL identifying the document to be used.",
+          "format": "binary",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "binary"
+            },
+            {
+              "type": "string",
+              "title": "Document reference",
+              "description": "Either an ID or a URL identifying the document to be used.",
+              "required": [],
+              "format": "binary"
+            }
+          ]
+        }
+      }
+    },
+    "line_items_row": {
+      "type": "object",
+      "title": "line_items_row",
+      "required": [
+        "item",
+        "quantity",
+        "unit_price",
+        "amount"
+      ],
+      "properties": {
+        "item": {
+          "type": "string",
+          "title": "Item Name",
+          "description": "Extracted value for Item Name"
+        },
+        "quantity": {
+          "type": "string",
+          "title": "Quantity",
+          "description": "Extracted value for Quantity"
+        },
+        "unit_price": {
+          "type": "string",
+          "title": "Unit Price",
+          "description": "Extracted value for Unit Price"
+        },
+        "amount": {
+          "type": "string",
+          "title": "Amount",
+          "description": "Extracted value for Amount"
+        }
+      }
+    },
+    "DocExtFieldValue": {
+      "type": "object",
+      "title": "DocExtFieldValue",
+      "required": [
+        "buyer",
+        "seller",
+        "agreement_date",
+        "pincode",
+        "line_items"
+      ],
+      "properties": {
+        "buyer": {
+          "type": "string",
+          "title": "Buyer",
+          "description": "Extracted value for Buyer"
+        },
+        "seller": {
+          "type": "string",
+          "title": "Seller",
+          "description": "Extracted value for Seller"
+        },
+        "agreement_date": {
+          "type": "string",
+          "title": "Agreement Date",
+          "description": "Extracted value for Agreement Date",
+          "format": "date"
+        },
+        "pincode": {
+          "type": "number",
+          "title": "pincode",
+          "description": "Extracted value for pincode"
+        },
+        "line_items": {
+          "type": "array",
+          "title": "Invoice Line Items",
+          "description": "Extracted value for Invoice Line Items",
+          "items": {
+            "title": "Invoice Line Items",
+            "$ref": "#/schemas/line_items_row"
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-11-12T10:59:29.821789+00:00"
+  }
+}
