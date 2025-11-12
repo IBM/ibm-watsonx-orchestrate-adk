@@ -1668,6 +1668,13 @@ class WaitNodeSpec(FlowControlNodeSpec):
             my_dict["minimum_nodes"] = self.minimum_nodes
 
         return my_dict
+    
+class FlowContextWindow(BaseModel):
+    '''Indicate the context window setting for the LLM model used by the flow'''
+    compression_threshold: Optional[int] = Field(description="Trigger compression when the context window reaches to a specific amount of tokens", default=None)
+    compression_instruction: Optional[str] = Field(description="An instruction being used for the compression", default=None)
+    max_tokens: Optional[int] = Field(description="The maximum number of token supported by the LLM model", default=None)
+    allow_compress: Optional[bool] = Field(description="Indicates whether compression is allowed", default=True)
 
 class FlowSpec(NodeSpec):
     # who can initiate the flow
@@ -1676,6 +1683,8 @@ class FlowSpec(NodeSpec):
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
+
+    context_window: FlowContextWindow | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1686,7 +1695,9 @@ class FlowSpec(NodeSpec):
         if self.initiators:
             model_spec["initiators"] = self.initiators
         if self.private_schema:
-             model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+            model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+        if self.context_window:
+            model_spec["context_window"] = self.context_window.model_dump()
         
         model_spec["schedulable"] = self.schedulable
 
