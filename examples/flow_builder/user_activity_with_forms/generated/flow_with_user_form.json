@@ -157,7 +157,10 @@
                   },
                   "uiSchema": {
                     "ui:widget": "CheckboxWidget",
-                    "ui:title": "Married"
+                    "ui:title": "Married",
+                    "ui:options": {
+                      "label": false
+                    }
                   }
                 },
                 {
@@ -228,7 +231,7 @@
                   "uiSchema": {
                     "ui:widget": "NumberWidget",
                     "ui:title": "Age",
-                    "ui:help": "Please enter your age"
+                    "ui:help": "Enter your age"
                   }
                 },
                 {
@@ -327,8 +330,8 @@
                   },
                   "uiSchema": {
                     "ui:widget": "DataWidget",
-                    "ui-options": {
-                      "label": "true"
+                    "ui:options": {
+                      "label": true
                     },
                     "ui:title": "Desired salary"
                   }
@@ -386,7 +389,7 @@
                   "kind": "text",
                   "direction": "output",
                   "text": "Application successfully completed.",
-                  "display_name": "Successful submision",
+                  "display_name": "Successful submission",
                   "min": [
                     null
                   ],
@@ -406,10 +409,10 @@
                   },
                   "uiSchema": {
                     "ui:widget": "DataWidget",
-                    "ui-options": {
-                      "label": "false"
+                    "ui:options": {
+                      "label": false
                     },
-                    "ui:title": "Successful submision"
+                    "ui:title": "Successful submission"
                   }
                 }
               ],
@@ -463,7 +466,7 @@
                   },
                   "success": {
                     "type": "string",
-                    "title": "Successful submision"
+                    "title": "Successful submission"
                   }
                 }
               },
@@ -583,6 +586,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-10-30T16:30:01.588359+00:00"
+    "compiled_on": "2025-11-06T14:02:10.614401+00:00"
   }
 }

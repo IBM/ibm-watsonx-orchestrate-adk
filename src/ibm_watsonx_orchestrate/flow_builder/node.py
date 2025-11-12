@@ -238,7 +238,13 @@ class UserNode(Node):
 
         Returns:
             UserField: The created text input field.
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
         """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
         return self.get_spec().form.text_input_field(
             name=name,
             label=label,
@@ -272,7 +278,13 @@ class UserNode(Node):
 
         Returns:
             UserField: The created boolean input field.
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
         """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
         return self.get_spec().form.boolean_input_field(
             name=name,
             label=label,
@@ -304,7 +316,13 @@ class UserNode(Node):
 
             Returns:
                 UserField: The created date range input field.
+                
+            Raises:
+                ValueError: If the form has not been created. Call form() method first.
             """
+            if self.get_spec().form is None:
+                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            
             return self.get_spec().form.date_range_input_field(
                 name = name,
                 label = label,
@@ -332,7 +350,13 @@ class UserNode(Node):
 
          Returns:
              UserField: The created date input field.
+             
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
          """
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         
          return self.get_spec().form.date_input_field(
                 name = name,
                 label = label,
@@ -366,7 +390,13 @@ class UserNode(Node):
 
          Returns:
              UserField: The created number input field.
+             
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
          """
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         
          return self.get_spec().form.number_input_field(
                 name = name,
                 label = label,
@@ -402,7 +432,13 @@ class UserNode(Node):
 
             Returns:
                 UserField: The created file upload field.
+                
+            Raises:
+                ValueError: If the form has not been created. Call form() method first.
             """
+            if self.get_spec().form is None:
+                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            
             return self.get_spec().form.file_upload_field(
                 name = name,
                 label = label,
@@ -428,7 +464,13 @@ class UserNode(Node):
 
             Returns:
                 UserField: The created message output field.
+                
+            Raises:
+                ValueError: If the form has not been created. Call form() method first.
             """
+            if self.get_spec().form is None:
+                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            
             return self.get_spec().form.message_output_field(
                     name = name,
                     label = label,
@@ -450,7 +492,13 @@ class UserNode(Node):
 
             Returns:
                 UserField: The created field output field.
+                
+            Raises:
+                ValueError: If the form has not been created. Call form() method first.
             """
+            if self.get_spec().form is None:
+                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+            
             return self.get_spec().form.field_output_field(
                         name = name,
                         label = label,
@@ -474,7 +522,13 @@ class UserNode(Node):
 
          Returns:
              UserField: The created list output field.
+             
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
          """
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         
          return self.get_spec().form.list_output_field(
                         name = name,
                         label = label,
@@ -497,7 +551,13 @@ class UserNode(Node):
 
          Returns:
              UserField: The created file download field.
+             
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
          """
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         
          return self.get_spec().form.file_download_field(
                         name = name,
                         label = label,
@@ -534,7 +594,13 @@ class UserNode(Node):
 
         Returns:
             UserField: The created single-choice input field.
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
         """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
         return self.get_spec().form.choice_input_field(
                         name = name,
                         label = label,
@@ -577,7 +643,13 @@ class UserNode(Node):
 
         Returns:
             UserField: The created multi-choice input field.
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
         """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
         return self.get_spec().form.choice_input_field(
                         name = name,
                         label = label,

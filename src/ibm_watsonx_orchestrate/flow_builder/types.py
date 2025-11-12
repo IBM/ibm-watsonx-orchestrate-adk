@@ -775,12 +775,17 @@ class UserForm(BaseModel):
             false_label: str = "False"
     ) -> UserField:
         # Use the template system from utils
-        schemas = clone_form_schema("boolean", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "CheckboxWidget" if single_checkbox else "RadioWidget"
-            }
-        })
+        widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget
+        }
+        
+        if widget == "CheckboxWidget":
+            ui_config["ui:options"] = {"label": False}
+        
+        schemas = clone_form_schema("boolean", {"ui": ui_config})
         
         # Set up default input_map if not provided
         if input_map is None:
@@ -835,8 +840,8 @@ class UserForm(BaseModel):
                 "ui:title": label if label is not None else name,
                 "ui:widget": "DateWidget",
                 "format": "YYYY-MM-DD",
-                "ui-options": {"range": "true"},
-                "ui-order": ["start", "end"]
+                "ui:options": {"range": True},
+                "ui:order": ["start", "end"]
             }
         })
         
@@ -933,15 +938,20 @@ class UserForm(BaseModel):
             isMultiSelect: bool = False,
     ) -> UserField:
         # Use the template system from utils
-        schemas = clone_form_schema("choice", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "ComboboxWidget" if (show_as_dropdown or columns is None) else
-                             "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else
-                             "Table",
-                "ui:placeholder": placeholder_text
-            }
-        })
+        widget = "ComboboxWidget" if (show_as_dropdown or columns is None) else \
+                 "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else \
+                 "Table"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget,
+            "ui:placeholder": placeholder_text
+        }
+        
+        if widget == "Table":
+            ui_config["ui:options"] = {"label": False}
+        
+        schemas = clone_form_schema("choice", {"ui": ui_config})
         
         # Validate inputs
         if source is None:
@@ -1218,14 +1228,18 @@ class UserForm(BaseModel):
     ) -> UserField:
         ensure_datamap(source, "source")
         isBulletList = columns is None
+        widget = "BulletList" if isBulletList else "Table"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget
+        }
+        
+        if widget == "Table":
+            ui_config["ui:options"] = {"label": False}
         
         # Use the template system from utils
-        schemas = clone_form_schema("list", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "BulletList" if isBulletList else "Table"
-            }
-        })
+        schemas = clone_form_schema("list", {"ui": ui_config})
         
         # Configure input schema based on list type
         if not isBulletList:
