@@ -637,30 +637,82 @@ class DocExtNode(Node):
         return cast(DocExtSpec, self.spec)
     
     @staticmethod
-    def generate_config(llm: str, fields: type[BaseModel]) -> DocExtConfig:
-        return DocExtConfig(llm=llm, fields=fields.__dict__.values())
+    def generate_config(llm: str, fields: type[BaseModel], field_extraction_method: str) -> DocExtConfig:
+        return DocExtConfig(llm=llm, fields=fields.__dict__.values(), field_extraction_method=field_extraction_method)
     
     @staticmethod
-    def generate_docext_field_value_model(fields: type[BaseModel]) -> type[BaseModel]:
-        create_field_value_description = lambda field_name: "Extracted value for " + field_name
+    def _create_table_field_definition(name: str, value: dict) -> tuple:
+        """Create field definition for table-type fields.
+        
+        Args:
+            name: The field name for the table.
+            value: Dictionary containing 'name' and 'fields' keys.
+            
+        Returns:
+            A tuple of (field_type, Field) for the table field definition.
+        """
+        table_row_fields = {}
+        for table_field in value["fields"]:
+            row_field_kwargs = {
+                "title": table_field['name'],
+                "description": f"Extracted value for {table_field['name']}"
+            }
+            table_row_fields[table_field['field_name']] = (str, Field(**row_field_kwargs))
+        
+        TableRowModel = create_model(f"{name}_row", **table_row_fields)
+        
+        field_kwargs = {
+            "title": value['name'],
+            "description": f"Extracted value for {value['name']}",
+        }
+        return (list[TableRowModel], Field(**field_kwargs))
+
+    @staticmethod
+    def _create_regular_field_definition(value: dict) -> tuple:
+        """Create field definition for regular (non-table) fields.
+        
+        Args:
+            value: Dictionary containing 'type' and 'name' keys.
+            
+        Returns:
+            A tuple of (field_type, Field) for the regular field definition.
+        """
+        json_type = "string" if value["type"] == "date" else value["type"]
+        
+        field_kwargs = {
+            "title": value['name'],
+            "description": f"Extracted value for {value['name']}",
+            "type": json_type
+        }
+        
+        if value["type"] == "date":
+            field_kwargs["json_schema_extra"] = {"format": "date"}
+        
+        return (str, Field(**field_kwargs))
+
+    @staticmethod
+    def generate_docext_field_value_model(fields: BaseModel) -> type[BaseModel]:
+        """Generate a Pydantic model for document extraction field values.
+        
+        Creates a dynamic model with fields based on the input schema, handling
+        both regular fields and table-type fields (which become lists of nested models).
+        
+        Args:
+            fields: A Pydantic BaseModel instance containing field definitions with 'type',
+                    'name', and optionally 'fields' (for table types).
+        
+        Returns:
+            A dynamically created Pydantic model class named 'DocExtFieldValue'.
+        """
         field_definitions = {}
 
         for name, value in fields.model_dump().items():
-            field_type = str  
-            field_kwargs = {
-                "title": value['name'],
-                "description": create_field_value_description(value['name']),
-                "type": value["type"] if value["type"] != "date" else "string"
-            }
+            if value["type"] == "table" and "fields" in value:
+                field_definitions[name] = DocExtNode._create_table_field_definition(name, value)
+            else:
+                field_definitions[name] = DocExtNode._create_regular_field_definition(value)
 
-            # Add json_schema_extra if type is 'date'
-            if value["type"] == "date":
-                field_kwargs["json_schema_extra"] = {"format": "date"}
-
-            field_definitions[name] = (field_type, Field(**field_kwargs))
-
-        DocExtFieldValue = create_model("DocExtFieldValue", **field_definitions)
-        return DocExtFieldValue
+        return create_model("DocExtFieldValue", **field_definitions)
     
 class DecisionsNode(Node):
     def __repr__(self):
