@@ -439,8 +439,8 @@ FORM_SCHEMA_TEMPLATES = {
         "ui": {
             "ui:widget": "DateWidget",
             "format": "YYYY-MM-DD",
-            "ui-options": {"range": "true"},
-            "ui-order": ["start", "end"]
+            "ui:options": {"range": True},
+            "ui:order": ["start", "end"]
         }
     },
     
@@ -493,7 +493,7 @@ FORM_SCHEMA_TEMPLATES = {
         ),
         "ui": {
             "ui:widget": "DataWidget",
-            "ui-options": {"label": "false"}
+            "ui:options": {"label": False}
         }
     },
     
@@ -519,7 +519,7 @@ FORM_SCHEMA_TEMPLATES = {
         ),
         "ui": {
             "ui:widget": "DataWidget",
-            "ui-options": {"label": "true"}
+            "ui:options": {"label": True}
         }
     }
 }
