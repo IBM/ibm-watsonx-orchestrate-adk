@@ -221,8 +221,8 @@ class KnowledgeBaseController:
             file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
             
             kb.prioritize_built_in_index = True
-            payload = kb.model_dump(exclude_none=True);
-            payload.pop('documents');
+            payload = kb.model_dump(exclude_none=True)
+            payload.pop('documents')
 
             data = {
                 'knowledge_base': json.dumps(payload),
