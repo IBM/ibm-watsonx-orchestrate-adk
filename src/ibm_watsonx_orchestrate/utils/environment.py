@@ -69,14 +69,14 @@ class EnvService:
     @staticmethod
     def __get_default_compose_file () -> Path:
         with resources.as_file(
-                resources.files("ibm_watsonx_orchestrate.docker").joinpath("compose-lite.yml")
+                resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("compose-lite.yml")
         ) as compose_file:
             return compose_file
 
     @staticmethod
     def get_default_env_file () -> Path:
         with resources.as_file(
-                resources.files("ibm_watsonx_orchestrate.docker").joinpath("default.env")
+                resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("default.env")
         ) as env_file:
             return env_file
 
