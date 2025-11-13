@@ -9,7 +9,7 @@ class ToolKitClient(BaseAPIClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get(self) -> dict:
+    def get(self) -> List[dict]:
         return self._get("/toolkits")
 
 
@@ -92,4 +92,8 @@ class ToolKitClient(BaseAPIClient):
                 if e.response.status_code == 404 and "not found with the given name" in e.response.text:
                     return ""
                 raise(e)
+    
+    def download_artifact(self, toolkit_id: str) -> bytes:
+        response = self._get(f"/toolkits/{toolkit_id}/download", return_raw=True)
+        return response.content
 
