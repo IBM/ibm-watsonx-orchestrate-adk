@@ -14,7 +14,7 @@ from copy import deepcopy
 from typing import Any, Iterable, List, TypeVar
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind, import_python_tool, ToolsController
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
@@ -1357,11 +1357,15 @@ class AgentsController:
 
         for tool_name in agent_tools:
 
-            base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
-            if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
-                continue
-
             current_spec = tool_specs.get(tool_name)
+            if current_spec and _get_kind_from_spec(current_spec) == ToolKind.mcp:
+                base_tool_file_path = f"{output_file_name}/toolkits/"
+            else:
+                base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
+
+                if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
+                    continue
+
             tools_controller.export_tool(
                 name=tool_name,
                 output_path=base_tool_file_path,
