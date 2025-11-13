@@ -1,7 +1,7 @@
 import os
 import zipfile
 import tempfile
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 from pydantic import BaseModel
 import logging
 import sys
@@ -10,19 +10,25 @@ import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitSource, ToolkitTransportKind, ToolkitListEntry
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource
+from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
-from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
+from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_zip
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 import typer
 import json
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from rich.json import JSON
+from pathlib import Path
 import rich
 import rich.table
 import json
+import yaml
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -45,175 +51,178 @@ def get_connection_id(app_id: str, is_local_mcp: bool) -> str:
         connection_id = connection.connection_id
     return connection_id
 
-def validate_params(kind: str):
-    if kind != ToolkitKind.MCP:
-        raise ValueError(f"Unsupported toolkit kind: {kind}")
-
+def get_app_ids(conn_ids: List[str]) -> List[str]:
+    connections_client = get_connections_client()
+    connections = connections_client.get_drafts_by_ids(conn_ids)
+    return [conn.app_id for conn in connections]
 
 class ToolkitController:
-    def __init__(
-        self,
-        kind: ToolkitKind = None,
-        name: str = None,
-        description: str = None,
-        package: str = None,
-        package_root: str = None,
-        language: Language = None,
-        command: str = None,
-        url: str = None,
-        transport: ToolkitTransportKind = None
-    ):
-        self.kind = kind
-        self.name = name
-        self.description = description
-        self.package = package
-        self.package_root = package_root
-        self.language = language
-        self.command = command
-        self.client = None
-        self.url = url
-        self.transport = transport
-
-        self.source: ToolkitSource = (
-            ToolkitSource.FILES if package_root else ToolkitSource.PUBLIC_REGISTRY
-        )
+    client=None
 
     def get_client(self) -> ToolKitClient:
         if not self.client:
             self.client = instantiate_client(ToolKitClient)
         return self.client
+    
+    def __resolve_package_root_path(self, package_root: Path | str, file: Path | str) -> str:
+        package_root = Path(package_root)
 
-    def import_toolkit(self, tools: Optional[List[str]] = None, app_id: Optional[List[str]] = None):
+        if package_root.is_absolute():
+            return package_root
+
+        file = Path(file)
+        folder = file.parent
+
+        return str(folder / package_root)
+    
+    def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None) -> List[BaseToolkit]:
+        file = Path(file)
+
+        if not file.exists():
+                raise FileNotFoundError(f"{file} does not exist")
+        toolkits: List[BaseToolkit] = []
+        if file.suffix == ".py":
+            toolkits += BaseToolkit.from_python(file)
+        else:
+            toolkits.append(BaseToolkit.from_spec(file))
+        
+        if app_id and isinstance(app_id, str):
+                app_id = [app_id]
+
+        for toolkit in toolkits:
+            if app_id:
+                toolkit.__toolkit_spec__.mcp.connections = app_id
+            if isinstance(toolkit.__toolkit_spec__.mcp, LocalMcpModel) and toolkit.__toolkit_spec__.mcp.package_root:
+                toolkit.__toolkit_spec__.mcp.package_root = self.__resolve_package_root_path(toolkit.__toolkit_spec__.mcp.package_root, file)
+        return toolkits
+
+
+    def create_toolkit(
+        self,
+        kind: ToolkitKind,
+        name: str,
+        description: str,
+        transport: Optional[ToolkitTransportKind] = None,
+        package: Optional[str] = None,
+        package_root: Optional[str] = None,
+        language: Optional[Language] = None,
+        command: Optional[str] = None,
+        url: Optional[str] = None,
+        tools: Optional[str] = None,
+        app_id: Optional[List[str] | str] = None
+    ) -> BaseToolkit:
 
         if app_id and isinstance(app_id, str):
             app_id = [app_id]
-        elif not app_id:
-            app_id = []
+        
+        toolkit_input = ToolkitMCPInputSpec(
+            kind=kind,
+            name=name,
+            description=description,
+            transport=transport,
+            package=package,
+            package_root=package_root,
+            language=language,
+            command=command,
+            url=url,
+            tools=tools,
+            connections=app_id
+        )
 
-        validate_params(kind=self.kind)
+        toolkit_spec = ToolkitSpec.generate_toolkit_spec(toolkit_input)
 
-        remapped_connections = self._remap_connections(app_id)
+        return BaseToolkit(spec=toolkit_spec)
+    
+    def publish_or_update_toolkits(self, toolkits: List[BaseToolkit]) -> None:
+        for toolkit in toolkits:
+            spec = toolkit.__toolkit_spec__
 
-        client = self.get_client()
-        draft_toolkits = client.get_draft_by_name(toolkit_name=self.name)
-        if len(draft_toolkits) > 0:
-            logger.error(f"Existing toolkit found with name '{self.name}'. Failed to create toolkit.")
-            sys.exit(1)
-
-        if not self.command:
-            command_parts = []
-        else:
-            try:
-                command_parts = json.loads(self.command)
-                if not isinstance(command_parts, list):
-                    raise ValueError("JSON command must be a list of strings")
-            except (json.JSONDecodeError, ValueError):
-                command_parts = self.command.split()
-
-        if command_parts:
-            command = command_parts[0]
-            args = command_parts[1:]
-        else:
-            command = None
-            args = []
-
-
-        if self.package_root:
-            is_folder = os.path.isdir(self.package_root)
-            is_zip_file = os.path.isfile(self.package_root) and zipfile.is_zipfile(self.package_root)
-
-            if not is_folder and not is_zip_file:
-                logger.error(f"Unable to find a valid directory or zip file at location '{self.package_root}'")
+            client = self.get_client()
+            draft_toolkits = client.get_draft_by_name(toolkit_name=spec.name)
+            if len(draft_toolkits) > 0:
+                logger.error(f"Existing toolkit found with name '{spec.name}'. Failed to create toolkit.")
                 sys.exit(1)
+            
+            mcp_config = spec.mcp
+            
+            is_local_mcp = not isinstance(spec.mcp, RemoteMcpModel)
+            if isinstance(mcp_config.connections, List):
+                mcp_config.connections = self.__remap_connections(mcp_config.connections, is_local_mcp)
+            
+            package_root = getattr(mcp_config, "package_root", None)
+            if package_root:
+                is_folder = os.path.isdir(package_root)
+                is_zip_file = os.path.isfile(package_root) and zipfile.is_zipfile(package_root)
 
-        console = Console()
+                if not is_folder and not is_zip_file:
+                    logger.error(f"Unable to find a valid directory or zip file at location '{package_root}'")
+                    sys.exit(1)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Handle zip file or directory
-            if self.package_root:
-                if self.package_root.endswith(".zip") and os.path.isfile(self.package_root):
-                    zip_file_path = self.package_root
-                else:
-                    zip_file_path = os.path.join(tmpdir, os.path.basename(f"{self.package_root.rstrip(os.sep)}.zip"))
-                    with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as mcp_zip_tool_artifacts:
-                        self._populate_zip(self.package_root, mcp_zip_tool_artifacts)
+            console = Console()
 
-            # List tools if not provided
-            if tools is None:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Handle zip file or directory
+                if package_root:
+                    if package_root.endswith(".zip") and os.path.isfile(package_root):
+                        zip_file_path = package_root
+                    else:
+                        zip_file_path = os.path.join(tmpdir, os.path.basename(f"{package_root.rstrip(os.sep)}.zip"))
+                        with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as mcp_zip_tool_artifacts:
+                            self._populate_zip(package_root, mcp_zip_tool_artifacts)
+
+                    # List tools if not provided
+                    if spec.mcp.tools is None:
+                        with Progress(
+                            SpinnerColumn(spinner_name="dots"),
+                            TextColumn("[progress.description]{task.description}"),
+                            transient=True,
+                            console=console,
+                        ) as progress:
+                            progress.add_task(description="No tools specified, retrieving all tools from provided MCP server", total=None)
+                            tools = self.get_client().list_tools(
+                                zip_file_path=zip_file_path,
+                                command=getattr(mcp_config, "command", None),
+                                args=getattr(mcp_config, "args", []),
+                            )
+                        
+                        spec.mcp.tools = [
+                            tool["name"] if isinstance(tool, dict) and "name" in tool else tool
+                            for tool in tools
+                        ]
+
+                        logger.info("✅ The following tools will be imported:")
+                        for tool in spec.mcp.tools:
+                            console.print(f"  • {tool}")
+                elif spec.mcp.tools is None:
+                    logger.info("No tools specified, retrieving all tools from provided MCP server")
+                    spec.mcp.tools = ['*']
+
+                # Create toolkit metadata
+                payload = spec.model_dump(exclude_unset=True)
+
                 with Progress(
                     SpinnerColumn(spinner_name="dots"),
                     TextColumn("[progress.description]{task.description}"),
                     transient=True,
                     console=console,
                 ) as progress:
-                    progress.add_task(description="No tools specified, retrieving all tools from provided MCP server", total=None)
-                    tools = self.get_client().list_tools(
-                        zip_file_path=zip_file_path,
-                        command=command,
-                        args=args,
-                    )
-                
-                tools = [
-                    tool["name"] if isinstance(tool, dict) and "name" in tool else tool
-                    for tool in tools
-                ]
+                    progress.add_task(description="Creating toolkit...", total=None)
+                    new_toolkit = self.get_client().create_toolkit(payload)
 
-                logger.info("✅ The following tools will be imported:")
-                for tool in tools:
-                    console.print(f"  • {tool}")
+                toolkit_id = new_toolkit["id"]
 
-            # Create toolkit metadata
-            payload = {}
+                # Upload zip file
+                if package_root:
+                    with Progress(
+                        SpinnerColumn(spinner_name="dots"),
+                        TextColumn("[progress.description]{task.description}"),
+                        transient=True,
+                        console=console,
+                    ) as progress:
+                        progress.add_task(description="Uploading toolkit zip file...", total=None)
+                        self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=zip_file_path)
 
-            if self.transport is not None and self.url is not None:
-                payload = {
-                    "name": self.name,
-                    "description": self.description,
-                    "mcp": {
-                        "server_url": self.url,
-                        "transport": self.transport.value,
-                        "tools": tools,
-                        "connections": remapped_connections,
-                    }
-                }
-            else:
-                payload = {
-                    "name": self.name,
-                    "description": self.description,
-                    "mcp": {
-                        "source": self.source.value,
-                        "command": command,
-                        "args": args,
-                        "tools": tools,
-                        "connections": remapped_connections,
-                    }
-                }
-
-            with Progress(
-                SpinnerColumn(spinner_name="dots"),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-                console=console,
-            ) as progress:
-                progress.add_task(description="Creating toolkit...", total=None)
-                toolkit = self.get_client().create_toolkit(payload)
-
-            toolkit_id = toolkit["id"]
-
-
-
-            # Upload zip file
-            if self.package_root:
-                with Progress(
-                    SpinnerColumn(spinner_name="dots"),
-                    TextColumn("[progress.description]{task.description}"),
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    progress.add_task(description="Uploading toolkit zip file...", total=None)
-                    self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=zip_file_path)
-
-        logger.info(f"Successfully imported tool kit {self.name}")
+            logger.info(f"Successfully imported tool kit {spec.name}")
 
     def _populate_zip(self, package_root: str, zipfile: zipfile.ZipFile) -> str:
         for root, _, files in os.walk(package_root):
@@ -223,7 +232,7 @@ class ToolkitController:
                 zipfile.write(full_path, arcname=relative_path)
         return zipfile
 
-    def _remap_connections(self, app_ids: List[str]):
+    def __remap_connections(self, app_ids: List[str], is_local_mcp: bool = False) -> Dict[str, str]:
         app_id_dict = {}
         for app_id in app_ids:        
             split_pattern = re.compile(r"(?<!\\)=")
@@ -235,13 +244,12 @@ class ToolkitController:
                 runtime_id = split_id[0]
                 local_id = split_id[0]
             else:
-                raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
+                raise typer.BadParameter(f"The provided app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
 
             if not len(runtime_id.strip()) or not len(local_id.strip()):
-                raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
+                raise typer.BadParameter(f"The provided app-id '{app_id}' is not valid. app-id cannot be empty or whitespace")
 
             runtime_id = sanitize_app_id(runtime_id)
-            is_local_mcp = self.package is not None or self.package_root is not None
             app_id_dict[runtime_id] = get_connection_id(local_id, is_local_mcp)
 
         return app_id_dict
@@ -468,3 +476,118 @@ class ToolkitController:
             self._log_parse_errors(parse_errors)
             
             return response
+    
+    def __convert_spec_to_input_spec(self, spec: ToolkitSpec, connections: Optional[List[str]] = None, package_root: Optional[str] = None) -> ToolkitMCPInputSpec:
+        input_spec_details = {
+            "name": spec.name,
+            "description": spec.description,
+            "tools": spec.mcp.tools,
+            "connections": connections
+        }
+
+        mcp_details = {}
+        if isinstance(spec.mcp, RemoteMcpModel):
+            mcp_details = {
+                "url": spec.mcp.server_url,
+                "transport": spec.mcp.transport
+            }
+        else:
+            mcp_details = {
+                "command": spec.mcp.command,
+                "args": spec.mcp.args
+            }
+        
+            if spec.mcp.source == ToolkitSource.FILES:
+                mcp_details["package_root"] = package_root
+        
+        input_spec_details.update(mcp_details)
+
+        input_spec = ToolkitMCPInputSpec.model_validate(input_spec_details)
+
+        return input_spec
+
+    
+    def export_toolkit(
+            self,
+            name: str,
+            output_file: Path | str,
+            zip_file_out: Optional[zipfile.ZipFile] = None,
+            connections_output_path: Path | str = "/connections") -> None:
+        
+        output_file = Path(output_file)
+        connections_output_path = Path(connections_output_path)
+
+        output_file_extension = output_file.suffix
+        if not zip_file_out and  output_file_extension != ".zip":
+            BadRequest(f"Output file must end with the extension '.zip'. Provided file '{output_file}' ends with '{output_file_extension}'")
+        
+        logger.info(f"Exporting toolkit '{name}' to '{output_file}'")
+
+        client = self.get_client()
+
+        toolkit_specs = client.get_draft_by_name(toolkit_name=name)
+
+        if not toolkit_specs:
+            BadRequest(f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`")
+        
+        if len(toolkit_specs) > 1:
+            BadRequest(f"Multiple toolkits named '{name}' found. Unable to export due to ambiguity")
+        
+        toolkit_spec = toolkit_specs[0]
+
+        toolkit = BaseToolkit(spec=ToolkitSpec.model_validate(toolkit_spec))
+        spec = toolkit.__toolkit_spec__
+
+        package_root = name
+        app_ids = [] if not spec.mcp.connections else get_app_ids(spec.mcp.connections.values())
+        toolkit_input_spec = self.__convert_spec_to_input_spec(spec, app_ids, package_root)
+
+        content = toolkit_input_spec.model_dump(export_format=True, mode="json", exclude_none=True)
+        content["spec_version"] = SpecVersion.V1.value
+
+        zip_file_root_folder = Path()
+        if zip_file_out:
+            zip_file_root_folder = output_file
+        else:
+            zip_file_out = zipfile.ZipFile(output_file, "w")
+        
+        # Don't export if its already done
+        if check_file_in_zip(str(zip_file_root_folder / f"{name}.yaml"), zip_file_out):
+            return
+
+        toolkit_spec_yaml = yaml.dump(content, sort_keys=False, default_flow_style=False, allow_unicode=True)
+        toolkit_spec_yaml_bytes = toolkit_spec_yaml.encode("utf-8")
+        toolkit_spec_yaml_file = io.BytesIO(toolkit_spec_yaml_bytes)
+
+        zip_file_out.writestr(str(zip_file_root_folder /f"{name}.yaml"), toolkit_spec_yaml_file.getvalue())
+        
+        for app_id in app_ids:
+            export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
+        
+        # Export supporting artifacts
+        if toolkit_spec.get("mcp", {}).get("source") == ToolkitSource.FILES and toolkit.__toolkit_spec__.id is not None:
+            toolkit_artifact_bytes = None
+            try:
+                downloaded_bytes = client.download_artifact(toolkit.__toolkit_spec__.id)
+                if downloaded_bytes is not None:
+                    toolkit_artifact_bytes = downloaded_bytes
+                else:
+                    logger.warning(f"No artifacts found for toolkit '{name}'")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise e
+                else:
+                    BadRequest(f"Could not find toolkit artifacts for toolkit '{name}'")
+            except Exception as e:
+                logger.warning(f"Error downloading artifacts for toolkit '{name}': {str(e)}")
+
+            if toolkit_artifact_bytes:
+                with zipfile.ZipFile(io.BytesIO(toolkit_artifact_bytes), "r") as zip_file_in:
+          
+                    for item in zip_file_in.infolist():
+                        buffer = zip_file_in.read(item.filename)
+                        if item.filename.startswith("node_modules/"):
+                            continue
+                        zip_file_out.writestr(str(zip_file_root_folder/ Path(package_root) / Path(item.filename)), buffer)
+                
+        logger.info(f"Successfully exported toolkit '{name}' to '{output_file}'")
