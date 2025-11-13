@@ -179,6 +179,7 @@ class AgentSpec(BaseAgentSpec):
     chat_with_docs: Optional[ChatWithDocsConfig] = None
     starter_prompts: Optional[StarterPrompts] = None
     welcome_content: Optional[WelcomeContent] = None
+    icon: Optional[str] = None
 
 
     def __init__(self, *args, **kwargs):
