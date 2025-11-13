@@ -16,6 +16,7 @@ PYTHON_REGISTRY_HEADER = "python_registry"
 USER_ENV_CACHE_HEADER = "cached_user_env"
 LICENSE_HEADER = "license"
 SETTINGS_HEADER = "settings"
+PREVIOUS_DOCKER_CONTEXT = "previous_docker_context"
 
 # Option Names
 AUTH_MCSP_API_KEY_OPT = "wxo_mcsp_api_key"
@@ -33,6 +34,7 @@ BYPASS_SSL = "bypass_ssl"
 VERIFY = "verify"
 ENV_ACCEPT_LICENSE = 'accepts_license_agreements'
 FILE_ENCODING = "file_encoding"
+DOCKER_CONTEXT = "docker"
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 CHAT_UI_PORT = "3000"

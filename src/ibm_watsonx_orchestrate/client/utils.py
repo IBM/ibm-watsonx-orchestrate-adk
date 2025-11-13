@@ -1,4 +1,6 @@
 import platform
+from pathlib import Path
+import re
 
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
@@ -203,6 +205,44 @@ def get_os_type () -> str:
     else:
         raise Exception("Unsupported operating system %s" % system)
 
+def path_for_vm(path: str | Path) -> str:
+    system = get_os_type()
+
+    if system == "windows":
+        # On Windows, we need to be careful with paths that look like WSL paths
+        # but might be resolved to a Windows format by Path.resolve().
+        # First, ensure forward slashes for consistency.
+        temp_path_str = str(path).replace("\\", "/")
+
+        # Special handling for paths that already look like /mnt/c/ on input
+        # or C:/mnt/c/ after some initial resolution
+        if temp_path_str.startswith("/mnt/") :
+            return temp_path_str
+        elif temp_path_str.lower().startswith("c:/mnt/c/"): # Check for C:/mnt/c/ specifically
+            # This is the problematic case where Path.resolve() might have prefixed 'C:/'
+            # We want to remove the leading 'C:' and ensure it starts with /mnt/c/
+            wsl_path = temp_path_str[2:]
+            return wsl_path
+
+
+        # If it's a standard Windows path, then proceed with the normal conversion
+        p = Path(path).expanduser().resolve()
+        resolved_path_str = str(p).replace("\\", "/") # Ensure forward slashes after resolve
+
+        m = re.match(r"^([A-Za-z]):/(.*)$", resolved_path_str)
+        if m:
+            drive, rest = m.groups()
+            wsl_path = f"/mnt/{drive.lower()}/{rest}"
+            return wsl_path
+        else:
+            logger.warning(f"Could not convert recognized Windows path to WSL path. Returning as-is: {resolved_path_str}")
+            return resolved_path_str
+    else:
+        # If not on a Windows system, assume the path is already correct or requires no conversion
+        # Just resolve and normalize slashes
+        resolved_path_str = str(Path(path).expanduser().resolve()).replace("\\", "/")
+        return resolved_path_str
+    
 def concat_bin_files(target_bin_file: str, source_files: list[str], read_chunk_size: int = None,
                      delete_source_files_post: bool = True) -> None:
     if read_chunk_size is None:
