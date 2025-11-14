@@ -394,10 +394,12 @@ class EnvService:
             # wx.ai only
             env_dict.setdefault("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct")
             env_dict.setdefault("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct")
+            env_dict.setdefault("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct")
         elif not llm_value and groq_key:
             # groq only
             env_dict.setdefault("PREFERRED_MODELS", "groq/openai/gpt-oss-120b")
             env_dict.setdefault("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b")
+            env_dict.setdefault("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b")
         elif llm_value and groq_key:
             # wx.ai and groq
             pass
