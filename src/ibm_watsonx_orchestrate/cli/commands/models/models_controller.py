@@ -13,12 +13,13 @@ import requests
 import rich
 import rich.highlighter
 
+from ibm_watsonx_orchestrate.cli.config import Config
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
 from ibm_watsonx_orchestrate.utils.environment import EnvService
@@ -163,16 +164,22 @@ class ModelsController:
         model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
         global WATSONX_URL
         default_env_path = EnvService.get_default_env_file()
-        merged_env_dict = EnvService.merge_env(
-            default_env_path,
-            None
-        )
+        merged_env_dict = EnvService.merge_env(default_env_path, None)
+        env_service = EnvService(Config())
+        user_env = env_service.get_user_env(None)
+        merged_env_dict.update(user_env)
+        is_local = is_local_dev()
+        is_saas = is_saas_env()
+        LLM_HAS_WATSONX_APIKEY = merged_env_dict.get('LLM_HAS_WATSONX_APIKEY', False)
+        LLM_HAS_WO_INSTANCE = merged_env_dict.get('LLM_HAS_WO_INSTANCE', False)
+        LLM_HAS_GROQ_API_KEY = merged_env_dict.get('LLM_HAS_GROQ_API_KEY', False)
 
-        if 'WATSONX_URL' in merged_env_dict and merged_env_dict['WATSONX_URL']:
+
+        if 'WATSONX_URL' in merged_env_dict and merged_env_dict.get('WATSONX_URL', None):
             WATSONX_URL = merged_env_dict['WATSONX_URL']
 
-        watsonx_url = merged_env_dict.get("WATSONX_URL")
-        if not watsonx_url:
+        watsonx_url = merged_env_dict.get("WATSONX_URL", None)
+        if LLM_HAS_WATSONX_APIKEY and not watsonx_url:
             logger.error("Error: WATSONX_URL is required in the environment.")
             sys.exit(1)
 
@@ -183,8 +190,11 @@ class ModelsController:
         logger.info("Retrieving virtual-policies models list...")
         virtual_model_policies = model_policies_client.list()
 
-        logger.info("Retrieving watsonx.ai models list...")
-        found_models = _get_wxai_foundational_models()
+        if not is_local or (LLM_HAS_WATSONX_APIKEY or LLM_HAS_WO_INSTANCE) and watsonx_url is not None:
+            logger.info("Retrieving watsonx.ai models list...")
+            found_models = _get_wxai_foundational_models()
+        else:
+            found_models = {}
 
 
         preferred_str = merged_env_dict.get('PREFERRED_MODELS', '')
@@ -193,10 +203,20 @@ class ModelsController:
         preferred_list = _string_to_list(preferred_str)
         incompatible_list = _string_to_list(incompatible_str)
 
-        models = found_models.get("resources", [])
+        wxai_models = found_models.get("resources", [])
+        for model in wxai_models:
+            if "model_id" in model:
+                model["model_id"] = "watsonx/" + model["model_id"]
         # Remove incompatible models
         filtered_models = []
-        for model in models:
+        groq_models = [
+            {
+                "model_id": "groq/openai/gpt-oss-120b",
+                "short_description": "openai/gpt-oss-120b is an OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases."
+             }
+        ] if is_saas or (is_local and (LLM_HAS_GROQ_API_KEY or LLM_HAS_WO_INSTANCE)) else []
+
+        for model in wxai_models + groq_models:
             model_id = model.get("model_id", "")
             short_desc = model.get("short_description", "")
             if any(incomp in model_id.lower() for incomp in incompatible_list):
@@ -204,7 +224,7 @@ class ModelsController:
             if any(incomp in short_desc.lower() for incomp in incompatible_list):
                 continue
             filtered_models.append(model)
-        
+
         # Sort to put the preferred first
         def sort_key(model):
             model_id = model.get("model_id", "").lower()
@@ -212,7 +232,7 @@ class ModelsController:
             return (0 if is_preferred else 1, model_id)
         
         sorted_models = sorted(filtered_models, key=sort_key)
-        
+
         if print_raw:
             theme = rich.theme.Theme({"model.name": "bold cyan"})
             console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
@@ -224,7 +244,7 @@ class ModelsController:
             for model in sorted_models:
                 model_id = model.get("model_id", "N/A")
                 short_desc = model.get("short_description", "No description provided.")
-                full_model_name = f"watsonx/{model_id}: {short_desc}"
+                full_model_name = f"{model_id}: {short_desc}"
                 marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
                 console.print(f"- [yellow]{marker}[/yellow]{full_model_name}")
 

@@ -92,6 +92,7 @@ def test_apply_llm_defaults():
 
 def test_llm_defaults_missing_keys():
     env = {}
-    EnvService.apply_llm_api_key_defaults(env)
-    assert "ASSISTANT_LLM_API_KEY" not in env
-    assert "ROUTING_LLM_SPACE_ID" not in env
+
+    with pytest.raises(RuntimeError, match="Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`"):
+        EnvService.apply_llm_api_key_defaults(env)
+
