@@ -5,8 +5,8 @@ from pydantic import BaseModel, ValidationError, Field, AliasChoices
 from typing import Optional, Annotated
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, FetchConfigAuthTypes
-from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionAuthType, ConnectionType
+from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
 import logging
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class ListConfigsResponse(BaseModel):
     app_id: str = None
     name: str = None
     security_scheme: ConnectionSecurityScheme | None = None,
-    auth_type: FetchConfigAuthTypes | None = None,
+    auth_type: str | None = None,
     environment:  ConnectionEnvironment | None = None,
     preference: ConnectionPreference | None = None,
     credentials_entered: bool | None = False
@@ -27,7 +27,7 @@ class GetConfigResponse(BaseModel):
     app_id: str = None
     environment: ConnectionEnvironment = None
     preference: ConnectionPreference = None
-    auth_type: FetchConfigAuthTypes | None = None
+    auth_type: str | None = None
     sso: bool = None
     security_scheme: ConnectionSecurityScheme = None
     server_url: str | None = None
@@ -35,7 +35,7 @@ class GetConfigResponse(BaseModel):
     app_config_data: Annotated[Optional[AppConfigData], Field(validation_alias=AliasChoices('app_config_data', 'app_config'), serialization_alias='app_config_data')] = None
 
     def as_config(self):
-        return ConnectionConfiguration(**dict(self))
+        return ConnectionConfiguration.model_validate(dict(self), context="export")
 
 class GetConnectionResponse(BaseModel):
     connection_id: str = None
