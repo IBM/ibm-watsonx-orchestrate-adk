@@ -1,29 +1,20 @@
-import yaml
-import json
-import rich
-import requests
 import importlib
 import inspect
-import zipfile
-import sys
 import io
+import json
 import logging
-from pathlib import Path
+import sys
+import zipfile
 from copy import deepcopy
+from pathlib import Path
+from typing import Iterable, List, TypeVar
 
-from typing import Any, Iterable, List, TypeVar
+import requests
+import rich
+import yaml
 from pydantic import BaseModel
-
-from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
-from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, _get_kind_from_spec
-from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -31,23 +22,29 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AssistantAgent,
     AgentKind,
     SpecVersion,
-    AgentRestrictionType, 
+    AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import \
+    import_python_knowledge_base, KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
+    _get_kind_from_spec
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
-from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
-from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
-
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 logger = logging.getLogger(__name__)
 
@@ -1417,55 +1414,11 @@ class AgentsController:
                     output_path=output_path,
                     agent_only_flag=False,
                     zip_file_out=zip_file_out)
-        
-        # Export channels for the agent from all environments
-        channels_controller = ChannelsController()
-        agent_id = agent.id
-
-        try:
-            # Get all environments for this agent
-            native_client = self.get_native_client()
-            environments = native_client.get_environments_for_agent(agent_id)
-
-            if not environments:
-                logger.warning(f"No environments found for agent '{agent.name}', skipping channel export")
-            else:
-                channels_client = channels_controller.get_channels_client()
-
-                # Export channels from each environment
-                for environment in environments:
-                    env_name = environment.get("name")
-                    env_id = environment.get("id")
-
-                    try:
-                        env_channels = channels_client.list(agent_id, env_id)
-
-                        if not env_channels:
-                            logger.debug(f"No channels found in environment '{env_name}' for agent '{agent.name}'")
-                            continue
-
-                        for channel in env_channels:
-                            channel_name = channel.get('name', channel.get('id'))
-                            # Include environment name in the path to avoid conflicts between environments
-                            channel_file_path = f"{output_file_name}/channels/{env_name}/{channel.get('channel')}/{channel_name}.yaml"
-
-                            logger.info(f"Exporting channel '{channel_name}' from environment '{env_name}'")
-                            channels_controller.export_channel(
-                                agent_id=agent_id,
-                                environment_id=env_id,
-                                channel_type=channel.get('channel'),
-                                channel_id=channel.get('id'),
-                                output_path=channel_file_path,
-                                zip_file_out=zip_file_out
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to export channels from environment '{env_name}': {e}")
-        except Exception as e:
-            logger.warning(f"Failed to export channels for agent '{agent.name}': {e}")
 
         if close_file_flag:
-            logger.info(f"Successfully wrote agents, tools, knowledge bases, and channels to '{output_path}'")
+            logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
+
 
     def deploy_agent(self, name: str):
         if is_local_dev():

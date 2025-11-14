@@ -1,23 +1,24 @@
-import typer
 from typing import Optional
+
+import typer
+from ibm_watsonx_orchestrate.cli.commands.channels import channels_controller
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
+from ibm_watsonx_orchestrate.cli.commands.channels.types import EnvironmentType, ChannelType
 from ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_command import channel_webchat
-from ibm_watsonx_orchestrate.cli.commands.channels.types import EnvironmentType
 from ibm_watsonx_orchestrate.cli.common import ListFormats
-from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
 
 channel_app = typer.Typer(no_args_is_help=True)
 
 channel_app.add_typer(
     channel_webchat,
     name="webchat",
-    help="Generate webchat embed code snippets. Usage: 'orchestrate channels webchat embed --agent-name some_agent --env live'"
+    help="Integrate with the Webchat Channel, for example exporting an embeddable code snippet can be achieved with the command 'orchestrate channel webchat embed --agent-name=some_agent --env=live'."
 )
 
 # Initialize controller
 controller = ChannelsController()
 
-@channel_app.command(name="list", help="List supported channel types")
+@channel_app.command(name="list", help="Lists the current supported Channels. A Channel refers to the different platforms you can embed your assistant into, such as web chat: orchestrate channel webchat embed --agent-name=some_agent --env=live")
 def list_channel():
     controller.list_channels()
 
@@ -163,3 +164,4 @@ def delete_channel(
             return
 
     controller.delete_channel(agent_id, environment_id, channel_type, resolved_id)
+    channels_controller.list_channels()

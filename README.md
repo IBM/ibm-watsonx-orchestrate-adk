@@ -89,7 +89,7 @@ $ orchestrate --help
 │ server            Manipulate your local Orchestrate Developer Edition server [requires an Entitlement]          │
 │ chat              Launch the chat ui for your local Developer Edition server [requires docker pull credentials] │
 │ models            List the available large language models (llms) that can be used in your agent definitions    │
-│ channels          Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)   │
+│ channels          Configure channels where your agent can exist on (such as embedded webchat)                   │
 │ copilot           Access AI powered assitance to help refine your agents                                        │
 │ settings          Configure the settings for your active env                                                    │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
