@@ -1,19 +1,21 @@
 import json
+import logging
 import sys
+from pathlib import Path
+from typing import Optional, List, Any, Dict
+
 import rich
 import yaml
-import logging
-from typing import Optional, List, Any, Dict
-from pathlib import Path
 from pydantic import ValidationError
 
-from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, TwilioSMSChannel, WebchatChannel, SlackChannel, BaseChannel, ChannelLoader
+from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, \
+    BaseChannel, ChannelLoader
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
-from ibm_watsonx_orchestrate.client.channels.channels_client import ChannelsClient
+from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.channels.channels_client import ChannelsClient
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
