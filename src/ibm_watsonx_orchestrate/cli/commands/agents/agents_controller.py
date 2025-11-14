@@ -15,7 +15,6 @@ from typing import Any, Iterable, List, TypeVar
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind, import_python_tool, ToolsController
-from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
@@ -1407,54 +1406,10 @@ class AgentsController:
                     agent_only_flag=False,
                     zip_file_out=zip_file_out)
         
-        # Export channels for the agent from all environments
-        channels_controller = ChannelsController()
-        agent_id = agent.id
-
-        try:
-            # Get all environments for this agent
-            native_client = self.get_native_client()
-            environments = native_client.get_environments_for_agent(agent_id)
-
-            if not environments:
-                logger.warning(f"No environments found for agent '{agent.name}', skipping channel export")
-            else:
-                channels_client = channels_controller.get_channels_client()
-
-                # Export channels from each environment
-                for environment in environments:
-                    env_name = environment.get("name")
-                    env_id = environment.get("id")
-
-                    try:
-                        env_channels = channels_client.list(agent_id, env_id)
-
-                        if not env_channels:
-                            logger.debug(f"No channels found in environment '{env_name}' for agent '{agent.name}'")
-                            continue
-
-                        for channel in env_channels:
-                            channel_name = channel.get('name', channel.get('id'))
-                            # Include environment name in the path to avoid conflicts between environments
-                            channel_file_path = f"{output_file_name}/channels/{env_name}/{channel.get('channel')}/{channel_name}.yaml"
-
-                            logger.info(f"Exporting channel '{channel_name}' from environment '{env_name}'")
-                            channels_controller.export_channel(
-                                agent_id=agent_id,
-                                environment_id=env_id,
-                                channel_type=channel.get('channel'),
-                                channel_id=channel.get('id'),
-                                output_path=channel_file_path,
-                                zip_file_out=zip_file_out
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to export channels from environment '{env_name}': {e}")
-        except Exception as e:
-            logger.warning(f"Failed to export channels for agent '{agent.name}': {e}")
-
         if close_file_flag:
-            logger.info(f"Successfully wrote agents, tools, knowledge bases, and channels to '{output_path}'")
+            logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
+
 
     def deploy_agent(self, name: str):
         if is_local_dev():
@@ -1511,7 +1466,7 @@ class AgentsController:
         if is_local_dev():
             logger.error("Agents cannot be undeployed in Developer Edition")
             sys.exit(1)
-
+        
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()

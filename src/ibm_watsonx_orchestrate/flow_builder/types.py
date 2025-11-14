@@ -26,7 +26,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools import PythonTool
 from ibm_watsonx_orchestrate.flow_builder.data_map import Assignment, DataMap, add_assignment, ensure_datamap
 from ibm_watsonx_orchestrate.flow_builder.flows.constants import ANY_USER
 from ibm_watsonx_orchestrate.agent_builder.tools.types import (
-    ToolSpec, ToolRequestBody, ToolResponseBody, JsonSchemaObject
+    ToolSpec, ToolRequestBody, ToolResponseBody, JsonSchemaObject, WXOFile
 )
 
 
@@ -2067,35 +2067,6 @@ class LanguageCode(StrEnum):
     en_hw = auto()
 
 
-class File(str):
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: GetCoreSchemaHandler
-    ) -> core_schema.CoreSchema:
-        return core_schema.no_info_wrap_validator_function(
-            cls.validate,
-            core_schema.str_schema(),
-            serialization=core_schema.plain_serializer_function_ser_schema(lambda v: str(v))
-        )
-
-    @classmethod
-    def validate(cls, value: Any) -> "File":
-        if not isinstance(value, str):
-            raise TypeError("File must be a document reference (string)")
-        return cls(value)
-
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        return {
-            "type": "string",
-            "title": "Document reference",
-            "format": "binary",
-            "description": "Either an ID or a URL identifying the document to be used.",
-            "wrap_data": False,
-            "required": []
-        }
 class DocumentProcessingCommonInput(BaseModel):
     '''
     This class represents the common input of docext, docproc and docclassifier node 
@@ -2103,7 +2074,7 @@ class DocumentProcessingCommonInput(BaseModel):
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
     '''
-    document_ref: bytes | File = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
+    document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''

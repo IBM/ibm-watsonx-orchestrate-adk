@@ -69,10 +69,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -212,6 +214,18 @@
               "type": "null"
             }
           ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -231,10 +245,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -367,6 +383,18 @@
                 }
               }
             },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
             {
               "type": "string"
             },
@@ -395,6 +423,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-25T19:14:28.323132+00:00"
+    "compiled_on": "2025-10-24T07:55:51.668429+00:00"
   }
 }
