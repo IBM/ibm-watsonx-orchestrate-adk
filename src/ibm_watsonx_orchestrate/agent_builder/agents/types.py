@@ -133,7 +133,7 @@ class ChatWithDocsConfig(BaseModel):
     confidence_thresholds: Optional[ConfidenceThresholds] =None
     citations:  Optional[CitationsConfig] = None
     hap_filtering: Optional[HAPFiltering] = None
-    query_source: QuerySource = QuerySource.SessionHistory
+    query_source: QuerySource = QuerySource.Agent
     agent_query_description: str = "The query to search for in the knowledge base"
     
 class AgentStyle(str, Enum):

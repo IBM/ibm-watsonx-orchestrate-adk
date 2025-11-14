@@ -60,7 +60,8 @@
           ]
         },
         "min_confidence": 0.0,
-        "review_fields": []
+        "review_fields": [],
+        "enable_review": false
       }
     },
     "__start__": {
@@ -105,10 +106,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -130,10 +133,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -169,6 +174,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-09-13T00:29:06.402677+00:00"
+    "compiled_on": "2025-10-24T07:59:57.040799+00:00"
   }
 }
