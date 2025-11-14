@@ -8,6 +8,10 @@ import shutil
 import json
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
 from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
+# Suppresses fuzzywuzzy warning coming from eval
+from warnings import filterwarnings
+filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
+
 from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
 
 @pytest.fixture(autouse=True, scope="module")
