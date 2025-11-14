@@ -6,7 +6,6 @@ import sys
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
 from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud_platform, get_environment, get_cpd_instance_id_from_url, is_saas_env, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
-from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 
@@ -70,8 +69,36 @@ class ChannelsWebchatController:
         return agent_id
 
     def get_environment_id(self, agent_name: str, env: str):
-        channels_controller = ChannelsController()
-        return channels_controller.get_environment_id(agent_name, env)
+        native_client = self.get_native_client()
+        existing_native_agents = native_client.get_draft_by_name(agent_name)
+
+        if not existing_native_agents:
+            raise ValueError(f"No agent found with the name '{agent_name}'")
+
+        agent = existing_native_agents[0]
+        agent_environments = agent.get("environments", [])        
+
+        is_local = is_local_dev()
+        is_saas = is_saas_env()
+        target_env = env or 'draft'
+
+        if is_local:
+            if env == 'live':
+                logger.warning('Live environments do not exist for Local env, defaulting to draft.')
+            target_env = 'draft'
+
+        filtered_environments = [e for e in agent_environments if e.get("name") == target_env]
+
+        if not filtered_environments:
+            if env == 'live':
+                logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
+            exit(1)
+
+        if target_env == 'draft' and is_saas == True:
+            logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
+            exit(1)
+
+        return filtered_environments[0].get("id")
 
     def get_tenant_id(self):
         auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
