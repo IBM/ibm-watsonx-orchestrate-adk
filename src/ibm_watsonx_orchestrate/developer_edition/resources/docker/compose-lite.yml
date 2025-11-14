@@ -560,7 +560,7 @@ services:
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
-      TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044      
+      TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -945,7 +945,7 @@ services:
       retries: 10
 
   wdu-runtime:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-runtime:${WDU_TAG:-2.9.1}
     platform: linux/amd64
     user: app
     restart: unless-stopped
@@ -954,19 +954,19 @@ services:
       PREFLIGHT_MAX_SIZE: 10Mb
       PREFLIGHT_MAX_PAGES: 600
       RUNTIME_LIBRARY: "watson_doc_understanding"
-      WXAI_API_KEY: ${WXAI_API_KEY:-"gateway"}
-      WXAI_IMAGE_DESCRIPTION_MODEL_ID: ${WXAI_IMAGE_DESCRIPTION_MODEL_ID:-mistralai/mistral-small-3-1-24b-instruct-2503}
+      WXAI_API_KEY: ${WXAI_API_KEY:-}
+      WXAI_IMAGE_DESCRIPTION_MODEL_ID: ${WXAI_IMAGE_DESCRIPTION_MODEL_ID:-watsonx/mistralai/mistral-small-3-1-24b-instruct-2503}
       WXAI_IMAGE_DESCRIPTION_SPACE_ID: ${WATSONX_SPACE_ID:-}
-      WXAI_KVP_MODEL_ID: ${WXAI_KVP_MODEL_ID:-mistralai/mistral-small-3-1-24b-instruct-2503}
+      WXAI_KVP_MODEL_ID: ${WXAI_KVP_MODEL_ID:-watsonx/mistralai/mistral-small-3-1-24b-instruct-2503}
       WXAI_KVP_SPACE_ID: ${WATSONX_SPACE_ID:-}
-      WXAI_SEMANTIC_KVP_MODEL_ID: ${WXAI_SEMANTIC_KVP_MODEL_ID:-mistralai/mistral-small-3-1-24b-instruct-2503}
+      WXAI_SEMANTIC_KVP_MODEL_ID: ${WXAI_SEMANTIC_KVP_MODEL_ID:-watsonx/mistralai/mistral-small-3-1-24b-instruct-2503}
       WXAI_SEMANTIC_KVP_SPACE_ID: ${WATSONX_SPACE_ID:-}
-      WXAI_URL: ${AI_GATEWAY_BASE_URL:-}
+      WXAI_URL: ${WXAI_URL:-${WXO_BASE_URL}/v1/orchestrate/gateway/model}
       WXAI_USERNAME: ${WXAI_USERNAME:-}
       WXAI_INSTANCE_ID: ${WXAI_INSTANCE_ID:-}
-      WXAI_VERSION: ${WXAI_VERSION:-2023-05-29}
-      WXAI_PROVIDER: ${WXAI_PROVIDER:-gateway}
-      
+      WXAI_VERSION: ${WXAI_VERSION:-}
+      WXAI_PROVIDER: ${WXAI_PROVIDER:-openai}
+
     profiles:
       - docproc
     ports:
