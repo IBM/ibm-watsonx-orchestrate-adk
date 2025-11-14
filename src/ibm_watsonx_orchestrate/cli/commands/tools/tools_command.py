@@ -1,13 +1,13 @@
 import typer
 from typing import List
 from typing_extensions import Annotated, Optional
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKindImport
 tools_app= typer.Typer(no_args_is_help=True)
 
 @tools_app.command(name="import", help='Import a tool into the active environment')
 def tool_import(
     kind: Annotated[
-        ToolKind,
+        ToolKindImport,
         typer.Option("--kind", "-k", help="Import Source Format"),
     ],
     file: Annotated[
