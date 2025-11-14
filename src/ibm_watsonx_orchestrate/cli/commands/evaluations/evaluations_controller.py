@@ -5,6 +5,11 @@ from enum import StrEnum
 import csv
 from pathlib import Path
 import sys
+
+# Suppresses fuzzywuzzy warning coming from eval
+from warnings import filterwarnings
+filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
+
 from wxo_agentic_evaluation import main as evaluate
 from wxo_agentic_evaluation import quick_eval
 from wxo_agentic_evaluation.tool_planner import build_snapshot
