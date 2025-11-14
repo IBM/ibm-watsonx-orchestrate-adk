@@ -228,6 +228,14 @@ class ListVirtualModel(BaseModel):
     model_type: Optional[str] = None
     connection_id: Optional[str] = None
 
+
+class ModelConfig(BaseModel):
+    # one difference between adk and runtime is runtime has a fixed schema for model.config attribute (`ModelConfig`)
+    # for now, this class will be only used to make agent.llm_config a hidden feature
+    model: str = ""
+    model_config = ConfigDict(extra="allow")
+
+
 class ModelListEntry(BaseModel):
     name: Optional[str] = Field(default=None, description="Name of the model")
     description: Optional[str] = Field(default=None, description="A description of the model")
@@ -241,6 +249,6 @@ class ModelListEntry(BaseModel):
         else:
             name = self.name or "N/A"
             marker = "★ " if self.recommended else ""
-            return [f"[yellow]{marker}[/yellow]watsonx/{name}", description]
+            return [f"[yellow]{marker}[/yellow]{name}", description]
 
 ANTHROPIC_DEFAULT_MAX_TOKENS = 4096
