@@ -83,6 +83,8 @@ services:
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
       NODE_TLS_REJECT_UNAUTHORIZED: ${AI_GATEWAY_TLS_REJECT_UNAUTHORIZED}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_URL: ${GROQ_URL}
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -410,6 +412,8 @@ services:
       AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS}
       SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
+      RECOMMEND_MODELS: ${PREFERRED_MODELS}
+      DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -519,6 +523,8 @@ services:
       SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
+      RECOMMEND_MODELS: ${PREFERRED_MODELS}
+      DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
   
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}

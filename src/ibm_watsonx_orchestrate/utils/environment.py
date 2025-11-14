@@ -48,6 +48,7 @@ class EnvService:
 
     __NON_SECRET_ENV_ITEMS: set[str] = {
         "WO_DEVELOPER_EDITION_SOURCE",
+        "WATSONX_URL",
         "WO_INSTANCE",
         "USE_SAAS_ML_TOOLS_RUNTIME",
         "AUTHORIZATION_URL",
@@ -84,7 +85,7 @@ class EnvService:
     def read_env_file (env_path: Path | str) -> OrderedDict:
         return dotenv_values(env_path)
 
-    def get_user_env (self, user_env_file: Path | str, fallback_to_persisted_env: bool = True) -> dict:
+    def get_user_env (self, user_env_file: Path | str | None, fallback_to_persisted_env: bool = True) -> dict:
         if user_env_file is not None and isinstance(user_env_file, str):
             user_env_file = Path(user_env_file)
 
@@ -94,6 +95,7 @@ class EnvService:
             user_env = self.__get_persisted_user_env() or {}
 
         return user_env
+
 
     @staticmethod
     def get_dev_edition_source_core(env_dict: dict | None) -> DeveloperEditionSources | str:
@@ -221,6 +223,13 @@ class EnvService:
         
         if source == DeveloperEditionSources.CUSTOM and "REGISTRY_URL" in env:
             persistable_env["CUSTOM_REGISTRY_URL"] = env.get("REGISTRY_URL")
+
+        persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
+        persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
+        persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
+                                                 env.get('USE_SAAS_ML_TOOLS_RUNTIME', 'True') != 'False' and \
+                                                 (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
+
 
         self.__config.save(
             {
@@ -373,6 +382,28 @@ class EnvService:
             env_dict.setdefault("ASSISTANT_LLM_SPACE_ID", space_value)
             env_dict.setdefault("ASSISTANT_EMBEDDINGS_SPACE_ID", space_value)
             env_dict.setdefault("ROUTING_LLM_SPACE_ID", space_value)
+
+        # configure default/preferred model properly based on availability of apikeys
+        wo_instance = env_dict.get("WO_INSTANCE")
+        groq_key = env_dict.get("GROQ_API_KEY")
+        use_saas_ml_tools_runtime = parse_bool_safe(env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME"))
+        if wo_instance and use_saas_ml_tools_runtime is not False:
+            # both wx.ai and groq supported
+            pass
+        elif llm_value and not groq_key:
+            # wx.ai only
+            env_dict.setdefault("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct")
+            env_dict.setdefault("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct")
+        elif not llm_value and groq_key:
+            # groq only
+            env_dict.setdefault("PREFERRED_MODELS", "groq/openai/gpt-oss-120b")
+            env_dict.setdefault("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b")
+        elif llm_value and groq_key:
+            # wx.ai and groq
+            pass
+        else:
+            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+
 
     @staticmethod
     def __drop_auth_routes (env_dict: dict) -> dict:

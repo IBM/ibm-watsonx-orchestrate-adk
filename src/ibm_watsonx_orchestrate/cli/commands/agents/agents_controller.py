@@ -13,6 +13,8 @@ from copy import deepcopy
 
 from typing import Any, Iterable, List, TypeVar
 from pydantic import BaseModel
+
+from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
@@ -1306,6 +1308,11 @@ class AgentsController:
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
         agent_spec_file_content["spec_version"] = SpecVersion.V1.value
+
+        llm_config = ModelConfig(**(agent_spec_file_content.get("llm_config") or dict()))
+        llm_config = llm_config.model_dump(exclude_unset=True, exclude_defaults=True, exclude_none=True)
+        if "llm_config" in agent_spec_file_content and not llm_config:
+            agent_spec_file_content.pop("llm_config", None)
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")

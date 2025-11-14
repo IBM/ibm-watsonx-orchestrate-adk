@@ -17,7 +17,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
-DEFAULT_LLM = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+DEFAULT_LLM = "groq/openai/gpt-oss-120b"
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +180,7 @@ class AgentSpec(BaseAgentSpec):
     starter_prompts: Optional[StarterPrompts] = None
     welcome_content: Optional[WelcomeContent] = None
     icon: Optional[str] = None
+    llm_config: Optional[dict] = None
 
 
     def __init__(self, *args, **kwargs):
