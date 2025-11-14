@@ -1,4 +1,4 @@
-name: docker
+name: dev-edition
 services:
   ########################
   # Orchestrate Lite dependencies
