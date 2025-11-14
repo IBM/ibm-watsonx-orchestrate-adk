@@ -70,6 +70,12 @@ class ToolKind(str, Enum):
     langflow = "langflow"
     # skill = "skill"
 
+class ToolKindImport(str, Enum):
+    openapi = ToolKind.openapi.value
+    python = ToolKind.python.value
+    flow = ToolKind.flow.value
+    langflow = ToolKind.langflow.value
+
 def _get_connection_environments() -> List[ConnectionEnvironment]:
     if is_local_dev():
         return [ConnectionEnvironment.DRAFT]
