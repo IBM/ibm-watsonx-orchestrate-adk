@@ -6,14 +6,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Tuple, OrderedDict
+from typing import Tuple, OrderedDict, Any
 from urllib.parse import urlparse
 from enum import Enum
 
 from dotenv import dotenv_values
 
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
-from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
+from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
@@ -73,6 +73,11 @@ class EnvService:
                 resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("compose-lite.yml")
         ) as compose_file:
             return compose_file
+    
+    @staticmethod
+    def __set_if_not_in_user_env(key: str, value: Any, target_dict: dict, user_env: dict) -> None:
+        if key not in user_env:
+            target_dict[key] = value
 
     @staticmethod
     def get_default_env_file () -> Path:
@@ -272,7 +277,7 @@ class EnvService:
         try:
             use_model_proxy = env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME")
             if not use_model_proxy or use_model_proxy.lower() != 'true':
-                model_config = WatsonXAIEnvConfig.model_validate(env_dict)
+                model_config = DirectAIEnvConfig.model_validate(env_dict)
         except ValueError:
             pass
 
@@ -369,7 +374,7 @@ class EnvService:
         return merged_env_dict
 
     @staticmethod
-    def apply_llm_api_key_defaults (env_dict: dict) -> None:
+    def apply_llm_api_key_defaults (env_dict: dict, user_dict: dict = {}) -> None:
         llm_value = env_dict.get("WATSONX_APIKEY")
         if llm_value:
             env_dict.setdefault("ASSISTANT_LLM_API_KEY", llm_value)
@@ -392,14 +397,14 @@ class EnvService:
             pass
         elif llm_value and not groq_key:
             # wx.ai only
-            env_dict.setdefault("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct")
-            env_dict.setdefault("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct")
-            env_dict.setdefault("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct")
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct", env_dict, user_dict)
         elif not llm_value and groq_key:
             # groq only
-            env_dict.setdefault("PREFERRED_MODELS", "groq/openai/gpt-oss-120b")
-            env_dict.setdefault("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b")
-            env_dict.setdefault("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b")
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "groq/openai/gpt-oss-120b", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
         elif llm_value and groq_key:
             # wx.ai and groq
             pass
@@ -455,8 +460,7 @@ class EnvService:
         # Auto-configure callback IP for async tools
         merged_env_dict = EnvService.auto_configure_callback_ip(merged_env_dict)
 
-        EnvService.apply_llm_api_key_defaults(merged_env_dict)
-
+        EnvService.apply_llm_api_key_defaults(merged_env_dict, user_env)
         return merged_env_dict
 
     def define_saas_wdu_runtime (self, value: str = "none") -> None:

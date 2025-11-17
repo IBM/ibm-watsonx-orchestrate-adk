@@ -2,6 +2,7 @@ import logging
 import sys
 import uuid
 from enum import Enum
+from typing import Optional
 from pydantic import BaseModel, model_validator, ConfigDict
 
 logger = logging.getLogger(__name__)
@@ -31,21 +32,28 @@ def _infer_auth_type_from_instance_url(instance_url: str) -> WoAuthType:
           return WoAuthType.CPD
 
 
-class WatsonXAIEnvConfig(BaseModel):
-    WATSONX_SPACE_ID: str
-    WATSONX_APIKEY: str
+class DirectAIEnvConfig(BaseModel):
+    WATSONX_SPACE_ID: Optional[str]
+    WATSONX_APIKEY: Optional[str]
+    GROQ_API_KEY: Optional[str]
     USE_SAAS_ML_TOOLS_RUNTIME: bool
 
     @model_validator(mode="before")
     def validate_wxai_config(values):
-        relevant_fields = WatsonXAIEnvConfig.model_fields.keys()
+        relevant_fields = DirectAIEnvConfig.model_fields.keys()
         config = {k: values.get(k) for k in relevant_fields}
 
-        if not config.get("WATSONX_SPACE_ID") and not config.get("WATSONX_APIKEY"):
-             raise ValueError("Missing configuration requirements 'WATSONX_SPACE_ID' and 'WATSONX_APIKEY'")
+        # If all missing
+        groq_key_set = bool(config.get("GROQ_API_KEY"))
+        wxai_space_id_set = bool(config.get("WATSONX_SPACE_ID"))
+        wxai_key_set = bool(config.get("WATSONX_APIKEY"))
+
+        if not wxai_key_set and not groq_key_set:
+            raise ValueError("Missing configuration requirements 'GROQ_API_KEY' or 'WATSONX_APIKEY'")
+
+        # If Space id but no apikey
         
-        
-        if not config.get("WATSONX_SPACE_ID") and config.get("WATSONX_APIKEY"):
+        if not wxai_space_id_set and wxai_key_set:
             logger.error("Cannot use env var 'WATSONX_APIKEY' without setting the corresponding 'WATSONX_SPACE_ID'")
             sys.exit(1)
         
