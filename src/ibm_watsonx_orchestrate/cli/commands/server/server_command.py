@@ -436,7 +436,7 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy compose file
-    compose_src = Path("src/ibm_watsonx_orchestrate/developer_edition/resources/docker/compose-lite.yml")
+    compose_src = env_service.get_compose_file()
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
     # Merge default + user env
