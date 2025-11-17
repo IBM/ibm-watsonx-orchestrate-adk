@@ -1,7 +1,7 @@
 import json
 import shutil
 import subprocess
-from importlib.resources import path as resource_path
+from importlib.resources import files
 from typing import List, Optional
 import os
 import logging
@@ -58,18 +58,17 @@ class LimaLifecycleManager(VMLifecycleManager):
         Run a Docker command inside the Lima VM.
         """
         command_list = ["docker"] + _command_to_list(command)
-
-        with resource_path(
-            "ibm_watsonx_orchestrate.developer_edition.resources.lima.bin",
-            "limactl",
-        ) as limactl_path:
-            return subprocess.run(
-                [limactl_path, "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
-                capture_output=capture_output,
-                text=True,
-                input=input,
-                env=env,
-            )
+        limactl_path = (
+            files("ibm_watsonx_orchestrate.developer_edition.resources.lima.bin")
+            / "limactl"
+        )
+        return subprocess.run(
+            [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
+            capture_output=capture_output,
+            text=True,
+            input=input,
+            env=env,
+        )
         
     def edit_server(self, cpus=None, memory=None, disk=None):
         return _edit_lima_vm(cpus, memory, disk)
@@ -93,11 +92,20 @@ def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command
 
 def limactl(command: List[str], capture_output=True) -> Optional[str]:
-    with resource_path('ibm_watsonx_orchestrate.developer_edition.resources.lima.bin', 'limactl') as limactl_path:
-        out = subprocess.run([str(limactl_path)] + command, check=True, capture_output=capture_output, text=True)
-        if capture_output:
-            return out.stdout.strip()
-        return None
+    limactl_path = files(
+        'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
+    ) / 'limactl'
+
+    out = subprocess.run(
+        [str(limactl_path)] + command,
+        check=True,
+        capture_output=capture_output,
+        text=True
+    )
+
+    if capture_output:
+        return out.stdout.strip()
+    return None
 
 def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
@@ -251,137 +259,137 @@ def _ensure_qemu_installed():
         logger.error("QEMU still not found in PATH after symlink creation.")
 
 def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
-    with resource_path('ibm_watsonx_orchestrate.developer_edition.resources', 'lima') as lima_folder:
-        bin_dir = os.path.join(lima_folder, 'bin')
-        share_dir = os.path.join(lima_folder, 'share')
-        limactl_path = os.path.join(bin_dir, 'limactl')
+    lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
+    bin_dir = os.path.join(lima_folder, 'bin')
+    share_dir = os.path.join(lima_folder, 'share')
+    limactl_path = os.path.join(bin_dir, 'limactl')
 
-        # Check if Lima is already installed
-        if os.path.exists(limactl_path):
-            try:
-                existing_version = subprocess.run(
-                    [limactl_path, '-v'],
-                    check=True,
-                    text=True,
-                    capture_output=True
-                ).stdout.strip()
-                existing_version = f"v{existing_version.split(' ')[-1]}"
-
-                if version is None or existing_version == version:
-                    return
-            except Exception as e:
-                logger.warning(f"Error checking existing Lima version: {e}")
-
-        # Get latest version if not provided
-        if version is None:
-            try:
-                version_output = subprocess.run(
-                    ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                version = json.loads(version_output.stdout).get('tag_name', None)
-                logger.info(f"Latest Lima version detected: {version}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to fetch latest Lima version: {e}")
-                sys.exit(1)
-
-        # Clean up old installations
-        for subdir in ['bin', 'share']:
-            path_to_remove = os.path.join(lima_folder, subdir)
-            if os.path.exists(path_to_remove):
-                try:
-                    shutil.rmtree(path_to_remove)
-                except Exception as e:
-                    logger.error(f"Failed to remove {path_to_remove}: {e}")
-                    sys.exit(1)
-
-        os.makedirs(bin_dir, exist_ok=True)
-        os.makedirs(share_dir, exist_ok=True)
-
-        os_name = _get_unix_os()
-        cpu_arch = _get_unix_cpu_arch()
-
-        # Handle Linux-specific dependencies (QEMU + KVM group)
-        if os_name.lower() == "linux":
-            current_user = getpass.getuser()
-
-            # Prevent running as root — Lima doesn't support root
-            if current_user == "root":
-                logger.error("Lima cannot be run as the root user. Please switch to a non-root user.")
-                sys.exit(1)
-
-            _ensure_qemu_installed()
-            _ensure_kvm_group(user=current_user)
-
-        tar_name = f"lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
-        url = f"https://github.com/lima-vm/lima/releases/download/{version}/{tar_name}"
-
-        logger.info(f"Downloading Lima from {url}")
+    # Check if Lima is already installed
+    if os.path.exists(limactl_path):
         try:
-            subprocess.run(
-                ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+            existing_version = subprocess.run(
+                [limactl_path, '-v'],
                 check=True,
+                text=True,
                 capture_output=True
+            ).stdout.strip()
+            existing_version = f"v{existing_version.split(' ')[-1]}"
+
+            if version is None or existing_version == version:
+                return
+        except Exception as e:
+            logger.warning(f"Error checking existing Lima version: {e}")
+
+    # Get latest version if not provided
+    if version is None:
+        try:
+            version_output = subprocess.run(
+                ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
+                check=True,
+                capture_output=True,
+                text=True
             )
-            logger.info(f"Lima {version} installed successfully to {lima_folder}")
+            version = json.loads(version_output.stdout).get('tag_name', None)
+            logger.info(f"Latest Lima version detected: {version}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to download or extract Lima: {e}")
+            logger.error(f"Failed to fetch latest Lima version: {e}")
             sys.exit(1)
 
-    with resource_path('ibm_watsonx_orchestrate.developer_edition.resources', 'lima') as lima_folder:
-        limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
-
-        # Check if limactl already exists and get version
-        if os.path.exists(limactl_path):
+    # Clean up old installations
+    for subdir in ['bin', 'share']:
+        path_to_remove = os.path.join(lima_folder, subdir)
+        if os.path.exists(path_to_remove):
             try:
-                existing_version = subprocess.run(
-                    [limactl_path, '-v'],
-                    check=True,
-                    text=True,
-                    capture_output=True
-                ).stdout.strip()
-                existing_version = f"v{existing_version.split(' ')[-1]}"
-
-                if version is None or existing_version == version:
-                    return 
+                shutil.rmtree(path_to_remove)
             except Exception as e:
-                logger.error(f"Error checking existing Lima version: {e}")
+                logger.error(f"Failed to remove {path_to_remove}: {e}")
                 sys.exit(1)
 
-        # Fetch latest version if not provided
-        if version is None:
-            try:
-                version_output = subprocess.run(
-                    ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                version = json.loads(version_output.stdout).get('tag_name', None)
-            except subprocess.CalledProcessError as e:
-                raise
+    os.makedirs(bin_dir, exist_ok=True)
+    os.makedirs(share_dir, exist_ok=True)
 
-        # Remove old Lima directories if they exist
-        for subdir in ['bin', 'share']:
-            path_to_remove = os.path.join(lima_folder, subdir)
-            if os.path.exists(path_to_remove):
-                try:
-                    shutil.rmtree(path_to_remove)
-                except Exception:
-                    logger.error(f"Failed to remove {path_to_remove}")
-                    sys.exit(1)
+    os_name = _get_unix_os()
+    cpu_arch = _get_unix_cpu_arch()
 
-        # OS and CPU arch for download
-        os_name = _get_unix_os()
-        cpu_arch = _get_unix_cpu_arch()
+    # Handle Linux-specific dependencies (QEMU + KVM group)
+    if os_name.lower() == "linux":
+        current_user = getpass.getuser()
 
-        url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
+        # Prevent running as root — Lima doesn't support root
+        if current_user == "root":
+            logger.error("Lima cannot be run as the root user. Please switch to a non-root user.")
+            sys.exit(1)
+
+        _ensure_qemu_installed()
+        _ensure_kvm_group(user=current_user)
+
+    tar_name = f"lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
+    url = f"https://github.com/lima-vm/lima/releases/download/{version}/{tar_name}"
+
+    logger.info(f"Downloading Lima from {url}")
+    try:
         subprocess.run(
             ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
-            check=True
+            check=True,
+            capture_output=True
         )
+        logger.info(f"Lima {version} installed successfully to {lima_folder}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to download or extract Lima: {e}")
+        sys.exit(1)
+
+    lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
+    limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
+
+    # Check if limactl already exists and get version
+    if os.path.exists(limactl_path):
+        try:
+            existing_version = subprocess.run(
+                [limactl_path, '-v'],
+                check=True,
+                text=True,
+                capture_output=True
+            ).stdout.strip()
+            existing_version = f"v{existing_version.split(' ')[-1]}"
+
+            if version is None or existing_version == version:
+                return 
+        except Exception as e:
+            logger.error(f"Error checking existing Lima version: {e}")
+            sys.exit(1)
+
+    # Fetch latest version if not provided
+    if version is None:
+        try:
+            version_output = subprocess.run(
+                ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            version = json.loads(version_output.stdout).get('tag_name', None)
+        except subprocess.CalledProcessError as e:
+            raise
+
+    # Remove old Lima directories if they exist
+    for subdir in ['bin', 'share']:
+        path_to_remove = os.path.join(lima_folder, subdir)
+        if os.path.exists(path_to_remove):
+            try:
+                shutil.rmtree(path_to_remove)
+            except Exception:
+                logger.error(f"Failed to remove {path_to_remove}")
+                sys.exit(1)
+
+    # OS and CPU arch for download
+    os_name = _get_unix_os()
+    cpu_arch = _get_unix_cpu_arch()
+
+    url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
+    subprocess.run(
+        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+        check=True
+    )
 
 def _ensure_lima_vm_host_exists():
     output = limactl(['list', '--format', 'json'])
@@ -392,11 +400,11 @@ def _ensure_lima_vm_host_exists():
         logger.info('Found existing VM named ' + VM_NAME)
         return
 
-    with resource_path('ibm_watsonx_orchestrate.developer_edition.resources.lima.templates', 'docker.template.yaml') as template_path:
-        vm_args = ['create'] + _get_lima_vm_base_args() + [
-            '--containerd', 'none',
-            str(template_path)
-        ]
+    template_path = files("ibm_watsonx_orchestrate.developer_edition.resources.lima.templates") / "docker.template.yaml"
+    vm_args = ['create'] + _get_lima_vm_base_args() + [
+        '--containerd', 'none',
+        str(template_path)
+    ]
 
     limactl(vm_args, capture_output=True)
 
@@ -546,20 +554,20 @@ def _attach_docker_context_lima() -> bool:
             cfg.write(DOCKER_CONTEXT, PREVIOUS_DOCKER_CONTEXT, str(current_context))
 
         # Use bundled Lima binary to verify VM exists
-        with resource_path('ibm_watsonx_orchestrate.developer_edition.resources', 'lima') as lima_folder:
-            limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
+        lima_folder = files('ibm_watsonx_orchestrate.developer_edition.resources') / "lima"
+        limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
 
-            result = subprocess.run([limactl_path, "list", "--json"], capture_output=True, text=True)
-            if VM_NAME not in result.stdout:
-                logger.error(f"Lima VM '{VM_NAME}' not found. Please create it first.")
-                return False
+        result = subprocess.run([limactl_path, "list", "--json"], capture_output=True, text=True)
+        if VM_NAME not in result.stdout:
+            logger.error(f"Lima VM '{VM_NAME}' not found. Please create it first.")
+            return False
 
-            lima_vm_dir = os.path.expanduser(f"~/.lima/{VM_NAME}/sock")
-            docker_sock = os.path.join(lima_vm_dir, "orchestrate.docker.sock")
+        lima_vm_dir = os.path.expanduser(f"~/.lima/{VM_NAME}/sock")
+        docker_sock = os.path.join(lima_vm_dir, "orchestrate.docker.sock")
 
-            if not os.path.exists(docker_sock):
-                logger.error(f"Docker socket not found: {docker_sock}")
-                return False
+        if not os.path.exists(docker_sock):
+            logger.error(f"Docker socket not found: {docker_sock}")
+            return False
 
         # Create or update Lima Docker context
         subprocess.run(
@@ -634,8 +642,8 @@ def _ssh_into_lima():
     SSH into the underlying ibm-watsonx-orchestrate Lima VM.
     """
     try:
-        with resource_path('ibm_watsonx_orchestrate.developer_edition.resources', 'lima') as lima_folder:
-            limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
+        lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
+        limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
 
         if not os.path.exists(limactl_path):
             logger.error(f"FATAL: limactl not found at {limactl_path}")
