@@ -569,6 +569,13 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
       TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      TRM_SERVICE_NAME: ${TRM_SERVICE_NAME:-tools-runtime-manager}
+      TRM_IBM_TELEMETRY_TRACER_ENDPOINT: ${TRM_IBM_TELEMETRY_TRACER_ENDPOINT:-none}
+      OTEL_MASK_ATTRS: ${OTEL_MASK_ATTRS:-client.address,server.address,server.port,network.peer.address,network.peer.port,url.path,user_agent.original,url.full}
+      OTEL_MASK_VALUE: ${OTEL_MASK_VALUE:-<REDACTED>}
+      TRM_CLIENT_MASK_ATTRS: ${TRM_CLIENT_MASK_ATTRS:-url.full,server.address,server.port}
+      TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -601,7 +608,11 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
-
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      TR_SERVICE_NAME: ${TR_SERVICE_NAME:-tools-runtime}
+      TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
+      TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
+      TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
   ########################
   # IBM AGENT-OPS
   ########################
