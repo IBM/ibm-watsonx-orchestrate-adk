@@ -174,7 +174,6 @@ services:
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
-      IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
       ENABLE_EDIT_PROMPTS: "true"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
