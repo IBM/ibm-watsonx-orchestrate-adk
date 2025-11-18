@@ -164,7 +164,7 @@ def retry_with_backoff(
                     # Log successful retry if this wasn't the first attempt
                     if attempt > 0:
                         logger.info(
-                            f"[{func_name}] Retry {attempt}/{max_retries} succeeded"
+                            f"[{func_name}] Retry {attempt}/{actual_max_retries} succeeded"
                         )
                     
                     return result
@@ -179,15 +179,15 @@ def retry_with_backoff(
                         )
                         raise
                     
-                    attempt += 1
-                    
                     # Check if we've exceeded max retries
-                    if attempt > actual_max_retries:
+                    if attempt >= actual_max_retries:
                         logger.error(
                             f"[{func_name}] Max retries ({actual_max_retries}) exceeded. "
                             f"Last error: {type(e).__name__}: {str(e)}"
                         )
                         raise
+                    
+                    attempt += 1
                     
                     # Calculate wait time with jitter
                     jitter = random.uniform(-actual_jitter_percentage, actual_jitter_percentage)
@@ -235,7 +235,7 @@ def _is_retryable_error(error: Exception) -> bool:
     
     Retryable errors:
         - Timeout errors (requests.Timeout, socket.timeout)
-        - Connection errors (requests.ConnectionError)
+        - Connection errors (requests.ConnectionError, ChunkedEncodingError)
         - Server errors (HTTP 5xx)
         - Rate limit errors (HTTP 429)
     
@@ -245,6 +245,10 @@ def _is_retryable_error(error: Exception) -> bool:
     """
     # Timeout and connection errors are always retryable
     if isinstance(error, (requests.Timeout, requests.ConnectionError)):
+        return True
+    
+    # ChunkedEncodingError is a type of connection error
+    if isinstance(error, requests.exceptions.ChunkedEncodingError):
         return True
     
     # Check for ClientAPIException (defined in base_api_client.py)
