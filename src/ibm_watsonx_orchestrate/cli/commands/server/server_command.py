@@ -206,7 +206,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     token = jwt.decode(existing_token, options={"verify_signature": False})
     tenant_id = token.get('woTenantId', None)
     merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
-    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("docker-wxo-server-voice-1")
+    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("dev-edition-wxo-server-voice-1")
 
     agent_client = instantiate_client(AgentClient)
     agents = agent_client.get()
