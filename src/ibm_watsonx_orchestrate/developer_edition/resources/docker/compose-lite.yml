@@ -996,8 +996,6 @@ services:
     volumes:
       - "wdu-models:/models"
       - "wdu-prometheus-files:/prometheus/"
-    tmpfs:
-      - "/dev/shm"
     healthcheck:
       test: ["CMD-SHELL", "/app/check_heartbeat.sh /tmp/heartbeat.txt 120"]
       interval: 30s
@@ -1008,7 +1006,7 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.9.1}
     platform: linux/amd64
     user: root
     profiles:
