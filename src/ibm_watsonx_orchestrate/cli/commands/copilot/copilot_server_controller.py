@@ -2,6 +2,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+import shutil
 
 import requests
 
@@ -45,15 +46,25 @@ def run_compose_lite_cpe(user_env_file: Path) -> bool:
 
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_up(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file)
+    result = compose_core.service_up(service_name="cpe", friendly_name="Copilot", final_env_file=vm_env_file)
 
     if result.returncode == 0:
         logger.info("Copilot Service started successfully.")
         # Remove the temp file if successful
-        if final_env_file.exists():
-            final_env_file.unlink()
+        for f in [final_env_file, vm_env_file]:
+            try:
+                if f.exists():
+                    f.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
@@ -73,17 +84,27 @@ def run_compose_lite_cpe_down(is_reset: bool = False) -> None:
     default_env = EnvService.read_env_file(EnvService.get_default_env_file())
     final_env_file = EnvService.write_merged_env_file(default_env)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
     cli_config = Config()
     env_service = EnvService(cli_config)
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_down(service_name="cpe", friendly_name="Copilot", final_env_file=final_env_file, is_reset=is_reset)
+    result = compose_core.service_down(service_name="cpe", friendly_name="Copilot", final_env_file=vm_env_file, is_reset=is_reset)
 
     if result.returncode == 0:
         logger.info("Copilot service stopped successfully.")
         # Remove the temp file if successful
-        if final_env_file.exists():
-            final_env_file.unlink()
+        for f in [final_env_file, vm_env_file]:
+            try:
+                if f.exists():
+                    f.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
