@@ -1,8 +1,10 @@
 import json
 import logging
+import os
 import sys
+from functools import wraps
 from pathlib import Path
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Callable, TypeVar
 
 import rich
 import yaml
@@ -19,6 +21,38 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 logger = logging.getLogger(__name__)
+
+F = TypeVar('F', bound=Callable[..., Any])
+
+
+def block_local_dev() -> Callable[[F], F]:
+    """Decorator to block operations in local development environment.
+
+    The decorator checks for an 'enable_developer_mode' parameter in kwargs
+    or the WXO_DEV_ONLY_ENABLE_LOCAL environment variable.
+    If enable_developer_mode=True or env var is set, shows warning but allows operation.
+    If enable_developer_mode=False or not provided and env var not set, blocks with error.
+
+    Raises:
+        SystemExit: If in local dev and developer mode is not enabled
+    """
+    def decorator(func: F) -> F:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Check if enable_developer_mode is in kwargs or environment variable, default to False
+            enable_developer_mode = kwargs.pop('enable_developer_mode', False) or os.environ.get("WXO_DEV_ONLY_ENABLE_LOCAL")
+
+            if is_local_dev():
+                if not enable_developer_mode:
+                    logger.error("Channel authoring is not available in local development environment.")
+                    sys.exit(1)
+                else:
+                    logger.warning("DEVELOPER MODE ENABLED - Proceed at your own risk! No official support will be provided.")
+                    logger.warning("Channel operations in local development may cause unexpected behavior.")
+                    logger.warning("This environment is not validated for production use.")
+            return func(*args, **kwargs)
+        return wrapper  # type: ignore
+    return decorator
 
 
 class ChannelsController:
@@ -261,6 +295,7 @@ class ChannelsController:
             logger.error(f"Failed to create channel from arguments: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def list_channels_agent(
         self,
         agent_id: str,
@@ -425,6 +460,7 @@ class ChannelsController:
             logger.error(f"Failed to resolve channel: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def get_channel(
         self,
         agent_id: str,
@@ -656,6 +692,7 @@ class ChannelsController:
         # Build SaaS environment URL
         return self._build_saas_event_url(client, agent_id, environment_id, channel_api_path, channel_id)
 
+    @block_local_dev()
     def publish_or_update_channel(
         self,
         agent_id: str,
@@ -722,6 +759,7 @@ class ChannelsController:
 
         return event_url
 
+    @block_local_dev()
     def export_channel(
         self,
         agent_id: str,
@@ -800,6 +838,7 @@ class ChannelsController:
             logger.error(f"Failed to write export file: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def delete_channel(
         self,
         agent_id: str,
