@@ -232,7 +232,6 @@ class EnvService:
         persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
         persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
         persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
-                                                 env.get('USE_SAAS_ML_TOOLS_RUNTIME', 'True') != 'False' and \
                                                  (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
 
 
@@ -275,7 +274,7 @@ class EnvService:
 
         model_config = None
         try:
-            use_model_proxy = env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME")
+            use_model_proxy = bool(env_dict.get("WO_INSTANCE"))
             if not use_model_proxy or use_model_proxy.lower() != 'true':
                 model_config = DirectAIEnvConfig.model_validate(env_dict)
         except ValueError:
@@ -391,8 +390,10 @@ class EnvService:
         # configure default/preferred model properly based on availability of apikeys
         wo_instance = env_dict.get("WO_INSTANCE")
         groq_key = env_dict.get("GROQ_API_KEY")
-        use_saas_ml_tools_runtime = parse_bool_safe(env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME"))
-        if wo_instance and use_saas_ml_tools_runtime is not False:
+        use_saas_ml_tools_runtime = bool(wo_instance)
+        env_dict.setdefault("USE_SAAS_ML_TOOLS_RUNTIME", str(use_saas_ml_tools_runtime).lower())
+        
+        if wo_instance:
             # both wx.ai and groq supported
             pass
         elif llm_value and not groq_key:
