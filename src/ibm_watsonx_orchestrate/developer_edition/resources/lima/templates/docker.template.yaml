@@ -69,6 +69,216 @@ hostResolver:
 portForwards:
   - guestSocket: "/run/user/{{.UID}}/docker.sock"
     hostSocket: "{{.Dir}}/sock/orchestrate.docker.sock"
+  # ALL PORTS - FORTESTING
+  - guestIP: "127.0.0.1"
+    guestPortRange: [1, 65535]
+    hostIP: "0.0.0.0"
+    hostPortRange: [1, 65535]
+
+  # Required Tempus Runtime ports
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9044
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9044
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4025
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4025
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3000
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 19530
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 19530
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8787
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8787
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8989
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8989
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9091
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9091
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 6379
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 6379
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8000
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8080
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8080
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4321
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4321
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 5432
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 5432
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3412
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3412
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4002
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4002
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9200
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9200
+
+  # # jaeger-proxy
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9201
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9201
+
+  # # jaeger
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 16686
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 16686
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14250
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14250
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14268
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14268
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14269
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14269
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4317
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4317
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4318
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4318
+  
+  # # frontend-server
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 443
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 443
+  
+  # # langfuse-worker
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3030
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3030
+  
+  # # langfuse-clickhouse
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8123
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8123
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9000
+
+  # # wdu-runtime
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8086
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8086
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9080
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9080
+
+  # # wxo-doc-processing-llm-service
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8083
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8083
+
+  # # wxo-server-voice
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8765
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8765
+
+  # # langflow
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 7861
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 7861
+
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+  
+
+
+
 #message: |
 #  To run `docker` on the host (assumes docker-cli is installed), run the following commands:
 #  ------
