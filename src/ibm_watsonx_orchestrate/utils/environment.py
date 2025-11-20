@@ -275,7 +275,7 @@ class EnvService:
         model_config = None
         try:
             use_model_proxy = bool(env_dict.get("WO_INSTANCE"))
-            if not use_model_proxy or use_model_proxy.lower() != 'true':
+            if not use_model_proxy:
                 model_config = DirectAIEnvConfig.model_validate(env_dict)
         except ValueError:
             pass
