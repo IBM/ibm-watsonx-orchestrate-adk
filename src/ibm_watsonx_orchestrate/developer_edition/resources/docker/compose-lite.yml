@@ -199,6 +199,7 @@ services:
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -230,6 +231,7 @@ services:
 
   wxo-milvus-standalone:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.15
+    restart: unless-stopped
     command: ["milvus", "run", "standalone"]
     security_opt:
       - seccomp:unconfined
@@ -255,6 +257,7 @@ services:
 
   wxo-milvus-etcd:
     image: ${ETCD_REGISTRY:-quay.io}/coreos/etcd:${ETCD_TAG:-v3.5.18}
+    restart: unless-stopped
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
@@ -272,6 +275,7 @@ services:
   socket-handler:
     image: ${SOCKET_HANDLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-socket-handler:${SOCKET_HANDLER_TAG:-latest}
     platform: linux/amd64
+    restart: unless-stopped
     command: "npm start"
     ports:
       - 4001:4001
@@ -617,6 +621,7 @@ services:
   ########################
   elasticsearch:
     image: ${ELASTICSEARCH_REGISTRY:-docker.elastic.co}/elasticsearch/elasticsearch:${ELASTICSEARCH_TAG:-8.19.0}
+    restart: unless-stopped
     profiles: [ibm-telemetry]
     environment:
       - discovery.type=single-node
@@ -645,6 +650,7 @@ services:
 
   jaeger-proxy:
     image: ${JAEGER_PROXY_REGISTRY:-us.icr.io/watson-orchestrate-private}/jaeger-proxy:${JAEGER_PROXY_TAG:-latest} # temporay registry
+    restart: unless-stopped
     profiles: [ibm-telemetry]
     environment:
       - TENANT_API_KEY=${AGENTOPS_API_KEY}
@@ -1065,6 +1071,7 @@ services:
   wxo-doc-processing-infra-standalone:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
     platform: linux/amd64
+    restart: unless-stopped
     profiles:
       - docproc
     environment:
@@ -1221,6 +1228,7 @@ services:
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
+    restart: unless-stopped
     profiles: [langflow]
     ports:
       - 7861:7861
