@@ -487,7 +487,9 @@ def _ensure_lima_vm_stopped():
     
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     """Edit Lima VM config file directly to update resources."""
+    logger.info("Stopping Lima VM...")
     _ensure_lima_vm_stopped()
+    logger.info("Lima VM stopped.")
 
     vm_dir = Path.home() / ".lima" / VM_NAME
     config_path = vm_dir / "lima.yaml"
@@ -499,6 +501,8 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     try:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
+        
+        logger.info("Editing Lima VM...")
 
         # Update CPU, memory, and disk
         if cpus:
