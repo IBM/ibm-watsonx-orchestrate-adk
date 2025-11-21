@@ -933,41 +933,17 @@ def server_edit(
         if disk: 
             logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
     
-    # Using Progress Spinner for OSX/Linux but using logger.info for wsl as it takes much longer and gives user better info.
-    if system == "windows":
-        vm = get_vm_manager()
-        if vm:
-            success =  vm.edit_server(cpus, memory, disk)
-            if success:
-                logger.info("VM updated successfully.")
-            else:
-                logger.error("Failed to Update VM.")
-                sys.exit(1)
+    vm = get_vm_manager()
+    if vm:
+        success =  vm.edit_server(cpus, memory, disk)
+        if success:
+            logger.info("VM updated successfully and restarted.")
         else:
-            logger.error("No underlying VM found")
+            logger.error("Failed to Update VM.")
             sys.exit(1)
     else:
-        vm = get_vm_manager()
-        if vm:
-            console = Console()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-                console=console,
-            ) as progress:
-                progress.add_task(description="Editing the underlying VM settings...", total=None)
-                success = vm.edit_server(cpus, memory, disk)
-                if success:
-                    progress.stop()
-                    logger.info("VM updated successfully.")
-                else:
-                    progress.stop()
-                    logger.error("Failed to Update VM.")
-                    sys.exit(1)
-        else:
-            logger.error("No underlying VM found")
-            sys.exit(1)
+        logger.error("No underlying VM found")
+        sys.exit(1)
 
 # orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
 @server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")
