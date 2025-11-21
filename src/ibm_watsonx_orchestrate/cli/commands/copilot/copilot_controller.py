@@ -380,6 +380,8 @@ def prompt_tune(agent_spec: str, chat_llm: str | None, output_file: str | None, 
             f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'")
         sys.exit(1)
 
+    agent.llm_config = None
+
     if not output_file and not dry_run_flag:
         output_file = agent_spec
 
@@ -461,6 +463,7 @@ def create_agent(output_file: str, llm: str, chat_llm: str | None, samples_file:
     agent = AgentsController.generate_agent_spec(agent_name, AgentKind.NATIVE, description, **params)
     agent.instructions = instructions
     agent.spec_version = SpecVersion.V1
+    agent.llm_config = None
 
     if dry_run_flag:
         rich.print(agent.model_dump(exclude_none=True, mode="json"))
@@ -658,6 +661,7 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
 
     # Step 5 - update the agent and print/save the results
     agent.instructions = response['instruction']
+    agent.llm_config = None
 
     if dry_run_flag:
         rich.print(agent.model_dump(exclude_none=True, mode="json"))
