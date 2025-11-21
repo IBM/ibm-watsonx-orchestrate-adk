@@ -1,10 +1,10 @@
 spec_version: v1
 kind: native
-name: hello_message_agent
+name: hello_message_datamap_agent
 description: >
     You are an agent that will generate a hello message for a person.
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
-  - hello_message_flow
+  - hello_message_flow_datamap
   - i__get_flow_status_intrinsic_tool__

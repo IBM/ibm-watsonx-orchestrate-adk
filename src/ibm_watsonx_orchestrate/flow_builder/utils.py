@@ -83,10 +83,13 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRe
     return JsonSchemaObject.model_validate(schema_json)
 
 
-def _get_tool_request_body(schema_obj: JsonSchemaObject) -> ToolRequestBody:
+def _get_tool_request_body(schema_obj: JsonSchemaObject | ToolRequestBody) -> ToolRequestBody:
     if schema_obj is None:
         return None
     
+    if isinstance(schema_obj, ToolRequestBody):
+        return schema_obj
+
     if isinstance(schema_obj, JsonSchemaObject):
         if schema_obj.type == "object":
             request_obj = ToolRequestBody(type='object', properties=schema_obj.properties, required=schema_obj.required)
@@ -106,10 +109,13 @@ def _get_tool_request_body(schema_obj: JsonSchemaObject) -> ToolRequestBody:
     
     raise ValueError(f"Invalid schema object: {schema_obj}")
 
-def _get_tool_response_body(schema_obj: JsonSchemaObject) -> ToolResponseBody:
+def _get_tool_response_body(schema_obj: JsonSchemaObject | ToolResponseBody) -> ToolResponseBody:
     if schema_obj is None:
         return None
     
+    if isinstance(schema_obj, ToolResponseBody):
+        return schema_obj
+        
     if isinstance(schema_obj, JsonSchemaObject):
         response_obj = ToolResponseBody(type=schema_obj.type)
         if schema_obj.title:
@@ -329,16 +335,119 @@ def create_delete_schedule_tool(name: str, TEMPUS_ENDPOINT: str="http://wxo-temp
 
     return OpenAPITool(spec=spec)
 
+# Schema templates for standalone fields
+FIELD_INPUT_SCHEMA_TEMPLATES = {
+    # Text input templates
+    "text": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string"}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
+
+    # Boolean input templates
+    "boolean": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "boolean"}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
+
+    # Number input templates
+    "number": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "number"}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
+
+    # Choice input templates
+    "any": {
+        "input": JsonSchemaObject(  # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "choices": {"type": "array", "items": {}},
+                "display_items": {"type": "array", "items": {}},
+                "display_text": {"type": "string"}
+            },
+            required=["choices"]
+        ),
+        "output": JsonSchemaObject(  # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "object", "properties": {}}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
+
+    # Date input templates
+    "date": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "date"}},
+            required=["value"],
+            additionalProperties=False # pyright: ignore[reportCallIssue]
+        )
+    },
+
+    # File upload templates
+    "file": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "wxo-file"}},
+            required=["value"]
+        )
+    },
+}
+
+# Schema templates for standalone fields
+FIELD_OUTPUT_SCHEMA_TEMPLATES = {
+    # Text input templates
+    "text": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string"}},
+            required=["value"]
+        ),
+    },
+
+    # Choice input templates
+    "array": {
+        "input": JsonSchemaObject(  # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "choices": {"type": "array", "items": {}},
+            },
+            required=["value"]
+        )
+    },
+
+    # File download templates
+    "file": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "wxo-file"}},
+            required=["value"]
+        )
+    },
+}
+
 # Schema templates for UserForm fields
 FORM_SCHEMA_TEMPLATES = {
     # Text input templates
     "text": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"default": {"type": "string"}},
             required=[]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "string"}},
             required=["value"]
@@ -351,12 +460,12 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Boolean input templates
     "boolean": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"default": {"type": "boolean"}},
             required=[]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "boolean"}},
             required=["value"]
@@ -369,12 +478,12 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Number input templates
     "number": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={},
             required=[]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "number"}},
             required=["value"]
@@ -387,7 +496,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Date input templates
     "date": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={
                 "default": {"type": "string", "format": "date"},
@@ -396,7 +505,7 @@ FORM_SCHEMA_TEMPLATES = {
             },
             required=[]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "string", "format": "date"}},
             required=["value"]
@@ -410,7 +519,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Date range templates
     "date_range": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={
                 "value": {
@@ -423,7 +532,7 @@ FORM_SCHEMA_TEMPLATES = {
             },
             required=["value"]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={
                 "value": {
@@ -446,7 +555,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Choice input templates
     "choice": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={
                 "choices": {"type": "array", "items": {}},
@@ -455,7 +564,7 @@ FORM_SCHEMA_TEMPLATES = {
             },
             required=["choices"]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "object", "properties": {}}},
             required=["value"]
@@ -468,12 +577,12 @@ FORM_SCHEMA_TEMPLATES = {
     
     # File upload templates
     "file": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={},
             required=[]
         ),
-        "output": JsonSchemaObject(
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "string", "format": "wxo-file"}},
             required=["value"]
@@ -486,7 +595,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Message output templates
     "message": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"type": "string"}},
             required=["value"]
@@ -499,7 +608,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # List output templates
     "list": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"choices": {"type": "array", "items": {}}},
             required=["choices"]
@@ -511,7 +620,7 @@ FORM_SCHEMA_TEMPLATES = {
     
     # Field output templates
     "field": {
-        "input": JsonSchemaObject(
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={"value": {"anyOf": [
                 {"type": "string"}, {"type": "number"}, {"type": "integer"}, {"type": "boolean"}]}},
@@ -537,6 +646,12 @@ def get_form_schema_template(template_type: str) -> Dict[str, Any]:
     Raises:
         ValueError: If the template type is not found
     """
+
+    if template_type == "any":
+        template_type = "choice"
+    elif template_type == "array":
+        template_type = "list"
+
     if template_type not in FORM_SCHEMA_TEMPLATES:
         raise ValueError(f"Unknown template type: {template_type}")
         
