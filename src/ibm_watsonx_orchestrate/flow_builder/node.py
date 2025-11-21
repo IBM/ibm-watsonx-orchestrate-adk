@@ -4,16 +4,18 @@ import uuid
 
 import yaml
 from pydantic import BaseModel, Field, SerializeAsAny, create_model
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolRequestBody, ToolResponseBody
+from ibm_watsonx_orchestrate.flow_builder.types import UserForm
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
-from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
+from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PromptNodeSpec, SchemaRef, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
                     DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
 
-from .data_map import DataMap, Assignment
+from .data_map import DataMap, DataMapSpec, Assignment
 
 class Node(BaseModel):
     spec: SerializeAsAny[NodeSpec]
-    input_map: dict[str, DataMap] | None = None
+    input_map: DataMapSpec | None = None
 
     def __call__(self, **kwargs):
         pass
@@ -40,16 +42,16 @@ class Node(BaseModel):
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
         model_spec["spec"] = self.spec.to_json()
-        if self.input_map is not None and "spec" in self.input_map:
+        if self.input_map is not None and self.input_map.spec:
             model_spec['input_map'] = {
-                "spec": self.input_map["spec"].to_json()
+                "spec": self.input_map.spec.to_json()
             }
 
         return model_spec
     
     def map_node_input_with_variable(self, target_input_variable: str, variable: str, default_value: str = None) -> None:
-        if self.input_map and "spec" in self.input_map:
-            maps = self.input_map["spec"].maps or []
+        if self.input_map and self.input_map.spec:
+            maps = self.input_map.spec.maps or []
         else:
             maps = []
         
@@ -66,14 +68,14 @@ class Node(BaseModel):
             maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
 
         node_input_map_spec = DataMap(maps=maps)
-        if self.input_map and "spec" in self.input_map:
-            self.input_map["spec"] = node_input_map_spec
+        if self.input_map and self.input_map.spec:
+            self.input_map.spec = node_input_map_spec
         else:
-            self.input_map = {"spec": node_input_map_spec}
+            self.input_map = DataMapSpec(spec = node_input_map_spec)
 
-    def map_input(self, input_variable: str, expression: str, default_value: str = None) -> None:
-        if self.input_map and "spec" in self.input_map:
-            maps = self.input_map["spec"].maps or []
+    def map_input(self, input_variable: str, expression: str, default_value: str | None = None) -> None:
+        if self.input_map and self.input_map.spec:
+            maps = self.input_map.spec.maps or []
         else:
             maps = []
         
@@ -90,14 +92,14 @@ class Node(BaseModel):
             maps.append(Assignment(target_variable=target_variable, value_expression=value_expression, metadata=curr_map_metadata))
 
         node_input_map_spec = DataMap(maps=maps)
-        if self.input_map and "spec" in self.input_map:
-            self.input_map["spec"] = node_input_map_spec
+        if self.input_map and self.input_map.spec:
+            self.input_map.spec = node_input_map_spec
         else:
-            self.input_map = {"spec": node_input_map_spec}
+            self.input_map = DataMapSpec(spec = node_input_map_spec)
 
     def map_node_input_with_none(self, target_input_variable: str) -> None:
-        if self.input_map and "spec" in self.input_map:
-            maps = self.input_map["spec"].maps or []
+        if self.input_map and self.input_map.spec:
+            maps = self.input_map.spec.maps or []
         else:
             maps = []
         
@@ -107,10 +109,10 @@ class Node(BaseModel):
         maps.append(Assignment(target_variable=target_variable, value_expression=None))
 
         node_input_map_spec = DataMap(maps=maps)
-        if self.input_map and "spec" in self.input_map:
-            self.input_map["spec"] = node_input_map_spec
+        if self.input_map and self.input_map.spec:
+            self.input_map.spec = node_input_map_spec
         else:
-            self.input_map = {"spec": node_input_map_spec}
+            self.input_map = DataMapSpec(spec = node_input_map_spec)
 
 class StartNode(Node):
     def __repr__(self):
@@ -151,41 +153,31 @@ class UserNode(Node):
 
     def get_spec(self) -> UserNodeSpec:
         return cast(UserNodeSpec, self.spec)
+
     def field(self,
               name: str,
               kind: UserFieldKind = UserFieldKind.Text,
+              display_name: str | None = None,
               text: str | None = None,
-              display_name: str | None = None,
-              description: str | None = None,
-              default: Any | None = None,
-              option: UserFieldOption | None = None,
-              min: Any | None = None,
-              max: Any | None = None,
               direction: str | None = None,
-              input_map: DataMap | None = None,
-              is_list: bool = False,
-              custom: dict[str, Any] | None = None,
-              widget: str | None = None):
-        self.get_spec().field(name=name,
-                              kind=kind,
-                              text=text,
-                              display_name=display_name,
-                              description=description,
-                              default=default,
-                              option=option,
-                              min=min,
-                              max=max,
-                              is_list=is_list,
-                              custom=custom,
-                              widget=widget,
-                              direction=direction,
-                              input_map=input_map)
+              input_map: DataMap | DataMapSpec| None = None,
+              input_schema: ToolRequestBody | SchemaRef | None = None,
+              output_schema: ToolResponseBody | SchemaRef | None = None) -> UserField:
+        return self.get_spec().field(name=name,
+                                     kind=kind,
+                                     display_name=display_name,
+                                     text=text,
+                                     direction=direction,
+                                     input_map=input_map,
+                                     input_schema=input_schema,
+                                     output_schema=output_schema)
+
     def form(self,
-              name: str,
-              display_name: str | None = None,
-              instructions: str | None = None,
-              submit_button_label: str | None = "Submit",
-              cancel_button_label: str | None = None ) -> UserForm :
+            name: str,
+            display_name: str | None = None,
+            instructions: str | None = None,
+            submit_button_label: str | None = "Submit",
+            cancel_button_label: str | None = None) -> UserForm :
         """
         Creates or retrieves a form in the user node and configures its buttons.
 
@@ -199,19 +191,28 @@ class UserNode(Node):
         Returns:
             UserForm: The created or retrieved form object.
         """
-        user_form = self.get_spec().get_or_create_form(name=name,
-                              display_name=display_name,
-                              instructions=instructions
-                              )
+        user_form: UserForm = self.get_spec().get_or_create_form(name=name,
+                                display_name=display_name,
+                                instructions=instructions
+                                )
         
-        self.get_spec().form.buttons[0].display_name = submit_button_label
+        if user_form:
+            user_form.buttons[0].display_name = submit_button_label
 
-        if (cancel_button_label) :
-            self.get_spec().form.buttons[1].display_name = cancel_button_label
-        else: 
-            self.get_spec().form.buttons[1].visible = False
+            if (cancel_button_label) :
+                user_form.buttons[1].display_name = cancel_button_label
+            else: 
+                user_form.buttons[1].visible = False
 
         return user_form
+
+    def add_field_to_form(self, name: str, field: UserField) -> None:
+        user_form = self.get_spec().form
+        if user_form:
+            user_form.add_or_replace_field(name, field)
+        else:
+            raise ValueError("Form not found")
+
     def text_input_field(
             self,
             name: str,
@@ -662,6 +663,7 @@ class UserNode(Node):
                         columns = columns,
                         isMultiSelect=True
                 ) 
+
 class AgentNode(Node):
     def __repr__(self):
         return f"AgentNode(name='{self.spec.name}', description='{self.spec.description}')"

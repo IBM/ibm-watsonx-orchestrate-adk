@@ -18,8 +18,3 @@ done
 for flow_tool in ibm_knowledge_to_emails.py; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool}
 done
-
-# import email agent
-for agent in email_agent.yaml ibm_email_agent.yaml; do
-  orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
-done
