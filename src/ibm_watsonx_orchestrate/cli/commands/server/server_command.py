@@ -744,6 +744,39 @@ def run_db_migration() -> None:
             fi
         fi
     done
+
+
+    # Create wxo_observability database if it doesn't exist
+    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw wxo_observability; then
+        echo 'Existing wxo_observability DB found'
+    else
+        echo 'Creating wxo_observability DB'
+        createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
+        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
+    fi
+
+
+    # Run observability-specific migrations
+    OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
+    touch "$OBSERVABILITY_MIGRATIONS_FILE"
+
+    for file in /docker-entrypoint-initdb.d/observability/*.sql; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            
+            if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
+                echo "Skipping already applied observability migration: $filename"
+            else
+                echo "Applying observability migration: $filename"
+                if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
+                    echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
+                else
+                    echo "Error applying observability migration: $filename. Stopping migrations."
+                    exit 1
+                fi
+            fi
+        fi
+    done
     '''
 
     # Encode the migration script to base64
