@@ -17,8 +17,8 @@ def get_kvp_schemas_for_invoice(place_holder: str) -> list:
 
 
     return [{
-  "document_type": "Invoice",
-  "document_description": "An invoice is a financial document issued by a seller to a buyer, outlining products or services provided, quantities, prices, and payment terms. It serves as a request for payment in a sales transaction.",
+  "document_type": "MyInvoice",
+  "document_description": "An invoice is a financial document issued by a seller to a buyer, outlining products or services provided, quantities, prices, and payment terms.",
   "fields": {
     "company_name": {
       "description": "Name of the company issuing the invoice.",

@@ -19,7 +19,8 @@ def sanitize_catalog_label(label: str) -> str:
     return re.sub(sanitize_pattern,'_', label)
 
 def check_file_in_zip(file_path: str, zip_file: zipfile.ZipFile) -> bool:
-    return any(x.startswith("%s/" % file_path.rstrip("/")) for x in zip_file.namelist())
+    name_list = zip_file.namelist()
+    return any(x.startswith("%s/" % file_path.rstrip("/")) for x in name_list) or file_path in name_list
 
 def parse_bool_safe (value, fallback = False) -> bool:
     if value is not None:

@@ -50,53 +50,51 @@ def build_user_form(aflow: Flow = None) -> Flow:
 
     user_flow = aflow.userflow()
     user_flow.spec.display_name= "Application"
-    
 
     user_node_with_form = user_flow.form(name="ApplicationForm", display_name="Application")
     
     data_map = DataMap()
     data_map.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.salutations"))
  
-    #Salutatiom
+    #Single-choice: Salutation
     user_node_with_form.single_choice_input_field(name="Salutation", label="Salutation", required=True, choices=data_map, 
                                                   show_as_dropdown=True, placeholder_text="Please enter your title")
    
-    #Boolean married
+    #Boolean: Married
     user_node_with_form.boolean_input_field(name="Married", label="Married", single_checkbox = True, true_label="Married", false_label="Not married")
 
-    #Text fiels "lastName"
-    user_node_with_form.text_input_field(name="LastName", label="Last name", required=True, placeholder_text="Enter your last name", help_text="Enter last name")
+    #Text: Last Name
+    user_node_with_form.text_input_field(name="LastName", label="Last name", required=True, placeholder_text="Enter your name here", help_text="Enter name")
 
-    #Number widget Age"
+    #Number: Age
     user_node_with_form.number_input_field(name="Age", label="Age", required=True, help_text="Enter your age")
 
     data_map_salary = DataMap()
     data_map_salary.add(Assignment(target_variable="self.input.default", value_expression="flow.input.salary_expectation"))
     
-    #Number widget salary"
+    #Number: Salary
     user_node_with_form.number_input_field(name="Salary", label="Desired salary", is_integer=False, help_text="Your dream salary is here", default=data_map_salary)
   
     data_map_desired_salary = DataMap()
     data_map_desired_salary.add(Assignment(target_variable="self.input.value", value_expression="flow.input.salary_expectation"))
     
-     #Field widget salary"
+    #Output Field: Desired salary
     user_node_with_form.field_output_field(name="acknowledge", label="Desired salary", value = data_map_desired_salary)
 
     data_map_list_source = DataMap()
     data_map_list_source.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.listOfLanguages"))
     
-    #  #List output widget"
+    #Output List: Qualification
     user_node_with_form.list_output_field(name="strength", label="Qualification", choices=data_map_list_source)
 
-    #List output widget"
+    #Output Message: Successful submission
     user_node_with_form.message_output_field(name="success", label="Successful submission", message="Application successfully completed.")
  
-
-    # A user flow edges
+    #Add user flow edges
     user_flow.edge(START, user_node_with_form)
     user_flow.edge(user_node_with_form, END)
     
-    # add the user flow to the flow sequence to create the flow edges
+    #Add the user flow to the flow sequence to create the flow edges
     aflow.sequence(START, user_flow, END)
 
   

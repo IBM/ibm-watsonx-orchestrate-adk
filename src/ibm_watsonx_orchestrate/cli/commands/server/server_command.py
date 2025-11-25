@@ -6,10 +6,16 @@ import shutil
 import sys
 import time
 from pathlib import Path
-
+import subprocess
+import re
 import jwt
 import requests
 import typer
+import shlex
+from typing import Optional
+
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.developer_edition.vm_host.vm_manager import get_vm_manager
 
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import _login
 from ibm_watsonx_orchestrate.cli.commands.server.images.images_command import images_app
@@ -22,6 +28,13 @@ from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, Docke
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
+
+from ibm_watsonx_orchestrate.developer_edition.vm_host.lima import LimaLifecycleManager
+from ibm_watsonx_orchestrate.client.utils import get_os_type, path_for_vm
+import base64
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +60,37 @@ def refresh_local_credentials() -> None:
     except:
         logger.warning("Failed to refresh local credentials, please run `orchestrate env activate local`")
 
+def cleanup_orchestrate_cache():
+        """
+        Removes all temporary rendered image files under ~/.cache/orchestrate
+        while preserving essential files like docker-compose.yml and credentials.yaml.
+        """
+        orchestrate_cache = Path.home() / ".cache" / "orchestrate"
+
+        removed_files = []
+        preserved_files = {"docker-compose.yml", "credentials.yaml", "layers"}
+
+        for item in orchestrate_cache.iterdir():
+            # Skip preserved items
+            if item.name in preserved_files:
+                continue
+
+            if item.name.startswith("rendered-image-") or item.name.startswith("tmp"):
+                try:
+                    if item.is_dir():
+                        shutil.rmtree(item)
+                    else:
+                        item.unlink()
+                    removed_files.append(item.name)
+                except Exception as e:
+                    print(f"[WARN] Could not remove {item}: {e}")
+
+
 def run_compose_lite(
         final_env_file: Path,
         env_service: EnvService,
-        experimental_with_langfuse=False, 
-        experimental_with_ibm_telemetry=False, 
+        experimental_with_langfuse=False,
+        experimental_with_ibm_telemetry=False,
         with_doc_processing=False,
         with_voice=False,
         with_connections_ui=False,
@@ -127,7 +166,6 @@ def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=9
                 logger.debug(f"Response code from healthcheck {response.status_code}")
         except requests.RequestException as e:
             errormsg = e
-            #print(f"Request failed: {e}")
 
         time.sleep(interval_seconds)
     if errormsg:
@@ -145,10 +183,8 @@ def wait_for_wxo_ui_health_check(timeout_seconds=45, interval_seconds=2):
                 return True
             else:
                 pass
-                #print(f"Response code from UI healthcheck {response.status_code}")
         except requests.RequestException as e:
             pass
-            #print(f"Request failed for UI: {e}")
 
         time.sleep(interval_seconds)
     logger.info("UI component is initialized")
@@ -170,7 +206,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     token = jwt.decode(existing_token, options={"verify_signature": False})
     tenant_id = token.get('woTenantId', None)
     merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
-    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("docker-wxo-server-voice-1")
+    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("dev-edition-wxo-server-voice-1")
 
     agent_client = instantiate_client(AgentClient)
     agents = agent_client.get()
@@ -196,6 +232,12 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
 
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
     logger.info("Waiting for orchestrate server to be fully started and ready...")
 
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
@@ -206,13 +248,16 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
 
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_up(service_name="ui", friendly_name="UI", final_env_file=final_env_file)
+    result = compose_core.service_up(service_name="ui", friendly_name="UI", final_env_file=vm_env_file)
 
     if result.returncode == 0:
         logger.info("Chat UI Service started successfully.")
-        # Remove the temp file if successful
-        if final_env_file.exists():
-            final_env_file.unlink()
+        for f in [final_env_file, vm_env_file]:
+            try:
+                if f.exists():
+                    f.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
@@ -258,19 +303,36 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
         sys.exit(1)
 
 def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
-    EnvService.prepare_clean_env(final_env_file)
+    """
+    Stops all services via docker compose inside the Lima VM.
+    If is_reset=True, also removes named volumes (resetting DB and state).
+    """
+    orchestrate_path = Path.home() / ".cache/orchestrate"
+    orchestrate_path.mkdir(parents=True, exist_ok=True)
+
+    # # Copy the env file into Lima-visible orchestrate dir
+    lima_env_file = orchestrate_path / final_env_file.name
+    shutil.copy(final_env_file, lima_env_file)
+
+    EnvService.prepare_clean_env(lima_env_file)
 
     cli_config = Config()
     env_service = EnvService(cli_config)
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.services_down(final_env_file=final_env_file, is_reset=is_reset)
+    result = compose_core.services_down(final_env_file=lima_env_file, is_reset=is_reset)
 
     if result.returncode == 0:
-        logger.info("Services stopped successfully.")
-        # Remove the temp file if successful
+        if is_reset:
+            logger.info("Services and volumes reset successfully.")
+        else:
+            logger.info("Services stopped successfully.")
+
+        # Cleanup temp env files
         if final_env_file.exists():
             final_env_file.unlink()
+        if lima_env_file.exists():
+            lima_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
@@ -279,25 +341,62 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
         sys.exit(1)
 
 def run_compose_lite_logs(final_env_file: Path) -> None:
-    EnvService.prepare_clean_env(final_env_file)
+    """
+    Tail docker compose logs for orchestrate services (inside Lima, WSL, or native Docker).
+    """
+    orchestrate_path = Path.home() / ".cache/orchestrate"
+    orchestrate_path.mkdir(parents=True, exist_ok=True)
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    # Copy the env file into orchestrate dir (VM-visible if needed)
+    vm_env_file = orchestrate_path / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
 
-    result = compose_core.services_logs(final_env_file=final_env_file, should_follow=True)
+    compose_path = EnvService(Config()).get_compose_file()
+    vm_resolved_compose = path_for_vm(compose_path)
+    vm_resolved_file = path_for_vm(vm_env_file)
 
-    if result.returncode == 0:
-        logger.info("End of docker logs")
-        # Remove the temp file if successful
+    command = [
+        "compose",
+        "-f", str(vm_resolved_compose),
+        "--env-file", str(vm_resolved_file),
+        "logs",
+        "-f",
+    ]
+
+    vm = get_vm_manager()
+
+    try:
+        if vm:
+            logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
+            result = vm.run_docker_command(command, capture_output=False)
+        else:
+            logger.info("Tailing docker-compose logs (native Docker)...")
+            result = subprocess.run(["docker"] + command, text=True)
+    except KeyboardInterrupt:
+        result = subprocess.CompletedProcess(args=command, returncode=130)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 130:
+            result = subprocess.CompletedProcess(args=e.cmd, returncode=130)
+        else:
+            logger.error(f"Docker compose logs failed: {e}")
+    finally:
+        # Always clean up
         if final_env_file.exists():
             final_env_file.unlink()
-    else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        logger.error(
-            f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
-        )
-        sys.exit(1)
+        if vm_env_file.exists():
+            vm_env_file.unlink()
+
+    # If user exited normally or with Ctrl+C, don't print any errors
+    if result.returncode in (0, 130):
+        logger.info("End of docker logs")
+        return True
+
+    # Any other error → print
+    error_message = getattr(result, "stderr", None) or "Error occurred."
+    logger.error(
+        f"Error running docker-compose logs (temporary env file left at {vm_env_file}):\n{error_message}"
+    )
+    sys.exit(1)
 
 def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
     accepts_license = cfg.read(LICENSE_HEADER, ENV_ACCEPT_LICENSE)
@@ -324,6 +423,45 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
         else:
             logger.error('The terms and conditions were not accepted, exiting.')
             exit(1)
+
+
+def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
+    """
+    Prepare the compose + env files in a cache directory (~/.cache/orchestrate)
+    and return the VM-visible Path to the .env file.
+    Works for both macOS (Lima) and Windows (WSL).
+    """
+
+    staging_dir = Path.home() / ".cache" / "orchestrate"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy compose file
+    compose_src = env_service.get_compose_file()
+    shutil.copy(compose_src, staging_dir / "docker-compose.yml")
+
+    # Merge default + user env
+    default_env = EnvService.get_default_env_file()
+    merged_env = EnvService.merge_env(default_env, user_env_file)
+
+    # Write merged env to a stable name
+    merged_env_path = staging_dir / "merged.env"
+    EnvService.write_merged_env_file(merged_env, target_path=merged_env_path)
+
+    # Return the correct path for the VM to access
+    system = platform.system().lower()
+    username = Path.home().name
+
+    if system == "darwin":
+        vm_env_path = Path(f"/Users/{username}/.cache/orchestrate/merged.env")
+    elif system == "windows":
+        # When running in WSL, /home/orchestrate maps directly inside the WSL VM
+        # vm_env_path = Path("/home/orchestrate/.cache/orchestrate/merged.env")
+        vm_env_path = Path(path_for_vm(merged_env_path))
+    else:
+        # Linux native
+        vm_env_path = Path(f"/home/{username}/.cache/orchestrate/merged.env")
+
+    return vm_env_path
 
 @server_app.command(name="start")
 def server_start(
@@ -381,8 +519,6 @@ def server_start(
     cli_config = Config()
     confirm_accepts_license_agreement(accept_terms_and_conditions, cli_config)
 
-    DockerUtils.ensure_docker_installed()
-
     if user_env_file and not Path(user_env_file).exists():
         logger.error(f"The specified environment file '{user_env_file}' does not exist.")
         sys.exit(1)
@@ -396,7 +532,7 @@ def server_start(
 
     env_service = EnvService(cli_config)
 
-    env_service.define_saas_wdu_runtime()
+    env_service.define_saas_wdu_runtime() # Set WDU_RUNTIME_SOURCE=none initially
     
     #Run regardless, to allow this to set compose as 'None' when not in use 
     env_service.set_compose_file_path_in_env(custom_compose_file)
@@ -417,27 +553,39 @@ def server_start(
 
     if with_doc_processing:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
-        env_service.define_saas_wdu_runtime("local")
+        merged_env_dict["WDU_RUNTIME_SOURCE"] = "local" # Set WDU_RUNTIME_SOURCE=local to use local WDU service
+    elif merged_env_dict.get("WO_INSTANCE") and merged_env_dict.get("WO_API_KEY"):
+        merged_env_dict["WDU_RUNTIME_SOURCE"] = "remote" # Set WDU_RUNTIME_SOURCE=remote to use WDU proxy
+    else:
+        logger.warning("IBM Document Processing is not enabled. The following two features will be disabled: \n1. Agent Knowledge - Upload files \n2. Agent Workflow - Document Processing. \nTo enable these features, please use '--with-doc-processing' argument or provide WO_INSTANCE and WO_API_KEY in your env file to start the server.")
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
 
     if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
+
+    final_env_file = env_service.write_merged_env_file(merged_env_dict)
+
+    vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
+
+    vm = get_vm_manager()
+    if vm:
+        vm.start_server()
+
+    logger.info("Running docker compose-up inside the VM...")
     
     if with_voice:
         merged_env_dict['VOICE_ENABLED'] = 'true'
     
-
     try:
         DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
     except ValueError as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
 
-    final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
-    run_compose_lite(final_env_file=final_env_file,
+    run_compose_lite(final_env_file=vm_env_file_path,
                      experimental_with_langfuse=experimental_with_langfuse,
                      experimental_with_ibm_telemetry=experimental_with_ibm_telemetry,
                      with_doc_processing=with_doc_processing,
@@ -466,6 +614,9 @@ def server_start(
 
     logger.info(f"You can run `orchestrate env activate local` to set your environment or `orchestrate chat start` to start the UI service and begin chatting.")
 
+    # clean up potential cpd files in cache
+    cleanup_orchestrate_cache()
+
     if experimental_with_langfuse:
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
@@ -474,6 +625,7 @@ def server_start(
         logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
+
 @server_app.command(name="stop")
 def server_stop(
     user_env_file: str = typer.Option(
@@ -532,111 +684,140 @@ def server_reset(
 
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
 
-@server_app.command(name="logs")
-def server_logs(
-    user_env_file: str = typer.Option(
-        None,
-        "--env-file", '-e',
-        help="Path to a .env file that overrides default.env. Then environment variables override both."
-    )
-):
-    DockerUtils.ensure_docker_installed()
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(
-        default_env_path,
-        Path(user_env_file) if user_env_file else None
-    )
-    merged_env_dict['WATSONX_SPACE_ID']='X'
-    merged_env_dict['WATSONX_APIKEY']='X'
-    EnvService.apply_llm_api_key_defaults(merged_env_dict)
-    final_env_file = EnvService.write_merged_env_file(merged_env_dict)
-    run_compose_lite_logs(final_env_file=final_env_file)
-
 def run_db_migration() -> None:
     default_env_path = EnvService.get_default_env_file()
     merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
-    merged_env_dict['WATSONX_SPACE_ID']='X'
-    merged_env_dict['WATSONX_APIKEY']='X'
-    merged_env_dict['WXAI_API_KEY'] = ''
-    merged_env_dict['ASSISTANT_EMBEDDINGS_API_KEY'] = ''
-    merged_env_dict['ASSISTANT_LLM_SPACE_ID'] = ''
-    merged_env_dict['ROUTING_LLM_SPACE_ID'] = ''
-    merged_env_dict['USE_SAAS_ML_TOOLS_RUNTIME'] = ''
-    merged_env_dict['BAM_API_KEY'] = ''
-    merged_env_dict['ASSISTANT_EMBEDDINGS_SPACE_ID'] = ''
-    merged_env_dict['ROUTING_LLM_API_KEY'] = ''
-    merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
+
+    # Set required env keys
+    merged_env_dict.update({
+        'WATSONX_SPACE_ID': 'X',
+        'WATSONX_APIKEY': 'X',
+        'WXAI_API_KEY': '',
+        'ASSISTANT_EMBEDDINGS_API_KEY': '',
+        'ASSISTANT_LLM_SPACE_ID': '',
+        'ROUTING_LLM_SPACE_ID': '',
+        'USE_SAAS_ML_TOOLS_RUNTIME': '',
+        'BAM_API_KEY': '',
+        'ASSISTANT_EMBEDDINGS_SPACE_ID': '',
+        'ROUTING_LLM_API_KEY': '',
+        'ASSISTANT_LLM_API_KEY': '',
+    })
+
+    # Write merged env file to a temporary location
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
-    
 
-    pg_user = merged_env_dict.get("POSTGRES_USER","postgres")
+    # Ensure orchestrate directory exists (shared between host & VM)
+    orchestrate_dir = Path.home() / ".cache/orchestrate"
+    orchestrate_dir.mkdir(parents=True, exist_ok=True)
 
-    migration_command = f'''
-        APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
-        touch "$APPLIED_MIGRATIONS_FILE"
-        for file in /docker-entrypoint-initdb.d/*.sql; do
-            filename=$(basename "$file")
+    # Ensure final_env_file is a Path
+    if isinstance(final_env_file, str):
+        final_env_file = Path(final_env_file)
 
-            if grep -Fxq "$filename" "$APPLIED_MIGRATIONS_FILE"; then
-                echo "Skipping already applied migration: $filename"
+    # Create path in orchestrate dir
+    vm_env_file = orchestrate_dir / final_env_file.name
+
+    # Copy using host path
+    shutil.copy(final_env_file, vm_env_file)
+
+    # Now convert for VM use
+    final_env_file_vm = path_for_vm(vm_env_file)
+
+    pg_user = merged_env_dict.get("POSTGRES_USER", "postgres")
+
+    migration_script = rf'''
+    APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
+    mkdir -p "$(dirname "$APPLIED_MIGRATIONS_FILE")"
+    touch "$APPLIED_MIGRATIONS_FILE"
+
+    for file in /docker-entrypoint-initdb.d/*.sql; do
+        filename=$(basename "$file")
+        if grep -Fxq "$filename" "$APPLIED_MIGRATIONS_FILE"; then
+            echo "Skipping already applied migration: $filename"
+        else
+            echo "Applying migration: $filename"
+            if psql -U {pg_user} -d postgres -q -f "$file" > /dev/null 2>&1; then
+                echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
             else
-                echo "Applying migration: $filename"
-                if psql -U {pg_user} -d postgres -q -f "$file" > /dev/null 2>&1; then
-                    echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
+                echo "Error applying $filename. Stopping migrations."
+                exit 1
+            fi
+        fi
+    done
+
+
+    # Create wxo_observability database if it doesn't exist
+    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw wxo_observability; then
+        echo 'Existing wxo_observability DB found'
+    else
+        echo 'Creating wxo_observability DB'
+        createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
+        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
+    fi
+
+
+    # Run observability-specific migrations
+    OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
+    touch "$OBSERVABILITY_MIGRATIONS_FILE"
+
+    for file in /docker-entrypoint-initdb.d/observability/*.sql; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            
+            if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
+                echo "Skipping already applied observability migration: $filename"
+            else
+                echo "Applying observability migration: $filename"
+                if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
+                    echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
                 else
-                    echo "Error applying $filename. Stopping migrations."
+                    echo "Error applying observability migration: $filename. Stopping migrations."
                     exit 1
                 fi
             fi
-        done
-
-        # Create wxo_observability database if it doesn't exist
-        if psql -U {pg_user} -lqt | cut -d \\| -f 1 | grep -qw wxo_observability; then
-            echo 'Existing wxo_observability DB found'
-        else
-            echo 'Creating wxo_observability DB'
-            createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
-            psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
         fi
+    done
+    '''
 
-        # Run observability-specific migrations
-        OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
-        touch "$OBSERVABILITY_MIGRATIONS_FILE"
+    # Encode the migration script to base64
+    encoded_script = base64.b64encode(migration_script.encode('utf-8')).decode('utf-8')
 
-        for file in /docker-entrypoint-initdb.d/observability/*.sql; do
-            if [ -f "$file" ]; then
-                filename=$(basename "$file")
-                
-                if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
-                    echo "Skipping already applied observability migration: $filename"
-                else
-                    echo "Applying observability migration: $filename"
-                    if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
-                        echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
-                    else
-                        echo "Error applying observability migration: $filename. Stopping migrations."
-                        exit 1
-                    fi
-                fi
-            fi
-        done
-        '''
+    # need to use shlex.quote around the base64 string to ensure it's treated as a single argument
+    command_to_execute = f"echo {shlex.quote(encoded_script)} | base64 --decode | bash"
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
+    compose_path = EnvService(Config()).get_compose_file()
+    compose_path_vm = path_for_vm(compose_path)
+    command = [
+        "compose",
+        "-f", str(compose_path_vm),
+        "--env-file", str(final_env_file_vm),
+        "exec",
+        "-u", "root",
+        "wxo-server-db",
+        "bash",
+        "-c",
+        command_to_execute
+    ]
 
-    result = compose_core.service_container_bash_exec(service_name="wxo-server-db",
-                                                      log_message="Running Database Migration...",
-                                                      final_env_file=final_env_file, bash_command=migration_command)
+    vm = get_vm_manager()
+    if vm:
+        logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
+        system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
+        if system == "windows":
+            time.sleep(60)
+        result = vm.run_docker_command(command, capture_output=False)
+    else:
+        logger.info("Running DB migrations (native Docker)...")
+        result = subprocess.run(["docker"] + command, text=True)
 
     if result.returncode == 0:
         logger.info("Migration ran successfully.")
+        if vm_env_file.exists():
+            vm_env_file.unlink()
+
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        logger.error(
-            f"Error running database migration):\n{error_message}"
-        )
+        error_message = getattr(result, "stderr", None) or "Error occurred."
+        logger.error(f"Error running database migration:\n{error_message}")
         sys.exit(1)
 
 def create_langflow_db() -> None:
@@ -704,7 +885,7 @@ def get_next_free_file_iteration(filename: str) -> str:
         filename = bump_file_iteration(filename)
     return filename
 
-@server_app.command(name="eject", help="output the docker-compose file and associated env file used to run the server")
+@server_app.command(name="eject", help="Output the docker-compose file and associated env file used to run the server")
 def server_eject(
     user_env_file: str = typer.Option(
         None,
@@ -741,6 +922,148 @@ def server_eject(
     env_service.write_merged_env_file(merged_env=merged_env_dict,target_path=env_output_file)
 
     logger.info(f"To make use of the exported configuration file run \"orchestrate server start -e {env_output_file} -f {compose_output_file}\"")
+
+
+# orchestrate server purge - will delete the users underlying lima or wsl vm
+@server_app.command(name="purge", help="Delete the underlying VM and all its data")
+def server_purge():
+    vm = get_vm_manager(ensure_installed=False)
+    if vm:
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+                    progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+                    success =  vm.delete_server()
+                    if success:
+                        progress.stop()
+                        logger.info("VM and associated directories deleted successfully.")
+                    else:
+                        progress.stop()
+                        logger.error("Failed to Delete VM.")
+                        sys.exit(1)
+    else:
+        logger.error("No underlying VM found")
+        sys.exit(1)
+
+# orchestrate server edit - will allow the user to update their underlying vm cpu and memory settings
+@server_app.command(name="edit", help="Edit the underlying VM CPU, memory, or disk settings")
+def server_edit(
+    cpus: Optional[int] = typer.Option(None, help="Number of CPU cores", min=1),
+    memory: Optional[int] = typer.Option(None, help="Memory in GB", min=1),
+    disk: Optional[int] = typer.Option(None, help="Disk space in GB", min=1)
+):
+    
+    if cpus is None and memory is None and disk is None:
+        logger.error("Please provide at least one option: --cpus, --memory, or --disk.")
+        sys.exit(1)
+
+    system = get_os_type()  
+    if system == "windows":
+        if disk: 
+            logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
+    
+    vm = get_vm_manager()
+    if vm:
+        success =  vm.edit_server(cpus, memory, disk)
+        if success:
+            logger.info("VM updated successfully and restarted.")
+        else:
+            logger.error("Failed to Update VM.")
+            sys.exit(1)
+    else:
+        logger.error("No underlying VM found")
+        sys.exit(1)
+
+# orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
+@server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")
+def server_attach_docker():
+
+    vm = get_vm_manager()
+    if vm:
+        success = vm.attach_docker_context()
+        if success:
+            logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
+        else:
+            logger.error("Failed to switch Docker context.")
+            sys.exit(1)
+    else:
+        logger.error("No underlying VM found")
+        sys.exit(1)
+
+# orchestrate server release-docker - switch the docker context back to default
+@server_app.command(name="release-docker", help="Switch the docker context back to default")
+def server_release_docker():
+    cfg = Config()
+    previous_context = cfg.read(DOCKER_CONTEXT, PREVIOUS_DOCKER_CONTEXT, ) or "default"
+
+    vm = get_vm_manager()
+    if vm:
+        success = vm.release_docker_context()
+        if success:
+            logger.info(f"Docker context successfully switched to {previous_context}.")
+        else:
+            logger.error("Failed to switch Docker context.")
+            sys.exit(1)
+    else:
+        logger.error("No underlying VM found")
+        sys.exit(1)
+
+# orchestrate server logs <container> - get the logs of a given container pod
+@server_app.command(name="logs", help="Get the logs for all containers or a specific container")
+def server_logs(
+    container_id: Optional[str] = typer.Option(
+        None, 
+        "--id", 
+        "-i", 
+        help="Container ID of the container whose logs you want to view."
+    ),
+    container_name: Optional[str] = typer.Option(
+        None, 
+        "--name", 
+        "-n", 
+        help="Container Name of the container whose logs you want to view."
+    ),
+    user_env_file: str = typer.Option(
+        None,
+        "--env-file", '-e',
+        help="Path to a .env file that overrides default.env. Then environment variables override both."
+    )  
+):
+    if not container_id and not container_name:
+        DockerUtils.ensure_docker_installed()
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(
+            default_env_path,
+            Path(user_env_file) if user_env_file else None
+        )
+        merged_env_dict['WATSONX_SPACE_ID']='X'
+        merged_env_dict['WATSONX_APIKEY']='X'
+        EnvService.apply_llm_api_key_defaults(merged_env_dict)
+        final_env_file = EnvService.write_merged_env_file(merged_env_dict)
+        run_compose_lite_logs(final_env_file=final_env_file)
+    
+    else:
+        vm = get_vm_manager()
+        if vm:
+            vm.get_container_logs(container_id, container_name)
+        else:
+            logger.error("No underlying VM found")
+            sys.exit(1)
+
+
+# orchestrate server ssh - ssh into the underlying vm
+@server_app.command(name="ssh", help="SSH into the underlying VM")
+def ssh():
+    vm = get_vm_manager()
+    if vm:
+        vm.ssh()
+    else:
+        logger.error("No underlying VM found")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

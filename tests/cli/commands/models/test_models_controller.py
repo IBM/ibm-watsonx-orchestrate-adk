@@ -376,15 +376,20 @@ class TestGetModelNamesFromPolicy:
 
 class TestListModels:
     def test_list_models(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy"}
+        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
         monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
+            is_local_dev_mock.return_value = True
+            is_saas_env_mock.return_value = False
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
@@ -397,15 +402,20 @@ class TestListModels:
         assert "Retrieving watsonx.ai models list..." in captured
     
     def test_list_models_print_raw(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy"}
+        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
         monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
+            is_local_dev_mock.return_value = True
+            is_saas_env_mock.return_value = False
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
@@ -418,15 +428,20 @@ class TestListModels:
         assert "Retrieving watsonx.ai models list..." in captured
     
     def test_list_models_missing_watsonx_url(self, monkeypatch, caplog):
-        fake_env = {}
+        fake_env = {'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
         monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
+            is_local_dev_mock.return_value = True
+            is_saas_env_mock.return_value = False
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             with pytest.raises(SystemExit):
@@ -438,15 +453,20 @@ class TestListModels:
             assert "Error: WATSONX_URL is required in the environment." in captured
     
     def test_list_models_no_models(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy"}
+        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
         monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
         monkeypatch.setattr(requests, "get", empty_dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
+            is_local_dev_mock.return_value = True
+            is_saas_env_mock.return_value = False
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
@@ -459,15 +479,20 @@ class TestListModels:
         assert "Retrieving watsonx.ai models list..." in captured
     
     def test_list_models_incompatible_models(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy", "INCOMPATIBLE_MODELS": "1234"}
+        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True, "INCOMPATIBLE_MODELS": "1234"}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
         monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
+        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
         monkeypatch.setattr(requests, "get", dummy_requests_get)
 
         mock_models_client = MockModelsClient(list_response=[MockModel])
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
+            is_local_dev_mock.return_value = True
+            is_saas_env_mock.return_value = False
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()

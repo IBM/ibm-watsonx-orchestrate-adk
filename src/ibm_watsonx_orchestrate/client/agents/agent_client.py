@@ -49,7 +49,8 @@ def _transform_agent_from_flat_agent_spec(agent_spec: dict ) -> dict:
                 value.pop("is_default_message", None)
 
             transformed["additional_properties"] |= { key: value }
-
+        elif key == "icon":
+            transformed["additional_properties"] |= { key: value }
         else:
             transformed |= { key: value }
 
@@ -84,6 +85,9 @@ def _transform_agent_to_flat_agent_spec(agent_spec: dict ) -> dict:
             if value:
              value["is_default_message"] = False
             
+            transformed[key] = value
+        
+        elif key == "icon":
             transformed[key] = value
             
     transformed.pop("additional_properties",None)
