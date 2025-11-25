@@ -1,5 +1,5 @@
 import logging
-from pydantic import BaseModel, Field, AliasChoices, model_validator
+from pydantic import BaseModel, Field, AliasChoices, model_validator, ValidationInfo
 from typing import Optional, Union, TypeVar, List
 from enum import Enum
 
@@ -139,18 +139,6 @@ class ConnectionConfiguration(BaseModel):
     app_config_data: Optional[AppConfigData] = Field(None, validation_alias=AliasChoices('app_config_data', 'app_config'), serialization_alias='app_config_data')
     config_id: str = None
     tenant_id: str = None
-
-    def __init__(self, *args, **kwargs):
-        kind = kwargs.get("kind")
-
-        if kind:
-            if not kwargs.get("auth_type"):
-                kwargs["auth_type"] = CONNECTION_KIND_OAUTH_TYPE_MAPPING.get(kind)
-        
-            if not kwargs.get("security_scheme"):
-                kwargs["security_scheme"] = CONNECTION_KIND_SCHEME_MAPPING.get(kind)
-        
-        super().__init__(*args, **kwargs)
     
     def __get_import_aliases_mapping(self) -> dict:
         return {
@@ -168,7 +156,7 @@ class ConnectionConfiguration(BaseModel):
                     return k
             return None
 
-        if auth_type:
+        if auth_type or security_scheme == ConnectionSecurityScheme.OAUTH2:
             return reverse_lookup(CONNECTION_KIND_OAUTH_TYPE_MAPPING, auth_type)
         else:
             return reverse_lookup(CONNECTION_KIND_SCHEME_MAPPING, security_scheme)
@@ -193,16 +181,30 @@ class ConnectionConfiguration(BaseModel):
 
     @model_validator(mode="before")
     def validate_auth_scheme(self):
+        kind = self.get("kind")
+
+        if kind:
+            if not self.get("auth_type"):
+                self["auth_type"] = CONNECTION_KIND_OAUTH_TYPE_MAPPING.get(kind)
+        
+            if not self.get("security_scheme"):
+                self["security_scheme"] = CONNECTION_KIND_SCHEME_MAPPING.get(kind)
+
         if self.get('auth_type'):
             try:
                 self['auth_type'] = ConnectionAuthType(self.get('auth_type'))
             except:
-                logger.warning(f"Unsupported auth type '{self.get('auth_type')}', this will be removed from the configuration data")
+                logger.warning(f"Unsupported auth type '{self.get('auth_type')}' for connection '{self.get('app_id')}', this will be removed from the configuration data.")
                 self['auth_type'] = None
         return self
 
     @model_validator(mode="after")
-    def validate_config(self):
+    def validate_config(self, info: ValidationInfo):
+        context = getattr(info, "context", None)
+
+        if context == "export":
+            return self
+
         conn_type = None
         if self.security_scheme == ConnectionSecurityScheme.OAUTH2:
             conn_type = self.auth_type
@@ -381,20 +383,9 @@ class ExpectedCredentials(BaseModel):
     app_id: str
     type: ConnectionType | List[ConnectionType]
 
-class FetchConfigAuthTypes(str, Enum):
-    BASIC_AUTH = ConnectionType.BASIC_AUTH.value
-    BEARER_TOKEN = ConnectionType.BEARER_TOKEN.value
-    API_KEY_AUTH = ConnectionType.API_KEY_AUTH.value
-    OAUTH2_AUTH_CODE = ConnectionType.OAUTH2_AUTH_CODE.value
-    OAUTH2_IMPLICIT = 'oauth2_implicit'
-    OAUTH2_PASSWORD = ConnectionType.OAUTH2_PASSWORD.value
-    OAUTH2_CLIENT_CREDS = ConnectionType.OAUTH2_CLIENT_CREDS.value
-    OAUTH_ON_BEHALF_OF_FLOW = ConnectionType.OAUTH_ON_BEHALF_OF_FLOW.value
-    KEY_VALUE = ConnectionType.KEY_VALUE.value
-
 class ConnectionsListEntry(BaseModel):
     app_id: str = Field(description="A unique identifier for the connection.")
-    auth_type: Optional[FetchConfigAuthTypes] = Field(default=None, description="The kind of auth used by the connections")
+    auth_type: Optional[str] = Field(default=None, description="The kind of auth used by the connections")
     type: Optional[ConnectionPreference] = Field(default=None, description="The type of the connections. If set to 'team' the credentails will be shared by all users. If set to 'member' each user will have to provide their own credentials")
     credentials_set: bool = Field(default=False, description="Are the credentials set for the current user. If using OAuth connection types this value will be False unless there isn a stored token from runtime usage")
 

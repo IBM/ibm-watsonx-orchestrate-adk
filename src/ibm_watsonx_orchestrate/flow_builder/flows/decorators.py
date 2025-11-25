@@ -10,7 +10,7 @@ from typing import Callable, Optional, Sequence
 from pydantic import BaseModel
 
 from ...agent_builder.models.types import ListVirtualModel
-from ..types import extract_node_spec, UserNodeSpec, FlowSpec
+from ..types import extract_node_spec, UserNodeSpec, FlowSpec, FlowContextWindow
 
 from .flow import FlowFactory, Flow
 
@@ -39,7 +39,8 @@ def flow(*args,
          initiators: Sequence[str] = (),
          schedulable: bool = False,
          llm_model: str|ListVirtualModel|None=None,
-         agent_conversation_memory_turns_limit: int|None=None):
+         agent_conversation_memory_turns_limit: int|None=None,
+         context_window: FlowContextWindow|None=None):
     """Decorator to mark a function as a flow model builder."""
 
     def decorator(func: Callable):
@@ -68,7 +69,8 @@ def flow(*args,
                              initiators = initiators,
                              schedulable = schedulable,
                              llm_model = llm_model,
-                             agent_conversation_memory_turns_limit = agent_conversation_memory_turns_limit)
+                             agent_conversation_memory_turns_limit = agent_conversation_memory_turns_limit,
+                             context_window=context_window)
 
         # logger.info("Creating flow model: %s", a_model.spec.name)
 

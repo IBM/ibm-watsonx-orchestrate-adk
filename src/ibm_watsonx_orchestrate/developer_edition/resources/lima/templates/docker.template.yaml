@@ -1,0 +1,288 @@
+# A template to use Docker instead of containerd & nerdctl
+# $ limactl start ./docker.yaml
+# $ limactl shell docker docker run -it -v $HOME:$HOME --rm alpine
+
+# To run `docker` on the host (assumes docker-cli is installed):
+# $ export DOCKER_HOST=$(limactl list docker --format 'unix://{{.Dir}}/sock/docker.sock')
+# $ docker ...
+
+minimumLimaVersion: 1.1.0
+
+base:
+  - template://_images/ubuntu-lts
+  - template://_default/mounts
+
+mounts:
+  - location: "~"
+    writable: true
+
+
+
+# containerd is managed by Docker, not by Lima, so the values are set to false here.
+containerd:
+  system: false
+  user: false
+provision:
+  - mode: system
+    # This script defines the host.docker.internal hostname when hostResolver is disabled.
+    # It is also needed for lima 0.8.2 and earlier, which does not support hostResolver.hosts.
+    # Names defined in /etc/hosts inside the VM are not resolved inside containers when
+    # using the hostResolver; use hostResolver.hosts instead (requires lima 0.8.3 or later).
+    script: |
+      #!/bin/sh
+      sed -i 's/host.lima.internal.*/host.lima.internal host.docker.internal/' /etc/hosts
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      command -v docker >/dev/null 2>&1 && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      curl -fsSL https://get.docker.com | sh
+      # NOTE: you may remove the lines below, if you prefer to use rootful docker, not rootless
+      systemctl disable --now docker
+      apt-get install -y uidmap dbus-user-session
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      systemctl --user start dbus
+      dockerd-rootless-setuptool.sh install
+      docker context use rootless
+probes:
+  - script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      if ! timeout 30s bash -c "until command -v docker >/dev/null 2>&1; do sleep 3; done"; then
+        echo >&2 "docker is not installed yet"
+        exit 1
+      fi
+      if ! timeout 30s bash -c "until pgrep rootlesskit; do sleep 3; done"; then
+        echo >&2 "rootlesskit (used by rootless docker) is not running"
+        exit 1
+      fi
+    hint: See "/var/log/cloud-init-output.log" in the guest
+hostResolver:
+  # hostResolver.hosts requires lima 0.8.3 or later. Names defined here will also
+  # resolve inside containers, and not just inside the VM itself.
+  hosts:
+    host.docker.internal: host.lima.internal
+portForwards:
+  - guestSocket: "/run/user/{{.UID}}/docker.sock"
+    hostSocket: "{{.Dir}}/sock/orchestrate.docker.sock"
+  # ALL PORTS - FORTESTING
+  - guestIP: "127.0.0.1"
+    guestPortRange: [1, 65535]
+    hostIP: "0.0.0.0"
+    hostPortRange: [1, 65535]
+
+  # Required Tempus Runtime ports
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9044
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9044
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4025
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4025
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3000
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 19530
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 19530
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8787
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8787
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8989
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8989
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9091
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9091
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 6379
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 6379
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8000
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8080
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8080
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9001
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9001
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4321
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4321
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 5432
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 5432
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3412
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3412
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4002
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4002
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9200
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9200
+
+  # # jaeger-proxy
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9201
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9201
+
+  # # jaeger
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 16686
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 16686
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14250
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14250
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14268
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14268
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 14269
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 14269
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4317
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4317
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 4318
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 4318
+  
+  # # frontend-server
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 443
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 443
+  
+  # # langfuse-worker
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 3030
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 3030
+  
+  # # langfuse-clickhouse
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8123
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8123
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9000
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9000
+
+  # # wdu-runtime
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8086
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8086
+
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 9080
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 9080
+
+  # # wxo-doc-processing-llm-service
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8083
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8083
+
+  # # wxo-server-voice
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 8765
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 8765
+
+  # # langflow
+  # - guestIP: "127.0.0.1"
+  #   guestPort: 7861
+  #   hostIP: "0.0.0.0"
+  #   hostPort: 7861
+
+
+  
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+#message: |
+#  To run `docker` on the host (assumes docker-cli is installed), run the following commands:
+#  ------
+#  docker context create lima-{{.Name}} --docker "host=unix://{{.Dir}}/sock/orchestrate.docker.sock"
+#  docker context use lima-{{.Name}}
+#  docker run hello-world
+#  ------

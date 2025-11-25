@@ -13,7 +13,7 @@ from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, \
 def version_callback(checkVersion: bool=True):
     if checkVersion:
         __version__ = importlib.metadata.version('ibm-watsonx-orchestrate')
-        default_env = dotenv_values(resources.files("ibm_watsonx_orchestrate.docker").joinpath("default.env"))
+        default_env = dotenv_values(resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("default.env"))
         cfg = Config()
         pypi_override = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT)
 

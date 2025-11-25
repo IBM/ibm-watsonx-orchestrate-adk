@@ -1,26 +1,20 @@
-import yaml
-import json
-import rich
-import requests
 import importlib
 import inspect
-import zipfile
-import sys
 import io
+import json
 import logging
-from pathlib import Path
+import sys
+import zipfile
 from copy import deepcopy
+from pathlib import Path
+from typing import Iterable, List, TypeVar
 
-from typing import Any, Iterable, List, TypeVar
+import requests
+import rich
+import yaml
 from pydantic import BaseModel
-from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind, import_python_tool, ToolsController
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import import_python_knowledge_base, KnowledgeBaseController
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
@@ -28,23 +22,29 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AssistantAgent,
     AgentKind,
     SpecVersion,
-    AgentRestrictionType, 
+    AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import \
+    import_python_knowledge_base, KnowledgeBaseController
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
+    _get_kind_from_spec
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
-from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
-from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
-
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 logger = logging.getLogger(__name__)
 
@@ -1306,6 +1306,11 @@ class AgentsController:
         agent_spec_file_content.pop("id", None)
         agent_spec_file_content["spec_version"] = SpecVersion.V1.value
 
+        llm_config = ModelConfig(**(agent_spec_file_content.get("llm_config") or dict()))
+        llm_config = llm_config.model_dump(exclude_unset=True, exclude_defaults=True, exclude_none=True)
+        if "llm_config" in agent_spec_file_content and not llm_config:
+            agent_spec_file_content.pop("llm_config", None)
+
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
             with safe_open(output_path, 'w') as outfile:
@@ -1356,11 +1361,15 @@ class AgentsController:
 
         for tool_name in agent_tools:
 
-            base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
-            if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
-                continue
-
             current_spec = tool_specs.get(tool_name)
+            if current_spec and _get_kind_from_spec(current_spec) == ToolKind.mcp:
+                base_tool_file_path = f"{output_file_name}/toolkits/"
+            else:
+                base_tool_file_path = f"{output_file_name}/tools/{tool_name}/"
+
+                if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
+                    continue
+
             tools_controller.export_tool(
                 name=tool_name,
                 output_path=base_tool_file_path,
@@ -1405,7 +1414,7 @@ class AgentsController:
                     output_path=output_path,
                     agent_only_flag=False,
                     zip_file_out=zip_file_out)
-        
+
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
@@ -1466,7 +1475,7 @@ class AgentsController:
         if is_local_dev():
             logger.error("Agents cannot be undeployed in Developer Edition")
             sys.exit(1)
-        
+
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()

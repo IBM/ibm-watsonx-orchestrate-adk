@@ -1,0 +1,36 @@
+# Genesys Bot Connector Channel Configuration Example
+#
+# Usage:
+#   # Import a channel
+#   orchestrate channels import \
+#     --agent-name "My_Agent" \
+#     --env draft \
+#     --file genesys_bot_connector_example.yaml
+
+spec_version: v1
+kind: channel
+
+# Required: Channel type identifier
+channel: genesys_bot_connector
+
+# Required: Name for this channel instance
+name: staging_genesys_bot_channel
+
+# Optional: Description of this channel
+description: Main Genesys Bot Connector for text-based customer interactions
+
+# Required: Genesys Cloud OAuth client ID
+client_id: ${GENESYS_BOT_CLIENT_ID}
+
+# Required: Genesys Cloud OAuth client secret
+client_secret: ${GENESYS_BOT_CLIENT_SECRET}
+
+# Required: Verification token from Bot Connector Credentials tab
+# This is the secret value you define in Genesys Bot Connector settings
+verification_token: ${GENESYS_BOT_VERIFICATION_TOKEN}
+
+# Required: Bot Connector integration ID
+bot_connector_id: ${ENESYS_BOT_CONNECTOR_ID}
+
+# Required: Genesys API Server URI for your region
+api_url: https://api.mypurecloud.com

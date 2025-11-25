@@ -4,7 +4,6 @@ import pytest
 import uuid
 import requests
 from unittest import mock
-import sys
 
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolKind
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest

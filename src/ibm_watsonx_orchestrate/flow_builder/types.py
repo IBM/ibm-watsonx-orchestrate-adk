@@ -181,18 +181,30 @@ class NodeSpec(BaseModel):
 
 class DocExtConfigField(BaseModel):
     name: str = Field(description="Entity name")
-    type: Literal["string", "date", "number"] = Field(default="string",  description="The type of the entity values")
+    type: Literal["string", "date", "number", "table"] = Field(default="string",  description="The type of the entity values")
     description: str = Field(title="Description", description="Description of the entity", default="")
     field_name: str = Field(title="Field Name", description="The normalized name of the entity", default="")
     multiple_mentions: bool = Field(title="Multiple mentions",description="When true, we can produce multiple mentions of this entity", default=False)
     example_value: str = Field(description="Value of example", default="")
     examples: list[str] = Field(title="Examples", description="Examples that help the LLM understand the expected entity mentions", default=[])
 
+class DocExtConfigTableField(DocExtConfigField):
+    """
+    A table field in the Document Extraction Config.
+    """
+    fields: List[DocExtConfigField] = Field(description="Fields within the table.")
+    
+    def __init__(self, **data):
+        # Set type to "table" for table fields
+        data['type'] = 'table'
+        super().__init__(**data)
+
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
     llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
-    fields: list[DocExtConfigField] = Field(default=[])
+    fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
+    field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
 
 class LanguageCode(StrEnum):
     en = auto()
@@ -763,12 +775,17 @@ class UserForm(BaseModel):
             false_label: str = "False"
     ) -> UserField:
         # Use the template system from utils
-        schemas = clone_form_schema("boolean", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "CheckboxWidget" if single_checkbox else "RadioWidget"
-            }
-        })
+        widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget
+        }
+        
+        if widget == "CheckboxWidget":
+            ui_config["ui:options"] = {"label": False}
+        
+        schemas = clone_form_schema("boolean", {"ui": ui_config})
         
         # Set up default input_map if not provided
         if input_map is None:
@@ -823,8 +840,8 @@ class UserForm(BaseModel):
                 "ui:title": label if label is not None else name,
                 "ui:widget": "DateWidget",
                 "format": "YYYY-MM-DD",
-                "ui-options": {"range": "true"},
-                "ui-order": ["start", "end"]
+                "ui:options": {"range": True},
+                "ui:order": ["start", "end"]
             }
         })
         
@@ -921,15 +938,20 @@ class UserForm(BaseModel):
             isMultiSelect: bool = False,
     ) -> UserField:
         # Use the template system from utils
-        schemas = clone_form_schema("choice", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "ComboboxWidget" if (show_as_dropdown or columns is None) else
-                             "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else
-                             "Table",
-                "ui:placeholder": placeholder_text
-            }
-        })
+        widget = "ComboboxWidget" if (show_as_dropdown or columns is None) else \
+                 "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else \
+                 "Table"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget,
+            "ui:placeholder": placeholder_text
+        }
+        
+        if widget == "Table":
+            ui_config["ui:options"] = {"label": False}
+        
+        schemas = clone_form_schema("choice", {"ui": ui_config})
         
         # Validate inputs
         if source is None:
@@ -1206,14 +1228,18 @@ class UserForm(BaseModel):
     ) -> UserField:
         ensure_datamap(source, "source")
         isBulletList = columns is None
+        widget = "BulletList" if isBulletList else "Table"
+        
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": widget
+        }
+        
+        if widget == "Table":
+            ui_config["ui:options"] = {"label": False}
         
         # Use the template system from utils
-        schemas = clone_form_schema("list", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "BulletList" if isBulletList else "Table"
-            }
-        })
+        schemas = clone_form_schema("list", {"ui": ui_config})
         
         # Configure input schema based on list type
         if not isBulletList:
@@ -1656,6 +1682,13 @@ class WaitNodeSpec(FlowControlNodeSpec):
             my_dict["minimum_nodes"] = self.minimum_nodes
 
         return my_dict
+    
+class FlowContextWindow(BaseModel):
+    '''Indicate the context window setting for the LLM model used by the flow'''
+    compression_threshold: Optional[int] = Field(description="Trigger compression when the context window reaches to a specific amount of tokens", default=None)
+    compression_instruction: Optional[str] = Field(description="An instruction being used for the compression", default=None)
+    max_tokens: Optional[int] = Field(description="The maximum number of token supported by the LLM model", default=None)
+    allow_compress: Optional[bool] = Field(description="Indicates whether compression is allowed", default=True)
 
 class FlowSpec(NodeSpec):
     # who can initiate the flow
@@ -1664,6 +1697,8 @@ class FlowSpec(NodeSpec):
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
+
+    context_window: FlowContextWindow | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1674,7 +1709,9 @@ class FlowSpec(NodeSpec):
         if self.initiators:
             model_spec["initiators"] = self.initiators
         if self.private_schema:
-             model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+            model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+        if self.context_window:
+            model_spec["context_window"] = self.context_window.model_dump()
         
         model_spec["schedulable"] = self.schedulable
 
