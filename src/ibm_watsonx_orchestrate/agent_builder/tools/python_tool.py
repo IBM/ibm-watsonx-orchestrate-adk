@@ -133,9 +133,19 @@ class PythonTool(BaseTool):
             except:
                 logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
-            input_schema_json = input_schema_model.model_json_schema()
-            input_schema_json = dereference_refs(input_schema_json)
-
+            input_schema_json_original = input_schema_model.model_json_schema()
+            input_schema_json = dereference_refs(input_schema_json_original)
+            # fix missing default during dereference
+            for k, v in input_schema_json.get("properties", {}).items():
+                # in case of args like `specialty: HealthcareSpeciality = HealthcareSpeciality.GENERAL_MEDICINE`
+                # the default value is lost during `dereference_refs`
+                if isinstance(input_schema_json_original.get("properties", {}).get(k, {}).get("default"), str) and \
+                    v.get("type") == "string" and v.get("default") is None:
+                    v["default"] = input_schema_json_original.get("properties", {}).get(k, {}).get("default")
+                # in case the original arg has description but the reference doesn't
+                if input_schema_json_original.get("properties", {}).get(k, {}).get("description") and \
+                        v.get("description") is None:
+                    v["description"] = input_schema_json_original.get("properties", {}).get(k, {}).get("description")
             # Convert the input schema to a JsonSchemaObject
             input_schema_obj = JsonSchemaObject(**input_schema_json)
             input_schema_obj = _fix_optional(input_schema_obj)

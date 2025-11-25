@@ -612,7 +612,7 @@ def test_server_edit_success(monkeypatch):
         result = runner.invoke(server_app, ["edit", "--cpus", "4", "--memory", "8"], catch_exceptions=True)
         assert result.exit_code == 0
         mock_vm.edit_server.assert_called_once_with(4, 8, None)
-        mock_logger.info.assert_any_call("VM updated successfully.")
+        mock_logger.info.assert_any_call("VM updated successfully and restarted.")
 
 
 def test_server_edit_failure(monkeypatch):
@@ -695,7 +695,6 @@ def test_server_attach_docker_no_vm(monkeypatch):
 
 # Release Docker
 def test_server_release_docker_success(monkeypatch):
-    """Test `server release-docker` when VM releases context successfully."""
     mock_vm = MagicMock()
     mock_vm.release_docker_context.return_value = True
 
@@ -704,12 +703,18 @@ def test_server_release_docker_success(monkeypatch):
         lambda **kwargs: mock_vm
     )
 
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.Config.read",
+        lambda self, section, key: "default"
+    )
+
     with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
         result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
+
         assert result.exit_code == 0
         mock_vm.release_docker_context.assert_called_once()
-        mock_logger.info.assert_any_call("Docker context successfully switched to default.")
 
+        mock_logger.info.assert_any_call("Docker context successfully switched to default.")
 
 def test_server_release_docker_failure(monkeypatch):
     """Test `server release-docker` when VM release fails."""
