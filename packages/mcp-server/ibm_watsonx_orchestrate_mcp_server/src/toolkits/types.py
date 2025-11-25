@@ -2,7 +2,7 @@ from ibm_watsonx_orchestrate.agent_builder.toolkits.types import Language, Toolk
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-class ImportToolKitOptions(BaseModel):
+class AddToolKitOptions(BaseModel):
     """
     Options for importing a toolkit (MCP server) into the watsonx Orchestrate platform.
     """

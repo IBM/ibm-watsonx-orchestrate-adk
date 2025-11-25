@@ -1,0 +1,22 @@
+{
+  "document_type": "GenericEntityExtraction",
+  "document_description": "Any document that contains phones and entity names.",
+  "additional_prompt_instructions": "Return values exactly as they appear in the document.",
+  "fields": {
+    "phone_number": {
+      "description": "Any phone number on the page.",
+      "example": "(800)334-2233",
+      "default": ""
+    },
+    "company_name": {
+      "description": "Name of a company on the page.",
+      "example": "IBM",
+      "default": ""
+    },
+    "person_name": {
+      "description": "Any person name on the page.",
+      "example": "Jane Doe",
+      "default": ""
+    }
+  }
+}

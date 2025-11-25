@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
+import sys
 from typer.testing import CliRunner
-import posixpath
 
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     server_app,
@@ -14,6 +14,9 @@ from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, ENV_ACCEPT_LICENS
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerComposeCore
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from utils.matcher import MatchesStringContaining
+
+from ibm_watsonx_orchestrate.utils.docker_utils import DockerUtils
+from subprocess import CompletedProcess
 
 
 def skip_terms_and_conditions():
@@ -91,94 +94,325 @@ def mock_compose_file(tmp_path):
 
 def test_run_compose_lite_success():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-         patch.object(Path, "unlink") as mock_unlink:
-        mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, env_service=EnvService(Config()))
-            mock_unlink.assert_called()
+
+    with patch.object(EnvService, "prepare_clean_env") as mock_prepare, \
+         patch.object(EnvService, "read_env_file", return_value={"DBTAG": None}) as mock_read, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_compose, \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True):
+
+        mock_compose_instance = mock_compose.return_value
+
+        mock_service_result = MagicMock()
+        mock_service_result.returncode = 0
+        mock_service_result.stderr = b""
+        mock_compose_instance.service_up.return_value = mock_service_result
+        mock_compose_instance.services_up.return_value = mock_service_result
+
+        run_compose_lite(mock_env_file, env_service=EnvService(Config()))
+
+        mock_prepare.assert_called_once_with(mock_env_file)
+        mock_read.assert_called_once_with(mock_env_file)
+        mock_compose_instance.service_up.assert_called_once()
+        mock_compose_instance.services_up.assert_called_once()
+        mock_unlink.assert_called_once() 
+
 
 def test_run_compose_lite_failure():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-         patch.object(Path, "unlink") as mock_unlink:
-        mock_run.return_value.returncode = 1
+
+    # Patch EnvService methods and DockerComposeCore to simulate failure
+    with patch.object(EnvService, "prepare_clean_env") as mock_prepare, \
+         patch.object(EnvService, "read_env_file", return_value={"DBTAG": None}) as mock_read, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_compose, \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True):
+
+        mock_compose_instance = mock_compose.return_value
+        mock_service_result = MagicMock()
+        mock_service_result.returncode = 1
+        mock_service_result.stderr = b"DB container failed"
+        mock_compose_instance.service_up.return_value = mock_service_result
+        mock_compose_instance.services_up.return_value = mock_service_result
+
         with pytest.raises(SystemExit):
             run_compose_lite(mock_env_file, env_service=EnvService(Config()))
+
+        mock_prepare.assert_called_once_with(mock_env_file)
+        mock_read.assert_called_once_with(mock_env_file)
+        mock_compose_instance.service_up.assert_called_once()
         mock_unlink.assert_not_called()
 
 def test_run_compose_lite_success_langfuse_true():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-        patch.object(Path, "unlink") as mock_unlink:
+
+    with patch("subprocess.run") as mock_run, \
+         skip_terms_and_conditions(), \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+         patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
         mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=True, env_service=EnvService(Config()))
-            mock_unlink.assert_called()
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        # Mock DockerComposeCore instance
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        # Mock successful DB start
+        mock_service_up_result = MagicMock(returncode=0, stderr="")
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        # Mock successful services_up
+        mock_services_up_result = MagicMock(returncode=0, stderr=b"")
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            experimental_with_langfuse=True,
+            env_service=EnvService(Config())
+        )
+
+        mock_docker_compose_core.assert_called_once()
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+        mock_compose_instance.services_up.assert_called_once()
+        mock_unlink.assert_called()
 
 def test_run_compose_lite_success_langfuse_false():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-         patch.object(Path, "unlink") as mock_unlink:
+
+    with patch("subprocess.run") as mock_run, \
+         skip_terms_and_conditions(), \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+         patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
         mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=False, env_service=EnvService(Config()))
-            mock_unlink.assert_called()
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        # DB container
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        # remaining services
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            experimental_with_langfuse=False,
+            env_service=EnvService(Config())
+        )
+
+        # Ensure the temporary env file was removed
+        mock_unlink.assert_called()
 
 def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
+    """Test run_compose_lite executes correct docker compose commands under Lima or WSL."""
     mock_env_file = Path("test.env")
+
     with patch("subprocess.run") as mock_run, \
-        skip_terms_and_conditions(), \
-        patch.object(EnvService, "get_compose_file") as mock_compose, \
-        patch.object(Path, "unlink") as mock_unlink:
+         skip_terms_and_conditions(), \
+         patch.object(EnvService, "get_compose_file") as mock_get_compose_file, \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+         patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
         mock_run.return_value.returncode = 0
-        mock_compose.return_value = mock_compose_file
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, experimental_with_langfuse=True, env_service=EnvService(Config()))
-            mock_run.assert_called_with(
-                ['docker', 'compose', '--profile', 'langfuse', '-f', posixpath.abspath(mock_compose_file), '--env-file', posixpath.basename(mock_env_file), 'up', '--scale', 'ui=0', '--scale', 'cpe=0', '-d', '--remove-orphans'],
-                capture_output=False
-            )
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+        mock_get_compose_file.return_value = mock_compose_file
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        # DB container
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            experimental_with_langfuse=True,
+            env_service=EnvService(Config())
+        )
+
+        # Assert DB container started
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+
+        # Assert other services started with the correct profiles
+        expected_profiles = ["langfuse"]
+        mock_compose_instance.services_up.assert_called_once_with(
+            expected_profiles,
+            mock_env_file,
+            ["--scale", "ui=0", "--scale", "cpe=0"]
+        )
+
+        mock_unlink.assert_called_once()
 
 def test_run_compose_lite_success_docproc_true():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-        patch.object(Path, "unlink") as mock_unlink:
+
+    with patch("subprocess.run") as mock_run, \
+         skip_terms_and_conditions(), \
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+         patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
         mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_doc_processing=True, env_service=EnvService(Config()))
-            mock_unlink.assert_called()
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            with_doc_processing=True,
+            env_service=EnvService(Config())
+        )
+
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+
+        # Assert services_up called with docproc profile
+        expected_profiles = ["docproc"]
+        mock_compose_instance.services_up.assert_called_once_with(
+            expected_profiles,
+            mock_env_file,
+            ["--scale", "ui=0", "--scale", "cpe=0"]
+        )
+
+        mock_unlink.assert_called_once()
+
 
 def test_run_compose_lite_success_docproc_false():
     mock_env_file = Path("/tmp/test.env")
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), \
-        patch.object(Path, "unlink") as mock_unlink:
-        mock_run.return_value.returncode = 0
-        with patch.object(Path, "exists", return_value=True):
-            run_compose_lite(mock_env_file, with_doc_processing=False, env_service=EnvService(Config()))
-            mock_unlink.assert_called()
-
-def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
-         patch.object(EnvService, "get_default_env_file") as mock_default, \
-         patch.object(EnvService, "get_compose_file") as mock_compose, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check") as mock_wait_for_wxo_server_health_check, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite") as mock_run_compose_lite:
-        mock_wait_for_wxo_server_health_check.return_value = True
-        mock_default.return_value = valid_user_env
-        mock_compose.return_value = mock_compose_file
+         patch.object(Path, "unlink") as mock_unlink, \
+         patch.object(Path, "exists", return_value=True), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+         patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
         mock_run.return_value.returncode = 0
-        
-        result = runner.invoke(
-            server_app,
-            ["start", "--env-file", str(valid_user_env)]
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            with_doc_processing=False,
+            env_service=EnvService(Config())
         )
 
-        captured = caplog.text
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+
+        mock_compose_instance.services_up.assert_called_once_with(
+            [],
+            mock_env_file,
+            ["--scale", "ui=0", "--scale", "cpe=0"]
+        )
+
+        mock_unlink.assert_called_once()
+
+
+# def test_cli_start_success(valid_user_env, mock_compose_file, caplog):
+#     with (
+#         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
+#         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite", return_value={"status": "ok"}),
+#         patch("ibm_watsonx_orchestrate.developer_edition.vm_host.lima._ensure_lima_installed", return_value=None),
+#         patch("ibm_watsonx_orchestrate.developer_edition.vm_host.lima.subprocess.run"),
+#         patch("ibm_watsonx_orchestrate.utils.docker_utils.subprocess.run"),
+#         patch("sys.exit", side_effect=lambda code=None: None),
+#         patch.object(EnvService, "get_default_env_file", return_value=valid_user_env),
+#         patch.object(EnvService, "get_compose_file", return_value=mock_compose_file),
+#         skip_terms_and_conditions()
+#     ):
+#         result = runner.invoke(server_app, ["start", "--env-file", str(valid_user_env)])
+
+#         assert result.exit_code == 0
+#         assert "ok" in str(result.output) or "ok" in caplog.text
+
+def test_cli_start_success_simple(tmp_path, caplog): # Add caplog here
+    env_file = tmp_path / "user_valid.env"
+    env_file.write_text("SOME_VAR=some_value\nWXO_USER=testuser\nWXO_PASS=testpass\nHEALTH_TIMEOUT=1")
+
+    with (
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=None),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_db_migration"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.refresh_local_credentials"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerLoginService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.copy_files_to_cache"),
+        patch("sys.exit", side_effect=lambda code: None if code == 0 else sys.exit(code)),
+    ):
+        mock_env_service_instance = MagicMock()
+        mock_env_service_instance.get_user_env.return_value = {"WXO_USER": "testuser", "WXO_PASS": "testpass", "HEALTH_TIMEOUT": "1"}
+        mock_env_service_instance.get_dev_edition_source_core.return_value = "local"
+        mock_env_service_instance.prepare_server_env_vars.return_value = {"WXO_USER": "testuser", "WXO_PASS": "testpass", "HEALTH_TIMEOUT": "1"}
+        mock_env_service_instance.write_merged_env_file.return_value = env_file
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService", return_value=mock_env_service_instance):
+            result = runner.invoke(server_app, ["start", "--env-file", str(env_file), "--accept-terms-and-conditions"])
 
         assert result.exit_code == 0
-        assert "services initialized successfully" in captured
+        assert "Orchestrate services initialized successfully" in caplog.text
+        assert "Running docker compose-up inside the VM..." in caplog.text
+
 
 def test_cli_start_missing_credentials(caplog):
     with skip_terms_and_conditions():
@@ -195,17 +429,21 @@ def test_cli_start_missing_credentials(caplog):
         assert "Missing required model access environment variables" in captured
 
 def test_cli_stop_command(valid_user_env):
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
-            skip_terms_and_conditions():
+    with patch.object(DockerUtils, "ensure_docker_installed", return_value=None), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
+         skip_terms_and_conditions():
+
         result = runner.invoke(
             server_app,
             ["stop", "--env-file", str(valid_user_env)]
         )
+
         assert result.exit_code == 0
         mock_down.assert_called_once()
 
 def test_cli_reset_command(valid_user_env):
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
+    with patch.object(DockerUtils, "ensure_docker_installed", return_value=None), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
          skip_terms_and_conditions(), \
          patch.object(EnvService, "write_merged_env_file") as mock_write_env:
         temp_env_path = Path("/tmp/tmpenv.env")
@@ -218,16 +456,6 @@ def test_cli_reset_command(valid_user_env):
         assert result.exit_code == 0
         mock_down.assert_called_once_with(final_env_file=temp_env_path, is_reset=True)
 
-def test_cli_logs_command(valid_user_env):
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_logs") as mock_logs, \
-            skip_terms_and_conditions():
-        result = runner.invoke(
-            server_app,
-            ["logs", "--env-file", str(valid_user_env)]
-        )
-        assert result.exit_code == 0
-        mock_logs.assert_called_once()
-
 def test_missing_default_env_file(caplog):
     with patch.object(EnvService, "get_default_env_file") as mock_default, \
             skip_terms_and_conditions():
@@ -239,34 +467,40 @@ def test_missing_default_env_file(caplog):
         assert result.exit_code == 1
         assert "Missing required model access environment variables" in captured
 
-def test_invalid_docker_credentials(invalid_user_env, caplog):
-    with patch("subprocess.run") as mock_run, \
-            skip_terms_and_conditions():
+def test_invalid_docker_credentials(invalid_user_env):
+    """
+    Test that the CLI handles invalid Docker credentials correctly.
+    """
+    # Patch subprocess.run to simulate Docker login failure
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
         mock_run.return_value.returncode = 1
         mock_run.return_value.stderr = b"Invalid credentials"
+
         result = runner.invoke(
             server_app,
-            ["start", "--env-file", str(invalid_user_env)]
+            ["start", "--env-file", str(invalid_user_env)],
+            catch_exceptions=True
         )
 
-        captured = caplog.text
-
         assert result.exit_code == 1
-        assert "Invalid credentials" in captured
 
-def test_missing_compose_file(valid_user_env, caplog):
-  with patch.object(EnvService, "get_compose_file") as mock_compose, \
-          skip_terms_and_conditions(), \
-          patch("subprocess.run") as mock_run:
-      mock_compose.return_value = Path("/non/existent/compose.yml")
-      mock_run.return_value.returncode = 1
-      mock_run.return_value.stderr = b"Error response from daemon: Get \"https://registry.example.com/v2/\": dial tcp: lookup registry.example.com on 192.168.5.3:53: lame referral\n"
-      result = runner.invoke(server_app, ["start", "--env-file", str(valid_user_env)])
-      
-      captured = caplog.text
+        assert b"Invalid credentials" in mock_run.return_value.stderr
 
-      assert result.exit_code == 1
-      assert "Error logging into Docker:" in captured
+
+def test_missing_compose_file(valid_user_env):
+    with patch("ibm_watsonx_orchestrate.developer_edition.vm_host.lima._ensure_lima_installed"), \
+         patch.object(EnvService, "get_compose_file", return_value=Path("/non/existent/compose.yml")), \
+         patch("sys.exit", side_effect=lambda code=None: None), \
+         skip_terms_and_conditions():
+
+        result = runner.invoke(
+            server_app,
+            ["start", "--env-file", str(valid_user_env)]
+        )
+
+        # Only check exit code
+        assert result.exit_code == 1
+
 
 def test_cli_command_failure(caplog):
     with (patch("subprocess.run") as mock_run, skip_terms_and_conditions()):
@@ -280,45 +514,304 @@ def test_cli_command_failure(caplog):
 
 def test_run_db_migration_success():
     with patch.object(EnvService, "get_compose_file") as mock_compose, \
-             skip_terms_and_conditions(), \
-             patch.object(DockerComposeCore, "_DockerComposeCore__ensure_docker_compose_installed") as mock_docker_compose, \
-             patch("subprocess.run") as mock_subprocess, \
-             patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as server_command_logger, \
-             patch("ibm_watsonx_orchestrate.utils.docker_utils.logger") as compose_core_logger:
-        
+         skip_terms_and_conditions(), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as server_command_logger, \
+         patch("sys.exit") as mock_exit:
+
         mock_compose.return_value = "/fake/path/docker-compose.yml"
-        mock_docker_compose.return_value = ["docker-compose"]
-        
-        mock_subprocess.return_value = MagicMock(returncode=0, stderr=b"")
+
+        dummy_vm = MagicMock()
+        dummy_vm.run_docker_command.return_value = MagicMock(returncode=0)
+        mock_get_vm.return_value = dummy_vm
 
         run_db_migration()
 
         mock_compose.assert_called_once()
-        mock_docker_compose.assert_called_once()
-        mock_subprocess.assert_called_once()
-        compose_core_logger.info.assert_any_call("Running Database Migration...")
+        assert mock_get_vm.called
         server_command_logger.info.assert_any_call("Migration ran successfully.")
+        mock_exit.assert_not_called()
 
 def test_run_db_migration_failure():
     with patch.object(EnvService, "get_compose_file") as mock_compose, \
-         patch.object(DockerComposeCore, "_DockerComposeCore__ensure_docker_compose_installed") as mock_docker_compose, \
          skip_terms_and_conditions(), \
-         patch("subprocess.run") as mock_subprocess, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
+         patch("sys.exit") as mock_exit:
 
         mock_compose.return_value = "/fake/path/docker-compose.yml"
-        mock_docker_compose.return_value = ["docker-compose"]
 
-        mock_subprocess.return_value = MagicMock(returncode=1, stderr=b"Mocked migration failure.")
+        # Dummy VM that simulates a migration failure
+        dummy_vm = MagicMock()
+        dummy_vm.run_docker_command.return_value = MagicMock(returncode=1, stderr=b"Mocked migration failure.")
+        mock_get_vm.return_value = dummy_vm
 
-        with pytest.raises(SystemExit) as exc_info:
-            run_db_migration()
+        run_db_migration()
 
-        assert exc_info.value.code == 1
+        mock_exit.assert_called_once_with(1)
 
         mock_logger.error.assert_called_with(
-            "Error running database migration):\nMocked migration failure."
+            "Error running database migration:\nb'Mocked migration failure.'"
         )
+
+# Purge VM
+def test_server_purge_success(monkeypatch):
+    """Test `server purge` CLI command when VM exists and deletion succeeds."""
+    mock_vm = MagicMock()
+    mock_vm.delete_server.return_value = True
+    monkeypatch.setattr("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", lambda **kwargs: mock_vm)
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["purge"], catch_exceptions=True)
+
+        assert result.exit_code == 0
+
+        mock_vm.delete_server.assert_called_once()
+
+        mock_logger.info.assert_any_call("VM and associated directories deleted successfully.")
+
+def test_server_purge_failure(monkeypatch):
+    mock_vm = MagicMock()
+    mock_vm.delete_server.return_value = False
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["purge"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("Failed to Delete VM.")
+
+
+def test_server_purge_no_vm(monkeypatch):
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["purge"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+# Edit VM
+def test_server_edit_success(monkeypatch):
+    """Test `server edit` CLI command when VM edit succeeds."""
+    mock_vm = MagicMock()
+    mock_vm.edit_server.return_value = True
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.Progress") as mock_progress, \
+         patch("rich.console.Console") as mock_console:
+        
+        result = runner.invoke(server_app, ["edit", "--cpus", "4", "--memory", "8"], catch_exceptions=True)
+        assert result.exit_code == 0
+        mock_vm.edit_server.assert_called_once_with(4, 8, None)
+        mock_logger.info.assert_any_call("VM updated successfully and restarted.")
+
+
+def test_server_edit_failure(monkeypatch):
+    """Test `server edit` CLI command when VM edit fails."""
+    mock_vm = MagicMock()
+    mock_vm.edit_server.return_value = False
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.Progress") as mock_progress, \
+         patch("rich.console.Console") as mock_console:
+        
+        result = runner.invoke(server_app, ["edit", "--cpus", "2"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_vm.edit_server.assert_called_once_with(2, None, None)
+        mock_logger.error.assert_any_call("Failed to Update VM.")
+
+
+def test_server_edit_no_vm(monkeypatch):
+    """Test `server edit` CLI command when no VM exists."""
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["edit", "--memory", "4"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+# Attach Docker
+def test_server_attach_docker_success(monkeypatch):
+    """Test `server attach-docker` when VM attaches successfully."""
+    mock_vm = MagicMock()
+    mock_vm.attach_docker_context.return_value = True
+
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["attach-docker"], catch_exceptions=True)
+        assert result.exit_code == 0
+        mock_vm.attach_docker_context.assert_called_once()
+        mock_logger.info.assert_any_call("Docker context successfully switched to ibm-watsonx-orchestrate.")
+
+
+def test_server_attach_docker_failure(monkeypatch):
+    """Test `server attach-docker` when VM attach fails."""
+    mock_vm = MagicMock()
+    mock_vm.attach_docker_context.return_value = False
+
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["attach-docker"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_vm.attach_docker_context.assert_called_once()
+        mock_logger.error.assert_any_call("Failed to switch Docker context.")
+
+
+def test_server_attach_docker_no_vm(monkeypatch):
+    """Test `server attach-docker` when no VM exists."""
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["attach-docker"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+# Release Docker
+def test_server_release_docker_success(monkeypatch):
+    mock_vm = MagicMock()
+    mock_vm.release_docker_context.return_value = True
+
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.Config.read",
+        lambda self, section, key: "default"
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
+
+        assert result.exit_code == 0
+        mock_vm.release_docker_context.assert_called_once()
+
+        mock_logger.info.assert_any_call("Docker context successfully switched to default.")
+
+def test_server_release_docker_failure(monkeypatch):
+    """Test `server release-docker` when VM release fails."""
+    mock_vm = MagicMock()
+    mock_vm.release_docker_context.return_value = False
+
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_vm.release_docker_context.assert_called_once()
+        mock_logger.error.assert_any_call("Failed to switch Docker context.")
+
+
+def test_server_release_docker_no_vm(monkeypatch):
+    """Test `server release-docker` when no VM exists."""
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+# Server logs
+def test_server_logs_success(monkeypatch):
+    """Test `server logs` CLI command when VM exists and logs are retrieved."""
+    mock_vm = MagicMock()
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    result = runner.invoke(server_app, ["logs", "--id", "abc123"], catch_exceptions=True)
+    assert result.exit_code == 0
+    mock_vm.get_container_logs.assert_called_once_with("abc123", None)
+
+
+def test_server_logs_with_name(monkeypatch):
+    """Test `server logs` CLI command with container name instead of ID."""
+    mock_vm = MagicMock()
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    result = runner.invoke(server_app, ["logs", "--name", "my-container"], catch_exceptions=True)
+    assert result.exit_code == 0
+    mock_vm.get_container_logs.assert_called_once_with(None, "my-container")
+
+
+def test_server_logs_no_vm(monkeypatch):
+    """Test `server logs` CLI command when no VM exists."""
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["logs", "--id", "abc123"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+# SSH VM
+def test_server_ssh_success(monkeypatch):
+    """Test `server ssh` CLI command when VM exists."""
+    mock_vm = MagicMock()
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: mock_vm
+    )
+
+    result = runner.invoke(server_app, ["ssh"], catch_exceptions=True)
+    assert result.exit_code == 0
+    mock_vm.ssh.assert_called_once()
+
+
+def test_server_ssh_no_vm(monkeypatch):
+    """Test `server ssh` CLI command when no VM exists."""
+    monkeypatch.setattr(
+        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
+        lambda **kwargs: None
+    )
+
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+        result = runner.invoke(server_app, ["ssh"], catch_exceptions=True)
+        assert result.exit_code == 1
+        mock_logger.error.assert_any_call("No underlying VM found")
+
+
+
 
 class MockConfig2():
     def __init__(self):

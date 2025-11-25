@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_open
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController 
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
@@ -1108,10 +1109,6 @@ class ToolsController:
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
-        logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
-
-        tool_artifact: DownloadResult | None = self.download_tool(name)
-
         if not spec:
             client = self.get_client()
             specs = client.get_draft_by_name(name)
@@ -1121,6 +1118,27 @@ class ToolsController:
                 logger.error(f"Could not find tool spec for tool '{name}'")
                 sys.exit(1)
         
+        # Check if its an MCP tool if so call toolkit export instead
+        kind = _get_kind_from_spec(spec)
+        if kind == ToolKind.mcp:
+            name_parts = name.split(":")
+
+            if len(name_parts) < 2:
+                BadRequest(f"The tool '{name}' does not match the naming scheme expected of an MCP tool '<toolkit_name>:<tool_name>'")
+            toolkit_name = name_parts[0]
+            tc = ToolkitController()
+            tc.export_toolkit(
+                name=toolkit_name,
+                output_file=output_file,
+                zip_file_out=zip_file_out,
+                connections_output_path=connections_output_path
+            )
+            return
+        
+        logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
+
+        tool_artifact: DownloadResult | None = self.download_tool(name)
+
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
         connections = get_connections_client().get_drafts_by_ids(connection_ids)

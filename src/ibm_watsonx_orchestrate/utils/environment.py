@@ -6,14 +6,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Tuple, OrderedDict
+from typing import Tuple, OrderedDict, Any
 from urllib.parse import urlparse
 from enum import Enum
 
 from dotenv import dotenv_values
 
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
-from ibm_watsonx_orchestrate.cli.commands.server.types import WatsonXAIEnvConfig, ModelGatewayEnvConfig
+from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
@@ -48,11 +48,12 @@ class EnvService:
 
     __NON_SECRET_ENV_ITEMS: set[str] = {
         "WO_DEVELOPER_EDITION_SOURCE",
+        "WATSONX_URL",
         "WO_INSTANCE",
         "USE_SAAS_ML_TOOLS_RUNTIME",
         "AUTHORIZATION_URL",
         "OPENSOURCE_REGISTRY_PROXY",
-        "SAAS_WDU_RUNTIME",
+        "WDU_RUNTIME_SOURCE",
         "LATEST_ENV_FILE",
     }
 
@@ -69,14 +70,19 @@ class EnvService:
     @staticmethod
     def __get_default_compose_file () -> Path:
         with resources.as_file(
-                resources.files("ibm_watsonx_orchestrate.docker").joinpath("compose-lite.yml")
+                resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("compose-lite.yml")
         ) as compose_file:
             return compose_file
+    
+    @staticmethod
+    def __set_if_not_in_user_env(key: str, value: Any, target_dict: dict, user_env: dict) -> None:
+        if key not in user_env:
+            target_dict[key] = value
 
     @staticmethod
     def get_default_env_file () -> Path:
         with resources.as_file(
-                resources.files("ibm_watsonx_orchestrate.docker").joinpath("default.env")
+                resources.files("ibm_watsonx_orchestrate.developer_edition.resources.docker").joinpath("default.env")
         ) as env_file:
             return env_file
 
@@ -84,7 +90,7 @@ class EnvService:
     def read_env_file (env_path: Path | str) -> OrderedDict:
         return dotenv_values(env_path)
 
-    def get_user_env (self, user_env_file: Path | str, fallback_to_persisted_env: bool = True) -> dict:
+    def get_user_env (self, user_env_file: Path | str | None, fallback_to_persisted_env: bool = True) -> dict:
         if user_env_file is not None and isinstance(user_env_file, str):
             user_env_file = Path(user_env_file)
 
@@ -94,6 +100,7 @@ class EnvService:
             user_env = self.__get_persisted_user_env() or {}
 
         return user_env
+
 
     @staticmethod
     def get_dev_edition_source_core(env_dict: dict | None) -> DeveloperEditionSources | str:
@@ -222,6 +229,12 @@ class EnvService:
         if source == DeveloperEditionSources.CUSTOM and "REGISTRY_URL" in env:
             persistable_env["CUSTOM_REGISTRY_URL"] = env.get("REGISTRY_URL")
 
+        persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
+        persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
+        persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
+                                                 (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
+
+
         self.__config.save(
             {
                 USER_ENV_CACHE_HEADER: persistable_env
@@ -261,9 +274,9 @@ class EnvService:
 
         model_config = None
         try:
-            use_model_proxy = env_dict.get("USE_SAAS_ML_TOOLS_RUNTIME")
-            if not use_model_proxy or use_model_proxy.lower() != 'true':
-                model_config = WatsonXAIEnvConfig.model_validate(env_dict)
+            use_model_proxy = bool(env_dict.get("WO_INSTANCE"))
+            if not use_model_proxy:
+                model_config = DirectAIEnvConfig.model_validate(env_dict)
         except ValueError:
             pass
 
@@ -360,7 +373,7 @@ class EnvService:
         return merged_env_dict
 
     @staticmethod
-    def apply_llm_api_key_defaults (env_dict: dict) -> None:
+    def apply_llm_api_key_defaults (env_dict: dict, user_dict: dict = {}) -> None:
         llm_value = env_dict.get("WATSONX_APIKEY")
         if llm_value:
             env_dict.setdefault("ASSISTANT_LLM_API_KEY", llm_value)
@@ -373,6 +386,32 @@ class EnvService:
             env_dict.setdefault("ASSISTANT_LLM_SPACE_ID", space_value)
             env_dict.setdefault("ASSISTANT_EMBEDDINGS_SPACE_ID", space_value)
             env_dict.setdefault("ROUTING_LLM_SPACE_ID", space_value)
+
+        # configure default/preferred model properly based on availability of apikeys
+        wo_instance = env_dict.get("WO_INSTANCE")
+        groq_key = env_dict.get("GROQ_API_KEY")
+        use_saas_ml_tools_runtime = bool(wo_instance)
+        env_dict.setdefault("USE_SAAS_ML_TOOLS_RUNTIME", str(use_saas_ml_tools_runtime).lower())
+        
+        if wo_instance:
+            # both wx.ai and groq supported
+            pass
+        elif llm_value and not groq_key:
+            # wx.ai only
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct", env_dict, user_dict)
+        elif not llm_value and groq_key:
+            # groq only
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "groq/openai/gpt-oss-120b", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
+        elif llm_value and groq_key:
+            # wx.ai and groq
+            pass
+        else:
+            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+
 
     @staticmethod
     def __drop_auth_routes (env_dict: dict) -> dict:
@@ -422,12 +461,11 @@ class EnvService:
         # Auto-configure callback IP for async tools
         merged_env_dict = EnvService.auto_configure_callback_ip(merged_env_dict)
 
-        EnvService.apply_llm_api_key_defaults(merged_env_dict)
-
+        EnvService.apply_llm_api_key_defaults(merged_env_dict, user_env)
         return merged_env_dict
 
     def define_saas_wdu_runtime (self, value: str = "none") -> None:
-        self.__config.write(USER_ENV_CACHE_HEADER, "SAAS_WDU_RUNTIME", value)
+        self.__config.write(USER_ENV_CACHE_HEADER, "WDU_RUNTIME_SOURCE", value)
 
     @staticmethod
     def did_user_provide_registry_url (env_dict: dict) -> bool:
