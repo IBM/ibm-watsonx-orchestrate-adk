@@ -2,13 +2,7 @@ import os
 from ibm_watsonx_orchestrate.agent_builder.channels import GenesysBotConnectorChannel
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-from pathlib import Path
-env_path = Path(__file__).parent / '.env'
-load_dotenv(env_path)
-
 # Define the channel configuration
-# This variable MUST be named 'channel'
 channel = GenesysBotConnectorChannel(
     name="production_genesys_bot_channel",
     description="Main Genesys Bot Connector for text-based customer interactions",

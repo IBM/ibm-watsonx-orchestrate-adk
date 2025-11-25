@@ -21,5 +21,5 @@ def auto_deny_request(request: RequestInfo) -> str:
     Returns:
         str: A message based on request
     """
-    ft = "FULL-TIME" if request['is_fulltime'] is True else "INTERN"
-    return f"Employee {request['first_name']} {request['last_name']}({ft}) with a request of tuition {request['tuition_amount']} and over all grade {request['overall_grade']} is DENIED."
+    ft = "FULL-TIME" if request.is_fulltime is True else "INTERN"
+    return f"Employee {request.first_name} {request.last_name}({ft}) with a request of tuition {request.tuition_amount} and over all grade {request.overall_grade} is DENIED."

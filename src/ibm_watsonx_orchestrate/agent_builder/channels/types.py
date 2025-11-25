@@ -12,11 +12,8 @@ class ChannelType(str, Enum):
     TWILIO_SMS = "twilio_sms"
     SLACK = "byo_slack"
     GENESYS_BOT_CONNECTOR = "genesys_bot_connector"
-    # GENESYS_AUDIO_CONNECTOR = "genesys_audio_connector"
     # TEAMS = "teams"
     # MESSENGER = "messenger"
-    # GENESYS_BOT_CONNECTOR = "genesys_bot_connector"
-    # GENESYS_AUDIO_CONNECTOR = "genesys_audio_connector"
 
     def __str__(self):
         return self.value

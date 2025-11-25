@@ -17,6 +17,14 @@ from ibm_watsonx_orchestrate.client.channels.channels_client import ChannelsClie
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.cli.commands.channels.channels_common import (
+    block_local_dev,
+    check_local_dev_block,
+    get_agent_id_by_name as common_get_agent_id_by_name,
+    get_environment_id as common_get_environment_id,
+    build_local_webhook_url,
+    build_saas_webhook_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +38,7 @@ class ChannelsController:
 
     def _check_local_dev_block(self, enable_developer_mode: bool = False) -> None:
         """Check if channel operations should be blocked in local dev."""
-        if is_local_dev():
-            if not enable_developer_mode:
-                logger.error("Channel authoring is not available in local development environment.")
-                sys.exit(1)
-            else:
-                # Show warning when developer mode is enabled
-                logger.warning("DEVELOPER MODE ENABLED - Proceed at your own risk! No official support will be provided.")
-                logger.warning("Channel operations in local development may cause unexpected behavior.")
-                logger.warning("This environment is not validated for production use.")
+        check_local_dev_block(enable_developer_mode, "Channel")
 
     def get_channels_client(self) -> ChannelsClient:
         """Get or create the channels client instance."""
@@ -74,69 +74,14 @@ class ChannelsController:
         return channel_type_to_api_path.get(channel_type, channel_type)
 
     def get_agent_id_by_name(self, agent_name: str) -> str:
-        """Look up agent ID by agent name.
-
-        Args:
-            agent_name: Name of the agent
-
-        Returns:
-            Agent ID string
-
-        Raises:
-            SystemExit if agent not found or multiple agents with same name exist
-        """
+        """Look up agent ID by agent name."""
         client = self.get_agent_client()
-        agent_specs = client.get_draft_by_name(agent_name)
-
-        if len(agent_specs) > 1:
-            logger.error(f"Multiple agents with the name '{agent_name}' found. Please use a unique agent name.")
-            sys.exit(1)
-        if len(agent_specs) == 0:
-            logger.error(f"No agent with the name '{agent_name}' found.")
-            sys.exit(1)
-
-        return agent_specs[0].get('id')
+        return common_get_agent_id_by_name(client, agent_name)
 
     def get_environment_id(self, agent_name: str, env: str):
-        """Get environment ID by agent name and environment name (draft/live).
-
-        This is primarily used by webchat embed which uses environment names
-        instead of UUIDs.
-
-        Args:
-            agent_name: Name of the agent
-            env: Environment name (draft or live)
-
-        Returns:
-            Environment ID (UUID)
-        """
-        native_client = self.get_agent_client()
-        existing_native_agents = native_client.get_draft_by_name(agent_name)
-
-        if not existing_native_agents:
-            raise ValueError(f"No agent found with the name '{agent_name}'")
-
-        agent = existing_native_agents[0]
-        agent_environments = agent.get("environments", [])
-
-        is_local = is_local_dev()
-        is_saas = is_saas_env()
-        target_env = env or 'draft'
-
-        if is_local:
-            if env == 'live':
-                logger.warning('Live environments do not exist for Local env, defaulting to draft.')
-            target_env = 'draft'
-
-        filtered_environments = [e for e in agent_environments if e.get("name") == target_env]
-
-        if not filtered_environments:
-            logger.error(f'This agent does not exist in the {target_env} environment.')
-            if env == 'live':
-                logger.error(f'You need to deploy the agent to {env} first.')
-            exit(1)
-
-        return filtered_environments[0].get("id")
+        """Get environment ID by agent name and environment name (draft/live)."""
+        agent_client = self.get_agent_client()
+        return common_get_environment_id(agent_client, agent_name, env)
 
     def import_channel(self, file: str) -> List[BaseChannel]:
         """Import channel configuration(s) from YAML, JSON, or Python file.
@@ -261,6 +206,7 @@ class ChannelsController:
             logger.error(f"Failed to create channel from arguments: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def list_channels_agent(
         self,
         agent_id: str,
@@ -425,6 +371,7 @@ class ChannelsController:
             logger.error(f"Failed to resolve channel: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def get_channel(
         self,
         agent_id: str,
@@ -571,18 +518,17 @@ class ChannelsController:
         channel_id: str
     ) -> str:
         """Build event URL for local development environment.
-        
+
         Args:
             agent_id: Agent identifier
             environment_id: Environment identifier
             channel_api_path: Channel API path
             channel_id: Channel identifier
-            
+
         Returns:
             Local event URL path
         """
-        logger.info("Local environment detected")
-        return f"/v1/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/runs"
+        return build_local_webhook_url(agent_id, environment_id, channel_api_path, channel_id, "runs")
 
     def _build_saas_event_url(
         self,
@@ -604,28 +550,15 @@ class ChannelsController:
         Returns:
             Full SaaS event URL
         """
-        base_url = client.base_url
-
-        # Clean up base URL by removing API version paths
-        base_url_clean = base_url.replace('/v1/orchestrate', '').replace('/v1', '')
-
-        # Parse URL to extract domain and instance ID
-        if '/instances/' not in base_url_clean:
-            logger.warning("Could not parse base_url to construct proper event URL")
-            return f"{base_url_clean}/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/events"
-
-        parts = base_url_clean.split('/instances/')
-        domain = parts[0].replace('https://api.', 'https://channels.')
-        instance_id = parts[1].rstrip('/')
-
-        # Get subscription ID and construct tenant ID
-        subscription_id = client.get_subscription_id()
-        tenant_id = f"{subscription_id}_{instance_id}" if subscription_id else instance_id
-
-        if not subscription_id:
-            logger.debug("Subscription ID not found in token, using instance_id as tenant_id")
-
-        return f"{domain}/tenants/{tenant_id}/agents/{agent_id}/environments/{environment_id}/channels/{channel_api_path}/{channel_id}/events"
+        return build_saas_webhook_url(
+            client.base_url,
+            client.get_subscription_id(),
+            agent_id,
+            environment_id,
+            channel_api_path,
+            channel_id,
+            "events"
+        )
 
     def get_channel_event_url(
         self,
@@ -656,6 +589,7 @@ class ChannelsController:
         # Build SaaS environment URL
         return self._build_saas_event_url(client, agent_id, environment_id, channel_api_path, channel_id)
 
+    @block_local_dev()
     def publish_or_update_channel(
         self,
         agent_id: str,
@@ -722,6 +656,7 @@ class ChannelsController:
 
         return event_url
 
+    @block_local_dev()
     def export_channel(
         self,
         agent_id: str,
@@ -800,6 +735,7 @@ class ChannelsController:
             logger.error(f"Failed to write export file: {e}")
             sys.exit(1)
 
+    @block_local_dev()
     def delete_channel(
         self,
         agent_id: str,

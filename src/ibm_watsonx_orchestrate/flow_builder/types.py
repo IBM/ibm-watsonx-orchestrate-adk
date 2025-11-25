@@ -4,18 +4,18 @@ from datetime import date
 import numbers
 import inspect
 import logging
+
 import uuid
 import re
 import time
 from typing import (
-    Annotated, Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union, NewType
+    Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union
 )
-from typing_extensions import Doc
 
 import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
-from pydantic import computed_field, field_validator
-from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler, RootModel
+from pydantic import Json, computed_field, field_validator
+from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows.constants import ANY_USER
 from ibm_watsonx_orchestrate.agent_builder.tools.types import (
     ToolSpec, ToolRequestBody, ToolResponseBody, JsonSchemaObject, WXOFile
 )
+from ibm_watsonx_orchestrate.flow_builder.utils import ( _get_tool_request_body, _get_tool_response_body )
 
 
 
@@ -37,7 +38,6 @@ class JsonSchemaObjectRef(JsonSchemaObject):
     ref: str=Field(description="The id of the schema to be used.", serialization_alias="$ref")
 
 class SchemaRef(BaseModel):
- 
     ref: str = Field(description="The id of the schema to be used.", serialization_alias="$ref")
 
 def _assign_attribute(model_spec, attr_name, schema):
@@ -87,8 +87,11 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     return model_spec
 
 
-def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef]) -> dict[str, Any]:
+def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef, JsonSchemaObject]) -> dict[str, Any]:
     model_spec = {}
+
+    if isinstance(schema, JsonSchemaObject):
+        schema = _get_tool_request_body(schema)
     if isinstance(schema, ToolRequestBody):
         request_body = cast(ToolRequestBody, schema)
         model_spec["type"] = request_body.type
@@ -106,8 +109,10 @@ def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef]) -> dic
     
     return model_spec
 
-def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> dict[str, Any]:
+def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef, JsonSchemaObject]) -> dict[str, Any]:
     model_spec = {}
+    if isinstance(schema, JsonSchemaObject):
+        schema = _get_tool_response_body(schema)
     if isinstance(schema, ToolResponseBody):
         response_body = cast(ToolResponseBody, schema)
         model_spec["type"] = response_body.type
@@ -132,14 +137,19 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
     
     return model_spec
 
+class Position(BaseModel):
+    x: float
+    y: float
+
 class NodeSpec(BaseModel):
-    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "timer", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc", "docext", "docclassifier" ] = "node"
+    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "timer", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc", "docext", "docclassifier", "user_flow", "script" ] = "node"
     name: str
     display_name: str | None = None
     description: str | None = None
     input_schema: ToolRequestBody | SchemaRef | None = None
     output_schema: ToolResponseBody | SchemaRef | None = None
     output_schema_object: JsonSchemaObject | SchemaRef | None = None
+    position: Position | None = None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -176,6 +186,8 @@ class NodeSpec(BaseModel):
                     model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
             else:
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
+        if self.position:
+            model_spec["position"] = self.position
 
         return model_spec
 
@@ -425,8 +437,9 @@ class NodeErrorHandlerConfig(BaseModel):
         if self.retry_interval:
             model_spec["retry_interval"] = self.retry_interval
         return model_spec
+
 class ToolNodeSpec(NodeSpec):
-    tool: Union[str, ToolSpec] = Field(default = None, description="the tool to use")
+    tool: Union[str, ToolSpec, None] = Field(default = None, description="the tool to use")
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
 
     def __init__(self, **data):
@@ -496,94 +509,124 @@ class UserFieldOption(BaseModel):
         return model_spec
     
 class UserFieldKind(str, Enum):
-    Text: str = "text"
-    Date: str = "date"
-    DateTime: str = "datetime"
-    Time: str = "time"
-    Number: str = "number"
-    File: str = "file"
-    Boolean: str = "boolean"
-    Object: str = "object"
-    Choice: str = "any"
-    List: str = "array"  # used to display list output
-    DateRange: str = "date-range",
-    Field: str = "field",
-    MultiChoice: str = "array"
+    Text = "text"
+    Date = "date"
+    DateTime = "datetime"
+    Time = "time"
+    Number = "number"
+    File = "file"
+    Boolean = "boolean"
+    Object = "object"
+    Choice = "any"
+    List = "array"  # used to display list output
+    DateRange = "date-range"
+    Field = "field"
+    MultiChoice = "array"
+    Array = "array"  # this is a duplicate of List
 
-    def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
-        if inspect.isclass(python_type):
-            raise ValueError("Cannot convert class to kind")
-        
-        if python_type == str:
+    @staticmethod
+    def str_to_kind(kind: str) -> "UserFieldKind":
+        # convert a string to the corresponding Kind
+        if kind == "text":
             return UserFieldKind.Text
-        elif python_type == int:
+        elif kind == "date":
+            return UserFieldKind.Date
+        elif kind == "datetime":
+            return UserFieldKind.DateTime
+        elif kind == "time":
+            return UserFieldKind.Time
+        elif kind == "number":
             return UserFieldKind.Number
-        elif python_type == float:
-            return UserFieldKind.Number
-        elif python_type == bool:
+        elif kind == "file":
+            return UserFieldKind.File
+        elif kind == "boolean":
             return UserFieldKind.Boolean
-        elif python_type == list:
-            raise ValueError("Cannot convert list to kind")
-        elif python_type == dict:
-            raise ValueError("Cannot convert dict to kind")
-        
-        return UserFieldKind.Text
-    
-    def convert_kind_to_schema_property(kind: "UserFieldKind", name: str, description: str, 
-                                        default: Any, option: UserFieldOption,
-                                        custom: dict[str, Any]) -> dict[str, Any]:
-        model_spec = {}
-        model_spec["title"] = name
-        model_spec["description"] = description
-        model_spec["default"] = default
+        elif kind == "object":
+            return UserFieldKind.Object
+        elif kind == "any":
+            return UserFieldKind.Choice
+        elif kind == "list":
+            return UserFieldKind.List
+        elif kind == "date-range":
+            return UserFieldKind.DateRange
+        elif kind == "field":
+            return UserFieldKind.Field
+        elif kind == "array":
+            return UserFieldKind.List
+        else:
+            raise ValueError(f"Invalid kind: {kind}")
 
-        model_spec["type"] = "string"
-        if kind == UserFieldKind.Date:
-            model_spec["format"] = "date"
-        elif kind == UserFieldKind.Time:
-            model_spec["format"] = "time"
-        elif kind == UserFieldKind.DateTime:
-            model_spec["format"] = "datetime"
-        elif kind == UserFieldKind.Number:
-            model_spec["format"] = "number"
-        elif kind == UserFieldKind.Boolean:
-            model_spec["type"] = "boolean"
-        elif kind == UserFieldKind.File:
-            model_spec["format"] = "wxo-file"
-        elif kind == UserFieldKind.List:
-            model_spec["format"] = "array"
-        elif kind == UserFieldKind.Choice:
-            model_spec["format"] = "any"                        
-        elif kind == UserFieldKind.Object:
-            raise ValueError("Object user fields are not supported.")
-        
-        if option:
-            model_spec["enum"] = [value.text for value in option.values]
+    @staticmethod
+    def str_to_code(kind: str) -> str:
+        # convert a string to the corresponding Kind
+        if kind == "text":
+            return "UserFieldKind.Text"
+        elif kind == "date":
+            return "UserFieldKind.Date"
+        elif kind == "datetime":
+            return "UserFieldKind.DateTime"
+        elif kind == "time":
+            return "UserFieldKind.Time"
+        elif kind == "number":
+            return "UserFieldKind.Number"
+        elif kind == "file":
+            return "UserFieldKind.File"
+        elif kind == "boolean":
+            return "UserFieldKind.Boolean"
+        elif kind == "object":
+            return "UserFieldKind.Object"
+        elif kind == "any":
+            return "UserFieldKind.Choice"
+        elif kind == "list":
+            return "UserFieldKind.List"
+        elif kind == "date-range":
+            return "UserFieldKind.DateRange"
+        elif kind == "field":
+            return "UserFieldKind.Field"
+        elif kind == "array":
+            return "UserFieldKind.List"
+        else:
+            raise ValueError(f"Invalid kind: {kind}")
 
-        if custom:
-            for key, value in custom.items():
-                model_spec[key] = value
-        return model_spec
 
 
 class UserField(BaseModel):
     name: str
     kind: UserFieldKind = UserFieldKind.Text
-    text: str | None = Field(default=None, description="A descriptive text that can be used to ask user about this field.")
     display_name: str | None = None
-    description: str | None = None
     direction: str | None = None
-    input_map: Any | None = None,
-    default: Any | None = None
-    option: UserFieldOption | None = None
-    min: Any | None = None,
-    max: Any | None = None,
-    is_list: bool = False
-    custom: dict[str, Any] | None = None
-    widget: str | None = None
-    input_schema: JsonSchemaObject | None = None
-    output_schema:  JsonSchemaObject | None = None
+    text: str | None = None
+    input_map: Any | None = None
+    input_schema: ToolRequestBody | SchemaRef | JsonSchemaObject | None = None
+    output_schema: ToolResponseBody | SchemaRef | JsonSchemaObject | None = None
     uiSchema: dict[str, Any] | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.input_map, dict):
+                self.input_map = DataMapSpec(**self.input_map)
+
+    def _fixup_input_output_schema_for_form(self):
+        if self.input_schema is None and self.output_schema is None:
+            field_kind = self.kind.value
+            if self.direction == "output" and self.kind.value == "text":
+                field_kind = "message"
+            schemas = clone_form_schema(field_kind)
+            if self.direction == "output" and self.kind == UserFieldKind.File:
+                # we need to override File download
+                schemas["input"] = {
+                    "properties": {"value": {"type": "string", "format": "wxo-file"}},
+                    "required": ["value"]
+                }
+            self.input_schema = schemas["input_schema"] if "input_schema" in schemas else None
+            self.output_schema = schemas["output_schema"] if "output_schema" in schemas else None
+        
+        if self.input_schema and isinstance(self.input_schema, JsonSchemaObject):
+            self.input_schema = _get_tool_request_body(self.input_schema)
+        if self.output_schema and isinstance(self.output_schema, JsonSchemaObject):
+            self.output_schema = _get_tool_response_body(self.output_schema)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -591,48 +634,40 @@ class UserField(BaseModel):
             model_spec["name"] = self.name
         if self.kind:
             model_spec["kind"] = self.kind.value
+        if self.text:
+            model_spec["text"] = self.text
         if self.direction:
             model_spec["direction"] = self.direction  
         if self.input_map:
             # workaround for circular dependency related to Assigments in the Datamap module
-            from .data_map import DataMap
-            if self.input_map and not isinstance(self.input_map, DataMap):
-                raise TypeError("input_map must be an instance of DataMap")
-            #model_spec["input_map"] = self.input_map.to_json() 
-            model_spec["input_map"] = {"spec": self.input_map.to_json()}        
-        if self.text:
-            model_spec["text"] = self.text
-        if self.display_name:
-            model_spec["display_name"] = self.display_name
-        if self.description:
-            model_spec["description"] = self.description
-        if self.default:
-            model_spec["default"] = self.default
-        if self.min:
-            model_spec["min"] = self.min
-        if self.max:
-            model_spec["max"] = self.max
-        if self.is_list:
-            model_spec["is_list"] = self.is_list
-        if self.option:
-            model_spec["option"] = self.option.to_json()
-        if self.custom:
-            model_spec["custom"] = self.custom
-        if self.widget:
-            model_spec["widget"] = self.widget
+            from .data_map import DataMapSpec, DataMap
+            if self.input_map and not isinstance(self.input_map, DataMapSpec):
+                if isinstance(self.input_map, DataMap):
+                    self.input_map = DataMapSpec(spec=self.input_map)
+                else:
+                    raise ValueError("input_map must be of type DataMapSpec or DataMap")
+            if self.input_map and isinstance(self.input_map, DataMapSpec):
+                model_spec["input_map"] = self.input_map.to_json() 
+
+        self._fixup_input_output_schema_for_form()
+
         if self.input_schema:
-           model_spec["input_schema"] = _to_json_from_json_schema(self.input_schema)
+            model_spec["input_schema"] = _to_json_from_input_schema(self.input_schema)
         if self.output_schema:
-           model_spec["output_schema"] = _to_json_from_json_schema(self.output_schema) 
+            if isinstance(self.output_schema, ToolResponseBody):
+                if self.output_schema.type != 'null':
+                    model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
+            else:
+                model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
         if self.uiSchema:
-            model_spec["uiSchema"] = self.uiSchema     
+            model_spec["uiSchema"] = self.uiSchema   
         return model_spec
 
 class UserFormButton(BaseModel):
     name: str
     kind: Literal["submit", "cancel"]
     display_name: str | None = None
-    visible: bool
+    visible: bool = True
     edge_id: str | None = None
 
     def __init__(self, **data):
@@ -659,7 +694,7 @@ class UserForm(BaseModel):
     display_name: str | None = None
     instructions: str | None = None
     fields: list[UserField] = []  
-    jsonSchema: JsonSchemaObject | None = None
+    jsonSchema: JsonSchemaObject | SchemaRef | None = None
     buttons: list[UserFormButton]
 
     @field_validator("buttons", mode="before")
@@ -677,7 +712,7 @@ class UserForm(BaseModel):
         
         # Initialize jsonSchema if not provided
         if not hasattr(self, 'jsonSchema') or self.jsonSchema is None:
-            self.jsonSchema = JsonSchemaObject(
+            self.jsonSchema = JsonSchemaObject( # pyright: ignore[reportCallIssue]
                 type='object', 
                 properties={}, 
                 required=[], 
@@ -704,16 +739,22 @@ class UserForm(BaseModel):
         if self.fields and len(self.fields) > 0:
             model_spec["fields"] = [field.to_json() for field in self.fields]
         if self.jsonSchema:
-             model_spec["jsonSchema"] = _to_json_from_json_schema(self.jsonSchema)
+            model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
         if self.buttons and len(self.buttons) > 0:
             model_spec["buttons"] = [button.to_json() for button in self.buttons]     
 
         return model_spec
 
-    def _add_or_replace_field(self, name: str, userfield):
+    def add_or_replace_field(self, name: str, userfield: UserField):
         """
         Replace an existing field (by name) in self.fields or append a new one.
         """
+        # fixup input and output schema for fields
+        if userfield is None:
+            return
+
+        userfield._fixup_input_output_schema_for_form()
+
         for i, field in enumerate(self.fields):
             if field.name == name:
                 self.fields[i] = userfield
@@ -758,12 +799,14 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def boolean_input_field(
             self,
@@ -810,7 +853,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
@@ -821,6 +864,9 @@ class UserForm(BaseModel):
             ],
             "title": label
         }
+
+        return userfield
+
     def date_range_input_field(
             self,
             name: str,
@@ -871,7 +917,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
@@ -882,6 +928,8 @@ class UserForm(BaseModel):
         
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
          
     def date_input_field(
             self,
@@ -912,7 +960,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
@@ -923,6 +971,8 @@ class UserForm(BaseModel):
         
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def choice_input_field(
             self,
@@ -1006,7 +1056,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         if isMultiSelect and columns is not None:
@@ -1032,6 +1082,8 @@ class UserForm(BaseModel):
 
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def number_input_field(
             self,
@@ -1087,12 +1139,14 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": num_type, "title": label}
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def file_upload_field(
             self,
@@ -1140,7 +1194,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
@@ -1154,6 +1208,8 @@ class UserForm(BaseModel):
         
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def message_output_field(
             self,
@@ -1181,10 +1237,12 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+        return userfield
 
     def field_output_field(
             self,
@@ -1213,10 +1271,12 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+        return userfield
 
     def list_output_field(
             self,
@@ -1280,7 +1340,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema based on list type
         if isBulletList:
@@ -1302,6 +1362,8 @@ class UserForm(BaseModel):
                 "items": {"type": "object", "properties": properties},
                 "title": label
             }
+
+        return userfield
 
     def file_download_field(
             self,
@@ -1336,14 +1398,15 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
 
+        return userfield
+
 class UserNodeSpec(NodeSpec):
     owners: Sequence[str] | None = None
-    text: str | None = None
     fields: list[UserField] | None = None
     form: UserForm | None = None
 
@@ -1354,15 +1417,15 @@ class UserNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        # remove input schema
-        # if "input_schema" in model_spec:
-        #    raise ValueError("Input schema is not allowed for user node.")
-        #    del model_spec["input_schema"]
+
+        # UserNode input and output schema will always be empty
+        if "input_schema" in model_spec:
+            del model_spec["input_schema"]
+        if "output_schema" in model_spec:
+            del model_spec["output_schema"]
 
         if self.owners:
             model_spec["owners"] = self.owners
-        if self.text:
-            model_spec["text"] = self.text
         if self.fields and len(self.fields) > 0:
             model_spec["fields"] = [field.to_json() for field in self.fields]
         else : 
@@ -1372,83 +1435,43 @@ class UserNodeSpec(NodeSpec):
 
         return model_spec
 
-    def field(self, name: str, 
+    def field(self, 
+              name: str, 
               kind: UserFieldKind, 
               text: str | None = None,
               display_name: str | None = None, 
-              description: str | None = None, 
-              default: Any | None = None, 
-              option: list[str] | None = None, 
-              min: Any | None = None,
-              max: Any | None = None,
-              is_list: bool = False,
-              custom: dict[str, Any] | None = None,
-              widget: str | None = None,
               input_map: Any | None = None,
-              direction: str | None = None):
+              direction: str | None = None,
+              input_schema: ToolRequestBody | SchemaRef | None = None,
+              output_schema: ToolResponseBody | SchemaRef | None = None) -> UserField:
         
         # workaround for circular dependency related to Assigments in the Datamap module
-        from .data_map import DataMap
-        if input_map and not isinstance(input_map, DataMap):
-            raise TypeError("input_map must be an instance of DataMap")
-        
-        userfield = UserField(name=name, 
-                              kind=kind, 
-                              text=text,
-                              display_name=display_name, 
-                              description=description, 
-                              default=default, 
-                              option=option, 
-                              min=min,
-                              max=max,
-                              is_list=is_list,
-                              custom=custom,
-                              widget=widget,
-                              direction=direction,
-                              input_map=input_map)
-        
+        from .data_map import DataMapSpec, DataMap
+        if input_map and not isinstance(input_map, (DataMap, DataMapSpec)):
+            raise TypeError("input_map must be an instance of DataMap or DataMapSpec")
+
+        if input_map and isinstance(input_map, DataMap):
+            input_map = DataMapSpec(spec = input_map)
+
+        userfield: UserField = UserField(name=name, 
+                                         kind=kind, 
+                                         display_name=display_name, 
+                                         text=text,
+                                         direction=direction,
+                                         input_map=input_map if input_map is not None else None,
+                                         input_schema=input_schema,
+                                         output_schema=output_schema)
+
         # find the index of the field
-        i = 0
-        for field in self.fields:
-            if field.name == name:
-                break
-        
-        if (len(self.fields) - 1) >= i:
-            self.fields[i] = userfield # replace
+        if self.fields is None:
+            self.fields = [userfield]
+        elif self.fields is not None and len(self.fields) > 0:
+            if (self.fields[0].name == name):
+                self.fields[0] = userfield
+            else:
+                raise ValueError(f"There can be only one standalone field in a user node.")
         else:
-            self.fields.append(userfield) # append
-
-    def setup_fields(self):
-        # make sure fields are not there already
-        if hasattr(self, "fields") and len(self.fields) > 0:
-            raise ValueError("Fields are already defined.")
-        
-        if self.output_schema:
-            if isinstance(self.output_schema, SchemaRef):
-                schema = dereference_refs(schema)
-        schema = self.output_schema
-
-        # get all the fields from JSON schema
-        if self.output_schema and isinstance(self.output_schema, ToolResponseBody):
-            self.fields = []
-            for prop_name, prop_schema in self.output_schema.properties.items():
-                self.fields.append(UserField(name=prop_name,
-                                             kind=UserFieldKind.convert_python_type_to_kind(prop_schema.type),
-                                             display_name=prop_schema.title,
-                                             description=prop_schema.description,
-                                             default=prop_schema.default,
-                                             option=self.setup_field_options(prop_schema.title, prop_schema.enum),
-                                             is_list=prop_schema.type == "array",
-                                             min=prop_schema.minimum,
-                                             max=prop_schema.maximum,
-                                             custom=prop_schema.model_extra))
-
-    def setup_field_options(self, name: str, enums: List[str]) -> UserFieldOption:
-        if enums:
-            option = UserFieldOption(label=name, values=enums)
-            return option
-        else:
-            return None
+            self.fields = [userfield]
 
     def get_or_create_form(self, name: str, display_name: str | None = None, instructions: str | None = None) -> UserForm:
 
@@ -1463,6 +1486,7 @@ class UserNodeSpec(NodeSpec):
                               instructions=instructions,
                               buttons=None) 
         return self.form
+
 
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
@@ -1530,10 +1554,12 @@ class PromptExample(BaseModel):
 class PromptNodeSpec(NodeSpec):
     system_prompt: str | list[str]
     user_prompt: str | list[str]
-    prompt_examples: Optional[list[PromptExample]]
-    llm: Optional[str] 
-    llm_parameters: Optional[PromptLLMParameters] 
-    error_handler_config: Optional[NodeErrorHandlerConfig] 
+    prompt_examples: Optional[list[PromptExample]] = None
+    llm: Optional[str] = None
+    llm_parameters: Optional[PromptLLMParameters] = None
+    error_handler_config: Optional[NodeErrorHandlerConfig] = None
+    metadata: dict[str, Any] | None = None
+    test_input_data: dict[str, Any] | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1555,6 +1581,10 @@ class PromptNodeSpec(NodeSpec):
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
                 model_spec["prompt_examples"].append(example.to_json())
+        if self.metadata:
+            model_spec["metadata"] = self.metadata
+        if self.test_input_data:
+            model_spec["test_input_data"] = self.test_input_data
         return model_spec
     
 class TimerNodeSpec(NodeSpec):
@@ -1584,6 +1614,7 @@ class NodeIdCondition(BaseModel):
     expression: Optional[str] = Field(description="A python expression to be run by the flow engine", default=None)
     node_id: str = Field(description="ID of the node in the flow that branch node should go to")
     default: bool = Field(description="Boolean indicating if the condition is default case")
+    metadata: Optional[dict[str, Any]] = Field(description="Metadata about the condition", default=None)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -1596,9 +1627,10 @@ class NodeIdCondition(BaseModel):
 
 class EdgeIdCondition(BaseModel):
     '''One Condition contains an expression, an edge_id that branch should go to when expression is true, and a default indicator. '''
-    expression: Optional[str] = Field(description="A python expression to be run by the flow engine")
+    expression: Optional[str] = Field(description="A python expression to be run by the flow engine", default=None)
     edge_id: str = Field(description="ID of the edge in the flow that branch node should go to")
     default: bool = Field(description="Boolean indicating if the condition is default case")
+    metadata: Optional[dict[str, Any]] = Field(description="Metadata about the condition", default=None)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -1610,18 +1642,22 @@ class EdgeIdCondition(BaseModel):
 
 class Conditions(BaseModel):
     '''One Conditions is an array represents the if-else conditions of a complex branch'''
-    conditions: list = List[Union[NodeIdCondition, EdgeIdCondition]]
+    conditions: List[Union[NodeIdCondition, EdgeIdCondition]]
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
         condition_list = []
         for condition in self.conditions:
-            condition_list.append(NodeIdCondition.model_validate(condition).to_json())
+            if isinstance(condition, NodeIdCondition):
+                condition_list.append(NodeIdCondition.model_validate(condition).to_json())
+            elif isinstance(condition, EdgeIdCondition):
+                condition_list.append(EdgeIdCondition.model_validate(condition).to_json())
+            else:
+                raise ValueError(f"Invalid condition type: {type(condition)}")
         model_spec["conditions"] = condition_list
         return model_spec
     
 class MatchPolicy(Enum):
- 
     FIRST_MATCH = 1
     ANY_MATCH = 2
 
@@ -1690,6 +1726,10 @@ class FlowContextWindow(BaseModel):
     max_tokens: Optional[int] = Field(description="The maximum number of token supported by the LLM model", default=None)
     allow_compress: Optional[bool] = Field(description="Indicates whether compression is allowed", default=True)
 
+class Dimensions(BaseModel):
+    width: float
+    height: float
+
 class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
@@ -1697,6 +1737,7 @@ class FlowSpec(NodeSpec):
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
+    dimensions: Dimensions | None = None
 
     context_window: FlowContextWindow | None = None
 
@@ -1708,7 +1749,10 @@ class FlowSpec(NodeSpec):
         model_spec = super().to_json()
         if self.initiators:
             model_spec["initiators"] = self.initiators
-        if self.private_schema:
+        if self.dimensions:
+            model_spec["dimensions"] = self.dimensions
+        if self.schedulable:
+            model_spec["schedulable"] = self.schedulable
             model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
