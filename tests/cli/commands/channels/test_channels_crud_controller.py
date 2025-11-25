@@ -288,7 +288,7 @@ class TestCreateChannelFromArgs:
             )
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestListChannels:
     """Tests for list_channels() method."""
 
@@ -345,7 +345,7 @@ class TestListChannels:
                 mock_print_json.assert_called_once()
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestGetChannel:
     """Tests for get_channel() method."""
 
@@ -379,7 +379,7 @@ class TestGetChannel:
                 controller.get_channel("agent-123", "draft", "twilio_whatsapp", "nonexistent")
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestCreateChannel:
     """Tests for create_channel() method."""
 
@@ -473,7 +473,7 @@ class TestCreateChannel:
             mock_channels_client.create.assert_called_once_with("agent-123", "draft", new_channel)
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestUpdateChannel:
     """Tests for update_channel() method."""
 
@@ -493,7 +493,7 @@ class TestUpdateChannel:
             mock_channels_client.update.assert_called_once_with("agent-123", "draft", "ch-123", sample_channel, False)
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestPublishOrUpdateChannel:
     """Tests for publish_or_update_channel() method."""
 
@@ -680,7 +680,7 @@ class TestGetChannelEventUrl:
             assert result == "/v1/agents/agent-123/environments/env-456/channels/webchat/ch-999/runs"
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestExportChannel:
     """Tests for export_channel() method."""
 
@@ -721,7 +721,7 @@ class TestExportChannel:
                 controller.export_channel("agent-123", "draft", "twilio_whatsapp", "ch1", "output.txt")
 
 
-@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+@patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
 class TestDeleteChannel:
     """Tests for delete_channel() method."""
 
@@ -744,7 +744,7 @@ class TestDeleteChannel:
 class TestLocalDevBlock:
     """Tests for local dev blocking functionality."""
 
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev")
     def test_block_when_local_dev_without_developer_mode(self, mock_is_local_dev, controller):
         """Test that operations are blocked in local dev without developer mode."""
         mock_is_local_dev.return_value = True
@@ -754,8 +754,8 @@ class TestLocalDevBlock:
 
         assert exc_info.value.code == 1
 
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.logger")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.logger")
     def test_allow_when_local_dev_with_developer_mode(self, mock_logger, mock_is_local_dev, controller):
         """Test that operations are allowed in local dev with developer mode enabled."""
         mock_is_local_dev.return_value = True
@@ -767,25 +767,25 @@ class TestLocalDevBlock:
         assert mock_logger.warning.call_count == 3
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         assert "DEVELOPER MODE ENABLED - Proceed at your own risk! No official support will be provided." in warning_calls
-        assert "Channel operations in local development may cause unexpected behavior." in warning_calls
+        assert "Channel in local development may cause unexpected behavior." in warning_calls
         assert "This environment is not validated for production use." in warning_calls
 
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev")
     def test_allow_when_not_local_dev(self, mock_is_local_dev, controller):
         """Test that operations are allowed when not in local dev."""
         mock_is_local_dev.return_value = False
 
         controller._check_local_dev_block(enable_developer_mode=False)
 
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev")
     def test_allow_when_not_local_dev_with_developer_mode(self, mock_is_local_dev, controller):
         """Test that operations are allowed when not in local dev with developer mode."""
         mock_is_local_dev.return_value = False
 
         controller._check_local_dev_block(enable_developer_mode=True)
 
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev")
-    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.logger")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev")
+    @patch("ibm_watsonx_orchestrate.cli.commands.channels.channels_common.logger")
     def test_error_message_when_blocked(self, mock_logger, mock_is_local_dev, controller):
         """Test that correct error messages are shown when blocked."""
         mock_is_local_dev.return_value = True
@@ -802,7 +802,7 @@ class TestLocalDevBlock:
 class TestDecoratorBlocksInLocalDev:
     """Tests that verify the @block_local_dev decorator blocks controller methods in local dev."""
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
     def test_list_channels_blocked_in_local_dev(self, mock_is_local_dev, controller):
         """Test list_channels_agent is blocked in local dev without developer mode."""
         with pytest.raises(SystemExit) as exc_info:
@@ -810,7 +810,7 @@ class TestDecoratorBlocksInLocalDev:
 
         assert exc_info.value.code == 1
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
     def test_get_channel_blocked_in_local_dev(self, mock_is_local_dev, controller):
         """Test get_channel is blocked in local dev without developer mode."""
         with pytest.raises(SystemExit) as exc_info:
@@ -818,7 +818,7 @@ class TestDecoratorBlocksInLocalDev:
 
         assert exc_info.value.code == 1
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
     def test_publish_or_update_channel_blocked_in_local_dev(self, mock_is_local_dev, controller, sample_channel):
         """Test publish_or_update_channel is blocked in local dev without developer mode."""
         with pytest.raises(SystemExit) as exc_info:
@@ -826,7 +826,7 @@ class TestDecoratorBlocksInLocalDev:
 
         assert exc_info.value.code == 1
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
     def test_export_channel_blocked_in_local_dev(self, mock_is_local_dev, controller):
         """Test export_channel is blocked in local dev without developer mode."""
         with pytest.raises(SystemExit) as exc_info:
@@ -834,7 +834,7 @@ class TestDecoratorBlocksInLocalDev:
 
         assert exc_info.value.code == 1
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
     def test_delete_channel_blocked_in_local_dev(self, mock_is_local_dev, controller):
         """Test delete_channel is blocked in local dev without developer mode."""
         with pytest.raises(SystemExit) as exc_info:
@@ -842,7 +842,7 @@ class TestDecoratorBlocksInLocalDev:
 
         assert exc_info.value.code == 1
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=False)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=False)
     def test_methods_not_blocked_when_not_local_dev(self, mock_is_local_dev, controller, mock_channels_client):
         """Test that decorated methods work normally when not in local dev."""
         # This should NOT raise SystemExit
@@ -852,8 +852,8 @@ class TestDecoratorBlocksInLocalDev:
                 # Should return empty list from mock
                 assert result == []
 
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.is_local_dev', return_value=True)
-    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_controller.logger')
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.is_local_dev', return_value=True)
+    @patch('ibm_watsonx_orchestrate.cli.commands.channels.channels_common.logger')
     def test_methods_allowed_with_enable_developer_mode(self, mock_logger, mock_is_local_dev, controller, mock_channels_client):
         """Test that methods work in local dev when enable_developer_mode=True is passed as kwarg."""
         # This should NOT raise SystemExit when enable_developer_mode=True
