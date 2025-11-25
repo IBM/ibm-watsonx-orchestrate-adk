@@ -1,0 +1,28 @@
+# Genesys Audio Connector Phone Channel Configuration Example
+#
+# Usage:
+#   # Import a phone channel
+#   orchestrate phone import \
+#     --agent-name "My_Agent" \
+#     --env draft \
+#     --file genesys_audio_connector_example.yaml
+
+spec_version: v1
+kind: phone
+
+# Required: Service provider identifier
+service_provider: genesys_audio_connector
+
+# Required: Name for this phone channel instance
+name: production_phone_channel
+
+# Optional: Description of this phone channel
+description: Main customer support phone channel via Genesys Audio Connector
+
+# Required: Security credentials for Genesys Audio Connector
+security:
+  # Required: Your Genesys API key
+  api_key: ${GENESYS_API_KEY}
+
+  # Required: Your Genesys client secret
+  client_secret: ${GENESYS_CLIENT_SECRET}
