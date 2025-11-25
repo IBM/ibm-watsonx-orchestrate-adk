@@ -1,11 +1,11 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "hello_message_flow",
-    "display_name": "hello_message_flow",
+    "name": "hello_message_flow_datamap",
+    "display_name": "hello_message_flow_datamap",
     "description": "Creates a flow with two tools: get_hello_message and combine_names.",
     "input_schema": {
-      "$ref": "#/schemas/hello_message_flow_input"
+      "$ref": "#/schemas/hello_message_flow_datamap_input"
     },
     "output_schema": {
       "$ref": "#/schemas/Message"
@@ -37,7 +37,7 @@
               "has_no_value": false,
               "default_value": null,
               "metadata": {
-                "assignmentType": "variable"
+                "assignmentType": "pyExpression"
               }
             },
             {
@@ -99,9 +99,9 @@
     }
   ],
   "schemas": {
-    "hello_message_flow_input": {
+    "hello_message_flow_datamap_input": {
       "type": "object",
-      "title": "hello_message_flow_input",
+      "title": "hello_message_flow_datamap_input",
       "required": [
         "first_name",
         "last_name"
@@ -167,18 +167,18 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-12T18:54:53.724626+00:00"
+    "compiled_on": "2025-11-19T15:53:01.446603+00:00"
   },
   "output_map": {
     "spec": {
       "maps": [
         {
           "target_variable": "flow.output.msg",
-          "value_expression": "flow.get_hello_message_node.msg",
+          "value_expression": "flow.get_hello_message.output",
           "has_no_value": false,
           "default_value": null,
           "metadata": {
-            "assignmentType": "variable"
+            "assignmentType": "pyExpression"
           }
         }
       ]

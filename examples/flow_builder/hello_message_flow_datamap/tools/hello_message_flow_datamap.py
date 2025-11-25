@@ -23,7 +23,7 @@ class Message(BaseModel):
     msg: str
 
 @flow(
-        name = "hello_message_flow",
+        name = "hello_message_flow_datamap",
         input_schema=Name,
         output_schema=Message
     )
@@ -39,18 +39,10 @@ def build_hello_message_flow_datamap(aflow: Flow = None) -> Flow:
     combine_names_node.map_input(input_variable="first_name", expression="flow.input.first_name")
     combine_names_node.map_input(input_variable="last_name", expression="flow.input.last_name", default_value="default_last_name")
 
-    get_hello_message_node = aflow.tool(get_hello_message, output_schema=Message)
+    get_hello_message_node = aflow.tool(get_hello_message)
 
     aflow.edge(START, combine_names_node).edge(combine_names_node, get_hello_message_node).edge(get_hello_message_node, END)
 
-    aflow.map_output(output_variable="msg", expression="flow.get_hello_message_node.msg")
-
-    # alternative syntax
-    # aflow.sequence(START, node1, node2, END)
-
-    # alternative 3
-    # aflow.edge(START, node1)
-    # aflow.edge(node1, node2)
-    # aflow.edge(node2, END)
+    aflow.map_output(output_variable="msg", expression="flow.get_hello_message.output")
 
     return aflow
