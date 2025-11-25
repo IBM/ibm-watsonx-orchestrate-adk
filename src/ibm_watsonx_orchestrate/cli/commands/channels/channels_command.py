@@ -3,6 +3,7 @@ from typing import Optional
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 from ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_command import channel_webchat
 from ibm_watsonx_orchestrate.cli.commands.channels.types import EnvironmentType
+from ibm_watsonx_orchestrate.cli.commands.channels.channels_common import parse_field
 from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
 
@@ -95,14 +96,11 @@ def create_channel(
     agent_id = controller.get_agent_id_by_name(agent_name)
 
     # Parse field arguments into a dictionary
-    channel_fields = {}
-    if field:
-        for f in field:
-            if "=" not in f:
-                typer.echo(f"Error: Field '{f}' must be in key=value format")
-                raise typer.Exit(1)
-            key, value = f.split("=", 1)
-            channel_fields[key.strip()] = value.strip()
+    try:
+        channel_fields = parse_field(field)
+    except ValueError as e:
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1)
 
     channel = controller.create_channel_from_args(
         channel_type=channel_type,
