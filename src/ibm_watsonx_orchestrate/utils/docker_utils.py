@@ -1632,14 +1632,26 @@ class DockerComposeCore:
         Run a bash command inside a running service container
         (works with Lima, WSL, or native Docker).
         """
-        final_env_file = path_for_vm(final_env_file)
-        compose_path = path_for_vm(self.__env_service.get_compose_file())
+
+        final_env_file = Path(path_for_vm(final_env_file))
+        compose_path = Path(path_for_vm(self.__env_service.get_compose_file()))
+
+        vm_env_dir = Path.home() / ".cache/orchestrate"
+        vm_env_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy env file
+        vm_env_file = vm_env_dir / final_env_file.name
+        shutil.copy(final_env_file, vm_env_file)
+
+        # Copy compose file
+        vm_compose_file = vm_env_dir / compose_path.name
+        shutil.copy(compose_path, vm_compose_file)
 
         # Build docker compose exec command as a list
         docker_command = [
             "compose",
-            "-f", str(compose_path),
-            "--env-file", str(final_env_file),
+            "-f", str(vm_compose_file),
+            "--env-file", str(vm_env_file),
             "exec",
             service_name,
             "bash",

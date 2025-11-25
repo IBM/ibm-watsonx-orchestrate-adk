@@ -174,19 +174,19 @@ services:
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
-      IS_OBSERVABILITY_FEATURE_ENABLED: "true"
       ALLOW_INSECURE_TLS: "true"
       ENABLE_EDIT_PROMPTS: "true"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       ENABLE_EMBED_SCRIPT: "true"
       ENABLE_BULK_TESTING: "true"
       ENABLE_A2A_AGENTS: "true"
+      ENABLE_THIRD_PARTY_MODELS: "true"
       ENABLE_CM_A2A_AGENTS: "false"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
-      LLM_DEFAULT_FLOW_MODEL: ""
+      LLM_DEFAULT_FLOW_MODEL: ${DEFAULT_FLOW_LLM_MODEL}
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
     command: 'npm start'
     ports:
@@ -199,6 +199,7 @@ services:
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -230,6 +231,7 @@ services:
 
   wxo-milvus-standalone:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/milvusdb/milvus:v2.5.15
+    restart: unless-stopped
     command: ["milvus", "run", "standalone"]
     security_opt:
       - seccomp:unconfined
@@ -255,6 +257,7 @@ services:
 
   wxo-milvus-etcd:
     image: ${ETCD_REGISTRY:-quay.io}/coreos/etcd:${ETCD_TAG:-v3.5.18}
+    restart: unless-stopped
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
@@ -272,6 +275,7 @@ services:
   socket-handler:
     image: ${SOCKET_HANDLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-socket-handler:${SOCKET_HANDLER_TAG:-latest}
     platform: linux/amd64
+    restart: unless-stopped
     command: "npm start"
     ports:
       - 4001:4001
@@ -568,6 +572,13 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
       TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      TRM_SERVICE_NAME: ${TRM_SERVICE_NAME:-tools-runtime-manager}
+      TRM_IBM_TELEMETRY_TRACER_ENDPOINT: ${TRM_IBM_TELEMETRY_TRACER_ENDPOINT:-none}
+      OTEL_MASK_ATTRS: ${OTEL_MASK_ATTRS:-client.address,server.address,server.port,network.peer.address,network.peer.port,url.path,user_agent.original,url.full}
+      OTEL_MASK_VALUE: ${OTEL_MASK_VALUE:-<REDACTED>}
+      TRM_CLIENT_MASK_ATTRS: ${TRM_CLIENT_MASK_ATTRS:-url.full,server.address,server.port}
+      TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -600,12 +611,17 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
-
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      TR_SERVICE_NAME: ${TR_SERVICE_NAME:-tools-runtime}
+      TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
+      TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
+      TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
   ########################
   # IBM AGENT-OPS
   ########################
   elasticsearch:
     image: ${ELASTICSEARCH_REGISTRY:-docker.elastic.co}/elasticsearch/elasticsearch:${ELASTICSEARCH_TAG:-8.19.0}
+    restart: unless-stopped
     profiles: [ibm-telemetry]
     environment:
       - discovery.type=single-node
@@ -634,6 +650,7 @@ services:
 
   jaeger-proxy:
     image: ${JAEGER_PROXY_REGISTRY:-us.icr.io/watson-orchestrate-private}/jaeger-proxy:${JAEGER_PROXY_TAG:-latest} # temporay registry
+    restart: unless-stopped
     profiles: [ibm-telemetry]
     environment:
       - TENANT_API_KEY=${AGENTOPS_API_KEY}
@@ -882,10 +899,13 @@ services:
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
+      WO_USERNAME: ${WO_USERNAME}
+      WO_PASSWORD: ${WO_PASSWORD}
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       FLOW_CALLBACK_REQUEST_RETRIES: "1"
       DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
+      FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -981,8 +1001,6 @@ services:
     volumes:
       - "wdu-models:/models"
       - "wdu-prometheus-files:/prometheus/"
-    tmpfs:
-      - "/dev/shm"
     healthcheck:
       test: ["CMD-SHELL", "/app/check_heartbeat.sh /tmp/heartbeat.txt 120"]
       interval: 30s
@@ -993,7 +1011,7 @@ services:
         condition: service_completed_successfully
 
   wdu-model-copy:
-    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.4.0}
+    image: ${WDU_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wdu-models:${WDU_TAG:-2.9.1}
     platform: linux/amd64
     user: root
     profiles:
@@ -1053,6 +1071,7 @@ services:
   wxo-doc-processing-infra-standalone:
     image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo-doc-processing-infra-standalone:${DOCPROC_DPI_TAG:-2025-06-13-dev-1}
     platform: linux/amd64
+    restart: unless-stopped
     profiles:
       - docproc
     environment:
@@ -1209,6 +1228,7 @@ services:
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
+    restart: unless-stopped
     profiles: [langflow]
     ports:
       - 7861:7861

@@ -206,7 +206,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     token = jwt.decode(existing_token, options={"verify_signature": False})
     tenant_id = token.get('woTenantId', None)
     merged_env_dict['REACT_APP_TENANT_ID'] = tenant_id
-    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("docker-wxo-server-voice-1")
+    merged_env_dict['VOICE_ENABLED'] = DockerUtils.is_docker_container_running("dev-edition-wxo-server-voice-1")
 
     agent_client = instantiate_client(AgentClient)
     agents = agent_client.get()
@@ -436,7 +436,7 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy compose file
-    compose_src = Path("src/ibm_watsonx_orchestrate/developer_edition/resources/docker/compose-lite.yml")
+    compose_src = env_service.get_compose_file()
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
     # Merge default + user env
@@ -744,6 +744,39 @@ def run_db_migration() -> None:
             fi
         fi
     done
+
+
+    # Create wxo_observability database if it doesn't exist
+    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw wxo_observability; then
+        echo 'Existing wxo_observability DB found'
+    else
+        echo 'Creating wxo_observability DB'
+        createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
+        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
+    fi
+
+
+    # Run observability-specific migrations
+    OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
+    touch "$OBSERVABILITY_MIGRATIONS_FILE"
+
+    for file in /docker-entrypoint-initdb.d/observability/*.sql; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            
+            if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
+                echo "Skipping already applied observability migration: $filename"
+            else
+                echo "Applying observability migration: $filename"
+                if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
+                    echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
+                else
+                    echo "Error applying observability migration: $filename. Stopping migrations."
+                    exit 1
+                fi
+            fi
+        fi
+    done
     '''
 
     # Encode the migration script to base64
@@ -933,41 +966,17 @@ def server_edit(
         if disk: 
             logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
     
-    # Using Progress Spinner for OSX/Linux but using logger.info for wsl as it takes much longer and gives user better info.
-    if system == "windows":
-        vm = get_vm_manager()
-        if vm:
-            success =  vm.edit_server(cpus, memory, disk)
-            if success:
-                logger.info("VM updated successfully.")
-            else:
-                logger.error("Failed to Update VM.")
-                sys.exit(1)
+    vm = get_vm_manager()
+    if vm:
+        success =  vm.edit_server(cpus, memory, disk)
+        if success:
+            logger.info("VM updated successfully and restarted.")
         else:
-            logger.error("No underlying VM found")
+            logger.error("Failed to Update VM.")
             sys.exit(1)
     else:
-        vm = get_vm_manager()
-        if vm:
-            console = Console()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-                console=console,
-            ) as progress:
-                progress.add_task(description="Editing the underlying VM settings...", total=None)
-                success = vm.edit_server(cpus, memory, disk)
-                if success:
-                    progress.stop()
-                    logger.info("VM updated successfully.")
-                else:
-                    progress.stop()
-                    logger.error("Failed to Update VM.")
-                    sys.exit(1)
-        else:
-            logger.error("No underlying VM found")
-            sys.exit(1)
+        logger.error("No underlying VM found")
+        sys.exit(1)
 
 # orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
 @server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")

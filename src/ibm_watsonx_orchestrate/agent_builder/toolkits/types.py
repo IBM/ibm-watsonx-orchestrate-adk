@@ -98,6 +98,8 @@ class ToolkitMCPInputSpec(BaseModel):
         return (command, args)
     
     def __combine_command_parts(self, command: str, args: Optional[List[str]] = []) -> str:
+        if not command:
+            return None
         args = args or []
 
         return f"{command} {' '.join(args)}".strip()
@@ -164,10 +166,10 @@ class ToolkitMCPInputSpec(BaseModel):
     
     def model_dump(self, export_format: bool = False, *args, **kwargs) -> str:
         content = super().model_dump(*args, **kwargs)
-        if export_format:
+        if export_format and self.command:
             content["command"] = self.__combine_command_parts(self.command, self.args)
-            content.pop("args", None)
-            content.pop("source", None)
+        content.pop("args", None)
+        content.pop("source", None)
         return content
 
 # Remove generate from class into controller
