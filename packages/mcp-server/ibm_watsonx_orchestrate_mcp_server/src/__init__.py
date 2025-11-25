@@ -6,5 +6,6 @@ from .knowledge_bases.mcp_tools import __tools__ as knowledge_base_tools
 from .connections.mcp_tools import __tools__ as connection_tools
 from .voice_configurations.mcp_tools import __tools__ as voice_configuration_tools
 from .models.mcp_tools import __tools__ as model_tools
+from .channels.mcp_tools import __tools__ as channel_tools
 
-__all_tools__ = agent_tools + tool_tools + toolkit_tools + knowledge_base_tools + connection_tools + voice_configuration_tools + model_tools + [check_version]
+__all_tools__ = agent_tools + tool_tools + toolkit_tools + knowledge_base_tools + connection_tools + voice_configuration_tools + model_tools + channel_tools + [check_version]

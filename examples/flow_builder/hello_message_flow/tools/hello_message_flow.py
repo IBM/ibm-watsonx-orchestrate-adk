@@ -27,7 +27,7 @@ class Message(BaseModel):
         input_schema=Name,
         output_schema=Message
     )
-def build_hello_message_flow(aflow: Flow = None) -> Flow:
+def build_hello_message_flow(aflow: Flow) -> Flow:
     """
     Creates a flow with two tools: get_hello_message and combine_names.
     This flow will rely on the Flow engine to perform automatic data mapping at runtime.

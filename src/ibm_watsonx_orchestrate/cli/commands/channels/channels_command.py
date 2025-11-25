@@ -3,6 +3,7 @@ from typing import Optional
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_controller import ChannelsController
 from ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_command import channel_webchat
 from ibm_watsonx_orchestrate.cli.commands.channels.types import EnvironmentType
+from ibm_watsonx_orchestrate.cli.commands.channels.channels_common import parse_field
 from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
 
@@ -30,14 +31,13 @@ def import_channel(
         enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Import channel(s) from a configuration file (creates or updates by name)."""
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     channels = controller.import_channel(file)
 
     # Import all channels from the file
     for channel in channels:
-        controller.publish_or_update_channel(agent_id, environment_id, channel)
+        controller.publish_or_update_channel(agent_id, environment_id, channel, enable_developer_mode=enable_developer_mode)
 
 
 
@@ -51,10 +51,9 @@ def list_channels_command(
         enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """List channels for an agent environment."""
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
-    controller.list_channels_agent(agent_id, environment_id, channel_type, verbose, format, agent_name=agent_name)
+    controller.list_channels_agent(agent_id, environment_id, channel_type, verbose, format, agent_name=agent_name, enable_developer_mode=enable_developer_mode)
 
 
 @channel_app.command(name="get", help="Get details of a specific channel by ID or name")
@@ -68,11 +67,10 @@ def get_channel(
         enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Get a specific channel by ID or name."""
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
-    controller.get_channel(agent_id, environment_id, channel_type, resolved_id, verbose)
+    controller.get_channel(agent_id, environment_id, channel_type, resolved_id, verbose, enable_developer_mode=enable_developer_mode)
 
 
 @channel_app.command(name="create", help="Create a new channel using CLI arguments")
@@ -95,18 +93,14 @@ def create_channel(
         # Create a Webchat channel
         orchestrate channels create --agent-name my_agent --env draft --type webchat --name "Web Chat"
     """
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
 
     # Parse field arguments into a dictionary
-    channel_fields = {}
-    if field:
-        for f in field:
-            if "=" not in f:
-                typer.echo(f"Error: Field '{f}' must be in key=value format")
-                raise typer.Exit(1)
-            key, value = f.split("=", 1)
-            channel_fields[key.strip()] = value.strip()
+    try:
+        channel_fields = parse_field(field)
+    except ValueError as e:
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1)
 
     channel = controller.create_channel_from_args(
         channel_type=channel_type,
@@ -118,7 +112,7 @@ def create_channel(
 
     if not output_file:
         environment_id = controller.get_environment_id(agent_name, env)
-        controller.publish_or_update_channel(agent_id, environment_id, channel)
+        controller.publish_or_update_channel(agent_id, environment_id, channel, enable_developer_mode=enable_developer_mode)
 
 
 @channel_app.command(name="export", help="Export a channel to a YAML file by ID or name")
@@ -132,11 +126,10 @@ def export_channel(
         enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Export a channel configuration to a YAML file."""
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
-    controller.export_channel(agent_id, environment_id, channel_type, resolved_id, output)
+    controller.export_channel(agent_id, environment_id, channel_type, resolved_id, output, enable_developer_mode=enable_developer_mode)
 
 
 @channel_app.command(name="delete", help="Delete a channel by ID or name")
@@ -150,7 +143,6 @@ def delete_channel(
         enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Delete a channel by ID or name."""
-    controller._check_local_dev_block(enable_developer_mode)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
     resolved_id = controller.resolve_channel_id(agent_id, environment_id, channel_type, channel_id, channel_name)
@@ -162,4 +154,4 @@ def delete_channel(
             typer.echo("Deletion cancelled")
             return
 
-    controller.delete_channel(agent_id, environment_id, channel_type, resolved_id)
+    controller.delete_channel(agent_id, environment_id, channel_type, resolved_id, enable_developer_mode=enable_developer_mode)
