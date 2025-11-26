@@ -182,6 +182,7 @@ services:
       ENABLE_A2A_AGENTS: "true"
       ENABLE_THIRD_PARTY_MODELS: "true"
       ENABLE_CM_A2A_AGENTS: "false"
+      ENABLE_REMOTE_MCP_SERVER: "true"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
