@@ -14,7 +14,7 @@ from typing import (
 
 import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
-from pydantic import Json, computed_field, field_validator
+from pydantic import computed_field, field_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
@@ -279,8 +279,6 @@ class DocProcCommonNodeSpec(NodeSpec):
         
         return model_spec
     
-
-
 class DocClassifierSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocClassifierConfig
@@ -370,28 +368,145 @@ class PlainTextReadingOrder(StrEnum):
     block_structure = auto()
     simple_line = auto()
 
+class DocProcOutputFormat(StrEnum):
+    '''
+    Output format for document processing results.
+    - docref: Output will be a document reference (default)
+    - object: Output will be a JSON object
+    '''
+    docref = auto()
+    object = auto()
+
 class DocProcSpec(DocProcCommonNodeSpec):
+    '''
+    Document Processing Node Specification for flow-based document analysis.
+    
+    This class defines the configuration for a document processing node in a workflow,
+    enabling text extraction, structure analysis, and key-value pair (KVP) extraction
+    from documents using IBM Watson Document Understanding (WDU) service. It extends
+    DocProcCommonNodeSpec to provide comprehensive document processing capabilities.
+    
+    The DocProcSpec node can perform multiple operations simultaneously:
+    - Plain text extraction with configurable reading order
+    - Document structure analysis (sections, tables, paragraphs, etc.)
+    - LLM-based key-value pair extraction using custom schemas
+    - Handwritten text recognition
+
+    Attributes:
+        kvp_schemas (List[DocProcKVPSchema] | None): Optional list of schemas defining
+            the key-value pairs to extract from documents. Each schema specifies:
+            - document_type: Label for the document category
+            - document_description: Description for schema selection
+            - fields: Dictionary of fields/tables to extract
+            - additional_prompt_instructions: Extra guidance for the LLM
+            
+            Behavior:
+            - None: No KVP extraction performed (default)
+            - Empty list []: Uses internal predefined schemas
+            - List with schemas: Uses provided custom schemas
+            
+        kvp_model_name (str | None): The LLM model identifier for KVP extraction.
+            Examples: "watsonx/mistralai/mistral-medium-2505"
+            Default: None (uses system default model)
+            
+        kvp_force_schema_name (str | None): Forces the KVP extractor to use a specific
+            schema by its document_type name, bypassing automatic schema selection.
+            Useful when you know the exact document type and want to skip classification.
+            Default: None (automatic schema selection based on document content)
+            
+        kvp_enable_text_hints (bool | None): Controls whether to provide text and layout
+            information extracted from the document to the LLM during KVP extraction.
+            - True: LLM receives both page image and extracted text/layout (recommended)
+            - False: LLM relies only on the page image
+            Default: True (better accuracy with text hints)
+            
+        plain_text_reading_order (PlainTextReadingOrder): Determines how text is ordered
+            when extracting plain text from the document:
+            - block_structure: Respects document layout blocks (default, recommended)
+            - simple_line: Simple line-by-line reading order
+            Default: PlainTextReadingOrder.block_structure
+            
+        document_structure (bool): Controls whether to extract and return the complete
+            document structure (sections, paragraphs, tables, lists, images, etc.).
+            - True: Returns full structure in AssemblyJsonOutput format
+            - False: Returns only plain text (faster, smaller response)
+            Default: False
+            
+        output_format (DocProcOutputFormat): Specifies the response format:
+            - docref: Returns a reference URL to a file containing results (default)
+              Response type: TextExtractionResponse
+            - object: Returns results as inline JSON object
+              Response type: TextExtractionObjectResponse
+            Default: DocProcOutputFormat.docref
+    
+    Inherited Attributes (from DocProcCommonNodeSpec):
+        task (DocProcTask): The document processing operation type
+            Default: DocProcTask.text_extraction
+        enable_hw (bool): Enable handwritten text recognition
+            Default: False
+    
+    Inherited Attributes (from NodeSpec):
+        name (str): Unique identifier for the node
+        display_name (str | None): Human-readable name
+        description (str | None): Node description
+        input_schema (ToolRequestBody | SchemaRef | None): Input schema definition
+        output_schema (ToolResponseBody | SchemaRef | None): Output schema definition
+    '''    
     kvp_schemas: List[DocProcKVPSchema] | None = Field(
         title='KVP schemas',
-        description="Optional list of key-value pair schemas to use for extraction.",
+        description="Optional list of key-value pair schemas for LLM-based extraction. "
+                   "None = no KVP extraction, [] = use internal schemas, "
+                   "[schema1, schema2, ...] = use custom schemas. Each schema defines "
+                   "document type, fields to extract, and extraction instructions.",
         default=None)
     kvp_model_name: str | None = Field(
         title='KVP Model Name',
-        description="The LLM model to be used for key-value pair extraction",
+        description="LLM model identifier for key-value pair extraction. "
+                   "Examples: 'meta-llama/llama-3-2-11b-vision-instruct', 'gpt-4-vision'. "
+                   "None uses the system default model. Choose based on accuracy needs "
+                   "and performance requirements.",
         default=None
     )
     kvp_force_schema_name: str | None = Field(
         title='KVP Force Schema Name',
-        description='Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.',
+        description="Forces the KVP extractor to use a specific schema by its document_type "
+                   "name, bypassing automatic schema selection. Use when document type is "
+                   "known in advance to improve performance and accuracy. None enables "
+                   "automatic schema selection based on document content.",
         default=None
     )
     kvp_enable_text_hints: bool | None = Field(
         title='KVP Enable Text Hints',
-        description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
+        description="Determines whether to provide extracted text and layout information "
+                   "to the LLM during KVP extraction, in addition to the page image. "
+                   "True (recommended) = LLM receives both image and text hints for better "
+                   "accuracy. False = LLM relies only on page image. Text hints significantly "
+                   "improve extraction quality with minimal performance impact.",
         default=True
     )
-    plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
-    document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
+    plain_text_reading_order : PlainTextReadingOrder = Field(
+        default=PlainTextReadingOrder.block_structure,
+    )
+    document_structure: bool = Field(
+        title="Document Structure",
+        default=False,
+        description="Requests the complete document structure computed by Watson Document "
+                   "Understanding (WDU) to be returned. When True, the response includes "
+                   "hierarchical structure (sections, paragraphs, tables, lists, images, etc.) "
+                   "with bounding boxes and relationships. When False, only plain text is "
+                   "extracted (faster, smaller response). Set to True when structural analysis "
+                   "or spatial information is needed."
+    )
+    output_format: DocProcOutputFormat = Field(
+        title="Output Format",
+        default=DocProcOutputFormat.docref, 
+        description="Output format for document processing results. "
+                   "'docref' (default) returns a URL reference to a file containing results "
+                   "(TextExtractionResponse). 'object' returns results as inline JSON "
+                   "(TextExtractionObjectResponse). Use 'docref' for large documents or when "
+                   "results will be stored/processed separately. Use 'object' for small documents "
+                   "or immediate inline processing."
+    )
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -411,6 +526,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_force_schema_name"] = self.kvp_force_schema_name
         if self.kvp_enable_text_hints is not None:
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
+        if self.output_format != DocProcOutputFormat.docref:
+            model_spec["output_format"] = self.output_format
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -1854,7 +1971,7 @@ class FlowContext(BaseModel):
             return self.data[key]
 
         if self.parent_context:
-            pc = cast(FlowContext, self.parent_conetxt)
+            pc = cast(FlowContext, self.parent_context)
             return pc.get(key)
     
 class FlowEventType(Enum):
@@ -2132,11 +2249,87 @@ class Structures(BaseModel):
     )
 
 class AssemblyJsonOutput(BaseModel):
-    metadata: Metadata = Field(description="Metadata about this document")
-    styles: Optional[List[Style]] = Field(description="Font styles used in this document")
-    kvps: Optional[DocProcKVP] = Field(description="Key value pairs found in the document")
-    top_level_structures: List[str] = Field(default=[], description="Array of ids of the top level structures which belong directly under the document")
-    all_structures: Structures = Field(default=None, description="An object containing of all flattened structures identified in the document")
+    '''
+    Base class for document processing assembly JSON output format.
+    
+    This class represents the complete structured output from document processing operations,
+    containing the document's hierarchical structure, metadata, styling information, and 
+    extracted key-value pairs. It serves as the foundation for document analysis results
+    returned by the Watson Document Understanding (WDU) service.
+    
+    Attributes:
+        metadata (Optional[Metadata]): Document-level metadata including page count, title,
+            author, language, publication date, and other document properties. Contains
+            information about the document source and processing configuration.
+            
+        styles (Optional[List[Style]]): Collection of font styles used throughout the document.
+            Each style includes font name, size, and formatting attributes (bold, italic).
+            Styles are referenced by ID from text tokens to maintain formatting information.
+            
+        kvps (Optional[List[DocProcKVP]]): Key-value pairs extracted from the document using
+            LLM-based extraction. Includes both structured form fields and semantic key-value
+            relationships identified in the document content. 
+            
+        top_level_structures (Optional[List[str]]): Array of structure IDs representing the
+            top-level elements directly under the document root. These IDs reference elements
+            in the all_structures field and define the document's primary organization.
+            Typically includes sections, tables, and other major structural components.
+            
+        all_structures (Optional[Structures]): Comprehensive collection of all document
+            structures organized by type. Contains flattened lists of sections, paragraphs,
+            tables, lists, images, headers, footers, and other structural elements. Each
+            structure includes hierarchical relationships (parent/child IDs) and spatial
+            information (bounding boxes).
+    
+    Structure Hierarchy:
+        The document structure is represented as a tree where:
+        - top_level_structures contains root-level element IDs
+        - Each structure has parent_id and children_ids for navigation
+        - Structures are organized by type in all_structures
+        - Spatial information is preserved via bounding boxes
+    
+    Related Classes:
+        - TextExtractionObjectResponse: Extends this class with plain text field
+        - Metadata: Document-level metadata container
+        - Structures: Container for all structural elements
+        - DocProcKVP: Key-value pair representation
+        - Style: Font and formatting information
+    
+    Notes:
+        - Structure IDs are unique within a document and used for cross-referencing
+        - Bounding boxes use pixel coordinates relative to page dimensions
+        - This format is compatible with IBM Watson Document Understanding output
+    
+    See Also:
+        - DocProcSpec: Configuration for document processing operations
+        - DocProcOutputFormat: Output format selection (object vs docref)
+        - TextExtractionObjectResponse: Subclass with extracted text
+    '''
+    metadata: Optional[Metadata] = Field(
+        default=None, 
+        description="Document-level metadata including page count, title, author, language, "
+                   "and processing configuration. None if metadata extraction was not requested.")
+    styles: Optional[List[Style]] = Field(
+        default=None,
+        description="Font styles used in the document, referenced by style_id from tokens. "
+                   "Includes font name, size, bold, and italic attributes. None if style "
+                   "extraction (document_structure=False) was not requested.")
+    kvps: Optional[List[DocProcKVP]] = Field(
+        default=None,
+        description="Key-value pairs extracted from the document using LLM-based extraction. "
+                   "Includes form fields and semantic relationships with spatial information. "
+                   "None if KVP extraction (kvp_schemas) was not requested or configured.")
+    top_level_structures: Optional[List[str]] = Field(
+        default=None,
+        description="Array of structure IDs for top-level document elements (sections, tables, etc.) "
+                   "that belong directly under the document root. Used to navigate the document "
+                   "hierarchy. None if structure extraction (document_structure=False) was not requested.")
+    all_structures: Optional[Structures] = Field(
+        default=None,
+        description="Comprehensive collection of all document structures organized by type "
+                   "(sections, paragraphs, tables, lists, images, etc.). Each structure includes "
+                   "hierarchical relationships and spatial information. None if structure extraction "
+                   "(document_structure=False) was not requested.")
 
 class LanguageCode(StrEnum):
     '''
@@ -2189,11 +2382,32 @@ class DocProcInput(DocumentProcessingCommonInput):
         default=True
     )
 
+class TextExtractionObjectResponse(AssemblyJsonOutput):
+    '''
+    The text extraction operation response when output_format is set to "object".
+    
+    This class represents the structured response from a document text extraction operation,
+    containing both the extracted plain text and the complete document structure metadata
+    inherited from AssemblyJsonOutput.
+    
+    Attributes:
+        text (str): The extracted plain text content from the document. This is the 
+                   concatenated text from all pages and structures in reading order.
+                   Empty string if no text could be extracted.
+    
+    Note:
+        - This response type is used when DocProcSpec.output_format is set to 
+          DocProcOutputFormat.object
+        - For file reference responses, use TextExtractionResponse instead
+        - The text field contains only plain text; structured data is in inherited fields
+    '''
+    text: str = Field(title='Text', description='The raw text extracted from the input document')
+
 class TextExtractionResponse(BaseModel):
     '''
-    The text extraction operation response.
+    The text extraction operation response when output_format is set to "docref" (default).
     Attributes:
-        output_file_ref (str): The url to the file that contains the extracted text and kvps. 
+        output_file_ref (str): The url to the file that contains the extracted text and kvps.
     '''
     output_file_ref: str = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
 
