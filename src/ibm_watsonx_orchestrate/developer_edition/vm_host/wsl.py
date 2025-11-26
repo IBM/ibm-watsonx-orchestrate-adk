@@ -899,10 +899,12 @@ def _ssh_into_wsl():
             return False
 
         logger.info(f"Opening shell into WSL distribution '{DISTRO_NAME}'...")
+        
+        user = os.environ.get("WXO_SSH_USER", "orchestrate")
 
         # Attach user to WSL shell interactively
         subprocess.run(
-            ["wsl", "-d", DISTRO_NAME],
+            ["wsl", "-d", DISTRO_NAME, "-u", user],
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr
