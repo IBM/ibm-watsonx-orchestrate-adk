@@ -318,6 +318,10 @@ class Flow(Node):
                         if hasattr(spec.output_schema, "items") and hasattr(spec.output_schema.items, "type") and spec.output_schema.items.type == "object":
                             schema_ref = self._add_schema_ref(spec.output_schema.items)
                             spec.output_schema.items = JsonSchemaObjectRef(ref=f"{schema_ref.ref}")
+        
+        if isinstance(spec, FlowSpec):
+            if isinstance(spec.private_schema, JsonSchemaObject):
+                spec.private_schema = self._add_schema_ref(spec.private_schema, title=f"{spec.private_schema.title}")
 
     # def refactor_datamap_spec_to_schemaref(self, spec: FnDataMapSpec):
     #    '''TODO'''
@@ -931,7 +935,7 @@ class Flow(Node):
             e = Conditions(conditions=[])
 
         branch_name = name if name != "" else "branch_" + str(self._next_sequence_id())
-        branch_display_name: str = display_name if display_name != "" else "Branch_" + str(self._next_sequence_id())
+        branch_display_name: str = display_name if display_name != "" else branch_name
         spec: BranchNodeSpec = BranchNodeSpec(name = branch_name, display_name = branch_display_name, evaluator=e)
         branch_node = Branch(spec = spec, containing_flow=self)
         return cast(Branch, self._add_node(branch_node))
@@ -941,7 +945,7 @@ class Flow(Node):
                    display_name: str = "") -> 'Branch':
         '''Create a Branch node with empty Conditions evaluator (if-else)'''
         branch_name = name if name != "" else "branch_" + str(self._next_sequence_id())
-        branch_display_name: str = display_name if display_name != "" else "Branch_" + str(self._next_sequence_id())
+        branch_display_name: str = display_name if display_name != "" else branch_name
 
         spec = BranchNodeSpec(name = branch_name, display_name=branch_display_name, evaluator=Conditions(conditions=[]))
         branch_conditions_node = Branch(spec = spec, containing_flow=self)

@@ -1870,7 +1870,8 @@ class FlowSpec(NodeSpec):
             model_spec["dimensions"] = self.dimensions
         if self.schedulable:
             model_spec["schedulable"] = self.schedulable
-            model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+        if self.private_schema:
+            model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
         
@@ -1948,12 +1949,13 @@ class TaskEventType(Enum):
 
 class FlowData(BaseModel):
     '''This class represents the data that is passed between tasks in a flow.'''
-    input: dict[str, Any] = Field(default_factory=dict)
-    output: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] | Any = Field(default_factory=dict)
+    output: dict[str, Any] | Any = Field(default_factory=dict)
+    private: dict[str, Any] | Any = Field(default_factory=dict)
 
 class FlowContext(BaseModel):
  
-    name: str | None = None # name of the process or task
+    name: str | None = None # name of the flow
     task_id: str | None = None # id of the task, this is at the task definition level
     flow_id: str | None = None # id of the flow, this is at the flow definition level
     instance_id: str | None = None
@@ -1964,7 +1966,11 @@ class FlowContext(BaseModel):
     child_context: List["FlowContext"] | None = None
     metadata: dict = Field(default_factory=dict[str, Any])
     data: Optional[FlowData] = None
-
+    assignee: str | None = None # id of the assignee 
+    task_name: str | None = None # name of the current task, a task is an instance of a node
+    task_display_name: str | None = None # display name of the current task
+    task_kind: str | None = None # type of the current task
+ 
     def get(self, key: str) -> Any:
      
         if key in self.data:
