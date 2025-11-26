@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, \
-    BaseChannel, ChannelLoader
+    BaseChannel, ChannelLoader, GenesysBotConnectorChannel
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
 from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
@@ -156,6 +156,7 @@ class ChannelsController:
             ChannelType.TWILIO_WHATSAPP: TwilioWhatsappChannel,
             ChannelType.TWILIO_SMS: TwilioSMSChannel,
             ChannelType.SLACK: SlackChannel,
+            ChannelType.GENESYS_BOT_CONNECTOR: GenesysBotConnectorChannel,
         }
 
         try:
@@ -313,16 +314,6 @@ class ChannelsController:
         """
         if not channel_id and not channel_name:
             logger.error("Either --id or --name must be provided")
-            sys.exit(1)
-
-        # Warn about Twilio SMS name field issue
-        if channel_type == ChannelType.TWILIO_SMS and channel_name and not channel_id:
-            logger.error(
-                "Twilio SMS channels cannot currently be looked up by name.\n"
-                "Please use --id instead of --name to specify the channel.\n"
-                "You can find the channel ID by running:\n"
-                "  orchestrate channels list-channels --agent-name <agent_name> --env <draft|live>"
-            )
             sys.exit(1)
 
         client = self.get_channels_client()
