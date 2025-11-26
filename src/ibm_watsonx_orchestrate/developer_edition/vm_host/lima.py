@@ -329,7 +329,7 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     logger.info(f"Downloading Lima from {url}")
     try:
         subprocess.run(
-            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
             check=True,
             capture_output=True
         )
@@ -387,7 +387,7 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
 
     url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
     subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
         check=True
     )
 
