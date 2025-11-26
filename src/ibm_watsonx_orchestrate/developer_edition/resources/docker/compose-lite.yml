@@ -51,6 +51,7 @@ services:
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
+      WXCO_C_FEATURES: '{"feature-45580":1}'
     ports:
       - 3001:3001
   
