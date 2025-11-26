@@ -7,6 +7,7 @@ from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, Seri
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 import requests
+import urllib.parse
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.agent_builder.connections import KeyValueConnectionCredentials
 
@@ -301,7 +302,13 @@ class WXOFile(str):
     @classmethod
     def get_file_name(cls, url: str) -> str | None:
         """Returns the file name."""
-        return cls._get_headers(url).get(f"{X_AMZ_META_HEADER_PREFIX}filename", None)
+        headers = cls._get_headers(url)
+        filename = headers.get(f"{X_AMZ_META_HEADER_PREFIX}filename", None)
+        if filename is not None:
+            encoded_method = headers.get(f"{X_AMZ_META_HEADER_PREFIX}filename-encode-method", None)
+            if encoded_method == "urlencode":
+                return urllib.parse.unquote(filename)
+        return filename
 
     @classmethod
     def get_file_size(cls, url: str) -> int | None:
