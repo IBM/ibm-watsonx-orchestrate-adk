@@ -1,4 +1,7 @@
-from unittest.mock import patch
+import os
+import tempfile
+import pytest
+from unittest.mock import patch, MagicMock
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration
 from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller import VoiceConfigurationsController
@@ -8,7 +11,7 @@ def voice_configuration_dict(
     expected_name="default_name",
     expected_stt_provider="default_stt",
     expected_tts_provider="default_tts",
-    expected_id="default_id" 
+    expected_id="default_id"
 ) -> dict:
   return {
     "name": expected_name,
@@ -50,7 +53,7 @@ def voice_configuration_class(
 class TestGetVoiceConfiguration:
   
   def test_get(self):
-    with patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.get") as get_mock:
+    with patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.get_by_id") as get_mock:
       expected_id = "test_id"
       VoiceConfigurationsController().get_voice_config(voice_config_id=expected_id)
       get_mock.assert_called_once_with(expected_id)
@@ -149,3 +152,89 @@ class TestRemoveVoiceConfiguration:
 
       get_mock.assert_called_once()
       delete_mock.assert_called_once_with(expected_id)
+
+def voice_configuration_dict_full(
+    expected_name="default_name",
+    expected_id="default_id"
+) -> dict:
+  """Returns a more complete voice config dict suitable for export testing."""
+  return {
+    "name": expected_name,
+    "speech_to_text": {
+      "provider": "deepgram",
+      "deepgram_stt_config": {
+        "api_url": "https://api.deepgram.com",
+        "api_key": "test_key",
+        "model": "nova-2"
+      }
+    },
+    "text_to_speech": {
+      "provider": "elevenlabs",
+      "elevenlabs_tts_config": {
+        "model_id": "eleven_turbo_v2_5",
+        "voice_id": "test_voice"
+      }
+    },
+    "voice_configuration_id": expected_id,
+    "tenant_id": "tenant-123",
+    "attached_agents": []
+  }
+
+class TestResolveConfigId:
+
+  def test_resolve_by_id(self):
+    expected_id = "test_id"
+    result = VoiceConfigurationsController().resolve_config_id(config_id=expected_id)
+    assert result == expected_id
+
+  def test_resolve_by_name(self):
+    with patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.get_by_name") as get_mock:
+      expected_id = "test_id"
+      expected_name = "test_name"
+      mock_config = voice_configuration_class(
+        expected_id=expected_id,
+        expected_name=expected_name
+      )
+      get_mock.return_value = [mock_config]
+
+      result = VoiceConfigurationsController().resolve_config_id(config_name=expected_name)
+
+      get_mock.assert_called_once_with(expected_name)
+      assert result == expected_id
+
+  def test_resolve_no_params(self):
+    with pytest.raises(SystemExit):
+      VoiceConfigurationsController().resolve_config_id()
+
+
+class TestExportVoiceConfig:
+
+  def test_export(self):
+    with patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.get_by_id") as get_mock:
+      expected_id = "test_id"
+      expected_name = "test_config"
+      get_mock.return_value = voice_configuration_dict_full(
+        expected_name=expected_name,
+        expected_id=expected_id
+      )
+
+      with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        temp_path = f.name
+
+      try:
+        VoiceConfigurationsController().export_voice_config(expected_id, temp_path)
+
+        assert os.path.exists(temp_path)
+        with open(temp_path, 'r') as f:
+          content = f.read()
+          assert expected_name in content
+          assert "deepgram" in content
+          assert "voice_configuration_id" not in content
+          assert "tenant_id" not in content
+      finally:
+        if os.path.exists(temp_path):
+          os.unlink(temp_path)
+
+  def test_export_invalid_extension(self):
+    with pytest.raises(SystemExit):
+      VoiceConfigurationsController().export_voice_config("test_id", "output.txt")
