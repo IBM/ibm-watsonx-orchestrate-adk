@@ -1,0 +1,17 @@
+name: deepgram_config
+speech_to_text:
+  provider: deepgram_stt
+  deepgram_stt_config:
+    api_key: "your-deepgram-api-key"
+    model: "nova-2"
+    language: "en-US"
+    numerals: true
+    mip_opt_out: false
+text_to_speech:
+  provider: deepgram_tts
+  deepgram_tts_config:
+    api_key: "your-deepgram-api-key"
+    language: "en"
+    voice: "aura-asteria-en"
+    mip_opt_out: false
+language: "en-US"

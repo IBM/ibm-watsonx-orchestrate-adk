@@ -1,0 +1,22 @@
+name: elevenlabs_tts_voice_config
+speech_to_text:
+  provider: watson_stt
+  watson_stt_config:
+    api_url: "example-stt.url"
+    api_key: "example stt key"
+    model: "example model"
+text_to_speech:
+  provider: elevenlabs_tts
+  elevenlabs_tts_config:
+    api_key: "your-elevenlabs-api-key"
+    model_id: "eleven_turbo_v2_5"
+    voice_id: "your-voice-id"
+    language_code: "en"
+    apply_text_normalization: "auto"
+    voice_settings:
+      speed: 1.0
+      stability: 0.5
+      style: 0.0
+      similarity_boost: 0.75
+      use_speaker_boost: true
+language: "en-US"
