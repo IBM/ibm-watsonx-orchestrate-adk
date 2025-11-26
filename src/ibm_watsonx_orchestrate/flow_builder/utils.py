@@ -566,7 +566,7 @@ FORM_SCHEMA_TEMPLATES = {
         ),
         "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
-            properties={"value": {"type": "object", "properties": {}}},
+            properties={"value": {"type": "array"}},
             required=["value"]
         ),
         "ui": {
@@ -615,6 +615,26 @@ FORM_SCHEMA_TEMPLATES = {
         ),
         "ui": {
             "ui:widget": "BulletList"
+        }
+    },
+
+    # List input template
+    "list_input": {
+        "input": JsonSchemaObject(
+            type='object',
+            properties={"default": {"type": "array", "items": {}}},
+            required=["default"],
+            additionalProperties=False
+        ),
+        "output": JsonSchemaObject(
+            type='object',
+            properties={"value": {"type": "array", "items": {}}},
+            required=["value"],
+            additionalProperties=False
+        ),
+        "ui": {
+            "ui:widget": "EditableTable",
+            "ui:options": {"label": False}
         }
     },
     
