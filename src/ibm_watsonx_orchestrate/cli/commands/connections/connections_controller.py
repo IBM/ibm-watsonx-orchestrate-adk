@@ -29,6 +29,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     # OAuth2ImplicitCredentials,
     OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
+    OAuth2TokenExchangeCredentials,
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
@@ -158,21 +159,21 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --auth-url is required for type {type}"
         )
 
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('client_id') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --client-id is required for type {type}"
         )
     
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('token_url') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --token-url is required for type {type}"
         )
 
-    if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('grant_type') is None
     ):
         raise typer.BadParameter(
@@ -258,6 +259,14 @@ def _get_credentials(type: ConnectionType, **kwargs):
                 grant_type=kwargs.get("grant_type"),
                 **custom_fields
             )
+        
+        case ConnectionType.OAUTH2_TOKEN_EXCHANGE:
+            keys = ["client_id","token_url","grant_type"]
+            filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
+            filtered_args["access_token_url"] = kwargs.get("token_url")
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
+            return OAuth2TokenExchangeCredentials(**filtered_args, **custom_fields)
+
         case ConnectionType.KEY_VALUE:
             env = {}
             for entry in kwargs.get('entries', []):
@@ -682,7 +691,6 @@ def set_credentials_connection(
         logger.error(f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`")
         sys.exit(1)
 
-    sso_enabled = config.sso
     conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)
     use_app_credentials = conn_type in OAUTH_CONNECTION_TYPES
 
@@ -716,14 +724,17 @@ def set_identity_provider_connection(
         logger.error(f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`")
         sys.exit(1)
 
-    sso_enabled = config.sso
     security_scheme = config.security_scheme
 
     if security_scheme != ConnectionSecurityScheme.OAUTH2:
         logger.error(f"Identity providers cannot be set for non-OAuth connection types. The connections specified is of type '{security_scheme}'")
         sys.exit(1)
-
-    if not sso_enabled:
+    
+    if config.auth_type != ConnectionType.OAUTH_ON_BEHALF_OF_FLOW:
+        logger.error(f"Identity Provider is only supported by '{ConnectionType.OAUTH_ON_BEHALF_OF_FLOW}' connections. Provided connection '{app_id}' is of type '{config.auth_type}'")
+        sys.exit(1)
+    
+    if not config.sso:
         logger.error(f"Cannot set Identity Provider when 'sso' is false in configuration. Please enable sso for connection '{app_id}' in environment '{environment}' and try again.")
         sys.exit(1)
 
