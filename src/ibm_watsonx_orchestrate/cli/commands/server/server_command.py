@@ -449,17 +449,13 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
 
     # Return the correct path for the VM to access
     system = platform.system().lower()
-    username = Path.home().name
 
-    if system == "darwin":
-        vm_env_path = Path(f"/Users/{username}/.cache/orchestrate/merged.env")
-    elif system == "windows":
+    if system == "windows":
         # When running in WSL, /home/orchestrate maps directly inside the WSL VM
         # vm_env_path = Path("/home/orchestrate/.cache/orchestrate/merged.env")
         vm_env_path = Path(path_for_vm(merged_env_path))
     else:
-        # Linux native
-        vm_env_path = Path(f"/home/{username}/.cache/orchestrate/merged.env")
+         vm_env_path = merged_env_path
 
     return vm_env_path
 
