@@ -33,10 +33,10 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
-    NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TimerNodeSpec,
+    NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
-    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFlowSpec, UserNodeSpec, WaitNodeSpec, WaitPolicy,
-    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput
+    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
+    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
@@ -770,20 +770,29 @@ class Flow(Node):
             enable_hw: bool = False,
             kvp_model_name: str | None = None,
             kvp_force_schema_name: str | None = None,
-            kvp_enable_text_hints: bool | None = True) -> DocProcNode:
+            kvp_enable_text_hints: bool | None = True,
+            output_format: DocProcOutputFormat | str = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
         
+        # Determine the output schema based on the output_format
+        text_extraction_schema = TextExtractionResponse
+        if output_format and output_format == DocProcOutputFormat.object:
+            text_extraction_schema = TextExtractionObjectResponse
         
-        output_schema_dict = { 
-            "text_extraction" : TextExtractionResponse
+        output_schema_dict = {
+            "text_extraction": text_extraction_schema
         }
          # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocProcInput)
         output_schema_obj = _get_json_schema_obj("output", output_schema_dict[task])
         if "$defs" in output_schema_obj.model_extra:
             output_schema_obj.model_extra.pop("$defs")
+        # Convert string to enum if needed
+        if isinstance(output_format, str):
+            output_format = DocProcOutputFormat(output_format)
+        
         # Create the docproc spec
         task_spec = DocProcSpec(
             name=name,
@@ -799,7 +808,8 @@ class Flow(Node):
             kvp_schemas=kvp_schemas,
             kvp_model_name=kvp_model_name,
             kvp_force_schema_name=kvp_force_schema_name,
-            kvp_enable_text_hints=kvp_enable_text_hints
+            kvp_enable_text_hints=kvp_enable_text_hints,
+            output_format=output_format
         )
 
         node = DocProcNode(spec=task_spec)
