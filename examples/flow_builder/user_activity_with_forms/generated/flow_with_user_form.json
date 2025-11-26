@@ -3,7 +3,7 @@
     "kind": "flow",
     "name": "user_flow_application_form",
     "display_name": "Application form",
-    "description": "Creates an application form.",
+    "description": "Creates a sample application form.",
     "input_schema": {
       "$ref": "#/schemas/user_flow_application_form_input"
     },
@@ -29,9 +29,6 @@
             "kind": "user",
             "name": "ApplicationForm",
             "display_name": "Application",
-            "output_schema": {
-              "$ref": "#/schemas/ApplicationForm"
-            },
             "owners": [
               "__current_user__"
             ],
@@ -42,9 +39,10 @@
               "display_name": "Application",
               "fields": [
                 {
-                  "name": "Salutation",
+                  "name": "salutation",
                   "kind": "any",
                   "direction": "input",
+                  "display_name": "Salutation",
                   "input_map": {
                     "spec": {
                       "maps": [
@@ -65,18 +63,8 @@
                       ]
                     }
                   },
-                  "display_name": "Salutation",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
-                    "required": [
-                      "choices"
-                    ],
                     "properties": {
                       "choices": {
                         "type": "array",
@@ -89,19 +77,22 @@
                       "display_text": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
                   },
                   "output_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
-                        "type": "object",
-                        "properties": {}
+                        "type": "array"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ]
                   },
                   "uiSchema": {
                     "ui:widget": "ComboboxWidget",
@@ -110,9 +101,10 @@
                   }
                 },
                 {
-                  "name": "Married",
+                  "name": "married",
                   "kind": "boolean",
                   "direction": "input",
+                  "display_name": "Married",
                   "input_map": {
                     "spec": {
                       "maps": [
@@ -128,32 +120,26 @@
                       ]
                     }
                   },
-                  "display_name": "Married",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
-                    "required": [],
                     "properties": {
                       "default": {
                         "type": "boolean"
                       }
-                    }
+                    },
+                    "required": [],
+                    "in_field": null
                   },
                   "output_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
                         "type": "boolean"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ]
                   },
                   "uiSchema": {
                     "ui:widget": "CheckboxWidget",
@@ -164,35 +150,30 @@
                   }
                 },
                 {
-                  "name": "LastName",
+                  "name": "lastName",
                   "kind": "text",
                   "direction": "input",
                   "display_name": "Last name",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
-                    "required": [],
                     "properties": {
                       "default": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": [],
+                    "in_field": null
                   },
                   "output_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ]
                   },
                   "uiSchema": {
                     "ui:widget": "TextWidget",
@@ -202,31 +183,25 @@
                   }
                 },
                 {
-                  "name": "Age",
+                  "name": "age",
                   "kind": "number",
                   "direction": "input",
                   "display_name": "Age",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
                     "required": [],
-                    "properties": {}
+                    "in_field": null
                   },
                   "output_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
                         "type": "number"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ]
                   },
                   "uiSchema": {
                     "ui:widget": "NumberWidget",
@@ -235,9 +210,10 @@
                   }
                 },
                 {
-                  "name": "Salary",
+                  "name": "salary",
                   "kind": "number",
                   "direction": "input",
+                  "display_name": "Desired salary",
                   "input_map": {
                     "spec": {
                       "maps": [
@@ -251,28 +227,21 @@
                       ]
                     }
                   },
-                  "display_name": "Desired salary",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
                     "required": [],
-                    "properties": {}
+                    "in_field": null
                   },
                   "output_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
                         "type": "number"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ]
                   },
                   "uiSchema": {
                     "ui:widget": "NumberWidget",
@@ -284,6 +253,7 @@
                   "name": "acknowledge",
                   "kind": "field",
                   "direction": "output",
+                  "display_name": "Projected salary",
                   "input_map": {
                     "spec": {
                       "maps": [
@@ -297,18 +267,8 @@
                       ]
                     }
                   },
-                  "display_name": "Desired salary",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
-                    "required": [
-                      "value"
-                    ],
                     "properties": {
                       "value": {
                         "anyOf": [
@@ -326,20 +286,80 @@
                           }
                         ]
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "DataWidget",
                     "ui:options": {
                       "label": true
                     },
-                    "ui:title": "Desired salary"
+                    "ui:title": "Projected salary"
+                  }
+                },
+                {
+                  "name": "endDate",
+                  "kind": "date",
+                  "direction": "input",
+                  "display_name": "End Date",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "maximum": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "minimum": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DateWidget",
+                    "ui:title": "End Date",
+                    "format": "YYYY-MM-DD"
                   }
                 },
                 {
                   "name": "strength",
                   "kind": "array",
                   "direction": "output",
+                  "display_name": "Qualification",
                   "input_map": {
                     "spec": {
                       "maps": [
@@ -360,24 +380,18 @@
                       ]
                     }
                   },
-                  "display_name": "Qualification",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
                   "input_schema": {
                     "type": "object",
-                    "required": [
-                      "choices"
-                    ],
                     "properties": {
                       "choices": {
                         "type": "array",
                         "items": {}
                       }
-                    }
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "BulletList",
@@ -385,27 +399,396 @@
                   }
                 },
                 {
-                  "name": "success",
-                  "kind": "text",
+                  "name": "friends",
+                  "kind": "array",
                   "direction": "output",
-                  "text": "Application successfully completed.",
-                  "display_name": "Successful submission",
-                  "min": [
-                    null
-                  ],
-                  "max": [
-                    null
-                  ],
+                  "display_name": "Friends",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.friends.listOfNames",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[\"item.first_name\", \"item.last_name\"]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {
+                            "assignmentType": "variable"
+                          }
+                        }
+                      ]
+                    }
+                  },
                   "input_schema": {
                     "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
+                  },
+                  "uiSchema": {
+                    "ui:widget": "Table",
+                    "ui:title": "Friends",
+                    "ui:options": {
+                      "label": false
+                    }
+                  }
+                },
+                {
+                  "name": "multi-choice",
+                  "kind": "array",
+                  "direction": "input",
+                  "display_name": "List of Fruits",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.listOfFruits",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array"
+                      }
+                    },
                     "required": [
                       "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "MultiselectDropdown",
+                    "ui:placeholder": "Please enter your choice",
+                    "ui:title": "List of Fruits"
+                  }
+                },
+                {
+                  "name": "multi-choice_as_dropdown_1",
+                  "kind": "array",
+                  "direction": "input",
+                  "display_name": "List of Books",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.books",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_text",
+                          "value_expression": "item.title",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "choices"
                     ],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "MultiselectDropdown",
+                    "ui:placeholder": "Please enter your choice",
+                    "ui:title": "List of Books"
+                  }
+                },
+                {
+                  "name": "multi-choice_as_table",
+                  "kind": "array",
+                  "direction": "input",
+                  "display_name": "List of Names",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.friends.listOfNames",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[\"item.first_name\", \"item.last_name\"]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "Table",
+                    "ui:placeholder": "Please enter your choice",
+                    "ui:title": "List of Names",
+                    "ui:options": {
+                      "label": false
+                    }
+                  }
+                },
+                {
+                  "name": "books",
+                  "kind": "array",
+                  "direction": "input",
+                  "display_name": "Books",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.books",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[\"item.title\", \"item.author\"]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {
+                            "assignmentType": "variable"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "default"
+                    ],
+                    "in_field": null,
+                    "additionalProperties": false
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "EditableTable",
+                    "ui:options": {
+                      "label": false
+                    }
+                  }
+                },
+                {
+                  "name": "Fruits",
+                  "kind": "array",
+                  "direction": "input",
+                  "display_name": "Preferred fruits",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.listOfFruits",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "default"
+                    ],
+                    "in_field": null,
+                    "additionalProperties": false
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "EditableTable",
+                    "ui:options": {
+                      "label": false
+                    }
+                  }
+                },
+                {
+                  "name": "success",
+                  "kind": "text",
+                  "text": "Application successfully completed.",
+                  "direction": "output",
+                  "display_name": "Successful submission",
+                  "input_schema": {
+                    "type": "object",
                     "properties": {
                       "value": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "DataWidget",
@@ -418,16 +801,11 @@
               ],
               "jsonSchema": {
                 "type": "object",
-                "required": [
-                  "Salutation",
-                  "LastName",
-                  "Age"
-                ],
                 "properties": {
-                  "Salutation": {
+                  "salutation": {
                     "title": "Salutation"
                   },
-                  "Married": {
+                  "married": {
                     "type": "boolean",
                     "title": "Married",
                     "oneOf": [
@@ -441,21 +819,26 @@
                       }
                     ]
                   },
-                  "LastName": {
+                  "lastName": {
                     "type": "string",
                     "title": "Last name"
                   },
-                  "Age": {
+                  "age": {
                     "type": "integer",
                     "title": "Age"
                   },
-                  "Salary": {
+                  "salary": {
                     "type": "number",
                     "title": "Desired salary"
                   },
                   "acknowledge": {
                     "type": "string",
-                    "title": "Desired salary"
+                    "title": "Projected salary"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "title": "End Date",
+                    "format": "date"
                   },
                   "strength": {
                     "type": "array",
@@ -464,11 +847,96 @@
                       "type": "string"
                     }
                   },
+                  "friends": {
+                    "type": "array",
+                    "title": "Friends",
+                    "properties": {
+                      "first_name": {
+                        "type": "string",
+                        "title": "First"
+                      },
+                      "last_name": {
+                        "type": "string",
+                        "title": "Last"
+                      }
+                    },
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "multi-choice": {
+                    "type": "array",
+                    "title": "List of Fruits",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "multi-choice_as_dropdown_1": {
+                    "type": "array",
+                    "title": "List of Books",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "multi-choice_as_table": {
+                    "type": "array",
+                    "title": "List of Names",
+                    "properties": {
+                      "first_name": {
+                        "type": "string",
+                        "title": "First"
+                      },
+                      "last_name": {
+                        "type": "string",
+                        "title": "Last"
+                      }
+                    },
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "books": {
+                    "type": "array",
+                    "title": "Books",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "title": "Book Title"
+                      },
+                      "author": {
+                        "type": "string",
+                        "title": "Book Author"
+                      }
+                    },
+                    "items": {
+                      "type": "string"
+                    },
+                    "isRowAddable": true,
+                    "isRowDeletable": true
+                  },
+                  "Fruits": {
+                    "type": "array",
+                    "title": "Preferred fruits",
+                    "properties": {},
+                    "items": {
+                      "type": "string"
+                    },
+                    "isRowAddable": true,
+                    "isRowDeletable": true
+                  },
                   "success": {
                     "type": "string",
                     "title": "Successful submission"
                   }
-                }
+                },
+                "required": [
+                  "salutation",
+                  "lastName",
+                  "age",
+                  "endDate",
+                  "books",
+                  "Fruits"
+                ]
               },
               "buttons": [
                 {
@@ -514,6 +982,14 @@
       "schemas": {},
       "metadata": {}
     },
+    "init_data": {
+      "spec": {
+        "kind": "script",
+        "name": "init_data",
+        "display_name": "init_data",
+        "fn": "\nflow.input.friends.listOfNames = [\n    {\"first_name\": \"John\", \"last_name\": \"Doe\"},\n    {\"first_name\": \"Alice\", \"last_name\": \"Smith\"},\n    {\"first_name\": \"Bob\", \"last_name\": \"Johnson\"}\n]\nflow.input.books=[\n    { \"title\": \"Shaken\", \"author\":\"John Grisham\"},\n    {\"title\": \"The Client\", \"author\":\"John Grisham\"},\n]\nflow.input.listOfFruits = [\"apple\", \"oranges\", \"bananas\"]\n"
+      }
+    },
     "__start__": {
       "spec": {
         "kind": "start",
@@ -532,6 +1008,10 @@
   "edges": [
     {
       "start": "__start__",
+      "end": "init_data"
+    },
+    {
+      "start": "init_data",
       "end": "userflow_1"
     },
     {
@@ -540,6 +1020,115 @@
     }
   ],
   "schemas": {
+    "Name": {
+      "type": "object",
+      "title": "Name",
+      "description": "This datatype represents a person's name.\n\nAttributes:\n    name (str): The person's first name.",
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "First name",
+          "default": "John"
+        },
+        "last_name": {
+          "type": "string",
+          "title": "Last Name",
+          "description": "Last name",
+          "default": "Doe"
+        }
+      }
+    },
+    "StringListNames": {
+      "type": "object",
+      "title": "StringListNames",
+      "description": "A list of friends with their names.",
+      "properties": {
+        "listOfNames": {
+          "type": "array",
+          "title": "Listofnames",
+          "description": "A list of Name objects with first and last names.",
+          "items": {
+            "title": "Listofnames",
+            "$ref": "#/schemas/Name"
+          },
+          "default": [
+            [
+              "John",
+              "Doe"
+            ],
+            [
+              "Jane",
+              "Doe"
+            ],
+            [
+              "Doe",
+              "Jean"
+            ]
+          ]
+        }
+      },
+      "default": {
+        "listOfNames": [
+          {
+            "first_name": "John",
+            "last_name": "Doe"
+          },
+          {
+            "first_name": "Jane",
+            "last_name": "Doe"
+          },
+          {
+            "first_name": "Jean",
+            "last_name": "Doe"
+          }
+        ]
+      }
+    },
+    "Book": {
+      "type": "object",
+      "title": "Book",
+      "description": "This datatype represents a book.\n\nAttributes:\n    title (str): The book's title.\n    author (str): The book's author.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Title",
+          "description": "Book title",
+          "default": "Shaken"
+        },
+        "author": {
+          "type": "string",
+          "title": "Author",
+          "description": "Author",
+          "default": "John Grisham"
+        }
+      }
+    },
+    "MyDate": {
+      "type": "object",
+      "title": "MyDate",
+      "description": "This datatype represents date information.\n\nAttributes:\n    dateStart (str): The start date.\n    dateEnd (str): The end date.\n    dateEvent (str): The event date.",
+      "properties": {
+        "dateStart": {
+          "type": "string",
+          "title": "Datestart",
+          "description": "Start date",
+          "default": "2023-01-01"
+        },
+        "dateEnd": {
+          "type": "string",
+          "title": "Dateend",
+          "description": "End date",
+          "default": "2023-12-31"
+        },
+        "dateEvent": {
+          "type": "string",
+          "title": "Dateevent",
+          "description": "Event date",
+          "default": "2023-06-15"
+        }
+      }
+    },
     "user_flow_application_form_input": {
       "type": "object",
       "title": "user_flow_application_form_input",
@@ -575,6 +1164,42 @@
           "title": "Salary Expectation",
           "description": "Expected salary as an integer number.",
           "default": 200000
+        },
+        "friends": {
+          "title": "StringListNames",
+          "$ref": "#/schemas/StringListNames"
+        },
+        "books": {
+          "type": "array",
+          "title": "Books",
+          "description": "A list of books.",
+          "items": {
+            "title": "Books",
+            "$ref": "#/schemas/Book"
+          },
+          "default": [
+            {
+              "title": "Shaken",
+              "author": "John Grisham"
+            }
+          ]
+        },
+        "event_date": {
+          "title": "MyDate",
+          "$ref": "#/schemas/MyDate"
+        },
+        "listOfFruits": {
+          "type": "array",
+          "title": "Listoffruits",
+          "description": "A list of fruits.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "apple",
+            "oranges",
+            "bananas"
+          ]
         }
       }
     },
@@ -586,6 +1211,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-06T14:02:10.614401+00:00"
+    "compiled_on": "2025-11-26T16:46:32.809596+00:00"
   }
 }

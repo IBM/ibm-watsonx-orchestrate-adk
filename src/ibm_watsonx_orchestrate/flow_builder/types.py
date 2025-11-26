@@ -754,7 +754,9 @@ class UserField(BaseModel):
         if self.text:
             model_spec["text"] = self.text
         if self.direction:
-            model_spec["direction"] = self.direction  
+            model_spec["direction"] = self.direction
+        if self.display_name:
+            model_spec["display_name"] = self.display_name      
         if self.input_map:
             # workaround for circular dependency related to Assigments in the Datamap module
             from .data_map import DataMapSpec, DataMap
@@ -1105,8 +1107,8 @@ class UserForm(BaseModel):
             isMultiSelect: bool = False,
     ) -> UserField:
         # Use the template system from utils
-        widget = "ComboboxWidget" if (show_as_dropdown or columns is None) else \
-                 "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else \
+        widget = "MultiselectDropdown" if (show_as_dropdown and isMultiSelect) else \
+                 "ComboboxWidget" if (show_as_dropdown or columns is None) else \
                  "Table"
         
         ui_config = {
@@ -1185,13 +1187,14 @@ class UserForm(BaseModel):
                 }
             self.jsonSchema.properties[name] = {
                 "type": "array",
-                "items": {"type": "object", "properties": properties},
+                "items": {"type": "string"},
+                "properties": properties,
                 "title": label
             }
         elif isMultiSelect:
             self.jsonSchema.properties[name] = {
                 "type": "array",
-                "items": {"type": "any"},
+                "items": {"type": "string"},
                 "title": label
             }
         else:
@@ -1316,6 +1319,7 @@ class UserForm(BaseModel):
         # Update JSON schema
         self.jsonSchema.properties[name] = {
             "description": instructions,
+            "items":{},
             "file_max_size": file_max_size,
             "multi": allow_multiple_files,
             "type": "array",
@@ -1476,10 +1480,89 @@ class UserForm(BaseModel):
                     }
             self.jsonSchema.properties[name] = {
                 "type": "array",
-                "items": {"type": "object", "properties": properties},
+                "items": {"type": "string"},
+                "properties": properties,
                 "title": label
             }
 
+        return userfield
+    
+    def list_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            isRowAddable: bool = False,
+            isRowDeletable: bool= False,
+            default: Any | None = None,
+            # A dictionary or columns names and their corresponding labels
+            columns: dict[str, str]| None = None
+    ) -> UserField:
+        ensure_datamap(default, "default")
+
+        # Use the template system from utils
+        schemas = clone_form_schema("list_input")
+        
+        # Configure input schema based on list type
+        schemas["input_schema"].properties["display_items"] = {"type": "array", "items": {}}
+        
+        # Configure source data mapping
+        if columns is not None:
+            # Build a list of strings like "item.name", "item.address", etc.
+            item_fields = [f'item.{key}' for key in columns.keys()]
+            # Convert into a JSON-style string list
+            value_expression = "[" + ", ".join(f'"{field}"' for field in item_fields) + "]"
+            # Create the assignment and add it to source
+            default.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression=value_expression,
+                    metadata={"assignmentType": "variable"}
+                )
+            )
+        else:
+            # If there are no columns create the empty list
+            default.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression="[]"
+                )
+            )
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.List,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            uiSchema=schemas["ui_schema"],
+            input_map=default
+        )
+        
+        # Add or replace the field
+        self.add_or_replace_field(name, userfield)
+        
+        # Update JSON schema based on list type
+        properties = {}
+        if columns is not None:
+            for key, val in columns.items():
+                properties[key] = {
+                    "type": "string",
+                    "title": val if val else key  # use value if present, else fallback to key
+                }
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {"type": "string"},
+            "properties": properties,
+            "title": label,
+            "isRowAddable": isRowAddable,
+            "isRowDeletable": isRowDeletable
+        }
+
+        if name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+        
         return userfield
 
     def file_download_field(
@@ -1517,8 +1600,9 @@ class UserForm(BaseModel):
         # Add or replace the field
         self.add_or_replace_field(name, userfield)
         
-        # Update JSON schema
-        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+        # Update JSON schema - use model_construct to bypass validation for custom "file" type
+        # pyright: ignore[reportCallIssue]
+        self.jsonSchema.properties[name] = JsonSchemaObject.model_construct(type="file", title=label)
 
         return userfield
 

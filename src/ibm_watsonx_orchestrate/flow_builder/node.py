@@ -536,6 +536,42 @@ class UserNode(Node):
                         source = choices,
                         columns=columns
                 )
+    
+    def list_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            isRowAddable: bool = True,
+            isRowDeletable: bool= True,
+            default: Any | None = None,
+            columns: dict[str, str] | None = None
+    ) -> UserField:
+         """
+         Creates a list input field in the form to display tabular data.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             default: The list of items to display, passed in a DataMap.
+             columns: Optional mapping of source property names to table column labels. When present, only those columns will be displayed.
+
+         Returns:
+             UserField: The created list input field.
+             
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
+         """
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         
+         return self.get_spec().form.list_input_field(
+                        name = name,
+                        label = label,
+                        isRowAddable = isRowAddable,
+                        isRowDeletable = isRowDeletable,
+                        default = default,
+                        columns=columns
+                )
     def file_download_field(
             self,
             name: str,
@@ -558,6 +594,8 @@ class UserNode(Node):
          """
          if self.get_spec().form is None:
              raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+         if value is None : 
+             raise ValueError("A file to donwload is required.") 
          
          return self.get_spec().form.file_download_field(
                         name = name,
