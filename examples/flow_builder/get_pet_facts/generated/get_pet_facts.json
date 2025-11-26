@@ -32,8 +32,8 @@
     "branch_1": {
       "spec": {
         "kind": "branch",
-        "name": "branch_1",
-        "display_name": "Branch_2",
+        "name": "branch_3",
+        "display_name": "branch_3",
         "evaluator": {
           "expression": "flow.input.kind.strip().lower() == 'dog'"
         },
@@ -122,6 +122,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T14:56:29.547537+00:00"
+    "compiled_on": "2025-06-09T18:48:32.970383+00:00"
   }
 }
