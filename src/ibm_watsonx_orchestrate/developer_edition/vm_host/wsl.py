@@ -106,6 +106,10 @@ def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate",
         )
         return result
     except subprocess.CalledProcessError as e:
+        # Ctrl+C while streaming logs
+        if e.returncode == 130:
+            return subprocess.CompletedProcess(args=e.cmd, returncode=130)
+
         logger.error(f"WSL command failed: {e.cmd}, return code: {e.returncode}")
         if e.stdout:
             logger.error(f"WSL command stdout: {e.stdout.strip()}")
