@@ -1,9 +1,12 @@
 import logging
+from typing import Optional
 import rich
 import jwt
 import sys
+import requests
+from urllib.parse import urlparse
 
-from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
+from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENV_CRN_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
 from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud_platform, get_environment, get_cpd_instance_id_from_url, is_saas_env, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
 
@@ -94,8 +97,8 @@ class ChannelsWebchatController:
                 logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
             exit(1)
 
-        if target_env == 'draft' and is_saas == True:
-            logger.error(f'For SAAS, please ensure this agent exists in a Live Environment')
+        if target_env == 'live' and is_saas == True:
+            logger.warning("For SAAS, please ensure this agent exists in a Live Environment, i.e. you've hit the Deploy button for that agent.")
             exit(1)
 
         return filtered_environments[0].get("id")
@@ -116,8 +119,6 @@ class ChannelsWebchatController:
         tenant_id = self.extract_tenant_id_from_crn(crn)
         return tenant_id
 
-
-
     def get_tenant_id_local(self):
         auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
 
@@ -133,6 +134,63 @@ class ChannelsWebchatController:
         tenant_id = token.get('woTenantId', None)
 
         return tenant_id
+    
+    def get_crn(self) -> str | None:
+        """
+        Retrieves the CRN for the active IBM Cloud environment.
+        If the CRN is already stored in the configuration it is returned directly.
+        Otherwise it is fetched from the IBM Cloud Resource Controller API using the
+        stored bearer token and written back to the config.
+        """
+        try:
+            # Load the main configuration and determine the active environment
+            cfg = Config()
+            active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+            env_cfg: dict = cfg.get(ENVIRONMENTS_SECTION_HEADER).get(active_env, {})
+            if not env_cfg or not is_ibm_cloud_platform(env_cfg.get(ENV_WXO_URL_OPT)):
+                return None
+
+            # Return the CRN if it is already present in the environment config
+            crn = env_cfg.get(ENV_CRN_OPT)
+            if crn:
+                return crn
+
+            # Retrieve the stored bearer token from the auth config
+            auth_cfg = Config(AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE)
+            auth_section = auth_cfg.get(AUTH_SECTION_HEADER) or {}
+            env_auth = auth_section.get(active_env, {})
+            token = env_auth.get(AUTH_MCSP_TOKEN_OPT)
+            if not token:
+                logger.error("No bearer token found for the active environment.")
+                return None
+
+            # Extract the instance ID from the wxo URL
+            wxo_url = env_cfg.get(ENV_WXO_URL_OPT)
+            if not wxo_url:
+                logger.error("Missing wxo URL in environment configuration.")
+                return None
+            parsed_url = urlparse(wxo_url)
+            instance_id = parsed_url.path.rstrip("/").split("/")[-1]
+
+            # Fetch CRN from IBM Cloud Resource Controller API
+            rc_url = f"https://resource-controller.cloud.ibm.com/v2/resource_instances/{instance_id}"
+            headers = {"authorization": f"Bearer {token}"}
+            response = requests.get(rc_url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            crn = data.get("id")
+            if not crn or not crn.startswith("crn:v1:bluemix:public:watsonx-orchestrate"):
+                logger.error("Fetched ID is not a valid Watsonx Orchestrate CRN.")
+                return None
+
+            # Persist CRN in config file
+            env_cfg["crn"] = crn
+            cfg.write(ENVIRONMENTS_SECTION_HEADER, active_env, env_cfg)
+
+            return crn
+        except Exception as exc:
+            logger.error(f"Error retrieving CRN: {exc}")
+            return None
 
     def get_host_url(self):
         cfg = Config()
@@ -165,7 +223,10 @@ class ChannelsWebchatController:
                 tenant_id = get_cpd_instance_id_from_url()
 
             case RuntimeEnvironmentType.IBM_CLOUD:
-                crn = input("Please enter your CRN which can be retrieved from the IBM Cloud UI: ")
+                crn = self.get_crn() # TODO: automatically get CRN from wxO URL
+                if crn is None:
+                    logger.warning("Could not get CRN automatically")
+                    crn = input("Please enter your CRN which can be retrieved from the IBM Cloud UI: ")
                 if crn == "":
                     logger.error("You must enter your CRN for IBM Cloud instances")
                     sys.exit(1)
