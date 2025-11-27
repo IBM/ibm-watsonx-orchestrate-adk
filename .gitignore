@@ -79,3 +79,7 @@ coverage/
 # Ignore local examples
 examples/local/
 examples/*/local/
+
+# Local development files - should not be committed
+docker-compose.override.yml
+start_orchestrate.sh

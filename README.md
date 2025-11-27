@@ -61,6 +61,32 @@ In order to install the watonx Orchestrate Agent Developer Kit simply run:
 pip install --upgrade ibm-watsonx-orchestrate
 ```
 
+## 🔄 Automatic Retry Functionality (New!)
+
+The ADK now includes automatic retry functionality with exponential backoff for handling transient network errors and temporary service unavailability. This feature provides robust error handling without requiring any code changes.
+
+### Key Features
+- **Automatic retries** for network timeouts and server errors (HTTP 5xx)
+- **Exponential backoff** with jitter to prevent thundering herd
+- **Environment variable configuration** for easy customization
+- **Smart error classification** - only retries errors likely to succeed
+
+### Quick Configuration
+```bash
+# Set retry behavior via environment variables
+export ADK_MAX_RETRIES=3        # Maximum retry attempts
+export ADK_RETRY_INTERVAL=1000  # Initial retry interval (ms)
+export ADK_TIMEOUT=300          # Request timeout (seconds)
+```
+
+### Documentation
+- 📖 **[Retry Configuration Guide](./docs/RETRY_CONFIGURATION.md)** - How to configure retry settings
+- 📊 **[Retry Comparison Guide](./docs/RETRY_COMPARISON.md)** - Client-level vs Flow node-level retries
+- 📚 **[Technical Implementation](./docs/RETRY_HANDLING.md)** - Detailed technical documentation
+- 🔍 **[Implementation Summary](./docs/RETRY_FEATURE_SUMMARY.md)** - Complete list of changes and files modified
+
+See [.env.example](./.env.example) for all available configuration options.
+
 
 
 ## The ADK command line tool
