@@ -1480,12 +1480,12 @@ class DockerComposeCore:
             logger.info(
                 f"Starting docker-compose {friendly_name} service inside {vm.__class__.__name__}..."
             )
-            return vm.run_docker_command(command, capture_output=True, env=compose_env)
+            return vm.run_docker_command(command, capture_output=False, env=compose_env)
         else:
             logger.info(f"Starting docker-compose {friendly_name} service (native Docker)...")
             return subprocess.run(
                 ["docker"] + command,
-                capture_output=True,
+                capture_output=False,
                 text=True,
                 env=compose_env,
             )
