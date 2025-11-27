@@ -31,6 +31,7 @@ def _safe_print(msg: str, style: str = "white"):
 
 class WSLLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
+        self.keyring_unlocked = False
         _ensure_wsl_installed()
 
     def start_server(self):
@@ -56,6 +57,9 @@ class WSLLifecycleManager(VMLifecycleManager):
         return f"/mnt/{drive}/{folder}"
     
     def run_docker_command(self, command: Union[str, List[str]], capture_output=False, **kwags) -> subprocess.CompletedProcess:
+        if not self.keyring_unlocked:
+            self.shell(["gnome-keyring-daemon", "unlock"],capture_output=True, user="orchestrate")
+            self.keyring_unlocked = True
         # Docker commands should implicitly run as 'orchestrate'
         # The 'shell' method should handle passing 'user="orchestrate"' to wsl_exec
         # If there's an explicit need to run docker as root, you'd add 'user="root"' to **kwags
@@ -362,7 +366,14 @@ def _configure_wsl_distro():
             # Install core dependencies
             DEBIAN_FRONTEND=noninteractive apt install -y \
                 ca-certificates curl gnupg lsb-release \
-                libsecret-1-0 pkg-config 
+                libsecret-1-0 pkg-config gnome-keyring
+
+            mkdir -p /home/orchestrate/.local/share/keyrings/
+            echo "Default_keyring" > /home/orchestrate/.local/share/keyrings/default
+            echo "[keyring]\ndisplay-name=Default keyring\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false" > /home/orchestrate/.local/share/keyrings/Default_keyring.keyring
+            
+            chown orchestrate:orchestrate /home/orchestrate/.local/share/keyrings
+
             
             install -m 0755 -d /etc/apt/keyrings
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -474,6 +485,7 @@ def _ensure_wsl_idle_timeout_disabled():
     new_block = [
         "[wsl2]\n",
         "idleTimeout=0\n",
+        "networkingMode=mirrored\n",
         "\n"
     ]
     cleaned.extend(new_block)
