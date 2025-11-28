@@ -95,6 +95,7 @@ def run_compose_lite(
         with_voice=False,
         with_connections_ui=False,
         with_langflow=False,
+        with_ai_builder=False,
     ) -> None:
     env_service.prepare_clean_env(final_env_file)
     db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
@@ -130,8 +131,10 @@ def run_compose_lite(
         profiles.append("connections-ui")
     if with_langflow:
         profiles.append("langflow")
+    if with_ai_builder:
+        profiles.append("agent-builder")
 
-    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0", "--scale", "cpe=0"])
+    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0"])
 
     if result.returncode == 0:
         logger.info("Services started successfully.")
@@ -515,6 +518,11 @@ def server_start(
         '--with-langflow',
         help='Enable Langflow UI, available at http://localhost:7861'
     ),
+    with_ai_builder: bool = typer.Option(
+        False,
+        '--with-ai-builder',
+        help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
+    ),
 ):
     cli_config = Config()
     confirm_accepts_license_agreement(accept_terms_and_conditions, cli_config)
@@ -565,6 +573,12 @@ def server_start(
     if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
 
+    if with_voice:
+        merged_env_dict['VOICE_ENABLED'] = 'true'
+    
+    if with_ai_builder:
+        merged_env_dict['AI_BUILDER_ENABLED'] = 'true'
+
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
     vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
@@ -574,10 +588,7 @@ def server_start(
         vm.start_server()
 
     logger.info("Running docker compose-up inside the VM...")
-    
-    if with_voice:
-        merged_env_dict['VOICE_ENABLED'] = 'true'
-    
+
     try:
         DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
     except ValueError as e:
@@ -591,9 +602,11 @@ def server_start(
                      with_doc_processing=with_doc_processing,
                      with_voice=with_voice,
                      with_connections_ui=with_connections_ui,
-                     with_langflow=with_langflow, env_service=env_service)
+                     with_langflow=with_langflow,
+                     with_ai_builder=with_ai_builder,
+                     env_service=env_service)
     
-    run_db_migration()
+    run_db_migration(with_ai_builder)
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
@@ -625,6 +638,8 @@ def server_start(
         logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
+    if with_ai_builder:
+        logger.info("AI Builder feature has been enabled. You can now use AI assisted agent authoring features")
 
 @server_app.command(name="stop")
 def server_stop(
@@ -684,7 +699,7 @@ def server_reset(
 
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
 
-def run_db_migration() -> None:
+def run_db_migration(with_ai_builder: bool = False) -> None:
     default_env_path = EnvService.get_default_env_file()
     merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
 
@@ -778,6 +793,40 @@ def run_db_migration() -> None:
         fi
     done
     '''
+
+    if with_ai_builder:
+        migration_script += rf'''
+        # Create architect database if it doesn't exist
+        if psql -U {pg_user} -lqt | cut -d \| -f 1 | grep -qw architect; then
+            echo 'Existing architect DB found'
+        else
+            echo 'Creating architect DB'
+            createdb -U "{pg_user}" -O "{pg_user}" architect;
+            psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE architect TO {pg_user}";
+        fi
+
+        # Run architect-specific migrations
+        ARCHITECT_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/architect_migrations.txt"
+        touch "$ARCHITECT_MIGRATIONS_FILE"
+
+        for file in /docker-entrypoint-initdb.d/agent_architecture/migrations/*.sql; do
+            if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                
+                if grep -Fxq "$filename" "$ARCHITECT_MIGRATIONS_FILE"; then
+                    echo "Skipping already applied architect migration: $filename"
+                else
+                    echo "Applying architect migration: $filename"
+                    if psql -U {pg_user} -d architect -q -f "$file" > /dev/null 2>&1; then
+                        echo "$filename" >> "$ARCHITECT_MIGRATIONS_FILE"
+                    else
+                        echo "Error applying architect migration: $filename. Stopping migrations."
+                        exit 1
+                    fi
+                fi
+            fi
+        done
+        '''
 
     # Encode the migration script to base64
     encoded_script = base64.b64encode(migration_script.encode('utf-8')).decode('utf-8')
