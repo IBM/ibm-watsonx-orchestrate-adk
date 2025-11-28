@@ -267,7 +267,7 @@ def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
         mock_compose_instance.services_up.assert_called_once_with(
             expected_profiles,
             mock_env_file,
-            ["--scale", "ui=0", "--scale", "cpe=0"]
+            ["--scale", "ui=0"]
         )
 
         mock_unlink.assert_called_once()
@@ -315,7 +315,7 @@ def test_run_compose_lite_success_docproc_true():
         mock_compose_instance.services_up.assert_called_once_with(
             expected_profiles,
             mock_env_file,
-            ["--scale", "ui=0", "--scale", "cpe=0"]
+            ["--scale", "ui=0"]
         )
 
         mock_unlink.assert_called_once()
@@ -361,7 +361,101 @@ def test_run_compose_lite_success_docproc_false():
         mock_compose_instance.services_up.assert_called_once_with(
             [],
             mock_env_file,
-            ["--scale", "ui=0", "--scale", "cpe=0"]
+            ["--scale", "ui=0"]
+        )
+
+        mock_unlink.assert_called_once()
+
+def test_run_compose_lite_success_ai_builder_true():
+    mock_env_file = Path("/tmp/test.env")
+
+    with patch("subprocess.run") as mock_run, \
+        skip_terms_and_conditions(), \
+        patch.object(Path, "unlink") as mock_unlink, \
+        patch.object(Path, "exists", return_value=True), \
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+        patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            with_ai_builder=True,
+            env_service=EnvService(Config())
+        )
+
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+
+        # Assert services_up called with docproc profile
+        expected_profiles = ["agent-builder"]
+        mock_compose_instance.services_up.assert_called_once_with(
+            expected_profiles,
+            mock_env_file,
+            ["--scale", "ui=0"]
+        )
+
+        mock_unlink.assert_called_once()
+
+
+def test_run_compose_lite_success_ai_builder_false():
+    mock_env_file = Path("/tmp/test.env")
+    with patch("subprocess.run") as mock_run, \
+        skip_terms_and_conditions(), \
+        patch.object(Path, "unlink") as mock_unlink, \
+        patch.object(Path, "exists", return_value=True), \
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
+        patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_get_vm_manager:
+
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = '{"tag_name": "v1.0.0"}'
+
+        mock_compose_instance = mock_docker_compose_core.return_value
+
+        mock_service_up_result = MagicMock()
+        mock_service_up_result.returncode = 0
+        mock_service_up_result.stderr = ""
+        mock_compose_instance.service_up.return_value = mock_service_up_result
+
+        mock_services_up_result = MagicMock()
+        mock_services_up_result.returncode = 0
+        mock_services_up_result.stderr = b""
+        mock_compose_instance.services_up.return_value = mock_services_up_result
+
+        run_compose_lite(
+            mock_env_file,
+            with_ai_builder=False,
+            env_service=EnvService(Config())
+        )
+
+        mock_compose_instance.service_up.assert_called_once_with(
+            service_name="wxo-server-db",
+            friendly_name="WxO Server DB",
+            final_env_file=mock_env_file,
+            compose_env=os.environ
+        )
+
+        mock_compose_instance.services_up.assert_called_once_with(
+            [],
+            mock_env_file,
+            ["--scale", "ui=0"]
         )
 
         mock_unlink.assert_called_once()
