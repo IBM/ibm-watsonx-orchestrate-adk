@@ -486,6 +486,13 @@ def _ensure_lima_vm_stopped():
         return
     
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
+    default_env_path = EnvService.get_default_env_file()
+    merged_env_dict = EnvService.merge_env(default_env_path, None)
+    health_user = merged_env_dict.get("WXO_USER")
+    health_pass = merged_env_dict.get("WXO_PASS")
+
+    was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+
     """Edit Lima VM config file directly to update resources."""
     logger.info("Stopping Lima VM...")
     _ensure_lima_vm_stopped()
@@ -522,24 +529,18 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     # Restart VM
     limactl(["start", VM_NAME], capture_output=True)
 
-    # Wait indefinitely for API health check
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, None)
-    health_user = merged_env_dict.get("WXO_USER")
-    health_pass = merged_env_dict.get("WXO_PASS")
+   
+    if was_server_running:
+        health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+        server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
 
-    url = "http://localhost:4321/api/v1/auth/token"
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    data = {'username': health_user, 'password': health_pass}
-
-    while True:
-        try:
-            response = requests.post(url, headers=headers, data=data)
-            if 200 <= response.status_code < 300:
-                break
-        except requests.RequestException:
-            pass
-        time.sleep(3)
+        if server_is_started:
+            logger.info("Lima VM editted and server restarted successfully.")
+        else:
+            logger.error("Lima VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+    else:
+        logger.info("Lima VM editted. To start the server 'orchestrate server start'.")
+    
 
     return True
 

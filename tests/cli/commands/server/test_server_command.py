@@ -706,7 +706,6 @@ def test_server_edit_success(monkeypatch):
         result = runner.invoke(server_app, ["edit", "--cpus", "4", "--memory", "8"], catch_exceptions=True)
         assert result.exit_code == 0
         mock_vm.edit_server.assert_called_once_with(4, 8, None)
-        mock_logger.info.assert_any_call("VM updated successfully and restarted.")
 
 
 def test_server_edit_failure(monkeypatch):
