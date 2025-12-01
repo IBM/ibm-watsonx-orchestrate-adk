@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from types import MappingProxyType
-from typing import Any, Callable, Dict, List, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, get_type_hints
 import logging
 
 from pydantic import TypeAdapter, BaseModel
@@ -26,6 +26,9 @@ JOIN_TOOL_PARAMS = {
     'messages': List[Dict[str, Any]],
 }
 
+TOOLS_DYNAMIC_PARAM_FLAG = "x-ibm-dynamic-field"
+
+
 def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict):
     parsed_expected_credentials = []
     if expected_credentials:
@@ -45,8 +48,44 @@ def _create_immutable_struct(input):
             return tuple([_create_immutable_struct(v) for v in input])
         case _:
             return input
-
     
+
+def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynamic_schema: Optional[ToolRequestBody|ToolResponseBody]) -> None:
+    """
+    Merge dynamic schema properties and required fields into the base schema.
+    Modifies base_schema in place.
+    
+    :param base_schema: The base schema to merge into
+    :param dynamic_schema: The dynamic schema to merge from
+    :raises ValueError: If duplicate property names are found between base and dynamic schemas
+    """
+    if not dynamic_schema:
+        return
+    
+    # Initialize required list if None
+    if base_schema.required is None:
+        base_schema.required = []
+    
+    # Extend required fields from dynamic schema
+    if dynamic_schema.required:
+        base_schema.required.extend(dynamic_schema.required)
+    
+    # Initialize properties dict if None
+    if base_schema.properties is None:
+        base_schema.properties = {}
+    
+    # Update properties from dynamic schema
+    if dynamic_schema.properties:
+        # Check if dynamic schema has properties with the same name as properties in base schema
+        duplicated_properties = set(base_schema.properties.keys()) & set(dynamic_schema.properties.keys())
+        if duplicated_properties:
+            logger.error(f"Dynamic schema can't have the same properties as base schema.\nDuplicate properties found: {duplicated_properties}")
+            raise ValueError("Duplicate properties found")
+
+        for prop_schema in dynamic_schema.properties.values():
+            # JsonSchemaObject has extra='allow'
+            setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
+        base_schema.properties.update(dynamic_schema.properties)
 
 
 class PythonTool(BaseTool):
@@ -60,7 +99,11 @@ class PythonTool(BaseTool):
                 expected_credentials: List[ExpectedCredentials] = None,
                 display_name: str = None,
                 kind: PythonToolKind = PythonToolKind.TOOL,
-                spec=None
+                spec=None,
+                enable_dynamic_input_schema: bool = False,
+                enable_dynamic_output_schema: bool = False,
+                dynamic_input_schema: Optional[ToolRequestBody] = None,
+                dynamic_output_schema: Optional[ToolResponseBody] = None,
                 ):
         self.fn = fn
         self.name = name
@@ -74,6 +117,10 @@ class PythonTool(BaseTool):
         self._spec = None
         if spec:
             self._spec = spec
+        self.enable_dynamic_input_schema = enable_dynamic_input_schema
+        self.enable_dynamic_output_schema = enable_dynamic_output_schema
+        self.dynamic_input_schema = dynamic_input_schema
+        self.dynamic_output_schema = dynamic_output_schema
 
     def __call__(self, *args, **kwargs):
         run_context_param = self.get_run_param()
@@ -157,8 +204,12 @@ class PythonTool(BaseTool):
             )
         else:
             spec.input_schema = self.input_schema
+
+        # Merge dynamic input schema if provided
+        if self.enable_dynamic_input_schema:
+            _merge_dynamic_schema(spec.input_schema, self.dynamic_input_schema)
         
-        _validate_input_schema(spec.input_schema)
+        _validate_input_schema(spec.input_schema, self.enable_dynamic_input_schema)
 
         if not self.output_schema:
             ret = sig.return_annotation
@@ -179,6 +230,9 @@ class PythonTool(BaseTool):
 
         else:
             spec.output_schema = ToolResponseBody()
+
+        if self.enable_dynamic_output_schema:
+            _merge_dynamic_schema(spec.output_schema, self.dynamic_output_schema)
         
          # Validate the generated schema still conforms to the requirement for a join tool
         if self.kind == PythonToolKind.JOIN_TOOL:
@@ -273,8 +327,13 @@ def _fix_optional(schema):
 
     return schema
 
-def _validate_input_schema(input_schema: ToolRequestBody) -> None:
+def _validate_input_schema(input_schema: ToolRequestBody, enable_dynamic_schema: bool) -> None:
     props = input_schema.properties
+    
+    # Remove kwargs if dynamic schema is enabled
+    if enable_dynamic_schema and "kwargs" in props:
+        del props["kwargs"]
+    
     for prop in props:
         property_schema = props.get(prop)
         if not (property_schema.type or property_schema.anyOf):
@@ -315,6 +374,10 @@ def tool(
     expected_credentials: List[ExpectedCredentials] = None,
     display_name: str = None,
     kind: PythonToolKind = PythonToolKind.TOOL,
+    enable_dynamic_input_schema: bool = False,
+    enable_dynamic_output_schema: bool = False,
+    dynamic_input_schema: Optional[ToolRequestBody | dict] = None,
+    dynamic_output_schema: Optional[ToolResponseBody | dict] = None,
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -324,6 +387,10 @@ def tool(
     :param input_schema: the json schema args to the tool
     :param output_schema: the response json schema for the tool
     :param permission: the permissions needed by the user of the agent to invoke the tool
+    :param enable_dynamic_input_schema: if dynamic input schema is enabled
+    :param enable_dynamic_output_schema: if dynamic output schema is enabled
+    :param dynamic_input_schema: the dynamic input schema for the tool - used to validate params passed under **kwargs
+    :param dynamic_output_schema: the dynamic output schema for the tool - used to validate dynamic return values
     :return:
     """
     # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
@@ -336,6 +403,12 @@ def tool(
                     raise BadRequest(f"Tool {name} has multiple run context objects")
                 del input_schema.properties[k]
                 agent_run_param = k
+    
+    if dynamic_input_schema and not isinstance(dynamic_input_schema, ToolRequestBody):
+        dynamic_input_schema = ToolRequestBody(**dynamic_input_schema)
+
+    if dynamic_output_schema and not isinstance(dynamic_output_schema, ToolResponseBody):
+        dynamic_output_schema = ToolResponseBody(**dynamic_output_schema)
 
     def _tool_decorator(fn):
 
@@ -348,7 +421,11 @@ def tool(
             permission=permission,
             expected_credentials=expected_credentials,
             display_name=display_name,
-            kind=kind
+            kind=kind,
+            enable_dynamic_input_schema=enable_dynamic_input_schema,
+            enable_dynamic_output_schema=enable_dynamic_output_schema,
+            dynamic_input_schema=dynamic_input_schema,
+            dynamic_output_schema=dynamic_output_schema
         )
 
         if agent_run_param:

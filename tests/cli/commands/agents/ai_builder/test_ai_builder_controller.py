@@ -1,18 +1,14 @@
 from typing import List, Dict, Any
 
-from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller import (
+from ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller import (
     _validate_output_file,
     _get_progress_spinner,
     _get_incomplete_tool_from_name,
     _get_tools_from_names,
-    get_cpe_client,
-    gather_utterances,
-    pre_cpe_step,
     find_tools_by_description,
-    gather_examples,
-    talk_to_cpe,
+    get_cpe_client,
     prompt_tune,
-    create_agent, refine_agent_with_trajectories
+    create_agent, submit_refine_agent_with_chats
 )
 
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -34,7 +30,7 @@ class MockCPEClient:
         self.mock_init_response = mock_init_response
         self.mock_refine_with_chat_response = refine_with_chat_response
 
-    def submit_pre_cpe_chat(self, **message_content):
+    def submit_gather_agent_artifacts(self, **message_content):
         if not len(self.pre_chat_responses):
             return {}
         response_index = self.pre_chat_reponses_index
@@ -45,7 +41,7 @@ class MockCPEClient:
         else:
             return self.pre_chat_responses[response_index]
 
-    def invoke(self, chat_llm, prompt):
+    def submit_tune_agent(self,chat_llm, message, additional_artifacts_info):
         if not len(self.invoke_responses):
             return {}
         response_index = self.invoke_responses_index
@@ -56,17 +52,17 @@ class MockCPEClient:
         else:
             return self.invoke_responses[response_index]
 
-    def init_with_context(self, chat_llm, context_data):
-        return self.mock_init_response
-
-    def refine_agent_with_chats(self, chat_llm: str | None, instruction: str, tools: Dict[str, Any], collaborators: Dict[str, Any],
-                                knowledge_bases: Dict[str, Any], trajectories_with_feedback: List[List[dict]],
-                                model: str | None = None) -> dict:
+    def submit_refine_agent_with_chats(self, instruction: str, tools: Dict[str, Any], collaborators: Dict[str, Any],
+                                       knowledge_bases: Dict[str, Any], trajectories_with_feedback: List[List[dict]],
+                                       model: str | None = None, chat_llm: str | None = None) -> dict:
         return self.mock_refine_with_chat_response
 
     def healthcheck(self):
         return
 
+class MockAgentBuilderClient:
+    def healthcheck(self):
+        return
 
 class MockToolClient:
     def __init__(self, get_response=[], get_drafts_by_names_response=[]):
@@ -86,7 +82,6 @@ class TestValidateOutputFile:
         [
             ("output_file.yaml", False),
             ("output_file.yml", False),
-            ("output_file.json", False),
             (None, True),
         ]
     )
@@ -113,7 +108,8 @@ class TestValidateOutputFile:
             "output_file.txt",
             "output_file.csv",
             "output_file.json.test",
-            "output_file"
+            "output_file",
+            "output_file.json"
         ]
     )
     def test_validate_output_file_invalid_file_extention(self, output_file, caplog):
@@ -121,7 +117,7 @@ class TestValidateOutputFile:
             _validate_output_file(output_file=output_file, dry_run_flag=False)
 
         captured = caplog.text
-        assert "Output file must be of type '.yaml', '.yml' or '.json'" in captured
+        assert "Output file must be of type '.yaml' or '.yml'" in captured
 
 
 class TestGetProgressSpinner:
@@ -159,7 +155,7 @@ class TestGetToolsFromNames:
     )
     def test_get_tools_from_names(self, tool_names, caplog):
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client:
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client:
             mock_response = [{"name": tool_name} for tool_name in tool_names]
             mock_get_tool_client.return_value = MockToolClient(get_drafts_by_names_response=mock_response)
 
@@ -178,7 +174,7 @@ class TestGetToolsFromNames:
     def test_get_tools_from_names_missing_tools(self, caplog):
         tool_names = ["test_tool", "test_tool_2"]
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client:
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client:
             mock_response = [{"name": "test_tool_2"}]
             mock_get_tool_client.return_value = MockToolClient(get_drafts_by_names_response=mock_response)
 
@@ -194,7 +190,7 @@ class TestGetToolsFromNames:
     def test_get_tools_from_names_server_not_started(self, caplog):
         tool_names = ["test_tool", "test_tool_2"]
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client:
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client:
             mock_reponse = MagicMock()
             mock_reponse.get_drafts_by_names.side_effect = ConnectionError()
             mock_get_tool_client.return_value = mock_reponse
@@ -208,76 +204,17 @@ class TestGetToolsFromNames:
             assert "Failed to fetch tools from server" in captured
 
 
-#class TestGetCPEClient:
-    # def test_get_cpe_client(self):
-    #     from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
-    #     with patch(
-    #             "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.instantiate_client") as mock_instantiate_client:
-    #         get_cpe_client()
-    #
-    #         mock_instantiate_client.assert_called_once_with(
-    #             client=CPEClient,
-    #             url="http://localhost:8081"
-    #         )
-
-
-class TestGatherUtterances:
-    @pytest.mark.parametrize(
-        "max",
-        [
-            1,
-            2,
-            3
-        ]
-    )
-    def test_gather_utterances(self, max):
-        with patch("builtins.input") as mock_input:
-            mock_input.side_effect = ["test"] * max
-            utterances = gather_utterances(max)
-
-        assert len(utterances) == max
-        for item in utterances:
-            assert item == "test"
-
-
-class TestPreCPEStep:
-    def test_pre_cpe_step(self):
-        pre_chat_responses = [
-            {
-                "message": "Test Message"
-            },
-            {
-                "description": "Test Description"
-            },
-            {
-                "tools": []
-            },
-            {
-                "collaborators": []
-            },
-            {
-                "knowledge_bases": []
-            },
-            {
-                "agent_name": "Test Agent",
-                "agent_style": "Test Style",
-            }
-        ]
-        cpe_client = MockCPEClient(pre_chat_responses=pre_chat_responses)
-        with patch("builtins.input") as mock_input, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_deployed_tools_agents_and_knowledge_bases") as get_deployed_tools_agents_and_knowledge_bases:
-            # , \
-            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.find_tools_by_description") as mock_find_tools_by_description,
-            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.") as XXX,
-            # patch("ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.") as YYY:
-            mock_input.side_effect = ["test", "test", "test", "test"]
-            # mock_find_tools_by_description.return_value=[]
-            get_deployed_tools_agents_and_knowledge_bases.return_value = {"tools": [], "collaborators": [],
-                                                                          "knowledge_bases": []}
-
-            pre_cpe_step(cpe_client, chat_llm=None)
-
+class TestGetCPEClient:
+    def test_get_cpe_client(self):
+        from ibm_watsonx_orchestrate.client.ai_builder.cpe.cpe_client import CPEClient
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.instantiate_client") as mock_instantiate_client:
+            get_cpe_client()
+    
+            mock_instantiate_client.assert_called_once_with(
+                client=CPEClient,
+                url="http://localhost:8081"
+            )
 
 class TestFindToolsByDescription:
     @pytest.mark.parametrize(
@@ -305,160 +242,74 @@ class TestFindToolsByDescription:
         assert "Failed to contact wxo server to fetch tools" in captured
 
 
-class TestGatherExamples:
-    def test_gather_examples_txt(self):
-        sample_data = "test1\ntest2\ntest3"
-        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=sample_data)):
-            examples = gather_examples("sample_file.txt")
-            assert len(examples) == 3
-            assert examples == sample_data.split('\n')
-
-    def test_gather_examples_csv(self):
-        sample_data = "utterance\ntest1\ntest2\ntest3"
-        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=sample_data)):
-            examples = gather_examples("sample_file.csv")
-            assert len(examples) == 3
-            assert examples == sample_data.split('\n')[1:]
-
-    @pytest.mark.parametrize(
-        "content",
-        [
-            "utterance123\ntest1\ntest2\ntest3",
-            "test1\ntest2\ntest3",
-            "\ntest1\ntest2\ntest3"
-        ]
-    )
-    def test_gather_examples_csv_missing_header(self, content, caplog):
-        with patch('ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.safe_open', mock_open(read_data=content)):
-            with pytest.raises(BadRequest):
-                examples = gather_examples("sample_file.csv")
-
-        captured = caplog.text
-
-        assert "CSV must have a column named 'utterance'" in captured
-
-    @pytest.mark.parametrize(
-        "file_name",
-        [
-            "file.yaml",
-            "file.json",
-            "file"
-        ]
-    )
-    def test_gather_examples_unsupported_file(self, file_name, caplog):
-        with pytest.raises(BadRequest):
-            examples = gather_examples(file_name)
-
-        captured = caplog.text
-
-        assert f'Unsupported samples file format: {os.path.basename(file_name)}' in captured
-
-    def test_gather_examples_no_file(self):
-        with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.gather_utterances") as mock_gather_utterances:
-            mock_gather_utterances.return_value = []
-            examples = gather_examples()
-
-            mock_gather_utterances.assert_called_once_with(3)
-
-
-class TestTalkToCPE:
-    def test_talk_to_cpe(self):
-        invoke_responses = [
-            {
-                "response": [
-                    {
-                        "final_zsh_prompt": "Testing"
-                    }
-                ]
-            }
-        ]
-        mock_init_response = {"response": [{}]}
-        cpe_client = MockCPEClient(invoke_responses=invoke_responses, mock_init_response=mock_init_response)
-        with patch("builtins.input") as mock_input, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.gather_examples") as mock_gather_examples:
-            mock_input.side_effect = ["test"]
-
-            response = talk_to_cpe(cpe_client, None,None)
-
-            assert response == "Testing"
-
-
 class TestPromptTune:
-    def test_prompt_tune(self, caplog):
+    def test_prompt_tune(self, capsys):
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.import_agent") as mock_import_agent, \
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_details") as mock_get_agent_details, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.read_agent_yaml_and_publish_to_runtime") as mock_read_agent_yaml_and_publish_to_runtime, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.os.path.dirname") as mock_dirname, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.talk_to_cpe") as mock_talk_to_cpe:
-            mock_import_agent.return_value = [Agent(
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+            mock_agent = Agent(
+                id="mock_id",
                 kind=AgentKind.NATIVE,
                 name="test_agent",
                 description="test_agent_description"
-            )]
+            )
+            mock_read_agent_yaml_and_publish_to_runtime.return_value = mock_agent
+            mock_get_agent_details.return_value = mock_agent.model_dump()
+            mock_chat_with_agent_builder.return_value = mock_agent
 
-            mock_get_cpe_client.return_value = MockCPEClient()
-            mock_get_tool_client.return_value = MockToolClient()
-            mock_talk_to_cpe.return_value = "Test Prompt"
-            mock_dirname.return_value = False
+            mock_get_agent_builder_client.return_value = MockAgentBuilderClient()
+
 
             prompt_tune(
                 chat_llm=None,
                 agent_spec="test_agent_spec.yaml",
                 output_file=None,
-                samples_file=None,
-                dry_run_flag=False
+                dry_run_flag=False,
+                llm=None
             )
 
-            mock_persist_record.assert_called_once()
+        captured = capsys.readouterr()
+        assert "Agent YAML saved in file" in captured.out
 
-        captured = caplog.text
-        assert "The new instruction is:" in captured
-
-    def test_prompt_tune_dry_run(self, caplog):
+    def test_prompt_tune_dry_run(self, capsys):
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.import_agent") as mock_import_agent, \
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_details") as mock_get_agent_details, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.read_agent_yaml_and_publish_to_runtime") as mock_read_agent_yaml_and_publish_to_runtime, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.os.path.dirname") as mock_dirname, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.talk_to_cpe") as mock_talk_to_cpe:
-            mock_import_agent.return_value = [Agent(
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+            mock_agent = Agent(
+                id="mock_id",
                 kind=AgentKind.NATIVE,
                 name="test_agent",
                 description="test_agent_description"
-            )]
+            )
+            mock_read_agent_yaml_and_publish_to_runtime.return_value = mock_agent
+            mock_get_agent_details.return_value = mock_agent.model_dump()
+            mock_chat_with_agent_builder.return_value = mock_agent
+            mock_reference_agent_dependencies.return_value = mock_agent
 
-            mock_get_cpe_client.return_value = MockCPEClient()
-            mock_get_tool_client.return_value = MockToolClient()
-            mock_talk_to_cpe.return_value = "Test Prompt"
-            mock_dirname.return_value = False
+            mock_get_agent_builder_client.return_value = MockAgentBuilderClient()
 
             prompt_tune(
                 chat_llm=None,
                 agent_spec="test_agent_spec.yaml",
                 output_file=None,
-                samples_file=None,
+                llm=None,
                 dry_run_flag=True
             )
 
-            mock_persist_record.assert_not_called()
-
-        captured = caplog.text
-        assert "The new instruction is:" in captured
+        captured = capsys.readouterr()
+        assert "Your agent refinement session finished successfully!" in captured.out
 
     @pytest.mark.parametrize(
         ("agent_class", "agent_kind", "agent_params"),
@@ -468,118 +319,99 @@ class TestPromptTune:
         ]
     )
     def test_prompt_tune_non_native(self, caplog, agent_class, agent_kind, agent_params):
-        with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.import_agent") as mock_import_agent, \
+         with patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_details") as mock_get_agent_details, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.import_agent") as mock_import_agent, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.os.path.dirname") as mock_dirname, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.talk_to_cpe") as mock_talk_to_cpe:
-            mock_import_agent.return_value = [agent_class(
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+            mock_agent = agent_class(
+                id="test_id",
                 kind=agent_kind,
                 name="test_agent",
                 description="test_agent_description",
                 **agent_params
-            )]
+            )
 
-            mock_get_cpe_client.return_value = MockCPEClient()
-            mock_get_tool_client.return_value = MockToolClient()
-            mock_talk_to_cpe.return_value = "Test Prompt"
-            mock_dirname.return_value = False
+            mock_get_agent_details.return_value = mock_agent.model_dump()
+            mock_chat_with_agent_builder.return_value = mock_agent
+            mock_reference_agent_dependencies.return_value = mock_agent
+            mock_import_agent.return_value = [mock_agent]
+
+            mock_get_agent_builder_client.return_value = MockAgentBuilderClient()
 
             with pytest.raises(SystemExit):
                 prompt_tune(
                     chat_llm=None,
                     agent_spec="test_agent_spec.yaml",
                     output_file=None,
-                    samples_file=None,
+                    llm=None,
                     dry_run_flag=True
                 )
+            
 
-        captured = caplog.text
-        assert f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'" in captured
+            captured = caplog.text
+            assert f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'" in captured
 
 
 class TestCreateAgent:
-    def test_create_agent(self):
+    def test_create_agent(self, capsys):
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.pre_cpe_step") as mock_pre_cpe_step, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.os.path.dirname") as mock_dirname, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.talk_to_cpe") as mock_talk_to_cpe:
-            mock_get_cpe_client.return_value = MockCPEClient()
-            mock_get_tool_client.return_value = MockToolClient()
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+            
+            mock_agent = Agent(
+                id="mock_id",
+                kind=AgentKind.NATIVE,
+                name="test_agent",
+                description="test_agent_description"
+            )
 
-            mock_pre_cpe_step.return_value = {
-                "tools": [],
-                "description": "test description",
-                "agent_name": "test_name",
-                "agent_style": AgentStyle.DEFAULT,
-                "collaborators": [],
-                "knowledge_bases": []
-            }
-
-            mock_talk_to_cpe.return_value = "test instructions"
-            mock_dirname.return_value = False
+            mock_get_agent_builder_client.return_value = MockAgentBuilderClient()
+            mock_chat_with_agent_builder.return_value = mock_agent
 
             create_agent(
                 chat_llm=None,
                 output_file="test.yaml",
                 llm=None,
-                samples_file=None,
             )
 
-            mock_persist_record.assert_called()
+            captured = capsys.readouterr()
+            assert "Agent YAML saved in file" in captured.out 
 
-    def test_create_agent_dry_run(self):
-        with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+    def test_create_agent_dry_run(self, capsys):
+         with patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_tool_client") as mock_get_tool_client, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.pre_cpe_step") as mock_pre_cpe_step, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.os.path.dirname") as mock_dirname, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.talk_to_cpe") as mock_talk_to_cpe:
-            mock_get_cpe_client.return_value = MockCPEClient()
-            mock_get_tool_client.return_value = MockToolClient()
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+            
+            mock_agent = Agent(
+                id="mock_id",
+                kind=AgentKind.NATIVE,
+                name="test_agent",
+                description="test_agent_description"
+            )
 
-            mock_pre_cpe_step.return_value = {
-                "tools": [],
-                "description": "test description",
-                "agent_name": "test_name",
-                "agent_style": AgentStyle.DEFAULT,
-                "collaborators": [],
-                "knowledge_bases": []
-            }
-
-            mock_talk_to_cpe.return_value = "test instructions"
-            mock_dirname.return_value = False
+            mock_get_agent_builder_client.return_value = MockAgentBuilderClient()
+            mock_chat_with_agent_builder.return_value = mock_agent
+            mock_reference_agent_dependencies.return_value = mock_agent
 
             create_agent(
                 chat_llm=None,
-                output_file=None,
                 llm=None,
-                samples_file=None,
-                dry_run_flag=True
+                dry_run_flag=True,
+                output_file=None
             )
 
-            mock_persist_record.assert_called_once()
+            captured = capsys.readouterr()
+            assert "Your agent building session finished successfully!" in captured.out 
 
 
 class TestRefineAgentWithChat:
@@ -611,18 +443,18 @@ class TestRefineAgentWithChat:
 
     def test_refine_agent_with_chats(self):
         with (patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.persist_record") as mock_persist_record, \
                 patch("builtins.input") as mock_input, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.ThreadsClient.get_all_threads") as mock_get_all_threads, \
+                    "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
                 patch(
                     "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client):
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client):
 
             mock_input.side_effect = ['1']
             mock_get_agent.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
@@ -631,7 +463,7 @@ class TestRefineAgentWithChat:
             mock_get_all_threads.return_value = self.mock_get_all_threads_response
             mock_get_cpe_client.return_value = MockCPEClient(refine_with_chat_response=self.refine_with_chat_response)
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
-            refine_agent_with_trajectories(
+            submit_refine_agent_with_chats(
                 chat_llm=None,
                 output_file="test.yaml",
                 agent_name="test_agent",
@@ -645,18 +477,18 @@ class TestRefineAgentWithChat:
 
     def test_refine_agent_with_chats_dry_run(self):
         with patch(
-                "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.persist_record") as mock_persist_record, \
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.persist_record") as mock_persist_record, \
                 patch("builtins.input") as mock_input, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
                 patch(
                     "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
                 patch(
                     "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.copilot.copilot_controller.get_cpe_client") as mock_get_cpe_client:
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client:
 
             mock_input.side_effect = ['1']
             mock_get_agent.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
@@ -668,7 +500,7 @@ class TestRefineAgentWithChat:
             
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
             
-            refine_agent_with_trajectories(
+            submit_refine_agent_with_chats(
                 chat_llm=None,
                 agent_name="test_agent",
                 output_file=None,

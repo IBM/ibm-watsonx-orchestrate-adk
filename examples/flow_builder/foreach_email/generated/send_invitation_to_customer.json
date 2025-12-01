@@ -203,27 +203,6 @@
         }
       }
     },
-    "CustomerRecord_1": {
-      "type": "object",
-      "title": "CustomerRecord_1",
-      "description": "TODO: Docstring",
-      "required": [
-        "name",
-        "email"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "title": "Name",
-          "description": "The name of the customer"
-        },
-        "email": {
-          "type": "string",
-          "title": "Email",
-          "description": "The email address of the customer"
-        }
-      }
-    },
     "send_invitation_email_input": {
       "type": "object",
       "title": "send_invitation_email_input",
@@ -233,13 +212,13 @@
       "properties": {
         "record": {
           "title": "CustomerRecord",
-          "$ref": "#/schemas/CustomerRecord_1"
+          "$ref": "#/schemas/CustomerRecord"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-28T20:11:24.926993+00:00"
+    "compiled_on": "2025-11-19T15:10:35.127036+00:00"
   }
 }
