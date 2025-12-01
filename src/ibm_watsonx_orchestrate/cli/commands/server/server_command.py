@@ -284,17 +284,26 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
+
     cli_config = Config()
     env_service = EnvService(cli_config)
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=final_env_file, is_reset=is_reset)
+    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=vm_env_file, is_reset=is_reset)
 
     if result.returncode == 0:
         logger.info("UI service stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
+        if vm_env_file.exists():
+            vm_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
