@@ -965,9 +965,7 @@ def server_edit(
     vm = get_vm_manager()
     if vm:
         success =  vm.edit_server(cpus, memory, disk)
-        if success:
-            logger.info("VM updated successfully and restarted.")
-        else:
+        if not success:
             logger.error("Failed to Update VM.")
             sys.exit(1)
     else:

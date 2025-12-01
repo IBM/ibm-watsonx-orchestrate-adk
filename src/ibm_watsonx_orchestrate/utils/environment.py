@@ -5,6 +5,8 @@ import platform
 import subprocess
 import sys
 import tempfile
+import requests
+import time
 from pathlib import Path
 from typing import Tuple, OrderedDict, Any
 from urllib.parse import urlparse
@@ -411,6 +413,33 @@ class EnvService:
             pass
         else:
             raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+    
+    @staticmethod
+    def _check_dev_edition_server_health(username: str, password: str) -> bool:
+        url = "http://localhost:4321/api/v1/auth/token"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        data = {'username': username, 'password': password}
+        try:
+            response = requests.post(url, headers=headers, data=data)
+            if 200 <= response.status_code < 300:
+                return True
+        except:
+            pass
+        return False
+
+    @staticmethod
+    def _wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=120, interval_seconds=3):
+        start_time = time.time()
+        while time.time() - start_time <= timeout_seconds:
+            try:
+                res = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+                if res:
+                    return True
+            except requests.RequestException as e:
+                pass
+
+            time.sleep(interval_seconds)
+        return False
 
 
     @staticmethod

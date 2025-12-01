@@ -634,6 +634,13 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
     Containers and data remain intact.
     """
     try:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, None)
+        health_user = merged_env_dict.get("WXO_USER")
+        health_pass = merged_env_dict.get("WXO_PASS")
+
+        was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+
         wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
 
         # Write clean WSL2 section
@@ -706,25 +713,17 @@ EOF
 
         logger.info("WSL VM configuration and Docker restart completed successfully.")
 
-        # Optional: API health check
-        default_env_path = EnvService.get_default_env_file()
-        merged_env_dict = EnvService.merge_env(default_env_path, None)
-        health_user = merged_env_dict.get("WXO_USER")
-        health_pass = merged_env_dict.get("WXO_PASS")
-        url = "http://localhost:4321/api/v1/auth/token"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        data = {'username': health_user, 'password': health_pass}
+        if was_server_running:
+            logger.info("Waiting for API to be reachable...")
+            health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+            server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
 
-        logger.info("Waiting for API to be reachable...")
-
-        while True:
-            try:
-                response = requests.post(url, headers=headers, data=data)
-                if 200 <= response.status_code < 300:
-                    break
-            except requests.RequestException:
-                pass
-            time.sleep(3)
+            if server_is_started:
+                logger.info("WSL VM editted and server restarted successfully.")
+            else:
+                logger.error("WSL VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+        else:
+            logger.info("WSL VM editted. To start the server 'orchestrate server start'.")
 
         logger.info("API reachable.")
         return True
