@@ -1,37 +1,63 @@
 import logging
 import os
 import sys
-import csv
 import difflib
 import re
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 
 import rich
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from rich import box
+from rich.json import JSON
+from rich.console import Group
 from requests import ConnectionError
-from typing import List, Dict
+from typing import List, Dict, Any
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
-from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, SpecVersion
+from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, get_agent_details
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate.client.ai_builder.agent_builder_client import AgentBuilderClient
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.copilot.cpe.copilot_cpe_client import CPEClient
+from ibm_watsonx_orchestrate.client.ai_builder.cpe.cpe_client import CPEClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
-from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
+def __box_print(message_lines: List[str | Dict[Any, Any]], title: str | None = None):
+    content_parts = []
+    
+    for item in message_lines:
+        if isinstance(item, dict):
+            # Create rich JSON representation for dictionaries
+            json_content = JSON.from_data(item)
+            content_parts.append(json_content)
+        else:
+            # Treat as string (convert if needed)
+            content_parts.append(str(item))
+    
+    # If we have mixed content (strings and JSON), we need to handle them differently
+    if any(isinstance(item, dict) for item in message_lines):
+        # Create a group of renderables for mixed content
+        panel = Panel(Group(*content_parts), box=box.DOUBLE, padding=(0, 1), title=title)
+    else:
+        # All strings - join with newlines as before
+        message = "\n".join(str(item) for item in message_lines)
+        panel = Panel(message, box=box.DOUBLE, padding=(0, 1), title=title)
+    
+    rich.print(panel)
 
-def _handle_cpe_server_errors(func=None, *args, **kwargs):
+def _handle_agent_builder_server_errors(func=None, *args, **kwargs):
     def decorator(inner_func):
         @wraps(inner_func)
         def wrapper(*args, **kwargs):
@@ -39,11 +65,11 @@ def _handle_cpe_server_errors(func=None, *args, **kwargs):
                 return inner_func(*args, **kwargs)
             except ConnectionError:
                 logger.error(
-                    "Failed to connect to Copilot server. Please ensure Copilot is running via `orchestrate copilot start`")
+                    "Failed to connect to AI Builder server. Please ensure AI Builder is running via `orchestrate server start --with-ai-builder`")
                 sys.exit(1)
             except ClientAPIException:
                 logger.error(
-                    "An unexpected server error has occurred with in the Copilot server. Please check the logs via `orchestrate server logs`")
+                    "An unexpected server error has occurred with in the AI Builder server. Please check the logs via `orchestrate server logs`")
                 sys.exit(1)
         return wrapper
 
@@ -55,7 +81,8 @@ def _handle_cpe_server_errors(func=None, *args, **kwargs):
     return decorator
 
 
-def _validate_output_file(output_file: str, dry_run_flag: bool) -> None:
+def _validate_output_file(output_file: Path, dry_run_flag: bool) -> None:
+    output_file = Path(output_file) if output_file else None
     if not output_file and not dry_run_flag:
         logger.error(
             "Please provide a valid yaml output file. Or use the `--dry-run` flag to output generated agent content to terminal")
@@ -66,9 +93,8 @@ def _validate_output_file(output_file: str, dry_run_flag: bool) -> None:
         sys.exit(1)
 
     if output_file:
-        _, file_extension = os.path.splitext(output_file)
-        if file_extension not in {".yaml", ".yml", ".json"}:
-            logger.error("Output file must be of type '.yaml', '.yml' or '.json'")
+        if output_file.suffix not in {".yaml", ".yml"}:
+            logger.error("Output file must be of type '.yaml' or '.yml'")
             sys.exit(1)
 
 
@@ -116,7 +142,7 @@ def _get_tools_from_names(tool_names: List[str]) -> List[dict]:
             for tool_name in tool_names:
                 if tool_name not in found_tools:
                     logger.warning(
-                        f"Failed to find tool named '{tool_name}'. Falling back to incomplete tool definition. Copilot performance maybe effected.")
+                        f"Failed to find tool named '{tool_name}'. Falling back to incomplete tool definition. Prompt generation performance maybe effected.")
                     tools.append(_get_incomplete_tool_from_name(tool_name))
     except ConnectionError:
         logger.warning(
@@ -144,7 +170,7 @@ def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
             for collaborator_name in collaborators_names:
                 if collaborator_name not in found_agents:
                     logger.warning(
-                        f"Failed to find agent named '{collaborator_name}'. Falling back to incomplete agent definition. Copilot performance maybe effected.")
+                        f"Failed to find agent named '{collaborator_name}'. Falling back to incomplete agent definition. Prompt generation performance maybe effected.")
                     agents.append(_get_incomplete_agent_from_name(collaborator_name))
     except ConnectionError:
         logger.warning(
@@ -172,7 +198,7 @@ def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
             for kb_name in kb_names:
                 if kb_name not in found_kbs:
                     logger.warning(
-                        f"Failed to find knowledge base named '{kb_name}'. Falling back to incomplete knowledge base definition. Copilot performance maybe effected.")
+                        f"Failed to find knowledge base named '{kb_name}'. Falling back to incomplete knowledge base definition. Prompt generation performance maybe effected.")
                     knowledge_bases.append(_get_incomplete_knowledge_base_from_name(kb_name))
     except ConnectionError:
         logger.warning(
@@ -183,15 +209,37 @@ def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
 
     return knowledge_bases
 
-@_handle_cpe_server_errors()
+def _get_excluded_fields(agent = None):
+    excluded_fields = {"llm_config"}
+    if agent:
+        for attr in dir(agent):
+            if not getattr(agent, attr, None):
+                excluded_fields.add(attr)
+    else:
+        excluded_fields.add("chat_with_docs")
+        excluded_fields.add("guidelines")
+    return list(excluded_fields)
+
+def get_cpe_client() -> CPEClient:
+    url = os.getenv('CPE_URL', "http://localhost:8081")
+    return instantiate_client(client=CPEClient, url=url)
+
+
+def get_agent_builder_client() -> AgentBuilderClient:
+    url = os.getenv('AGENT_ARCHITECT_URL', "http://localhost:5321")
+    return instantiate_client(client=AgentBuilderClient, url=url)
+
+@_handle_agent_builder_server_errors()
 def _healthcheck_cpe_server(client: CPEClient | None = None):
     if not client:
         client = get_cpe_client()
     client.healthcheck()
 
-def get_cpe_client() -> CPEClient:
-    url = os.getenv('CPE_URL', "http://localhost:8081")
-    return instantiate_client(client=CPEClient, url=url)
+@_handle_agent_builder_server_errors()
+def _healthcheck_agent_builder_server(client: AgentBuilderClient | None = None):
+    if not client:
+        client = get_agent_builder_client()
+    client.healthcheck()
 
 
 def get_tool_client(*args, **kwargs):
@@ -208,22 +256,6 @@ def get_native_client(*args, **kwargs):
 
 def get_threads_client():
     return instantiate_client(ThreadsClient)
-
-
-def gather_utterances(max: int) -> list[str]:
-    utterances = []
-    logger.info("Please provide 3 sample utterances you expect your agent to handle:")
-
-    count = 0
-
-    while count < max:
-        utterance = Prompt.ask("  [green]>[/green]").strip()
-
-        if utterance:
-            utterances.append(utterance)
-            count += 1
-
-    return utterances
 
 
 def get_knowledge_bases(client):
@@ -247,51 +279,6 @@ def get_deployed_tools_agents_and_knowledge_bases():
     all_knowledge_bases = get_knowledge_bases(get_knowledge_bases_client())
 
     return {"tools": all_tools, "collaborators": all_agents, "knowledge_bases": all_knowledge_bases}
-
-@_handle_cpe_server_errors()
-def pre_cpe_step(cpe_client, chat_llm):
-    tools_agents_and_knowledge_bases = get_deployed_tools_agents_and_knowledge_bases()
-    user_message = ""
-    with _get_progress_spinner() as progress:
-        task = progress.add_task(description="Initializing Prompt Engine", total=None)
-        response = cpe_client.submit_pre_cpe_chat(chat_llm=chat_llm, user_message=user_message)
-        progress.remove_task(task)
-
-    res = {}
-    while True:
-        if "message" in response and response["message"]:
-            rich.print('\n🤖 Copilot: ' + response["message"])
-            user_message = Prompt.ask("\n👤 You").strip()
-            message_content = {"user_message": user_message}
-        elif "description" in response and response[
-            "description"]:  # after we have a description, we pass the all tools
-            res["description"] = response["description"]
-            message_content = {"tools": tools_agents_and_knowledge_bases['tools']}
-        elif "tools" in response and response[
-            'tools'] is not None:  # after tools were selected, we pass all collaborators
-            res["tools"] = [t for t in tools_agents_and_knowledge_bases["tools"] if
-                            t["name"] in response["tools"]]
-            message_content = {"collaborators": tools_agents_and_knowledge_bases['collaborators']}
-        elif "collaborators" in response and response[
-            'collaborators'] is not None:  # after we have collaborators, we pass all knowledge bases
-            res["collaborators"] = [a for a in tools_agents_and_knowledge_bases["collaborators"] if
-                                    a["name"] in response["collaborators"]]
-            message_content = {"knowledge_bases": tools_agents_and_knowledge_bases['knowledge_bases']}
-        elif "knowledge_bases" in response and response[
-            'knowledge_bases'] is not None:  # after we have knowledge bases, we pass selected=True to mark that all selection were done
-            res["knowledge_bases"] = [a for a in tools_agents_and_knowledge_bases["knowledge_bases"] if
-                                      a["name"] in response["knowledge_bases"]]
-            message_content = {"selected": True}
-        elif "agent_name" in response and response[
-            'agent_name'] is not None:  # once we have a name and style, this phase has ended
-            res["agent_name"] = response["agent_name"]
-            res["agent_style"] = response["agent_style"]
-            return res
-        with _get_progress_spinner() as progress:
-            task = progress.add_task(description="Thinking...", total=None)
-            response = cpe_client.submit_pre_cpe_chat(chat_llm=chat_llm,**message_content)
-            progress.remove_task(task)
-
 
 def find_tools_by_description(description, tool_client):
     with _get_progress_spinner() as progress:
@@ -320,174 +307,200 @@ def find_agents(agent_client):
             logger.warning("Failed to contact wxo server to fetch agents. Proceeding with empty agent list")
     return agents
 
+@_handle_agent_builder_server_errors()
+def chat_with_agent_builder(
+    client: AgentBuilderClient,
+    chat_llm: str,
+    llm: str,
+    description: str,
+    dry_run_flag: bool,
+    output_file: Path,
+    agent_id: str | None=None,
+    excluded_fields: List[str] = None):
 
-def gather_examples(samples_file=None):
-    if samples_file:
-        if samples_file.endswith('.txt'):
-            with safe_open(samples_file) as f:
-                examples = f.read().split('\n')
-        elif samples_file.endswith('.csv'):
-            with safe_open(samples_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                if 'utterance' not in reader.fieldnames:
-                    raise BadRequest("CSV must have a column named 'utterance'")
-                examples = [row['utterance'].strip() for row in reader if row['utterance'].strip()]
-        else:
-            raise BadRequest(f'Unsupported samples file format: {os.path.basename(samples_file)}')
-    else:
-        examples = gather_utterances(3)
+    user_message = "" if not description else description
+    notified_user = False
 
-    console = Console()
-    logger.info("You provided the following samples:")
-    for i, utterance in enumerate(examples, 1):
-        console.print(f"  {i}. {utterance}")
-
-    return examples
-
-@_handle_cpe_server_errors()
-def talk_to_cpe(cpe_client, chat_llm, samples_file=None, context_data=None):
-    context_data = context_data or {}
-    examples = gather_examples(samples_file)
-    # upload or gather input examples
-    context_data['examples'] = examples
-    response = None
-    with _get_progress_spinner() as progress:
-        task = progress.add_task(description="Thinking...", total=None)
-        response = cpe_client.init_with_context(chat_llm=chat_llm, context_data=context_data)
+    agents_controller = AgentsController()
+    while True:
+        with _get_progress_spinner() as progress:
+            task = progress.add_task(description="Thinking...", total=None)
+            response = client.submit_chat(user_message=user_message,
+                                            chat_llm=chat_llm,
+                                           agent_id=agent_id)
+            
+            #    LOCAL_CLI = "LOCAL_CLI" we know what to do
+            #    LOCAL_UI = "LOCAL_UI"
+            #    SAAS_UI = "SAAS_UI"
+            #    SAAS_CLI = "SAAS_CLI"
+        if response.get('agent_id'):
+            # read agent from runtime and save it to yaml
+            agent_id = response.get('agent_id')
+            agent = _save_agent_info_as_yaml(agents_controller, agent_id, dry_run_flag=dry_run_flag, llm=llm, output_file=output_file, excluded_fields=excluded_fields)
         progress.remove_task(task)
-    accepted_prompt = None
-    while accepted_prompt is None:
-        resp = response.get('response')[0]
-        accepted_prompt = resp.get("final_zsh_prompt", None)
-        if not accepted_prompt:
-            cpe_message = resp.get("message", "")
-            rich.print('\n🤖 Copilot: ' + cpe_message)
-            message = Prompt.ask("\n👤 You").strip()
-            with _get_progress_spinner() as progress:
-                task = progress.add_task(description="Thinking...", total=None)
-                response = cpe_client.invoke(chat_llm=chat_llm, prompt=message)
-                progress.remove_task(task)
 
-    return accepted_prompt
+        end_conversation = response.get("conversation_state") == "conversation_ended"
+        if end_conversation:
+            #no need to save here because when conversation ended, the agent is not updated.
+            return agent
+        else:
+            if response.get("conversation_state") == "artifacts_gathering_is_done":
+                user_message = "Create"
+                continue # another call to the agent builder, user input is not needed (parallel to the click on the "create" button in the UI)
+            elif agent_id is not None:
+                # This happens after the first version of the instruction is generated
+                if not notified_user:
+                    if not dry_run_flag:
+                        rich.print('\n🤖 Builder: ' +
+                                f"Based on the information you provided so far, an initial Agent Definitions YAML file has been created and is located in: {output_file}.\n"
+                                "We will now continue our conversion to further adjust the agent definitions according to your feedback and requests,"
+                                "and the YAML file will be automatically updated throughout our conversation. "
+                                "You may manually edit any of the fields in the YAML file, and Agent Architect will incorporate those changes in real time. "
+                                "For the best experience, it is recommended to open the file in your preferred IDE to view and manage the most up-to-date version.")
+
+                    else:
+                        rich.print("[italic dim]dry-run flag is true. Agent instructions will be printed on every message[/italic dim]")
+                notified_user = True
+
+            if "formatted_message" in response and response["formatted_message"]:
+                rich.print('\n🤖 Builder: ' + response["formatted_message"]["content"][0]["text"])
+                user_message = Prompt.ask("\n👤 You").strip()
+                # it is verified that we first write to the yaml file (in the previos else block, and only then read this file.
+                if agent_id is not None:
+                    # Read the latest yaml file
+                    if not dry_run_flag and output_file.exists():  # edits not possible in a dry run
+                        read_agent_yaml_and_publish_to_runtime(output_file)
+
+            else:
+                raise ValueError(
+                    f"Wrong structure of response. Should contain 'formatted_message'`. {response}")
 
 
-def prompt_tune(agent_spec: str, chat_llm: str | None, output_file: str | None, samples_file: str | None, dry_run_flag: bool) -> None:
-    agent = AgentsController.import_agent(file=agent_spec, app_id=None)[0]
-    agent_kind = agent.kind
+def _save_agent_info_as_yaml(agents_controller: AgentsController, agent_id: str, dry_run_flag, llm, output_file, excluded_fields):
+    agent = agents_controller.get_agent_by_id(agent_id)
+    if llm:
+        agent.llm = llm
 
-    if agent_kind != AgentKind.NATIVE:
-        logger.error(
-            f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'")
-        sys.exit(1)
+    if dry_run_flag:
+        __box_print([
+            agent.instructions
+        ], title="Instructions")
+    else:
+        agents_controller.export_agent(name=agent.name, kind=agent.kind, output_path=output_file, agent_only_flag=True, exclude=excluded_fields)
+    return agent
 
-    agent.llm_config = None
-
+def prompt_tune(agent_spec: Path, chat_llm: str | None, llm:str, output_file: Path | None, dry_run_flag: bool) -> None:
     if not output_file and not dry_run_flag:
         output_file = agent_spec
 
     _validate_output_file(output_file, dry_run_flag)
     _validate_chat_llm(chat_llm)
 
-    client = get_cpe_client()
-    _healthcheck_cpe_server(client)
+    agent_spec = Path(agent_spec)
+    output_file = Path(output_file) if output_file else None
 
-    instr = agent.instructions
+    client = get_agent_builder_client()
+    _healthcheck_agent_builder_server(client=client)
 
-    tools = _get_tools_from_names(agent.tools)
+    agent = read_agent_yaml_and_publish_to_runtime(agent_spec)
+    agent_id = get_agent_details(agent.name, client=get_native_client()).get("id")
+    excluded_fields = _get_excluded_fields(agent)
+    try:
+        agent = chat_with_agent_builder(client=client,
+                                          chat_llm=chat_llm,
+                                          llm=llm if llm else DEFAULT_LLM,
+                                          description=None,
+                                          output_file=output_file,
+                                          agent_id=agent_id,
+                                          dry_run_flag=dry_run_flag,
+                                          excluded_fields=excluded_fields)
 
-    collaborators = _get_agents_from_names(agent.collaborators)
 
-    knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
-    new_prompt = talk_to_cpe(cpe_client=client,
-                                chat_llm=chat_llm,
-                                samples_file=samples_file,
-                                context_data={
-                                    "initial_instruction": instr,
-                                    'tools': tools,
-                                    'description': agent.description,
-                                    "collaborators": collaborators,
-                                    "knowledge_bases": knowledge_bases
-                                })
+    except ConnectionError:
+        logger.error(
+            "Failed to connect to AI Builder server. Please ensure AI Builder is running via `orchestrate server start --with-ai-builder`")
+        sys.exit(1)
+    except ClientAPIException:
+        logger.error(
+            "An unexpected server error has occurred with in the AI Builder server. Please check the logs via `orchestrate server logs`")
+        sys.exit(1)
 
-    if new_prompt:
-        logger.info(f"The new instruction is: {new_prompt}")
-        agent.instructions = new_prompt
+    if not dry_run_flag:
+        message_lines = [
+            "Your agent refinement session finished successfully!",
+            f"Agent YAML saved in file:",
+            f"{output_file.absolute()}"
+        ]
+    else:
+        agents_controller = AgentsController()
+        agent = agents_controller.reference_agent_dependencies(agent)
+        message_lines = [
+            "Your agent refinement session finished successfully!",
+            agent.model_dump(exclude_none=True, exclude_unset=True, exclude=excluded_fields)
+        ]
 
-        if dry_run_flag:
-            rich.print(agent.model_dump(exclude_none=True, mode="json"))
-        else:
-            if os.path.dirname(output_file):
-                os.makedirs(os.path.dirname(output_file), exist_ok=True)
-            AgentsController.persist_record(agent, output_file=output_file)
+    __box_print(message_lines)
 
 def _validate_chat_llm(chat_llm):
     if chat_llm:
         formatted_chat_llm = re.sub(r'[^a-zA-Z0-9/]', '-', chat_llm)
-        if "llama-3-3-70b-instruct" not in formatted_chat_llm:
-            raise BadRequest(f"Unsupported chat model for copilot {chat_llm}. Copilot supports only llama-3-3-70b-instruct at this point.")
+        if "llama-3-3-70b-instruct" not in formatted_chat_llm and "gpt-oss-120b" not in formatted_chat_llm and "claude-sonnet-4-5" not in formatted_chat_llm:
+            raise BadRequest(f"Unsupported chat model for AI Builder {chat_llm}. AI Builder supports only llama-3-3-70b-instruct and gpt-oss-120b at this point.")
 
-def create_agent(output_file: str, llm: str, chat_llm: str | None, samples_file: str | None, dry_run_flag: bool = False) -> None:
+
+def read_agent_yaml_and_publish_to_runtime(agent_spec: Path) -> dict[Any, Any]:
+    agent = AgentsController.import_agent(file=str(agent_spec), app_id=None)[0]
+
+    agent_kind = agent.kind
+    if agent_kind != AgentKind.NATIVE:
+        logger.error(
+            f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'")
+        sys.exit(1)
+
+    agents_controller = AgentsController()
+    agents_controller.publish_or_update_agents([agent])
+
+    return agent
+
+
+
+def create_agent(output_file: Path, llm: str, chat_llm: str | None, dry_run_flag: bool = False, description: str=None) -> None:
     _validate_output_file(output_file, dry_run_flag)
     _validate_chat_llm(chat_llm)
-    # 1. prepare the clients
-    cpe_client = get_cpe_client()
 
-    # 2. Ensure the copilto server is started
-    _healthcheck_cpe_server(cpe_client)
+    output_file = Path(output_file) if output_file else None
 
-    # 3. Pre-CPE stage:
-    res = pre_cpe_step(cpe_client, chat_llm=chat_llm)
+    # 1. prepare the client
+    agent_builder_client = get_agent_builder_client()
+    _healthcheck_agent_builder_server(client=agent_builder_client)
 
-    tools = res["tools"]
-    collaborators = res["collaborators"]
-    knowledge_bases = res["knowledge_bases"]
-    description = res["description"]
-    agent_name = res["agent_name"]
-    agent_style = res["agent_style"]
+    # 3. Agent Builder
+    excluded_fields = _get_excluded_fields()
+    try:
+        agent = chat_with_agent_builder(agent_builder_client,chat_llm=chat_llm, description=description, dry_run_flag=dry_run_flag, output_file=output_file, llm=llm if llm else DEFAULT_LLM, excluded_fields=excluded_fields)
+    except ConnectionError:
+        logger.error(
+            "Failed to connect to AI Builder server. Please ensure AI Builder is running via `orchestrate sever start --with-ai-builder`")
+        sys.exit(1)
+    except ClientAPIException:
+        logger.error(
+            "An unexpected server error has occurred with in the AI Builder server. Please check the logs via `orchestrate server logs`")
+        sys.exit(1)
 
-    # 4. discuss the instructions
-    instructions = talk_to_cpe(cpe_client, chat_llm, samples_file,
-                               {'description': description, 'tools': tools, 'collaborators': collaborators,
-                                'knowledge_bases': knowledge_bases})
-
-    # 6. create and save the agent
-    llm = llm if llm else DEFAULT_LLM
-    params = {
-        'style': agent_style,
-        'tools': [t['name'] for t in tools],
-        'llm': llm,
-        'collaborators': [c['name'] for c in collaborators],
-        'knowledge_base': [k['name'] for k in knowledge_bases]
-        # generate_agent_spec expects knowledge_base and not knowledge_bases
-    }
-    agent = AgentsController.generate_agent_spec(agent_name, AgentKind.NATIVE, description, **params)
-    agent.instructions = instructions
-    agent.spec_version = SpecVersion.V1
-    agent.llm_config = None
-
-    if dry_run_flag:
-        rich.print(agent.model_dump(exclude_none=True, mode="json"))
-        return
-
-    if os.path.dirname(output_file):
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    AgentsController.persist_record(agent, output_file=output_file)
-
-    message_lines = [
-        "Your agent building session finished successfully!",
-        f"Agent YAML saved in file:",
-        f"{os.path.abspath(output_file)}"
-    ]
-
-    # Determine the width of the frame
-    max_length = max(len(line) for line in message_lines)
-    frame_width = max_length + 4  # Padding for aesthetics
-
-    # Print the framed message
-    rich.print("╔" + "═" * frame_width + "╗")
-    for line in message_lines:
-        rich.print("║  " + line.ljust(max_length) + "  ║")
-    rich.print("╚" + "═" * frame_width + "╝")
+    if not dry_run_flag:
+        message_lines = [
+            "Your agent building session finished successfully!",
+            f"Agent YAML saved in file:",
+            f"{output_file.absolute()}"
+        ]
+    else:
+        agents_controller = AgentsController()
+        agent = agents_controller.reference_agent_dependencies(agent)
+        message_lines = [
+            "Your agent building session finished successfully!",
+            agent.model_dump(exclude_none=True, exclude_unset=True, exclude=excluded_fields)
+        ]
+    __box_print(message_lines)
 
 
 def _format_thread_messages(messages:List[dict]) -> List[dict]:
@@ -520,7 +533,7 @@ def _suggest_sorted(user_input: str, options: List[str]) -> List[str]:
     # Sort by similarity score
     return sorted(options, key=lambda x: difflib.SequenceMatcher(None, user_input, x).ratio(), reverse=True)
 
-def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output_file: str | None,
+def submit_refine_agent_with_chats(agent_name: str, chat_llm: str | None, output_file: Path | None,
                                    use_last_chat: bool=False, dry_run_flag: bool = False) -> None:
     """
     Refines an existing agent's instructions using user selected chat trajectories and saves the updated agent configuration.
@@ -532,7 +545,7 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
     2. **Chat Retrieval**: Fetches the 10 most recent chat threads associated with the agent. If no chats are found,
        the user is prompted to initiate a conversation.
     3. **User Selection**: Displays a summary of recent chats and allows the user to select which ones to use for refinement.
-    4. **Refinement**: Sends selected chat messages to the Copilot Prompt Engine (CPE) to generate refined instructions.
+    4. **Refinement**: Sends selected chat messages to the AI Builder to generate refined instructions.
     5. **Update and Save**: Updates the agent's instructions and either prints the
        updated agent (if `dry_run_flag` is True) or saves it to the specified output file.
 
@@ -546,9 +559,11 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
     Returns:
         None
     """
-
     _validate_output_file(output_file, dry_run_flag)
     _validate_chat_llm(chat_llm)
+
+    output_file = Path(output_file) if output_file else None
+
     agents_controller = AgentsController()
     agents_client = get_native_client()
     threads_client = get_threads_client()
@@ -560,7 +575,7 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
     agent_id = all_agents.get(agent_name)
     if agent_id is None:
         if len(all_agents) == 0:
-            raise BadRequest("No agents in workspace\nCreate your first agent using `orchestrate copilot prompt-tune`")
+            raise BadRequest("No agents in workspace\nCreate your first agent using `orchestrate agents ai-builder prompt-tune`")
         else:
             available_sorted_str = "\n".join(_suggest_sorted(agent_name, all_agents.keys()))
             raise BadRequest(f'Agent "{agent_name}" does not exist.\n\n'
@@ -633,44 +648,57 @@ def refine_agent_with_trajectories(agent_name: str, chat_llm: str | None, output
         threads_messages = get_user_selection(last_10_chats)
 
     # Step 4 - run the refiner
-    with _get_progress_spinner() as progress:
-        agent = agents_controller.get_agent_by_id(id=agent_id)
-        task = progress.add_task(description="Running Prompt Refiner", total=None)
-        tools_client = get_tool_client()
-        knowledge_base_client = get_knowledge_bases_client()
-        # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
-        agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
-        agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
-        agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
-        tools = _get_tools_from_names(agent.tools)
-        collaborators = _get_agents_from_names(agent.collaborators)
-        knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
-        if agent.instructions is None:
-            raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate copilot prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
-        response = _handle_cpe_server_errors(
-            func=cpe_client.refine_agent_with_chats,
-            instruction=agent.instructions,
-            chat_llm=chat_llm,
-            tools=tools,
-            collaborators=collaborators,
-            knowledge_bases=knowledge_bases,
-            trajectories_with_feedback=threads_messages
+    try:
+        with _get_progress_spinner() as progress:
+            agent = agents_controller.get_agent_by_id(id=agent_id)
+            excluded_fields = _get_excluded_fields(agent)
+            task = progress.add_task(description="Running Prompt Refiner", total=None)
+            tools_client = get_tool_client()
+            knowledge_base_client = get_knowledge_bases_client()
+            # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
+            agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
+            agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
+            agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
+            tools = _get_tools_from_names(agent.tools)
+            collaborators = _get_agents_from_names(agent.collaborators)
+            knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)
+            if agent.instructions is None:
+                raise BadRequest("Agent must have instructions in order to use the autotune command. To build an instruction use `orchestrate agents ai-builder prompt-tune -f <path_to_agent_yaml> -o <path_to_new_agent_yaml>`")
+
+            response = _handle_agent_builder_server_errors(
+                func=cpe_client.submit_refine_agent_with_chats,  # TODO @@@ make sure it exists
+                instruction=agent.instructions,
+                chat_llm=chat_llm,
+                tools=tools,
+                collaborators=collaborators,
+                knowledge_bases=knowledge_bases,
+                trajectories_with_feedback=threads_messages
             )
-        progress.remove_task(task)
-        progress.refresh()
+
+            progress.remove_task(task)
+            progress.refresh()
+    except ConnectionError:
+        logger.error(
+            "Failed to connect to AI Builder server. Please ensure AI Builder is running via `orchestrate server start --with-ai-builder`")
+        sys.exit(1)
+    except ClientAPIException:
+        logger.error(
+            "An unexpected server error has occurred with in the AI Builder server. Please check the logs via `orchestrate server logs`")
+        sys.exit(1)
 
     # Step 5 - update the agent and print/save the results
     agent.instructions = response['instruction']
     agent.llm_config = None
 
     if dry_run_flag:
-        rich.print(agent.model_dump(exclude_none=True, mode="json"))
+        agent = agents_controller.reference_agent_dependencies(agent)
+        rich.print(agent.model_dump(exclude_none=True, mode="json", exclude_unset=True, exclude=excluded_fields))
         return
 
     if os.path.dirname(output_file):
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
     agent.id = None # remove existing agent id before saving
-    AgentsController.persist_record(agent, output_file=output_file)
+    AgentsController.persist_record(agent, output_file=str(output_file))
 
     logger.info(f"Your agent refinement session finished successfully!")
     logger.info(f"Agent YAML with the updated instruction saved in file: {os.path.abspath(output_file)}")

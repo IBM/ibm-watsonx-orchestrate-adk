@@ -26,7 +26,7 @@ def create_webchat_embed_code(
             '-e',
             help='The environment in which your agent resides. This will default to live if no environment is provided'
         )
-    ] = EnvironmentType.LIVE,
+    ] = EnvironmentType.LIVE
 ):
     controller = ChannelsWebchatController(agent_name=agent_name, env=env)
     controller.create_webchat_embed_code()

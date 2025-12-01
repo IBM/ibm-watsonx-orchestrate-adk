@@ -26,7 +26,7 @@
           "$ref": "#/schemas/FlowOutput"
         },
         "error_handler_config": {
-          "error_message": "An error has occured while invoking the LLM",
+          "error_message": "An error has occured while invoking the tool",
           "max_retries": 1,
           "retry_interval": 1000
         },
@@ -249,6 +249,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-09-19T17:19:20.604991+00:00"
+    "compiled_on": "2025-11-19T15:32:49.421711+00:00"
   }
 }

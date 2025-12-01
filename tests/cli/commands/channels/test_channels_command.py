@@ -46,14 +46,15 @@ class TestChannelCommands:
                 env="live",
                 channel_type=None,
                 verbose=False,
-                format=None
+                format=None,
+                enable_developer_mode=False
             )
 
             # Verify environment name was resolved to UUID
             mock_controller.get_environment_id.assert_called_once_with("test_agent", "live")
             # Verify list_channels_agent was called with resolved UUID
             mock_controller.list_channels_agent.assert_called_once_with(
-                "agent-123", "env-12345678", None, False, None, agent_name="test_agent"
+                "agent-123", "env-12345678", None, False, None, agent_name="test_agent", enable_developer_mode=False
             )
 
     def test_create_channel_resolves_environment(self):
@@ -96,7 +97,8 @@ class TestChannelCommands:
                 channel_type=ChannelType.WEBCHAT,
                 channel_id="ch-789",
                 channel_name=None,
-                confirm=True  # Skip confirmation prompt
+                confirm=True,  # Skip confirmation prompt
+                enable_developer_mode=False
             )
 
             # Verify environment name was resolved to UUID
@@ -107,5 +109,5 @@ class TestChannelCommands:
             )
             # Verify delete was called with resolved UUID and ID
             mock_controller.delete_channel.assert_called_once_with(
-                "agent-123", "env-12345678", ChannelType.WEBCHAT, "ch-789"
+                "agent-123", "env-12345678", ChannelType.WEBCHAT, "ch-789", enable_developer_mode=False
             )

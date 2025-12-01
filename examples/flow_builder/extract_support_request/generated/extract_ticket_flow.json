@@ -9,7 +9,8 @@
     },
     "output_schema": {
       "$ref": "#/schemas/SupportInformation"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "email_helpdesk": {
@@ -17,12 +18,13 @@
         "kind": "tool",
         "name": "email_helpdesk",
         "display_name": "email_helpdesk",
-        "description": "Send an email to internal help desk.\nReturns the email body that was sent.",
+        "description": "Send an email to internal help desk.\n",
         "input_schema": {
           "$ref": "#/schemas/email_helpdesk_input"
         },
         "output_schema": {
-          "type": "string"
+          "type": "string",
+          "description": "The email body that was sent."
         },
         "tool": "email_helpdesk"
       }
@@ -223,13 +225,14 @@
       "properties": {
         "email": {
           "type": "string",
-          "title": "Email"
+          "title": "Email",
+          "description": "email address"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T20:20:28.061210+00:00"
+    "compiled_on": "2025-11-19T16:11:45.048097+00:00"
   }
 }
