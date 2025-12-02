@@ -36,7 +36,6 @@ dependencies = [
     "urllib3>=2.2.3",
     "pytz>=2025.2",
     "redis>=6.0.0",
-    "ibm_watsonx_orchestrate_evaluation_framework==1.1.7"
 ]
 
 [project.optional-dependencies]
@@ -50,12 +49,16 @@ dev = [
     "black~=22.3.0",
     "pylint~=2.16.4",
 ]
+agentops = [
+    "ibm_watsonx_orchestrate_evaluation_framework==1.2.0",
+]
 [tool.pytest.ini_options]
 pythonpath = "src"
 
 [tool.hatch.envs.default]
 dependencies = [
-    "pkg[dev]"
+    "pkg[dev]",
+    "pkg[agentops]"
 ]
 detached = true
 
@@ -95,7 +98,8 @@ omit = [
 
 [tool.hatch.envs.test]
 dependencies = [
-    "pkg[dev]"
+    "pkg[dev]",
+    "pkg[agentops]"
 ]
 
 [[tool.hatch.envs.test.matrix]]

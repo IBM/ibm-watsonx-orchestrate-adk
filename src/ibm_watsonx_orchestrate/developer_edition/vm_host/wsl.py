@@ -82,6 +82,16 @@ class WSLLifecycleManager(VMLifecycleManager):
 
     def show_current_context(self):
         _get_current_docker_context()
+    
+    def is_server_running(self):
+        _ensure_wsl_installed()  
+
+        state = _get_distro_state()
+        if state is None:
+            return False
+        if state == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
     if isinstance(command, str):
@@ -110,6 +120,10 @@ def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate",
         )
         return result
     except subprocess.CalledProcessError as e:
+        # Ctrl+C while streaming logs
+        if e.returncode == 130:
+            return subprocess.CompletedProcess(args=e.cmd, returncode=130)
+
         logger.error(f"WSL command failed: {e.cmd}, return code: {e.returncode}")
         if e.stdout:
             logger.error(f"WSL command stdout: {e.stdout.strip()}")

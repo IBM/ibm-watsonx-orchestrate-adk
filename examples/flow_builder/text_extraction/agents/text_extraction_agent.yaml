@@ -10,4 +10,4 @@ instructions: >
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: default
 tools:
-  - text_extraction_flow_example
+  - text_extraction_simple_flow_example
