@@ -66,3 +66,8 @@ class VMLifecycleManager(ABC):
     def ssh(self) -> Optional[str]:
         """SSH into VM"""
         pass
+
+    @abstractmethod
+    def is_server_running(self) -> bool:
+        """Returns a boolean indicating if the server is running or not"""
+        pass
