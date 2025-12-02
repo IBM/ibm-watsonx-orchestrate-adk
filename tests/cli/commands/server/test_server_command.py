@@ -11,6 +11,7 @@ from ibm_watsonx_orchestrate.cli.commands.server.server_command import (
     run_db_migration
 )
 from ibm_watsonx_orchestrate.cli.config import LICENSE_HEADER, ENV_ACCEPT_LICENSE, Config
+from ibm_watsonx_orchestrate.developer_edition.vm_host.native import NativeDockerManager
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerComposeCore
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from utils.matcher import MatchesStringContaining
@@ -482,10 +483,13 @@ def test_cli_start_success_simple(tmp_path, caplog): # Add caplog here
     env_file = tmp_path / "user_valid.env"
     env_file.write_text("SOME_VAR=some_value\nWXO_USER=testuser\nWXO_PASS=testpass\nHEALTH_TIMEOUT=1")
 
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.start_server.return_value = None
+
     with (
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService"),
-        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=None),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=mock_vm_manager),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_db_migration"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
@@ -505,7 +509,7 @@ def test_cli_start_success_simple(tmp_path, caplog): # Add caplog here
 
         assert result.exit_code == 0
         assert "Orchestrate services initialized successfully" in caplog.text
-        assert "Running docker compose-up inside the VM..." in caplog.text
+        assert "Running docker compose-up..." in caplog.text
 
 
 def test_cli_start_missing_credentials(caplog):
@@ -692,17 +696,11 @@ def test_server_purge_failure(monkeypatch):
         assert result.exit_code == 1
         mock_logger.error.assert_any_call("Failed to Delete VM.")
 
-
-def test_server_purge_no_vm(monkeypatch):
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+def test_server_purge_native():
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
         result = runner.invoke(server_app, ["purge"], catch_exceptions=True)
         assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
+        assert str(result.exception) == "Cannot delete VM host when using user managed docker"
 
 # Edit VM
 def test_server_edit_success(monkeypatch):
@@ -721,6 +719,7 @@ def test_server_edit_success(monkeypatch):
         result = runner.invoke(server_app, ["edit", "--cpus", "4", "--memory", "8"], catch_exceptions=True)
         assert result.exit_code == 0
         mock_vm.edit_server.assert_called_once_with(4, 8, None)
+        mock_logger.info.assert_any_call("VM updated successfully.")
 
 
 def test_server_edit_failure(monkeypatch):
@@ -742,17 +741,11 @@ def test_server_edit_failure(monkeypatch):
         mock_logger.error.assert_any_call("Failed to Update VM.")
 
 
-def test_server_edit_no_vm(monkeypatch):
-    """Test `server edit` CLI command when no VM exists."""
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+def test_server_edit_native():
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
         result = runner.invoke(server_app, ["edit", "--memory", "4"], catch_exceptions=True)
         assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
+        assert str(result.exception) == "Cannot edit VM host configs when using user managed docker"
 
 # Attach Docker
 def test_server_attach_docker_success(monkeypatch):
@@ -789,17 +782,11 @@ def test_server_attach_docker_failure(monkeypatch):
         mock_logger.error.assert_any_call("Failed to switch Docker context.")
 
 
-def test_server_attach_docker_no_vm(monkeypatch):
-    """Test `server attach-docker` when no VM exists."""
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+def test_server_attach_docker_native():
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
         result = runner.invoke(server_app, ["attach-docker"], catch_exceptions=True)
         assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
+        assert str(result.exception) == "Cannot switch docker context when using user managed docker"
 
 # Release Docker
 def test_server_release_docker_success(monkeypatch):
@@ -841,17 +828,11 @@ def test_server_release_docker_failure(monkeypatch):
         mock_logger.error.assert_any_call("Failed to switch Docker context.")
 
 
-def test_server_release_docker_no_vm(monkeypatch):
-    """Test `server release-docker` when no VM exists."""
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+def test_server_release_docker_native():    
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
         result = runner.invoke(server_app, ["release-docker"], catch_exceptions=True)
         assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
+        assert str(result.exception) == "Cannot switch docker context when using user managed docker"
 
 # Server logs
 def test_server_logs_success(monkeypatch):
@@ -880,18 +861,6 @@ def test_server_logs_with_name(monkeypatch):
     mock_vm.get_container_logs.assert_called_once_with(None, "my-container")
 
 
-def test_server_logs_no_vm(monkeypatch):
-    """Test `server logs` CLI command when no VM exists."""
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
-        result = runner.invoke(server_app, ["logs", "--id", "abc123"], catch_exceptions=True)
-        assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
-
 # SSH VM
 def test_server_ssh_success(monkeypatch):
     """Test `server ssh` CLI command when VM exists."""
@@ -906,17 +875,11 @@ def test_server_ssh_success(monkeypatch):
     mock_vm.ssh.assert_called_once()
 
 
-def test_server_ssh_no_vm(monkeypatch):
-    """Test `server ssh` CLI command when no VM exists."""
-    monkeypatch.setattr(
-        "ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager",
-        lambda **kwargs: None
-    )
-
-    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger:
+def test_server_ssh_native():    
+    with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=NativeDockerManager()):
         result = runner.invoke(server_app, ["ssh"], catch_exceptions=True)
         assert result.exit_code == 1
-        mock_logger.error.assert_any_call("No underlying VM found")
+        assert str(result.exception) == "Cannot ssh into VM when using user managed docker"
 
 
 
