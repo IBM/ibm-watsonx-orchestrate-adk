@@ -87,6 +87,18 @@ class LimaLifecycleManager(VMLifecycleManager):
     
     def ssh(self):
         return _ssh_into_lima()
+    
+    def is_server_running(self):
+        _ensure_lima_installed()
+        
+        vm = _get_vm_state()
+        if vm is None:
+            logger.info('Could not find VM named ' + VM_NAME)
+            return False
+        status = vm['status']
+        if status == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command

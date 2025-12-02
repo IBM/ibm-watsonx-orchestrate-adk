@@ -148,6 +148,13 @@ def run_compose_lite(
         )
         sys.exit(1)
 
+def stop_virtual_machine(keep_vm: bool = False):
+    if keep_vm:
+        return
+    
+    vm = get_vm_manager()
+    vm.stop_server()
+
 def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=90, interval_seconds=2):
     url = "http://localhost:4321/api/v1/auth/token"
     headers = {
@@ -652,8 +659,17 @@ def server_stop(
         None,
         "--env-file", '-e',
         help="Path to a .env file that overrides default.env. Then environment variables override both."
+    ),
+    keep_vm: bool = typer.Option(
+        False,
+        "--keep-vm",
+        help="Don't stop the VM running the Developer Editon server."
     )
 ):
+    vm = get_vm_manager()
+    if not vm.is_server_running():
+        logger.info("Server already stopped")
+        return
 
     DockerUtils.ensure_docker_installed()
     default_env_path = EnvService.get_default_env_file()
@@ -666,6 +682,7 @@ def server_stop(
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
     run_compose_lite_down(final_env_file=final_env_file)
+    stop_virtual_machine(keep_vm=keep_vm)
 
 @server_app.command(name="reset")
 def server_reset(
@@ -674,7 +691,15 @@ def server_reset(
             "--env-file", '-e',
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
+        keep_vm: bool = typer.Option(
+            False,
+            "--keep-vm",
+            help="Don't stop the VM running the Developer Editon server."
+        )
 ):
+    vm = get_vm_manager()
+    vm.start_server()
+
     DockerUtils.ensure_docker_installed()
 
     user_env_file = parse_string_safe(value=user_env_file, override_empty_to_none=True)
@@ -703,6 +728,7 @@ def server_reset(
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
+    stop_virtual_machine(keep_vm=keep_vm)
 
 def run_db_migration(with_ai_builder: bool = False) -> None:
     default_env_path = EnvService.get_default_env_file()

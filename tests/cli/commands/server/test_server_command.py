@@ -525,7 +525,13 @@ def test_cli_start_missing_credentials(caplog):
 def test_cli_stop_command(valid_user_env):
     with patch.object(DockerUtils, "ensure_docker_installed", return_value=None), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.stop_virtual_machine") as stop_virtual_machine, \
          skip_terms_and_conditions():
+        
+        dummy_vm = MagicMock()
+        dummy_vm.is_server_running.return_value = True
+        mock_get_vm.return_value = dummy_vm
 
         result = runner.invoke(
             server_app,
@@ -533,13 +539,21 @@ def test_cli_stop_command(valid_user_env):
         )
 
         assert result.exit_code == 0
+        stop_virtual_machine.assert_called_once_with(keep_vm=False)
         mock_down.assert_called_once()
 
 def test_cli_reset_command(valid_user_env):
     with patch.object(DockerUtils, "ensure_docker_installed", return_value=None), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.stop_virtual_machine") as stop_virtual_machine, \
          skip_terms_and_conditions(), \
          patch.object(EnvService, "write_merged_env_file") as mock_write_env:
+        
+        dummy_vm = MagicMock()
+        dummy_vm.start_server.return_value = MagicMock()
+        mock_get_vm.return_value = dummy_vm
+
         temp_env_path = Path("/tmp/tmpenv.env")
         mock_write_env.return_value = temp_env_path
         
@@ -548,6 +562,7 @@ def test_cli_reset_command(valid_user_env):
             ["reset", "--env-file", str(valid_user_env)]
         )
         assert result.exit_code == 0
+        stop_virtual_machine.assert_called_once_with(keep_vm=False)
         mock_down.assert_called_once_with(final_env_file=temp_env_path, is_reset=True)
 
 def test_missing_default_env_file(caplog):
