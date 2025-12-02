@@ -82,6 +82,16 @@ class WSLLifecycleManager(VMLifecycleManager):
 
     def show_current_context(self):
         _get_current_docker_context()
+    
+    def is_server_running(self):
+        _ensure_wsl_installed()  
+
+        state = _get_distro_state()
+        if state is None:
+            return False
+        if state == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
     if isinstance(command, str):
