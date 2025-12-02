@@ -60,20 +60,6 @@ class DockerUtils:
         """
         vm = get_vm_manager()
 
-        if not vm:
-            # Linux native case – check docker directly
-            try:
-                subprocess.run(
-                    ["docker", "--version"],
-                    check=True,
-                    capture_output=True
-                )
-                return
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                logger.error("Unable to find docker on the host system")
-                sys.exit(1)
-
-        # VM case (Lima or WSL)
         try:
             result = vm.run_docker_command(["--version"], capture_output=True)
             if result.returncode != 0:
@@ -125,30 +111,19 @@ class DockerUtils:
 
             resolved_path = path_for_vm(cached_tar_path)
 
-            if vm:
-                if isinstance(resolved_path, Path):
-                    load_path = str(resolved_path.absolute())
-                elif isinstance(resolved_path, str):
-                    load_path = resolved_path
-                else:
-                    raise TypeError(f"Unsupported type for resolved_path: {type(resolved_path)}")
 
-                result = vm.run_docker_command(
-                    ["load", "-i", load_path],
-                    capture_output=True
-                )
+            if isinstance(resolved_path, Path):
+                load_path = str(resolved_path.absolute())
+            elif isinstance(resolved_path, str):
+                load_path = resolved_path
             else:
-                # Native Docker case
-                result = subprocess.run(
-                    ["docker", "load", "-i", str(tar_file_path.absolute())],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
+                raise TypeError(f"Unsupported type for resolved_path: {type(resolved_path)}")
 
-                if result.returncode != 0:
-                    logger.error(f"Failed to import image tar: {result.stderr}")
-                    sys.exit(1)
+            result = vm.run_docker_command(
+                ["load", "-i", load_path],
+                capture_output=True
+            )
+
 
             logger.info(result.stdout if hasattr(result, "stdout") else "Docker image imported successfully")
 
@@ -168,13 +143,7 @@ class DockerUtils:
         DockerUtils.ensure_docker_installed()
 
         vm = get_vm_manager()
-        if not vm:
-            # Linux native case
-            command = ["docker", "ps", "-f", f"name={container_name}"]
-            result = subprocess.run(command, capture_output=True, text=True)
-            return container_name in result.stdout
 
-        # VM-managed case (Lima or WSL)
         result = vm.run_docker_command(["ps", "-f", f"name={container_name}"], capture_output=True)
         if result and result.stdout:
             return container_name in result.stdout
@@ -1389,25 +1358,15 @@ class DockerLoginService:
     @staticmethod
     def __docker_login(api_key: str, registry_url: str, username: str = "iamapikey") -> None:
         """
-        Log into a Docker registry inside the VM (Lima, WSL, or native Docker).
+        Log into a Docker registry (Lima, WSL, or native Docker).
         """
         vm = get_vm_manager()
-        if not vm:
-            logger.info(f"Logging into Docker registry (native) at {registry_url} ...")
-            docker_login_cmd = ["docker", "login", "-u", username, "--password-stdin", registry_url]
-            result = subprocess.run(
-                docker_login_cmd,
-                input=api_key,         
-                text=True,      
-                capture_output=True
-            )
-        else:
-            logger.info(f"Logging into Docker registry inside {vm.__class__.__name__}: {registry_url} ...")
-            result = vm.run_docker_command(
-                ["login", "-u", username, "--password-stdin", registry_url],
-                input=api_key,        
-                capture_output=True,
-            )
+        logger.info(f"Logging into Docker registry inside {vm.__class__.__name__}: {registry_url} ...")
+        result = vm.run_docker_command(
+            ["login", "-u", username, "--password-stdin", registry_url],
+            input=api_key,        
+            capture_output=True,
+        )
 
         if result.returncode != 0:
             err = result.stderr if result.stderr else "Unknown error"
@@ -1476,19 +1435,10 @@ class DockerComposeCore:
         self.__pull_cpd_images(final_env_file=final_env_file, service_name=service_name)
 
         vm = get_vm_manager()
-        if vm:
-            logger.info(
-                f"Starting docker-compose {friendly_name} service inside {vm.__class__.__name__}..."
-            )
-            return vm.run_docker_command(command, capture_output=False, env=compose_env)
-        else:
-            logger.info(f"Starting docker-compose {friendly_name} service (native Docker)...")
-            return subprocess.run(
-                ["docker"] + command,
-                capture_output=False,
-                text=True,
-                env=compose_env,
-            )
+        logger.info(
+            f"Starting docker-compose {friendly_name} service inside {vm.__class__.__name__}..."
+        )
+        return vm.run_docker_command(command, capture_output=True, env=compose_env)
 
     def services_up(self, profiles: list[str], final_env_file: Path, supplementary_compose_args: list[str]) -> subprocess.CompletedProcess[bytes]:
         final_env_file = path_for_vm(final_env_file)
@@ -1507,11 +1457,9 @@ class DockerComposeCore:
         command += supplementary_compose_args
         command += ["-d", "--remove-orphans"]
 
-        logger.info("Starting docker-compose services inside VM...")
+        logger.info("Starting docker-compose services...")
 
         vm = get_vm_manager()
-        if not vm:
-            raise RuntimeError("No VM manager available (Linux native Docker case missing?)")
 
         # vm.run_docker_command will prepend "docker"
         return vm.run_docker_command(command, capture_output=False)
@@ -1536,8 +1484,6 @@ class DockerComposeCore:
             logger.info(f"Stopping docker-compose {friendly_name} service...")
 
         vm = get_vm_manager()
-        if not vm:
-            raise RuntimeError("No VM manager available (Linux native Docker case missing?)")
 
         output = vm.shell(command, capture_output=True)
         return subprocess.CompletedProcess(args=command, returncode=0, stdout=output.encode() if output else b"", stderr=b"")
@@ -1570,8 +1516,6 @@ class DockerComposeCore:
             logger.info("Stopping docker-compose services...")
 
         vm = get_vm_manager()
-        if not vm:
-            raise RuntimeError("No VM manager available (Linux native Docker case missing?)")
 
         # Capture output so we can construct CompletedProcess
         output = vm.shell(command, capture_output=True)
@@ -1609,16 +1553,8 @@ class DockerComposeCore:
         logger.info("Docker Logs...")
 
         vm = get_vm_manager()
-        if vm:
-            # Delegate to VM lifecycle manager
-            return vm.run_docker_command(command, capture_output=False)
-        else:
-            # Fallback to native Docker
-            return subprocess.run(
-                ["docker"] + command,
-                capture_output=False,
-                text=True
-            )
+        # Delegate to Docker lifecycle manager
+        return vm.run_docker_command(command, capture_output=False)
 
 
     def service_container_bash_exec(
@@ -1662,16 +1598,7 @@ class DockerComposeCore:
         logger.info(log_message)
 
         vm = get_vm_manager()
-        if vm:
-            # Run inside VM (Lima/WSL)
-            return vm.run_docker_command(docker_command, capture_output=False)
-        else:
-            # Native Docker fallback
-            return subprocess.run(
-                ["docker"] + docker_command,
-                capture_output=False,
-                text=True
-            )
+        return vm.run_docker_command(docker_command, capture_output=False)
         
     def trim_cpd_image_layer_cache (self, final_env_file: Path) -> int:
         env_settings = EnvSettingsService(final_env_file)

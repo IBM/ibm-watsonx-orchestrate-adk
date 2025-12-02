@@ -26,6 +26,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
@@ -385,12 +386,8 @@ def run_compose_lite_logs(final_env_file: Path) -> None:
     vm = get_vm_manager()
 
     try:
-        if vm:
-            logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
-            result = vm.run_docker_command(command, capture_output=False)
-        else:
-            logger.info("Tailing docker-compose logs (native Docker)...")
-            result = subprocess.run(["docker"] + command, text=True)
+        logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
+        result = vm.run_docker_command(command, capture_output=False)
     except KeyboardInterrupt:
         result = subprocess.CompletedProcess(args=command, returncode=130)
     except subprocess.CalledProcessError as e:
@@ -596,11 +593,11 @@ def server_start(
     vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
 
     vm = get_vm_manager()
-    if vm:
-        vm.start_server()
+    vm.start_server()
 
-    logger.info("Running docker compose-up inside the VM...")
-
+    logger.info("Running docker compose-up...")
+    
+    
     try:
         DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
     except ValueError as e:
@@ -880,15 +877,11 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
     ]
 
     vm = get_vm_manager()
-    if vm:
-        logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
-        system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
-        if system == "windows":
-            time.sleep(60)
-        result = vm.run_docker_command(command, capture_output=False)
-    else:
-        logger.info("Running DB migrations (native Docker)...")
-        result = subprocess.run(["docker"] + command, text=True)
+    logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
+    system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
+    if system == "windows":
+        time.sleep(60)
+    result = vm.run_docker_command(command, capture_output=False)
 
     if result.returncode == 0:
         logger.info("Migration ran successfully.")
@@ -1008,15 +1001,15 @@ def server_eject(
 @server_app.command(name="purge", help="Delete the underlying VM and all its data")
 def server_purge():
     vm = get_vm_manager(ensure_installed=False)
-    if vm:
-        console = Console()
-        with Progress(
-            SpinnerColumn(spinner_name="dots"),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-            console=console,
-                ) as progress:
-                    progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+    console = Console()
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        console=console,
+            ) as progress:
+                task = progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+                try:
                     success =  vm.delete_server()
                     if success:
                         progress.stop()
@@ -1025,9 +1018,10 @@ def server_purge():
                         progress.stop()
                         logger.error("Failed to Delete VM.")
                         sys.exit(1)
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+                except Exception as e:
+                    progress.stop()
+                    raise BadRequest(str(e))
+
 
 # orchestrate server edit - will allow the user to update their underlying vm cpu and memory settings
 @server_app.command(name="edit", help="Edit the underlying VM CPU, memory, or disk settings")
@@ -1046,30 +1040,49 @@ def server_edit(
         if disk: 
             logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
     
-    vm = get_vm_manager()
-    if vm:
+    # Using Progress Spinner for OSX/Linux but using logger.info for wsl as it takes much longer and gives user better info.
+    if system == "windows":
+        vm = get_vm_manager()
         success =  vm.edit_server(cpus, memory, disk)
-        if not success:
+        if success:
+            logger.info("VM updated successfully.")
+        else:
             logger.error("Failed to Update VM.")
             sys.exit(1)
     else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+        vm = get_vm_manager()
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+        ) as progress:
+            progress.add_task(description="Editing the underlying VM settings...", total=None)
+            try:
+                success = vm.edit_server(cpus, memory, disk)
+                if success:
+                    progress.stop()
+                    logger.info("VM updated successfully.")
+                else:
+                    progress.stop()
+                    logger.error("Failed to Update VM.")
+                    sys.exit(1)
+            except Exception as e:
+                progress.stop()
+                raise BadRequest(str(e))
+
 
 # orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
 @server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")
 def server_attach_docker():
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.attach_docker_context()
-        if success:
-            logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.attach_docker_context()
+    if success:
+        logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server release-docker - switch the docker context back to default
@@ -1079,15 +1092,11 @@ def server_release_docker():
     previous_context = cfg.read(DOCKER_CONTEXT, PREVIOUS_DOCKER_CONTEXT, ) or "default"
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.release_docker_context()
-        if success:
-            logger.info(f"Docker context successfully switched to {previous_context}.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.release_docker_context()
+    if success:
+        logger.info(f"Docker context successfully switched to {previous_context}.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server logs <container> - get the logs of a given container pod
@@ -1126,22 +1135,14 @@ def server_logs(
     
     else:
         vm = get_vm_manager()
-        if vm:
-            vm.get_container_logs(container_id, container_name)
-        else:
-            logger.error("No underlying VM found")
-            sys.exit(1)
+        vm.get_container_logs(container_id, container_name)
 
 
 # orchestrate server ssh - ssh into the underlying vm
 @server_app.command(name="ssh", help="SSH into the underlying VM")
 def ssh():
     vm = get_vm_manager()
-    if vm:
-        vm.ssh()
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+    vm.ssh()
 
 
 if __name__ == "__main__":

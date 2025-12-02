@@ -36,6 +36,7 @@ VERIFY = "verify"
 ENV_ACCEPT_LICENSE = 'accepts_license_agreements'
 FILE_ENCODING = "file_encoding"
 DOCKER_CONTEXT = "docker"
+USE_NATIVE_DOCKER = "use_native_docker"
 
 DEFAULT_LOCAL_SERVICE_URL = "http://localhost:4321"
 CHAT_UI_PORT = "3000"
