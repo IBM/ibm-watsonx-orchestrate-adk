@@ -8,6 +8,12 @@ logger = logging.getLogger(__name__)
 
 class VoiceConfigurationsClient(BaseAPIClient):
 
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    # Voice configurations endpoint is at /v1/voice_configurations
+    if self.base_url.endswith("/v1/orchestrate"):
+      self.base_url = self.base_url.replace("/v1/orchestrate", "/v1")
+
   def create(self, voice_config: VoiceConfiguration) -> dict:
     return self._post("/voice_configurations", data=voice_config.model_dump(exclude_none=True))
 
