@@ -110,8 +110,17 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
 def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
 
-def _get_unix_cpu_arch():
-    return subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+def _get_unix_arm_capability():
+    return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+
+def _get_unix_cpu_arch(ignore_emulation: bool = True) -> str:
+    arch = subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+    os = _get_unix_os()
+
+    # Check for Rosetta Emulation
+    if ignore_emulation and arch == 'x86_64' and os == 'Darwin' and _get_unix_arm_capability():
+        return "arm64"
+    return arch
 
 def _get_lima_vm_base_args() -> List[str]:
     os = _get_unix_os()
@@ -380,10 +389,6 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
             except Exception:
                 logger.error(f"Failed to remove {path_to_remove}")
                 sys.exit(1)
-
-    # OS and CPU arch for download
-    os_name = _get_unix_os()
-    cpu_arch = _get_unix_cpu_arch()
 
     url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
     subprocess.run(
