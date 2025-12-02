@@ -16,7 +16,8 @@ mimetypes.add_type(YAML_MIME_TYPE, ".yml")
 
 @singleton
 class FileManager:
-    DEFAULT_ENCODING = 'utf-8'
+    UTF_8_ENCODING = 'utf-8'
+    DEFAULT_ENCODING = UTF_8_ENCODING
     # File types where smart encoding should be used
     # If any are not found in Python's mimetype list fallback to 'text/plain' as that type is supported
     ENCODING_SUPPORTED_MIME_TYPES = {
@@ -61,6 +62,8 @@ class FileManager:
             return self.DEFAULT_ENCODING
         
         encoding = self.__guess_encoding(file_path=file_path)
+        if encoding == "ascii":
+            return self.UTF_8_ENCODING
         return encoding
 
     def open_file_encoded(    

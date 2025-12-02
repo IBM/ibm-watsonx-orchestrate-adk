@@ -38,10 +38,8 @@ def get_number_random_fact_flow(aflow: Flow) -> Flow:
     # After 5 polling attempts, the flow proceeds to display the fact.
     get_facts_about_numbers_node = aflow.tool(
         get_facts_about_numbers,
-        input_schema=InputtedNumber,
-        output_schema=FlowOutput,
         error_handler_config={
-            "error_message": "An error has occured while invoking the LLM",
+            "error_message": "An error has occured while invoking the tool",
             "max_retries": 1,
             "retry_interval": 1000
         }

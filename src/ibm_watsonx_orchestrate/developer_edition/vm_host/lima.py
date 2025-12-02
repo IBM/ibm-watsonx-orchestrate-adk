@@ -15,6 +15,7 @@ import getpass
 
 from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
 
+from ibm_watsonx_orchestrate.client.utils import get_linux_package_manager
 from ibm_watsonx_orchestrate.developer_edition.vm_host.constants import VM_NAME, CPU_ARCH_ARM, DEFAULT_DISK_SPACE, \
     DEFAULT_CPUS, DEFAULT_MEMORY
 
@@ -87,6 +88,18 @@ class LimaLifecycleManager(VMLifecycleManager):
     
     def ssh(self):
         return _ssh_into_lima()
+    
+    def is_server_running(self):
+        _ensure_lima_installed()
+        
+        vm = _get_vm_state()
+        if vm is None:
+            logger.info('Could not find VM named ' + VM_NAME)
+            return False
+        status = vm['status']
+        if status == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command
@@ -195,29 +208,21 @@ def _ensure_qemu_installed():
 
     # Install required packages, INCLUDING virtiofsd
     try:
+        package_manager = get_linux_package_manager()
         subprocess.run(
-            ["sudo", "dnf", "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
+            ["sudo", package_manager , "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        logger.info("QEMU packages (including virtio-fs) installed via dnf.")
+        logger.info(f"QEMU packages (including virtio-fs) installed via {package_manager}.")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install QEMU packages: {e.stderr}")
         return # Return early on failure
 
     # Detect actual binary location (RHEL 9 puts it in /usr/libexec/qemu-kvm)
-    possible_paths = [
-        "/usr/libexec/qemu-kvm",  # RHEL 9 standard
-        "/usr/lib64/qemu-kvm",    # fallback
-    ]
-
-    real_qemu = None
-    for path in possible_paths:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            real_qemu = path
-            break
+    real_qemu = shutil.which("qemu-kvm")
 
     if not real_qemu:
         logger.error("Could not find QEMU binary after installation. Please install manually.")

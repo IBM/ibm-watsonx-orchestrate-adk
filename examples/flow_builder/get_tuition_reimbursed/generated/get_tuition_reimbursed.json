@@ -3,12 +3,14 @@
     "kind": "flow",
     "name": "get_tuition_reimbursed",
     "display_name": "get_tuition_reimbursed",
+    "description": "A flow can take employee id and find if they are eligible for tuition reimbursed",
     "input_schema": {
       "$ref": "#/schemas/get_tuition_reimbursed_input"
     },
     "output_schema": {
       "type": "string"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "foreach_1": {
@@ -20,13 +22,14 @@
           "$ref": "#/schemas/foreach_1_input"
         },
         "output_schema": {
-          "type": "string"
+          "$ref": "#/schemas/foreach_1_output"
         },
         "initiators": [
           "__any_user__"
         ],
+        "schedulable": false,
         "item_schema": {
-          "ref": "#/schemas/RequestInfo"
+          "$ref": "#/schemas/RequestInfo"
         },
         "foreach_policy": "SEQUENTIAL"
       },
@@ -83,7 +86,7 @@
           "spec": {
             "kind": "branch",
             "name": "branch_1",
-            "display_name": "branch_1",
+            "display_name": "Branch_2",
             "evaluator": {
               "expression": "parent._current_item.overall_grade.strip().upper()"
             },
@@ -108,11 +111,11 @@
             "match_policy": "FIRST_MATCH"
           }
         },
-        "branch_2": {
+        "branch_3": {
           "spec": {
             "kind": "branch",
-            "name": "branch_2",
-            "display_name": "branch_2",
+            "name": "branch_3",
+            "display_name": "Branch_4",
             "evaluator": {
               "expression": "parent._current_item.tuition_amount > 10000"
             },
@@ -129,18 +132,18 @@
             "match_policy": "FIRST_MATCH"
           }
         },
-        "branch_3": {
+        "branch_5": {
           "spec": {
             "kind": "branch",
-            "name": "branch_3",
-            "display_name": "branch_3",
+            "name": "branch_5",
+            "display_name": "Branch_6",
             "evaluator": {
               "expression": "parent._current_item.is_fulltime == True"
             },
             "cases": {
               "true": {
-                "display_name": "branch_2",
-                "node": "branch_2"
+                "display_name": "branch_3",
+                "node": "branch_3"
               },
               "false": {
                 "display_name": "auto_deny_request",
@@ -179,28 +182,24 @@
           "end": "auto_deny_request"
         },
         {
-          "start": "branch_1",
+          "start": "branch_3",
           "end": "auto_deny_request"
         },
         {
-          "start": "branch_2",
-          "end": "auto_deny_request"
-        },
-        {
-          "start": "branch_2",
+          "start": "branch_3",
           "end": "branch_1"
         },
         {
-          "start": "branch_3",
-          "end": "branch_2"
+          "start": "branch_5",
+          "end": "branch_3"
         },
         {
-          "start": "branch_3",
+          "start": "branch_5",
           "end": "auto_deny_request"
         },
         {
           "start": "__start__",
-          "end": "branch_3"
+          "end": "branch_5"
         },
         {
           "start": "auto_deny_request",
@@ -334,6 +333,22 @@
         }
       }
     },
+    "foreach_1_output": {
+      "type": "object",
+      "title": "foreach_1_output",
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "title": "Results",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "auto_deny_request_input": {
       "type": "object",
       "title": "auto_deny_request_input",
@@ -403,6 +418,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T20:39:12.612030+00:00"
+    "compiled_on": "2025-11-19T15:43:33.873706+00:00"
   }
 }
