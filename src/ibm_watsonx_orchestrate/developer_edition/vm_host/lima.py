@@ -36,7 +36,9 @@ class LimaLifecycleManager(VMLifecycleManager):
         _ensure_lima_vm_started()
 
     def stop_server(self):
+        logger.info("Stopping Lima VM...")
         _ensure_lima_vm_stopped()
+        logger.info("Lima VM stopped.")
 
     def delete_server(self):
         return _ensure_lima_vm_host_deleted()
