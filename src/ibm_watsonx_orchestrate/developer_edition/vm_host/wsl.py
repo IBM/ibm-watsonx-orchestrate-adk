@@ -39,7 +39,9 @@ class WSLLifecycleManager(VMLifecycleManager):
         _ensure_wsl_distro_started()
 
     def stop_server(self):
+        logger.info("Stopping WSL Distro...")
         _ensure_wsl_distro_stopped()
+        logger.info("WSL Distro stopped.")
 
     def delete_server(self):
         return _ensure_wsl_distro_deleted()
