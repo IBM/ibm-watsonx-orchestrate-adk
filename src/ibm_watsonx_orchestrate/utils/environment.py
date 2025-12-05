@@ -17,7 +17,7 @@ from dotenv import dotenv_values
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
-from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
+from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -62,7 +62,16 @@ class EnvService:
     def __init__ (self, config: Config):
         self.__config = config
 
-    def get_compose_file (self) -> Path:
+    def get_compose_file (self, ignore_cache: bool = False) -> Path:
+        if not ignore_cache:
+            cache_dir = Path.home() / ".cache" / "orchestrate"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            compose_file_cache_location = Path(path_for_vm(cache_dir / "docker-compose.yml"))
+
+            if compose_file_cache_location.exists():
+                return compose_file_cache_location
+
         custom_compose_path = self.__get_compose_file_path()
         return Path(custom_compose_path) if custom_compose_path else self.__get_default_compose_file()
 

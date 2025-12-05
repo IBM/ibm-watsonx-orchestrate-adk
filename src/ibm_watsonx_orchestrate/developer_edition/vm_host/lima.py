@@ -126,7 +126,10 @@ def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
 
 def _get_unix_arm_capability():
-    return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+    try:
+        return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+    except:
+        return False
 
 def _get_unix_cpu_arch(ignore_emulation: bool = True) -> str:
     arch = subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
