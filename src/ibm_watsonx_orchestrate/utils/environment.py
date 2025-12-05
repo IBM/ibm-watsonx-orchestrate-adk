@@ -5,6 +5,8 @@ import platform
 import subprocess
 import sys
 import tempfile
+import requests
+import time
 from pathlib import Path
 from typing import Tuple, OrderedDict, Any
 from urllib.parse import urlparse
@@ -15,7 +17,7 @@ from dotenv import dotenv_values
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
-from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
+from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -60,7 +62,16 @@ class EnvService:
     def __init__ (self, config: Config):
         self.__config = config
 
-    def get_compose_file (self) -> Path:
+    def get_compose_file (self, ignore_cache: bool = False) -> Path:
+        if not ignore_cache:
+            cache_dir = Path.home() / ".cache" / "orchestrate"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            compose_file_cache_location = Path(path_for_vm(cache_dir / "docker-compose.yml"))
+
+            if compose_file_cache_location.exists():
+                return compose_file_cache_location
+
         custom_compose_path = self.__get_compose_file_path()
         return Path(custom_compose_path) if custom_compose_path else self.__get_default_compose_file()
 
@@ -411,6 +422,33 @@ class EnvService:
             pass
         else:
             raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+    
+    @staticmethod
+    def _check_dev_edition_server_health(username: str, password: str) -> bool:
+        url = "http://localhost:4321/api/v1/auth/token"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        data = {'username': username, 'password': password}
+        try:
+            response = requests.post(url, headers=headers, data=data)
+            if 200 <= response.status_code < 300:
+                return True
+        except:
+            pass
+        return False
+
+    @staticmethod
+    def _wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=120, interval_seconds=3):
+        start_time = time.time()
+        while time.time() - start_time <= timeout_seconds:
+            try:
+                res = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+                if res:
+                    return True
+            except requests.RequestException as e:
+                pass
+
+            time.sleep(interval_seconds)
+        return False
 
 
     @staticmethod

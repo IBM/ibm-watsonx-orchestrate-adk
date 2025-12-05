@@ -110,8 +110,20 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
 def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
 
-def _get_unix_cpu_arch():
-    return subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+def _get_unix_arm_capability():
+    try:
+        return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+    except:
+        return False
+
+def _get_unix_cpu_arch(ignore_emulation: bool = True) -> str:
+    arch = subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+    os = _get_unix_os()
+
+    # Check for Rosetta Emulation
+    if ignore_emulation and arch == 'x86_64' and os == 'Darwin' and _get_unix_arm_capability():
+        return "arm64"
+    return arch
 
 def _get_lima_vm_base_args() -> List[str]:
     os = _get_unix_os()
@@ -329,7 +341,7 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     logger.info(f"Downloading Lima from {url}")
     try:
         subprocess.run(
-            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
             check=True,
             capture_output=True
         )
@@ -381,13 +393,9 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
                 logger.error(f"Failed to remove {path_to_remove}")
                 sys.exit(1)
 
-    # OS and CPU arch for download
-    os_name = _get_unix_os()
-    cpu_arch = _get_unix_cpu_arch()
-
     url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
     subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
         check=True
     )
 
@@ -486,6 +494,13 @@ def _ensure_lima_vm_stopped():
         return
     
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
+    default_env_path = EnvService.get_default_env_file()
+    merged_env_dict = EnvService.merge_env(default_env_path, None)
+    health_user = merged_env_dict.get("WXO_USER")
+    health_pass = merged_env_dict.get("WXO_PASS")
+
+    was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+
     """Edit Lima VM config file directly to update resources."""
     logger.info("Stopping Lima VM...")
     _ensure_lima_vm_stopped()
@@ -522,24 +537,18 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     # Restart VM
     limactl(["start", VM_NAME], capture_output=True)
 
-    # Wait indefinitely for API health check
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, None)
-    health_user = merged_env_dict.get("WXO_USER")
-    health_pass = merged_env_dict.get("WXO_PASS")
+   
+    if was_server_running:
+        health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+        server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
 
-    url = "http://localhost:4321/api/v1/auth/token"
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    data = {'username': health_user, 'password': health_pass}
-
-    while True:
-        try:
-            response = requests.post(url, headers=headers, data=data)
-            if 200 <= response.status_code < 300:
-                break
-        except requests.RequestException:
-            pass
-        time.sleep(3)
+        if server_is_started:
+            logger.info("Lima VM editted and server restarted successfully.")
+        else:
+            logger.error("Lima VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+    else:
+        logger.info("Lima VM editted. To start the server 'orchestrate server start'.")
+    
 
     return True
 
