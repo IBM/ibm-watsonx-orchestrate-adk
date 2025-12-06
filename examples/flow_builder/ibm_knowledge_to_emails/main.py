@@ -18,7 +18,7 @@ async def main():
     flow_name = my_flow_definition.flow.spec.display_name
     generated_folder = f"{Path(__file__).resolve().parent}/generated"
     my_flow_definition.dump_spec(f"{generated_folder}/ibm_knowledge_to_emails.json")
-    await my_flow_definition.invoke(input_data={"question" : "Who are the first few presidents of IBM",
+    await my_flow_definition.invoke(input_data={"question" : "When was IBM founded?",
                                                 "emails" : "aloha@ibm.com"},
                                                 on_flow_end_handler=on_event_end, 
                                                 on_flow_error_handler=on_event_error,debug=True)

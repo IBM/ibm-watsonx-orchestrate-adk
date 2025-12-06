@@ -1,0 +1,298 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "collaborator_agents_flow_low_code",
+        "initiators": [],
+        "description": "Flow will take an input 'city' which is a city. Try to input one of these four cities: San Jose, Fremont, New York or Los Angeles\n\n1st agent will take city as an input and look up the date which the citi was founded\n2nd agent will take city as an input and look up real time weather data\n3rd agent will take city as an input and look up current population and coordinates of the city\n4th agent will take the results from 3 agents above as an input:\n     city: str,  coordinates: str, population : str,temperature : float, wind_speed: float, current_weather : str, founding_date: str\nand generete a str based on those input\ne:g input: Fremont\n     output: These are the info of city of Fremont where its coordinates is 42.99092,-71.14256 and was founded on January 23, 1956.\n               Fremont current population is 2738000. The weather is overcast, temperature is 14C and wind speed is 11 mph.",
+        "display_name": "collaborator_agents_flow_low_code",
+        "input_schema": {
+            "type": "object",
+            "required": [
+                "city"
+            ],
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "description": "Either San Jose, Fremont, New York or Los Angeles"
+                }
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "information_about_the_city": {
+                    "type": "string",
+                    "description": "Information about the city.\n\nFor example:\nThese are the info of city of Fremont where its coordinates is 42.99092,-71.14256 and was founded on January 23, 1956. Fremont current population is 2738000. The weather is overcast, temperature is 14C and wind speed is 11 mph."
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "f838216c-379d-4ac0-aeac-7dccab44df71",
+            "end": "tool_f413bb8e-2ac7-4546-84c6-bb8d86481ca7",
+            "start": "__start__"
+        },
+        {
+            "id": "8d5f0f6a-ee61-466c-b82f-72dbede8afc9",
+            "end": "tool_0663adf8-d51e-4e7a-bfb0-3db67c84442d",
+            "start": "tool_f413bb8e-2ac7-4546-84c6-bb8d86481ca7"
+        },
+        {
+            "id": "c7785e8a-debe-474d-a1f0-e38d82aa1c2b",
+            "end": "tool_aa3ba873-d7f9-44d9-aa5a-ab2875fcb207",
+            "start": "tool_b428d9c1-f801-4c78-96b1-0c62ae5bf7b9"
+        },
+        {
+            "id": "0bba3367-b226-4257-b15c-5a95b4cd6c6c",
+            "end": "tool_b428d9c1-f801-4c78-96b1-0c62ae5bf7b9",
+            "start": "tool_0663adf8-d51e-4e7a-bfb0-3db67c84442d"
+        },
+        {
+            "id": "2bf77ab3-dd55-4dd3-a23d-10ebb69bd431",
+            "end": "__end__",
+            "start": "tool_aa3ba873-d7f9-44d9-aa5a-ab2875fcb207"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 710
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "tool_0663adf8-d51e-4e7a-bfb0-3db67c84442d": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_0663adf8-d51e-4e7a-bfb0-3db67c84442d",
+                "tool": "ask_weather_agent_flow:ee7451ff-fe30-4da6-b35f-37457aaad119",
+                "position": {
+                    "x": 0,
+                    "y": 272
+                },
+                "description": "Return city weather.",
+                "display_name": "Ask weather agent flow",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "city"
+                    ],
+                    "properties": {
+                        "city": {
+                            "in": "body",
+                            "type": "string",
+                            "title": "City",
+                            "description": "City Name"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": [
+                        "result"
+                    ],
+                    "properties": {
+                        "result": {
+                            "type": "string",
+                            "title": "Result",
+                            "description": "Information about a city"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Ask weather agent flow'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "tool_aa3ba873-d7f9-44d9-aa5a-ab2875fcb207": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_aa3ba873-d7f9-44d9-aa5a-ab2875fcb207",
+                "tool": "ask_aggregate_agent_flow:be8c7e16-7e4f-43a5-bdf4-b5c987a411f0",
+                "position": {
+                    "x": 0,
+                    "y": 564
+                },
+                "description": "Return information about a city.",
+                "display_name": "Ask aggregate agent flow",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "city"
+                    ],
+                    "properties": {
+                        "city": {
+                            "in": "body",
+                            "type": "string",
+                            "title": "City",
+                            "description": "City Name"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": [
+                        "result"
+                    ],
+                    "properties": {
+                        "result": {
+                            "type": "string",
+                            "title": "Result",
+                            "description": "Information about a city"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Ask aggregate agent flow'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "tool_b428d9c1-f801-4c78-96b1-0c62ae5bf7b9": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_b428d9c1-f801-4c78-96b1-0c62ae5bf7b9",
+                "tool": "ask_population_agent_flow:bd7a7850-3d04-4c16-a0df-209da2d5ec05",
+                "position": {
+                    "x": 0,
+                    "y": 418
+                },
+                "description": "Return city population.",
+                "display_name": "Ask population agent flow",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "city"
+                    ],
+                    "properties": {
+                        "city": {
+                            "in": "body",
+                            "type": "string",
+                            "title": "City",
+                            "description": "City Name"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": [
+                        "result"
+                    ],
+                    "properties": {
+                        "result": {
+                            "type": "string",
+                            "title": "Result",
+                            "description": "Information about a city"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Ask population agent flow'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "tool_f413bb8e-2ac7-4546-84c6-bb8d86481ca7": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_f413bb8e-2ac7-4546-84c6-bb8d86481ca7",
+                "tool": "ask_city_founding_date_agent_flow:7b602153-1ad8-474b-9110-314558c13302",
+                "position": {
+                    "x": 0,
+                    "y": 126
+                },
+                "description": "Return city founding date.",
+                "display_name": "Ask city founding date agent flow",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "city"
+                    ],
+                    "properties": {
+                        "city": {
+                            "in": "body",
+                            "type": "string",
+                            "title": "City",
+                            "description": "City Name"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": [
+                        "result"
+                    ],
+                    "properties": {
+                        "result": {
+                            "type": "string",
+                            "title": "Result",
+                            "description": "Information about a city"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Ask city founding date agent flow'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "source_kind": "ui"
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

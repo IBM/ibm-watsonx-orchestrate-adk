@@ -1,0 +1,31 @@
+{
+  "agent": "hr_agent",
+  "goals": {
+    "get_assignment_id_hr_agent": [
+      "get_timeoff_schedule_hr_agent"
+    ],
+    "get_timeoff_schedule_hr_agent": []
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_hr_agent",
+      "tool_name": "get_assignment_id_hr_agent",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_hr_agent",
+      "tool_name": "get_timeoff_schedule_hr_agent",
+      "args": {
+        "assignment_id": "15778303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-03-03"
+      }
+    }
+  ],
+  "story": "My username is nwaters. I want to find out my timeoff schedule from: 2025-01-01 to: 2025-03-03.",
+  "starting_sentence": "I want to know my timeoff schedule for a certain period."
+}

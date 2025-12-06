@@ -32,7 +32,8 @@ def get_requests(request: RequestID) -> List[RequestInfo]:
             "5" : RequestInfo(tuition_amount=7777, overall_grade="A",is_fulltime=False, first_name="Ant", last_name="Man"),
         }
     res = []
-    for n in request['ids'].split(","):
-        if n in req.keys():
-            res.append(req[n])
+    if request and request.ids is not None:
+        for n in request.ids.split(","):
+            if n in req.keys():
+                res.append(req[n])
     return res

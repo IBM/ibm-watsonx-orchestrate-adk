@@ -22,7 +22,7 @@ from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 import logging
-from typing import TypeVar
+from typing import List, TypeVar
 import os
 import jwt
 import time
@@ -197,13 +197,39 @@ def is_arm_architecture () -> bool:
     return platform.machine().lower() in get_arm_architectures()
 
 
-def get_os_type () -> str:
-    system = platform.system().lower()
-    if system in ("linux", "darwin", "windows"):
-        return system
+def get_linux_distribution () -> str:
+    system_release = platform.freedesktop_os_release()
+    release_short_name = system_release.get('ID','').lower()
+    
+    return release_short_name
+    
 
-    else:
-        raise Exception("Unsupported operating system %s" % system)
+def get_linux_package_manager () -> str:
+    linux_distro = get_linux_distribution()
+    match linux_distro:
+        case "ubuntu" | "debian":
+            return "apt"
+        case "rhel":
+            return "dnf"
+        case _:
+            raise Exception(f"Managed installation is not supported for the current linux distribution '{linux_distro}'")
+
+
+def get_os_type () -> str:
+    system_details = platform.uname()
+    system = system_details.system.lower()
+    match(system):
+        case "darwin" | "windows":
+            return system
+        case "linux":
+            release = system_details.release.lower()
+            if "wsl" in release:
+                return "wsl"
+            else: 
+                return system
+        case _:
+            raise Exception(f"Unsupported operating system {system}")
+
 
 def path_for_vm(path: str | Path) -> str:
     system = get_os_type()
@@ -263,3 +289,6 @@ def concat_bin_files(target_bin_file: str, source_files: list[str], read_chunk_s
 
             if delete_source_files_post is True:
                 os.remove(source_file)
+
+def command_to_list(command: str | List[str]):
+    return command.split() if isinstance(command,str) else command

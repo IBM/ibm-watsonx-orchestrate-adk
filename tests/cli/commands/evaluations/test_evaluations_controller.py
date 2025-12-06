@@ -6,14 +6,17 @@ import yaml
 import csv
 import shutil
 import json
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
-from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
-# Suppresses fuzzywuzzy warning coming from eval
-from warnings import filterwarnings
-filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
+try:
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
+    from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
+    # Suppresses fuzzywuzzy warning coming from eval
+    from warnings import filterwarnings
+    filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
 
-from wxo_agentic_evaluation.arg_configs import TestConfig, AnalyzeConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
-
+    from agentops.arg_configs import TestConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
+except ImportError:
+    pytest.skip(allow_module_level=True)
+    
 @pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
     # Setup - ensure we start with a clean state
@@ -72,7 +75,7 @@ class TestEvaluationsController:
             config_file_path = tmp.name
 
         try:
-            with patch("wxo_agentic_evaluation.main.main") as mock_evaluate, \
+            with patch("agentops.main.main") as mock_evaluate, \
                  patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
                 
                 controller.evaluate(config_file=config_file_path)
@@ -119,7 +122,7 @@ class TestEvaluationsController:
             tools_file = tmp.name
 
         try:
-            with patch("wxo_agentic_evaluation.quick_eval.main") as mock_evaluate, \
+            with patch("agentops.quick_eval.main") as mock_evaluate, \
                  patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
                 
                 controller.evaluate(config_file=config_file_path, tools_path=tools_file, mode=EvaluateMode.referenceless)
@@ -141,7 +144,7 @@ class TestEvaluationsController:
         (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
         mock_runs = []
         # Mock get_recent_runs to prevent HTTP requests but allow record_chats to execute
-        with patch("wxo_agentic_evaluation.record_chat.get_recent_runs", return_value=mock_runs), \
+        with patch("agentops.record_chat.get_recent_runs", return_value=mock_runs), \
              patch.object(controller, "_get_env_config", return_value=("https://test-url", "test-tenant", "test-token")), \
              patch("time.sleep", side_effect=KeyboardInterrupt):  # Simulate Ctrl+C
             output_dir = "test_output"
@@ -183,7 +186,7 @@ def tool2():
         try:
             with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.build_snapshot") as mock_build_snapshot, \
                  patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.generate_test_cases_from_stories") as mock_generate, \
-                 patch("wxo_agentic_evaluation.batch_annotate.load_example", return_value=example_json), \
+                 patch("agentops.batch_annotate.load_example", return_value=example_json), \
                  patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AgentsController") as mock_agent_controller:
 
                 mock_agent = MagicMock()

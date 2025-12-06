@@ -42,7 +42,8 @@ class VMLifecycleManager(ABC):
     def edit_server(self, cpus: Optional[int] = None, memory: Optional[int] = None, disk: Optional[int] = None) -> None:
         """Edit VM resource allocation (CPU, memory, disk)."""
         pass
-
+    
+    @abstractmethod
     def show_current_context(self) -> Optional[str]:
         """Show current Docker context"""
         pass
@@ -65,4 +66,9 @@ class VMLifecycleManager(ABC):
     @abstractmethod
     def ssh(self) -> Optional[str]:
         """SSH into VM"""
+        pass
+
+    @abstractmethod
+    def is_server_running(self) -> bool:
+        """Returns a boolean indicating if the server is running or not"""
         pass

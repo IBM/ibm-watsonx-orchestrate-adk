@@ -1245,9 +1245,9 @@ class AgentsController:
             logger.error(e.response.text)
             exit(1)
 
-    def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent):
+    def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent, exclude: List[str] | None = None):
         ref_agent = self.reference_agent_dependencies(agent)
-        agent_spec = ref_agent.model_dump(mode='json', exclude_none=True)
+        agent_spec = ref_agent.model_dump(mode='json', exclude_none=True, exclude=exclude)
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind) -> Agent | ExternalAgent | AssistantAgent:
@@ -1283,7 +1283,7 @@ class AgentsController:
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
 
-    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False) -> None:
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None) -> None:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
@@ -1300,7 +1300,7 @@ class AgentsController:
             logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
             sys.exit(1)
 
-        agent_spec_file_content = self.get_spec_file_content(agent)
+        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude)
         
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
