@@ -3,12 +3,12 @@ import logging
 from pathlib import Path
 
 from examples.flow_builder.hello_message_flow_datamap.tools.hello_message_flow_datamap import build_hello_message_flow_datamap
-from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowRunStatus
+from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowRun, FlowRunStatus
 from ibm_watsonx_orchestrate.flow_builder.types import FlowEventType
 
 logger = logging.getLogger(__name__)
 
-flow_run = None
+flow_run: FlowRun | None = None
 
 def on_flow_end(result):
     """
@@ -29,8 +29,8 @@ async def main():
     generated_folder = f"{Path(__file__).resolve().parent}/generated"
     my_flow_definition.dump_spec(f"{generated_folder}/hello_message_flow_datamap.json")
     
-    # global flow_run
-    # flow_run = await my_flow_definition.invoke({"first_name": "John", "last_name": "Doe"}, on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
+    global flow_run
+    flow_run = await my_flow_definition.invoke({"first_name": "John", "last_name": "Doe"}, on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -72,8 +72,11 @@ def create_flow_json_tool(
         raise ValueError(
             f"No description provided for tool.")
 
+    # Extract display_name from flow_model
+    spec_display_name = flow_model.get("spec", {}).get("display_name")
     spec = ToolSpec(
         name=spec_name,
+        display_name=spec_display_name,
         description=spec_description,
         permission=spec_permission
     )

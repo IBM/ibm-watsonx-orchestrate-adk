@@ -106,6 +106,7 @@ snapshots['test_flow_tool_support_wxo_file_input_output 1'] = {
         }
     },
     'description': 'This is a flow tool to generate hello world with file claim',
+    'display_name': 'hello_file_flow',
     'name': 'hello-flow-tool',
     'permission': 'read_only'
 }
