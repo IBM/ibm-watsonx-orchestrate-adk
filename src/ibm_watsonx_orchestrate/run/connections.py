@@ -33,6 +33,9 @@ def oauth2_client_creds(app_id:str) -> OAuth2TokenCredentials:
 def oauth2_on_behalf_of(app_id:str) -> OAuth2TokenCredentials:
     return get_application_connection_credentials(ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, app_id=app_id)
 
+def oauth2_token_exchange(app_id:str) -> OAuth2TokenCredentials:
+    return get_application_connection_credentials(ConnectionType.OAUTH2_TOKEN_EXCHANGE, app_id=app_id)
+
 def key_value(app_id:str) -> KeyValueConnectionCredentials:
     return get_application_connection_credentials(ConnectionType.KEY_VALUE, app_id=app_id)
 

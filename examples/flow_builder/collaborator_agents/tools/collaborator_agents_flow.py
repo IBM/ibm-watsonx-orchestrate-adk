@@ -58,7 +58,7 @@ def build_collaborator_agents_flow(aflow: Flow) -> Flow:
         description="Ask the agent to get founding date of a city",
         message="Give a founding date in provided city",
         input_schema=FlowInput,
-        output_schema=CityFoundingDate,
+        output_schema=CityFoundingDate
     )
 
     ask_weather_agent = aflow.agent(
@@ -67,7 +67,7 @@ def build_collaborator_agents_flow(aflow: Flow) -> Flow:
         description="Ask the agent to get information about weather in a city",
         message="Give a real time weather data in provided city",
         input_schema=FlowInput,
-        output_schema=WeatherData,
+        output_schema=WeatherData
     )
 
     ask_population_agent = aflow.agent(
@@ -76,10 +76,8 @@ def build_collaborator_agents_flow(aflow: Flow) -> Flow:
         description="Ask the agent to get information about population in a city",
         message="Give a population and coordinate data in provided city",
         input_schema=FlowInput,
-        output_schema=PopulationData,
+        output_schema=PopulationData
     )
-
-
 
     ask_aggregate_agent = aflow.agent(
         name="ask_aggregate_agent",
@@ -92,3 +90,4 @@ def build_collaborator_agents_flow(aflow: Flow) -> Flow:
 
     aflow.sequence(START, ask_city_founding_date_agent, ask_weather_agent, ask_population_agent, ask_aggregate_agent, END)
     return aflow
+
