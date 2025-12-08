@@ -125,6 +125,11 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     tools = [x.strip() for x in tools if x.strip() != ""]
     agent_details["tools"] = tools
 
+    plugins = args.get("plugins", [])
+    plugins = plugins if plugins else []
+    plugins = [x.strip() for x in plugins if x.strip() != ""]
+    agent_details["plugins"] = plugins
+
     knowledge_base = args.get("knowledge_base", [])
     knowledge_base = knowledge_base if knowledge_base else []
     knowledge_base = [x.strip() for x in knowledge_base if x.strip() != ""]
@@ -359,17 +364,58 @@ class AgentsController:
 
     def dereference_tools(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
-
         deref_agent = deepcopy(agent)
+
+        tool_names = list(deref_agent.tools)
 
         # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
-            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools + [deref_agent.custom_join_tool])
-        else:
-            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools)
+            tool_names.append(deref_agent.custom_join_tool)
+
+        # Plugin tool names
+        plugin_phases = {}
+
+        if agent.plugins is not None:
+            plugin_phases = {
+                "agent_pre_invoke": getattr(agent.plugins, "agent_pre_invoke", None),
+                "agent_post_invoke": getattr(agent.plugins, "agent_post_invoke", None),
+            }
+
+            for plugin_list in plugin_phases.values():
+                if plugin_list:
+                    tool_names.extend([p.plugin_name for p in plugin_list])
+
+        # Fetch ALL tools at once 
+        all_matching_tools = tool_client.get_drafts_by_names(tool_names)
+
+        # Validate plugin placement
+        if agent.plugins is not None:
+            for phase_name, plugin_list in plugin_phases.items():
+                if not plugin_list:
+                    continue
+
+                for plugin in plugin_list:
+                    tool = next((t for t in all_matching_tools if t["name"] == plugin.plugin_name), None)
+                    if not tool:
+                        logger.error(f"Plugin {plugin.plugin_name} not found in fetched tools.")
+                        sys.exit(1)
+
+                    python_binding = tool.get("binding", {}).get("python", {})
+                    tool_type = python_binding.get("type")
+
+                    if not tool_type:
+                        logger.error(f"Tool '{plugin.plugin_name}' missing 'type' in binding.")
+                        sys.exit(1)
+
+                    if tool_type != phase_name:
+                        logger.error(
+                            f"Tool '{plugin.plugin_name}' has type '{tool_type}' "
+                            f"but is placed under the '{phase_name}' section of the Agent spec. Please update this."
+                        )
+                        sys.exit(1)
 
         name_id_lookup = {}
-        for tool in matching_tools:
+        for tool in all_matching_tools:
             if tool.get("name") in name_id_lookup:
                 logger.error(f"Duplicate draft entries for tool '{tool.get('name')}'")
                 sys.exit(1)
@@ -391,41 +437,101 @@ class AgentsController:
                 sys.exit(1)
             deref_agent.custom_join_tool = join_tool_id
 
+        # # Dereference plugins
+        if agent.plugins:
+            # Make a deep copy of the agent's plugins so we don't mutate the original
+            deref_agent.plugins = deepcopy(agent.plugins)
+
+            for phase_name in ["agent_pre_invoke", "agent_post_invoke"]:
+                phase_list = getattr(deref_agent.plugins, phase_name, None)
+                if not phase_list:
+                    continue
+
+                for plugin in phase_list:
+                    plugin_id = name_id_lookup.get(plugin.plugin_name)
+                    if not plugin_id:
+                        logger.error(f"Failed to find plugin tool. No tools found with the name '{plugin.plugin_name}'")
+                        sys.exit(1)
+                    plugin.plugin_id = plugin_id
+
         return deref_agent
     
     def reference_tools(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
 
         ref_agent = deepcopy(agent)
+
+        # main tools
+        main_tool_ids = list(ref_agent.tools)
         
-        # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
+        # Include custom join tool if planner style
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
-            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools + [ref_agent.custom_join_tool])
-        else:
-            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools)
+            main_tool_ids.append(agent.custom_join_tool)
+
+        # plugin tools
+        plugin_tool_ids = []
+        if ref_agent.plugins:
+            # pre-invoke plugins
+            if getattr(ref_agent.plugins, "agent_pre_invoke", None):
+                plugin_tool_ids.extend(
+                    p.plugin_id for p in ref_agent.plugins.agent_pre_invoke if p.plugin_id
+                )
+
+            # post-invoke plugins
+            if getattr(ref_agent.plugins, "agent_post_invoke", None):
+                plugin_tool_ids.extend(
+                    p.plugin_id for p in ref_agent.plugins.agent_post_invoke if p.plugin_id
+                )
+
+        all_tool_ids = main_tool_ids + plugin_tool_ids
+        matching_tools = tool_client.get_drafts_by_ids(all_tool_ids)
 
         id_name_lookup = {}
         for tool in matching_tools:
-            if tool.get("id") in id_name_lookup:
-                logger.error(f"Duplicate draft entries for tool '{tool.get('id')}'")
+            tid = tool.get("id")
+            tname = tool.get("name")
+            if tid in id_name_lookup:
+                logger.error(f"Duplicate draft entries for tool '{tid}'")
                 sys.exit(1)
-            id_name_lookup[tool.get("id")] = tool.get("name")
-        
+            id_name_lookup[tid] = tname
+
+        # resolove main tools
         ref_tools = []
-        for id in agent.tools:
-            name = id_name_lookup.get(id)
+        for tid in agent.tools:
+            name = id_name_lookup.get(tid)
             if not name:
-                logger.error(f"Failed to find tool. No tools found with the id '{id}'")
+                logger.error(f"Failed to find tool. No tools found with the id '{tid}'")
                 sys.exit(1)
             ref_tools.append(name)
         ref_agent.tools = ref_tools
-        
+
+        # resolove custom join tool
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
             join_tool_name = id_name_lookup.get(agent.custom_join_tool)
             if not join_tool_name:
-                logger.error(f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'")
+                logger.error(
+                    f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'"
+                )
                 sys.exit(1)
             ref_agent.custom_join_tool = join_tool_name
+
+        # resolve plugin tools
+        if agent.plugins:
+            for phase_name in ["agent_pre_invoke", "agent_post_invoke"]:
+                phase_list = getattr(ref_agent.plugins, phase_name, None)
+                if not phase_list:
+                    continue
+
+                for plugin in phase_list:
+                    plugin_name = id_name_lookup.get(plugin.plugin_id)
+                    if not plugin_name:
+                        logger.error(
+                            f"Failed to find plugin tool. No plugin found with id '{plugin.plugin_id}'"
+                        )
+                        sys.exit(1)
+                    plugin.plugin_name = plugin_name
+                    # REMOVE plugin_id so it's not exported
+                    del plugin.plugin_id
 
         return ref_agent
     
@@ -602,11 +708,20 @@ class AgentsController:
     def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.dereference_collaborators(agent)
-        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
+
+        plugins_has_entries = (
+            (agent.plugins.agent_pre_invoke and len(agent.plugins.agent_pre_invoke) > 0) or
+            (agent.plugins.agent_post_invoke and len(agent.plugins.agent_post_invoke) > 0)
+        )
+
+        if (agent.tools and len(agent.tools) > 0) or \
+        (agent.style == AgentStyle.PLANNER and agent.custom_join_tool) or \
+        plugins_has_entries:
             agent = self.dereference_tools(agent)
-        if agent.knowledge_base and len(agent.knowledge_base):
+
+        if agent.knowledge_base and len(agent.knowledge_base) > 0:
             agent = self.dereference_knowledge_bases(agent)
-        if agent.guidelines and len(agent.guidelines):
+        if agent.guidelines and len(agent.guidelines) > 0:
             agent = self.dereference_guidelines(agent)
 
         return agent
@@ -614,7 +729,7 @@ class AgentsController:
     def reference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.reference_collaborators(agent)
-        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
+        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool) or (agent.plugins is not None):
             agent = self.reference_tools(agent)
         if agent.knowledge_base and len(agent.knowledge_base):
             agent = self.reference_knowledge_bases(agent)
@@ -846,25 +961,29 @@ class AgentsController:
 
     def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
         """
-            Given a list of agents get all the unique values of a certain field
-            Example: agent1.tools = [1 ,2 ,3] and agent2.tools = [2, 4, 5] then return [1, 2, 3, 4, 5]
-            Example: agent1.id = "123" and agent2.id = "456" then return ["123", "456"]
-
-            Args:
-                agents: List of agents
-                target_attr: The name of the field to access and get unique elements
-
-            Returns:
-                A list of unique elements from across all agents
+        Given a list of agents, get all unique values of a certain field.
+        Handles both flat lists (like agent.tools = [id1, id2]) and nested plugin objects.
         """
         all_ids = set()
+
         for agent in agents:
             attr_value = getattr(agent, target_attr, None)
-            if attr_value:
-                if isinstance(attr_value, list):
-                    all_ids.update(attr_value)
-                else:
-                    all_ids.add(attr_value)
+            if not attr_value:
+                continue
+
+            # Special handling for Plugins model
+            if target_attr == "plugins" and hasattr(attr_value, "agent_pre_invoke"):
+                for plugin_ref in getattr(attr_value, "agent_pre_invoke", []):
+                    all_ids.add(plugin_ref.plugin_id)
+                for plugin_ref in getattr(attr_value, "agent_post_invoke", []):
+                    all_ids.add(plugin_ref.plugin_id)
+
+            elif isinstance(attr_value, list):
+                all_ids.update(attr_value)
+
+            else:
+                all_ids.add(attr_value)
+
         return list(all_ids)
 
     def _construct_lut_agent_resource(self, resource_list: List[dict], key_attr: str, value_attr) -> dict:
@@ -888,15 +1007,17 @@ class AgentsController:
         return lut
     
     def _lookup_agent_resource_value(
-            self,
-            agent: Agent, 
-            lookup_table: dict[str, str], 
-            target_attr: str,
-            target_attr_display_name: str
-        ) -> List[str] | str | None:
+        self,
+        agent: Agent, 
+        lookup_table: dict[str, str], 
+        target_attr: str,
+        target_attr_display_name: str
+    ) -> list[str] | str | None:
         """
         Using a lookup table convert all the strings in a given field of an agent into their equivalent in the lookup table
         Example: lookup_table={1: obj1, 2: obj2} agent=Agent(tools=[1,2]) return. [obj1, obj2]
+
+        This function also takes into account plugins.
 
         Args:
             agent: An agent
@@ -906,10 +1027,25 @@ class AgentsController:
         """
         attr_value = getattr(agent, target_attr, None)
         if not attr_value:
-            return
-        
+            return None
+
+        # Special case for Plugins
+        if target_attr == "plugins" and hasattr(attr_value, "agent_pre_invoke"):
+            resolved_names = []
+
+            for plugin_ref in getattr(attr_value, "agent_pre_invoke", []):
+                plugin_id = plugin_ref.plugin_id
+                resolved_names.append(lookup_table.get(plugin_id, plugin_id))
+
+            for plugin_ref in getattr(attr_value, "agent_post_invoke", []):
+                plugin_id = plugin_ref.plugin_id
+                resolved_names.append(lookup_table.get(plugin_id, plugin_id))
+
+            return resolved_names
+
+        # Normal list of strings
         if isinstance(attr_value, list):
-            new_resource_list=[]
+            new_resource_list = []
             for value in attr_value:
                 if value in lookup_table:
                     new_resource_list.append(lookup_table[value])
@@ -917,12 +1053,13 @@ class AgentsController:
                     logger.warning(f"{target_attr_display_name} with ID '{value}' not found. Returning {target_attr_display_name} ID")
                     new_resource_list.append(value)
             return new_resource_list
+
+        # Single string
+        if attr_value in lookup_table:
+            return lookup_table[attr_value]
         else:
-            if attr_value in lookup_table:
-                return lookup_table[attr_value]
-            else:
-                logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
-                return attr_value
+            logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
+            return attr_value
 
     def _batch_request_resource(self, client_fn, ids, batch_size=50) -> List[dict]:
         resources = []
@@ -946,6 +1083,22 @@ class AgentsController:
             tool_names = self._lookup_agent_resource_value(agent, tool_lut, "tools", "Tool")
             if tool_names:
                 agent.tools = tool_names
+        return new_agents
+    
+    def _bulk_resolve_agent_plugins(self, agents: List[Agent]) -> List[Agent]:
+        new_agents = agents.copy()
+        all_plugin_ids = self._get_all_unique_agent_resources(new_agents, "plugins")
+        if not all_plugin_ids:
+            return new_agents
+
+        all_plugins = self._batch_request_resource(self.get_tool_client().get_drafts_by_ids, all_plugin_ids)
+
+        plugin_lut = self._construct_lut_agent_resource(all_plugins, "id", "name")
+
+        for agent in new_agents:
+            plugin_names = self._lookup_agent_resource_value(agent, plugin_lut, "plugins", "Plugin")
+            if plugin_names:
+                agent.plugins = plugin_names
         return new_agents
 
     def _bulk_resolve_agent_knowledge_bases(self, agents: List[Agent]) -> List[Agent]:
@@ -1041,6 +1194,7 @@ class AgentsController:
                 output_dictionary["native"] = agents_list
             else:
                 resolved_native_agents = self._bulk_resolve_agent_tools(native_agents)
+                resolved_native_agents = self._bulk_resolve_agent_plugins(native_agents)
                 resolved_native_agents = self._bulk_resolve_agent_knowledge_bases(resolved_native_agents)
                 resolved_native_agents = self._bulk_resolve_agent_collaborators(resolved_native_agents)
 
@@ -1065,6 +1219,7 @@ class AgentsController:
                         "Style": {},
                         "Collaborators": {},
                         "Tools": {},
+                        "Plugins": {},
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
                     }
@@ -1072,6 +1227,24 @@ class AgentsController:
                         native_table.add_column(column, **column_args[column])
 
                     for agent in resolved_native_agents:
+                        # If agent.plugins might be a list of tuples
+                        # Build plugin strings for display
+                        plugin_strings = []
+                        if agent.plugins:
+                            # If it's a Plugins object
+                            if hasattr(agent.plugins, "agent_pre_invoke"):
+                                plugin_strings.extend(
+                                    [p.plugin_name for p in agent.plugins.agent_pre_invoke if p.plugin_name]
+                                )
+                                plugin_strings.extend(
+                                    [p.plugin_name for p in agent.plugins.agent_post_invoke if p.plugin_name]
+                                )
+                            elif isinstance(agent.plugins, list):
+                                for p in agent.plugins:
+                                    if isinstance(p, dict) and "plugin_name" in p:
+                                        plugin_strings.append(p["plugin_name"])
+                                    elif isinstance(p, str):
+                                        plugin_strings.append(p)
                         agent_name = self._format_agent_display_name(agent)
                         native_table.add_row(
                             agent_name,
@@ -1080,6 +1253,7 @@ class AgentsController:
                             agent.style,
                             ", ".join(agent.collaborators),
                             ", ".join(agent.tools),
+                            ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
                         )
@@ -1383,6 +1557,40 @@ class AgentsController:
                     f"{base_tool_file_path}config.json",
                     ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
                 )
+
+        # Export Plugins
+        agent_plugins = agent_spec_file_content.get("plugins", {})
+
+        tools_controller = ToolsController()
+        tools_client = tools_controller.get_client()
+
+        for phase_name, plugin_list in agent_plugins.items():
+            for plugin in plugin_list:
+                plugin_name = plugin.get("plugin_name")
+                if not plugin_name:
+                    continue
+
+                base_plugin_file_path = f"{output_file_name}/plugins/{plugin_name}/"
+                if check_file_in_zip(file_path=base_plugin_file_path, zip_file=zip_file_out):
+                    continue
+
+                plugin_specs = {t.get('name'): t for t in tools_client.get_drafts_by_names([plugin_name]) if t.get('name')}
+                current_spec = plugin_specs.get(plugin_name)
+
+                tools_controller.export_tool(
+                    name=plugin_name,
+                    output_path=base_plugin_file_path,
+                    zip_file_out=zip_file_out,
+                    spec=current_spec,
+                    connections_output_path=f"{output_file_name}/connections/"
+                )
+
+                # Optionally, write a config.json for the plugin spec
+                if with_tool_spec_file and current_spec:
+                    zip_file_out.writestr(
+                        f"{base_plugin_file_path}config.json",
+                        ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True, indent=2)
+                    )
         
         # Export Knowledge Bases
         knowledge_base_controller = KnowledgeBaseController()
