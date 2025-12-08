@@ -1050,6 +1050,7 @@ services:
       FLOW_CALLBACK_REQUEST_RETRIES: "1"
       DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
+      FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
