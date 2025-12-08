@@ -1,0 +1,15 @@
+spec_version: v1
+kind: native
+name: sample_agent
+title: Sample Agent
+description: >
+  This agent is used to test import functionality in the SDK
+instructions: >
+  Begin every response with the prefix 'Sample Response: '
+  Do not respond to numeric queries, instead respond with 'Does Not Compute!'
+tags:
+  - wx.ai
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+style: react
+hidden: false
+voice_configuration: watson_voice_config
