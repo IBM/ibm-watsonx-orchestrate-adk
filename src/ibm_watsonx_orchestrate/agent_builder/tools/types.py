@@ -1,9 +1,9 @@
 from enum import Enum
 import os
-from typing import List, Any, Dict, Literal, Optional, Union
+from typing import List, Any, Dict, Literal, Optional, Union, Generic, TypeVar, TypeAlias
 import logging
 
-from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, SerializerFunctionWrapHandler, ValidationError, ValidationInfo, field_serializer, model_serializer, model_validator, ConfigDict, Field, AliasChoices
+from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler, ValidationError, ValidationInfo, model_validator, ConfigDict, Field, AliasChoices, PrivateAttr, model_serializer, model_validator, ConfigDict, Field, AliasChoices, SerializerFunctionWrapHandler
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 import requests
@@ -22,6 +22,8 @@ class ToolPermission(str, Enum):
 class PythonToolKind(str, Enum):
     JOIN_TOOL = 'join_tool'
     TOOL = 'tool'
+    AGENTPREINVOKE = 'agent_pre_invoke'
+    AGENTPOSTINVOKE = 'agent_post_invoke'
 
 class JsonSchemaTokens(str, Enum):
     NONE = '__null__'
@@ -157,6 +159,7 @@ class PythonToolBinding(BaseModel):
     function: str
     requirements: Optional[List[str]] = []
     connections: dict[str, str] = None
+    type: Optional[str] = None
     agent_run_paramater: Optional[str] = None
 
 
@@ -379,3 +382,126 @@ class ToolListEntry(BaseModel):
     def get_row_details(self):
         app_ids = ", ".join(self.app_ids) if self.app_ids else ""
         return [self.name, self.description, self.type, self.toolkit, app_ids]
+    
+# ---------------------------------------------------------------------------
+# Plugin Tools Models
+# ---------------------------------------------------------------------------
+
+T = TypeVar("T")
+class PluginViolation(BaseModel):
+    """A plugin violation, used to denote policy violations."""
+
+    reason: str
+    description: str
+    code: str
+    details: dict[str, Any]
+    _plugin_name: str = PrivateAttr(default="")
+
+class PluginResult(BaseModel, Generic[T]):
+    """A result of the plugin hook processing. The actual type is dependent on the hook."""
+
+    continue_processing: bool = True
+    modified_payload: Optional[T] = None
+    violation: Optional[PluginViolation] = None
+    metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
+
+PluginPayload: TypeAlias = BaseModel
+
+# ---------------------------------------------------------------------------
+# Plugin Context
+# ---------------------------------------------------------------------------
+
+class GlobalContext(BaseModel):
+    """The global context, which shared across all plugins."""
+
+    request_id: str
+    user: Optional[str] = None
+    tenant_id: Optional[str] = None
+    server_id: Optional[str] = None
+    state: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+class PluginContext(BaseModel):
+    """The plugin's context, which lasts a request lifecycle."""
+
+    state: dict[str, Any] = Field(default_factory=dict)
+    global_context: GlobalContext
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+class Role(str, Enum):
+    ASSISTANT = "assistant"
+    USER = "user"
+
+class TextContent(BaseModel):
+    type: Literal["text"]
+    text: str
+
+class JSONContent(BaseModel):
+    type: Literal["text"]
+    text: dict
+
+class ImageContent(BaseModel):
+    type: Literal["image"]
+    data: bytes
+    mime_type: str
+
+class ResourceContent(BaseModel):
+    type: Literal["resource"]
+    id: str
+    uri: str
+    mime_type: Optional[str] = None
+    text: Optional[str] = None
+    blob: Optional[bytes] = None
+
+
+ContentType = Union[TextContent, JSONContent, ImageContent, ResourceContent]
+class Message(BaseModel):
+    role: Role
+    content: ContentType
+
+class HttpHeaderPayload(BaseModel):
+    """HTTP headers payload for plugin requests."""
+    authorization: Optional[str] = None
+    content_type: Optional[str] = Field(default="application/json")
+    custom_headers: Optional[Dict[str, str]] = Field(default_factory=dict)
+
+HttpHeaderPayloadResult = PluginResult[HttpHeaderPayload]
+
+class AgentPreInvokeType(Enum):
+    RBAC_ONLY = "RBAC_ONLY"
+    SKIP_RBAC = "SKIP_RBAC"
+    ALL = "ALL"
+
+# ---------------------------------------------------------------------------
+# Agent Pre-Invoke Payload
+# ---------------------------------------------------------------------------
+
+class AgentPreInvokePayload(PluginPayload):
+    agent_id: str
+    messages: List[Message]
+    tools: Optional[List[str]] = None
+    headers: Optional[HttpHeaderPayload] = None
+    model: Optional[str] = None
+    system_prompt: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+# ---------------------------------------------------------------------------
+# Agent Post-Invoke Payload
+# ---------------------------------------------------------------------------
+
+class AgentPostInvokePayload(PluginPayload):
+    """Payload for agent post-invoke plugin hook."""
+    agent_id: str
+    messages: List[Message]
+    tool_calls: Optional[List[Dict[str, Any]]] = None
+
+# ---------------------------------------------------------------------------
+# Agent Pre-Invoke Result - AgentPreInvokeResult = PluginResult[AgentPreInvokePayload]
+# ---------------------------------------------------------------------------
+
+AgentPreInvokeResult = PluginResult[AgentPreInvokePayload]
+AgentPostInvokeResult = PluginResult[AgentPostInvokePayload]
+
+# ---------------------------------------------------------------------------
+# Agent Post-Invoke Result - AgentPostInvokeResult = PluginResult[AgentPostInvokePayload]
+# ---------------------------------------------------------------------------
