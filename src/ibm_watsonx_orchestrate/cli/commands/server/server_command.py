@@ -26,6 +26,7 @@ from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
@@ -95,6 +96,7 @@ def run_compose_lite(
         with_voice=False,
         with_connections_ui=False,
         with_langflow=False,
+        with_ai_builder=False,
     ) -> None:
     env_service.prepare_clean_env(final_env_file)
     db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
@@ -130,8 +132,10 @@ def run_compose_lite(
         profiles.append("connections-ui")
     if with_langflow:
         profiles.append("langflow")
+    if with_ai_builder:
+        profiles.append("agent-builder")
 
-    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0", "--scale", "cpe=0"])
+    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0"])
 
     if result.returncode == 0:
         logger.info("Services started successfully.")
@@ -144,6 +148,13 @@ def run_compose_lite(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
+
+def stop_virtual_machine(keep_vm: bool = False):
+    if keep_vm:
+        return
+    
+    vm = get_vm_manager()
+    vm.stop_server()
 
 def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=90, interval_seconds=2):
     url = "http://localhost:4321/api/v1/auth/token"
@@ -284,17 +295,26 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
+
     cli_config = Config()
     env_service = EnvService(cli_config)
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=final_env_file, is_reset=is_reset)
+    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=vm_env_file, is_reset=is_reset)
 
     if result.returncode == 0:
         logger.info("UI service stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
+        if vm_env_file.exists():
+            vm_env_file.unlink()
     else:
         error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
         logger.error(
@@ -366,12 +386,8 @@ def run_compose_lite_logs(final_env_file: Path) -> None:
     vm = get_vm_manager()
 
     try:
-        if vm:
-            logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
-            result = vm.run_docker_command(command, capture_output=False)
-        else:
-            logger.info("Tailing docker-compose logs (native Docker)...")
-            result = subprocess.run(["docker"] + command, text=True)
+        logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
+        result = vm.run_docker_command(command, capture_output=False)
     except KeyboardInterrupt:
         result = subprocess.CompletedProcess(args=command, returncode=130)
     except subprocess.CalledProcessError as e:
@@ -436,7 +452,7 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy compose file
-    compose_src = env_service.get_compose_file()
+    compose_src = env_service.get_compose_file(ignore_cache=True)
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
     # Merge default + user env
@@ -449,17 +465,13 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
 
     # Return the correct path for the VM to access
     system = platform.system().lower()
-    username = Path.home().name
 
-    if system == "darwin":
-        vm_env_path = Path(f"/Users/{username}/.cache/orchestrate/merged.env")
-    elif system == "windows":
+    if system == "windows":
         # When running in WSL, /home/orchestrate maps directly inside the WSL VM
         # vm_env_path = Path("/home/orchestrate/.cache/orchestrate/merged.env")
         vm_env_path = Path(path_for_vm(merged_env_path))
     else:
-        # Linux native
-        vm_env_path = Path(f"/home/{username}/.cache/orchestrate/merged.env")
+         vm_env_path = merged_env_path
 
     return vm_env_path
 
@@ -515,6 +527,11 @@ def server_start(
         '--with-langflow',
         help='Enable Langflow UI, available at http://localhost:7861'
     ),
+    with_ai_builder: bool = typer.Option(
+        False,
+        '--with-ai-builder',
+        help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
+    ),
 ):
     cli_config = Config()
     confirm_accepts_license_agreement(accept_terms_and_conditions, cli_config)
@@ -565,18 +582,21 @@ def server_start(
     if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
 
+    if with_voice:
+        merged_env_dict['VOICE_ENABLED'] = 'true'
+    
+    if with_ai_builder:
+        merged_env_dict['AI_BUILDER_ENABLED'] = 'true'
+
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
     vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
 
     vm = get_vm_manager()
-    if vm:
-        vm.start_server()
+    vm.start_server()
 
-    logger.info("Running docker compose-up inside the VM...")
+    logger.info("Running docker compose-up...")
     
-    if with_voice:
-        merged_env_dict['VOICE_ENABLED'] = 'true'
     
     try:
         DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
@@ -591,9 +611,11 @@ def server_start(
                      with_doc_processing=with_doc_processing,
                      with_voice=with_voice,
                      with_connections_ui=with_connections_ui,
-                     with_langflow=with_langflow, env_service=env_service)
+                     with_langflow=with_langflow,
+                     with_ai_builder=with_ai_builder,
+                     env_service=env_service)
     
-    run_db_migration()
+    run_db_migration(with_ai_builder)
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
@@ -625,6 +647,8 @@ def server_start(
         logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
+    if with_ai_builder:
+        logger.info("AI Builder feature has been enabled. You can now use AI assisted agent authoring features")
 
 @server_app.command(name="stop")
 def server_stop(
@@ -632,8 +656,17 @@ def server_stop(
         None,
         "--env-file", '-e',
         help="Path to a .env file that overrides default.env. Then environment variables override both."
+    ),
+    keep_vm: bool = typer.Option(
+        False,
+        "--keep-vm",
+        help="Don't stop the VM running the Developer Editon server."
     )
 ):
+    vm = get_vm_manager()
+    if not vm.is_server_running():
+        logger.info("Server already stopped")
+        return
 
     DockerUtils.ensure_docker_installed()
     default_env_path = EnvService.get_default_env_file()
@@ -646,6 +679,7 @@ def server_stop(
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
     run_compose_lite_down(final_env_file=final_env_file)
+    stop_virtual_machine(keep_vm=keep_vm)
 
 @server_app.command(name="reset")
 def server_reset(
@@ -654,7 +688,15 @@ def server_reset(
             "--env-file", '-e',
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
+        keep_vm: bool = typer.Option(
+            False,
+            "--keep-vm",
+            help="Don't stop the VM running the Developer Editon server."
+        )
 ):
+    vm = get_vm_manager()
+    vm.start_server()
+
     DockerUtils.ensure_docker_installed()
 
     user_env_file = parse_string_safe(value=user_env_file, override_empty_to_none=True)
@@ -683,8 +725,9 @@ def server_reset(
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
+    stop_virtual_machine(keep_vm=keep_vm)
 
-def run_db_migration() -> None:
+def run_db_migration(with_ai_builder: bool = False) -> None:
     default_env_path = EnvService.get_default_env_file()
     merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
 
@@ -779,6 +822,40 @@ def run_db_migration() -> None:
     done
     '''
 
+    if with_ai_builder:
+        migration_script += rf'''
+        # Create architect database if it doesn't exist
+        if psql -U {pg_user} -lqt | cut -d \| -f 1 | grep -qw architect; then
+            echo 'Existing architect DB found'
+        else
+            echo 'Creating architect DB'
+            createdb -U "{pg_user}" -O "{pg_user}" architect;
+            psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE architect TO {pg_user}";
+        fi
+
+        # Run architect-specific migrations
+        ARCHITECT_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/architect_migrations.txt"
+        touch "$ARCHITECT_MIGRATIONS_FILE"
+
+        for file in /docker-entrypoint-initdb.d/agent_architecture/migrations/*.sql; do
+            if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                
+                if grep -Fxq "$filename" "$ARCHITECT_MIGRATIONS_FILE"; then
+                    echo "Skipping already applied architect migration: $filename"
+                else
+                    echo "Applying architect migration: $filename"
+                    if psql -U {pg_user} -d architect -q -f "$file" > /dev/null 2>&1; then
+                        echo "$filename" >> "$ARCHITECT_MIGRATIONS_FILE"
+                    else
+                        echo "Error applying architect migration: $filename. Stopping migrations."
+                        exit 1
+                    fi
+                fi
+            fi
+        done
+        '''
+
     # Encode the migration script to base64
     encoded_script = base64.b64encode(migration_script.encode('utf-8')).decode('utf-8')
 
@@ -800,15 +877,11 @@ def run_db_migration() -> None:
     ]
 
     vm = get_vm_manager()
-    if vm:
-        logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
-        system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
-        if system == "windows":
-            time.sleep(60)
-        result = vm.run_docker_command(command, capture_output=False)
-    else:
-        logger.info("Running DB migrations (native Docker)...")
-        result = subprocess.run(["docker"] + command, text=True)
+    logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
+    system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
+    if system == "windows":
+        time.sleep(60)
+    result = vm.run_docker_command(command, capture_output=False)
 
     if result.returncode == 0:
         logger.info("Migration ran successfully.")
@@ -928,15 +1001,15 @@ def server_eject(
 @server_app.command(name="purge", help="Delete the underlying VM and all its data")
 def server_purge():
     vm = get_vm_manager(ensure_installed=False)
-    if vm:
-        console = Console()
-        with Progress(
-            SpinnerColumn(spinner_name="dots"),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-            console=console,
-                ) as progress:
-                    progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+    console = Console()
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        console=console,
+            ) as progress:
+                task = progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+                try:
                     success =  vm.delete_server()
                     if success:
                         progress.stop()
@@ -945,9 +1018,10 @@ def server_purge():
                         progress.stop()
                         logger.error("Failed to Delete VM.")
                         sys.exit(1)
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+                except Exception as e:
+                    progress.stop()
+                    raise BadRequest(str(e))
+
 
 # orchestrate server edit - will allow the user to update their underlying vm cpu and memory settings
 @server_app.command(name="edit", help="Edit the underlying VM CPU, memory, or disk settings")
@@ -966,32 +1040,49 @@ def server_edit(
         if disk: 
             logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
     
-    vm = get_vm_manager()
-    if vm:
+    # Using Progress Spinner for OSX/Linux but using logger.info for wsl as it takes much longer and gives user better info.
+    if system == "windows":
+        vm = get_vm_manager()
         success =  vm.edit_server(cpus, memory, disk)
         if success:
-            logger.info("VM updated successfully and restarted.")
+            logger.info("VM updated successfully.")
         else:
             logger.error("Failed to Update VM.")
             sys.exit(1)
     else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+        vm = get_vm_manager()
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+        ) as progress:
+            progress.add_task(description="Editing the underlying VM settings...", total=None)
+            try:
+                success = vm.edit_server(cpus, memory, disk)
+                if success:
+                    progress.stop()
+                    logger.info("VM updated successfully.")
+                else:
+                    progress.stop()
+                    logger.error("Failed to Update VM.")
+                    sys.exit(1)
+            except Exception as e:
+                progress.stop()
+                raise BadRequest(str(e))
+
 
 # orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
 @server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")
 def server_attach_docker():
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.attach_docker_context()
-        if success:
-            logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.attach_docker_context()
+    if success:
+        logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server release-docker - switch the docker context back to default
@@ -1001,15 +1092,11 @@ def server_release_docker():
     previous_context = cfg.read(DOCKER_CONTEXT, PREVIOUS_DOCKER_CONTEXT, ) or "default"
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.release_docker_context()
-        if success:
-            logger.info(f"Docker context successfully switched to {previous_context}.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.release_docker_context()
+    if success:
+        logger.info(f"Docker context successfully switched to {previous_context}.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server logs <container> - get the logs of a given container pod
@@ -1048,22 +1135,14 @@ def server_logs(
     
     else:
         vm = get_vm_manager()
-        if vm:
-            vm.get_container_logs(container_id, container_name)
-        else:
-            logger.error("No underlying VM found")
-            sys.exit(1)
+        vm.get_container_logs(container_id, container_name)
 
 
 # orchestrate server ssh - ssh into the underlying vm
 @server_app.command(name="ssh", help="SSH into the underlying VM")
 def ssh():
     vm = get_vm_manager()
-    if vm:
-        vm.ssh()
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+    vm.ssh()
 
 
 if __name__ == "__main__":

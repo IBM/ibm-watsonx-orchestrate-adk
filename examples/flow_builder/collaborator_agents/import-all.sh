@@ -12,11 +12,11 @@ for agent in weather_agent.yaml population_agent.yaml aggregate_agent.yaml city_
   orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
 done
 
-for flow_tool in collaborator_agents_flow.py; do
+for flow_tool in collaborator_agents_flow.py ask_city_founding_date_agent_flow.py ask_weather_agent_flow.py ask_population_agent_flow.py ask_aggregate_agent_flow.py collaborator_agents_flow_low_code.json; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool}
 done
 
-for agent in get_city_facts_agent.yaml; do
+for agent in get_city_facts_agent.yaml get_city_facts_agent_low_code.yaml; do
   orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
 done
 

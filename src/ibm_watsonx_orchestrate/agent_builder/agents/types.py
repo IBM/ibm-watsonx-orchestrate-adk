@@ -8,7 +8,8 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
-from pydantic import Field, AliasChoices
+from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
+from pydantic import Field, AliasChoices, field_validator
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -174,6 +175,7 @@ class AgentSpec(BaseAgentSpec):
     guidelines: Optional[List[AgentGuideline]] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+    plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
     chat_with_docs: Optional[ChatWithDocsConfig] = None
@@ -201,10 +203,22 @@ class AgentSpec(BaseAgentSpec):
         if self.kind != AgentKind.NATIVE:
             raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
         return self
+    
+    @field_validator("plugins", mode="before")
+    def ensure_plugins_object(cls, v):
+        if v is None:
+            return Plugins()
+        if isinstance(v, Plugins):
+            return v
+        if isinstance(v, dict):
+            return Plugins(**v)
+        if isinstance(v, list):
+            return Plugins()
+        return v
 
 def validate_agent_fields(values: dict) -> dict:
     # Check for empty strings or whitespace
-    for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base"]:
+    for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base", "plugins"]:
         value = values.get(field)
         if value and not str(value).strip():
             raise BadRequest(f"{field} cannot be empty or just whitespace")

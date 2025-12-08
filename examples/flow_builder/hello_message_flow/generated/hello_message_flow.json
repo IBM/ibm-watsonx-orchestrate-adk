@@ -8,8 +8,9 @@
       "$ref": "#/schemas/hello_message_flow_input"
     },
     "output_schema": {
-      "type": "string"
-    }
+      "$ref": "#/schemas/Message"
+    },
+    "schedulable": false
   },
   "nodes": {
     "combine_names": {
@@ -92,6 +93,19 @@
         }
       }
     },
+    "Message": {
+      "type": "object",
+      "title": "Message",
+      "required": [
+        "msg"
+      ],
+      "properties": {
+        "msg": {
+          "type": "string",
+          "title": "Msg"
+        }
+      }
+    },
     "combine_names_input": {
       "type": "object",
       "title": "combine_names_input",
@@ -129,6 +143,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T21:29:52.944462+00:00"
+    "compiled_on": "2025-11-19T15:45:33.336732+00:00"
   }
 }

@@ -9,7 +9,8 @@
     },
     "output_schema": {
       "$ref": "#/schemas/FlowOutput"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "ask_city_founding_date_agent": {
@@ -297,6 +298,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T20:23:38.958697+00:00"
+    "compiled_on": "2025-11-19T14:58:14.015883+00:00"
   }
 }

@@ -15,6 +15,7 @@ import getpass
 
 from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
 
+from ibm_watsonx_orchestrate.client.utils import get_linux_package_manager
 from ibm_watsonx_orchestrate.developer_edition.vm_host.constants import VM_NAME, CPU_ARCH_ARM, DEFAULT_DISK_SPACE, \
     DEFAULT_CPUS, DEFAULT_MEMORY
 
@@ -35,7 +36,9 @@ class LimaLifecycleManager(VMLifecycleManager):
         _ensure_lima_vm_started()
 
     def stop_server(self):
+        logger.info("Stopping Lima VM...")
         _ensure_lima_vm_stopped()
+        logger.info("Lima VM stopped.")
 
     def delete_server(self):
         return _ensure_lima_vm_host_deleted()
@@ -87,6 +90,18 @@ class LimaLifecycleManager(VMLifecycleManager):
     
     def ssh(self):
         return _ssh_into_lima()
+    
+    def is_server_running(self):
+        _ensure_lima_installed()
+        
+        vm = _get_vm_state()
+        if vm is None:
+            logger.info('Could not find VM named ' + VM_NAME)
+            return False
+        status = vm['status']
+        if status == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command
@@ -110,8 +125,20 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
 def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
 
-def _get_unix_cpu_arch():
-    return subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+def _get_unix_arm_capability():
+    try:
+        return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+    except:
+        return False
+
+def _get_unix_cpu_arch(ignore_emulation: bool = True) -> str:
+    arch = subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+    os = _get_unix_os()
+
+    # Check for Rosetta Emulation
+    if ignore_emulation and arch == 'x86_64' and os == 'Darwin' and _get_unix_arm_capability():
+        return "arm64"
+    return arch
 
 def _get_lima_vm_base_args() -> List[str]:
     os = _get_unix_os()
@@ -186,29 +213,21 @@ def _ensure_qemu_installed():
 
     # Install required packages, INCLUDING virtiofsd
     try:
+        package_manager = get_linux_package_manager()
         subprocess.run(
-            ["sudo", "dnf", "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
+            ["sudo", package_manager , "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        logger.info("QEMU packages (including virtio-fs) installed via dnf.")
+        logger.info(f"QEMU packages (including virtio-fs) installed via {package_manager}.")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install QEMU packages: {e.stderr}")
         return # Return early on failure
 
     # Detect actual binary location (RHEL 9 puts it in /usr/libexec/qemu-kvm)
-    possible_paths = [
-        "/usr/libexec/qemu-kvm",  # RHEL 9 standard
-        "/usr/lib64/qemu-kvm",    # fallback
-    ]
-
-    real_qemu = None
-    for path in possible_paths:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            real_qemu = path
-            break
+    real_qemu = shutil.which("qemu-kvm")
 
     if not real_qemu:
         logger.error("Could not find QEMU binary after installation. Please install manually.")
@@ -329,7 +348,7 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     logger.info(f"Downloading Lima from {url}")
     try:
         subprocess.run(
-            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
             check=True,
             capture_output=True
         )
@@ -381,13 +400,9 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
                 logger.error(f"Failed to remove {path_to_remove}")
                 sys.exit(1)
 
-    # OS and CPU arch for download
-    os_name = _get_unix_os()
-    cpu_arch = _get_unix_cpu_arch()
-
     url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
     subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
         check=True
     )
 
@@ -486,6 +501,13 @@ def _ensure_lima_vm_stopped():
         return
     
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
+    default_env_path = EnvService.get_default_env_file()
+    merged_env_dict = EnvService.merge_env(default_env_path, None)
+    health_user = merged_env_dict.get("WXO_USER")
+    health_pass = merged_env_dict.get("WXO_PASS")
+
+    was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+
     """Edit Lima VM config file directly to update resources."""
     logger.info("Stopping Lima VM...")
     _ensure_lima_vm_stopped()
@@ -522,24 +544,18 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     # Restart VM
     limactl(["start", VM_NAME], capture_output=True)
 
-    # Wait indefinitely for API health check
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, None)
-    health_user = merged_env_dict.get("WXO_USER")
-    health_pass = merged_env_dict.get("WXO_PASS")
+   
+    if was_server_running:
+        health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+        server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
 
-    url = "http://localhost:4321/api/v1/auth/token"
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    data = {'username': health_user, 'password': health_pass}
-
-    while True:
-        try:
-            response = requests.post(url, headers=headers, data=data)
-            if 200 <= response.status_code < 300:
-                break
-        except requests.RequestException:
-            pass
-        time.sleep(3)
+        if server_is_started:
+            logger.info("Lima VM editted and server restarted successfully.")
+        else:
+            logger.error("Lima VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+    else:
+        logger.info("Lima VM editted. To start the server 'orchestrate server start'.")
+    
 
     return True
 

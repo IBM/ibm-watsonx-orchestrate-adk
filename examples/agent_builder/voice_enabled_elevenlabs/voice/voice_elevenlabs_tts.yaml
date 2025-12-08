@@ -1,0 +1,57 @@
+name: elevenlabs_tts_config
+speech_to_text:
+  provider: watson_stt
+  watson_stt_config:
+    api_url: "example-stt.url"
+    api_key: "example stt key"
+    model: "example model"
+text_to_speech:
+  provider: elevenlabs_tts
+  elevenlabs_tts_config:
+    api_key: "your-elevenlabs-api-key"
+    model_id: "example model" # e.g. eleven_turbo_v2_5
+    voice_id: "example voice"
+    language_code: "en"
+    apply_text_normalization: "auto"
+    voice_settings:
+      speed: 1.0
+      stability: 0.5
+      style: 0.0
+      similarity_boost: 0.75
+      use_speaker_boost: true
+language: "en-US"
+
+
+# Optional Advanced Settings
+# Voice Activity Detection (VAD)
+vad:
+  enabled: true
+  provider: "silero_vad"
+  silero_vad_config:
+    confidence: 0.7
+    start_seconds: 0.2
+    stop_seconds: 0.8
+    min_volume: 0.6
+
+# Dual-Tone Multi-Frequency (DTMF)
+dtmf_input:
+  inter_digit_timeout_ms: 2500
+  termination_key: "#"
+  maximum_count: 10
+  ignore_speech: true
+
+# User Idle Handler
+user_idle_handler:
+  enabled: true
+  idle_timeout: 7
+  idle_max_reprompts: 2
+  idle_timeout_message: "Are you still there? Please let me know if you need any help."
+
+# Agent Idle Handler (Audio Cues & Hold Music)
+agent_idle_handler:
+  typing_enabled: true
+  typing_duration_seconds: 5
+  audio_clip_id: "guitar_1"
+  hold_audio_seconds: 15
+  pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"
+  hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."

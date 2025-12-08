@@ -31,6 +31,7 @@ def _safe_print(msg: str, style: str = "white"):
 
 class WSLLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
+        self.keyring_unlocked = False
         _ensure_wsl_installed()
 
     def start_server(self):
@@ -38,7 +39,9 @@ class WSLLifecycleManager(VMLifecycleManager):
         _ensure_wsl_distro_started()
 
     def stop_server(self):
+        logger.info("Stopping WSL Distro...")
         _ensure_wsl_distro_stopped()
+        logger.info("WSL Distro stopped.")
 
     def delete_server(self):
         return _ensure_wsl_distro_deleted()
@@ -56,6 +59,9 @@ class WSLLifecycleManager(VMLifecycleManager):
         return f"/mnt/{drive}/{folder}"
     
     def run_docker_command(self, command: Union[str, List[str]], capture_output=False, **kwags) -> subprocess.CompletedProcess:
+        if not self.keyring_unlocked:
+            self.shell(["gnome-keyring-daemon", "unlock"],capture_output=True, user="orchestrate")
+            self.keyring_unlocked = True
         # Docker commands should implicitly run as 'orchestrate'
         # The 'shell' method should handle passing 'user="orchestrate"' to wsl_exec
         # If there's an explicit need to run docker as root, you'd add 'user="root"' to **kwags
@@ -78,6 +84,16 @@ class WSLLifecycleManager(VMLifecycleManager):
 
     def show_current_context(self):
         _get_current_docker_context()
+    
+    def is_server_running(self):
+        _ensure_wsl_installed()  
+
+        state = _get_distro_state()
+        if state is None:
+            return False
+        if state == 'Running':
+            return True
+        return False
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
     if isinstance(command, str):
@@ -106,6 +122,10 @@ def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate",
         )
         return result
     except subprocess.CalledProcessError as e:
+        # Ctrl+C while streaming logs
+        if e.returncode == 130:
+            return subprocess.CompletedProcess(args=e.cmd, returncode=130)
+
         logger.error(f"WSL command failed: {e.cmd}, return code: {e.returncode}")
         if e.stdout:
             logger.error(f"WSL command stdout: {e.stdout.strip()}")
@@ -362,7 +382,14 @@ def _configure_wsl_distro():
             # Install core dependencies
             DEBIAN_FRONTEND=noninteractive apt install -y \
                 ca-certificates curl gnupg lsb-release \
-                libsecret-1-0 pkg-config 
+                libsecret-1-0 pkg-config gnome-keyring
+
+            mkdir -p /home/orchestrate/.local/share/keyrings/
+            echo "Default_keyring" > /home/orchestrate/.local/share/keyrings/default
+            echo "[keyring]\ndisplay-name=Default keyring\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false" > /home/orchestrate/.local/share/keyrings/Default_keyring.keyring
+            
+            chown orchestrate:orchestrate /home/orchestrate/.local/share/keyrings
+
             
             install -m 0755 -d /etc/apt/keyrings
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -474,6 +501,7 @@ def _ensure_wsl_idle_timeout_disabled():
     new_block = [
         "[wsl2]\n",
         "idleTimeout=0\n",
+        "networkingMode=mirrored\n",
         "\n"
     ]
     cleaned.extend(new_block)
@@ -622,6 +650,13 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
     Containers and data remain intact.
     """
     try:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, None)
+        health_user = merged_env_dict.get("WXO_USER")
+        health_pass = merged_env_dict.get("WXO_PASS")
+
+        was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+
         wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
 
         # Write clean WSL2 section
@@ -694,25 +729,17 @@ EOF
 
         logger.info("WSL VM configuration and Docker restart completed successfully.")
 
-        # Optional: API health check
-        default_env_path = EnvService.get_default_env_file()
-        merged_env_dict = EnvService.merge_env(default_env_path, None)
-        health_user = merged_env_dict.get("WXO_USER")
-        health_pass = merged_env_dict.get("WXO_PASS")
-        url = "http://localhost:4321/api/v1/auth/token"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        data = {'username': health_user, 'password': health_pass}
+        if was_server_running:
+            logger.info("Waiting for API to be reachable...")
+            health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+            server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
 
-        logger.info("Waiting for API to be reachable...")
-
-        while True:
-            try:
-                response = requests.post(url, headers=headers, data=data)
-                if 200 <= response.status_code < 300:
-                    break
-            except requests.RequestException:
-                pass
-            time.sleep(3)
+            if server_is_started:
+                logger.info("WSL VM editted and server restarted successfully.")
+            else:
+                logger.error("WSL VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+        else:
+            logger.info("WSL VM editted. To start the server 'orchestrate server start'.")
 
         logger.info("API reachable.")
         return True
@@ -899,10 +926,12 @@ def _ssh_into_wsl():
             return False
 
         logger.info(f"Opening shell into WSL distribution '{DISTRO_NAME}'...")
+        
+        user = os.environ.get("WXO_SSH_USER", "orchestrate")
 
         # Attach user to WSL shell interactively
         subprocess.run(
-            ["wsl", "-d", DISTRO_NAME],
+            ["wsl", "-d", DISTRO_NAME, "-u", user],
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr
