@@ -30,7 +30,7 @@ from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController 
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionConfiguration, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
@@ -46,6 +46,7 @@ from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
+from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 
 from  ibm_watsonx_orchestrate import __version__
 
@@ -70,6 +71,39 @@ class ToolKind(str, Enum):
     flow = "flow"
     langflow = "langflow"
     # skill = "skill"
+
+def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
+    client = get_connections_client()
+    connection_configs = []
+    for env in ConnectionEnvironment:
+        try:
+            config = client.get_config(app_id=app_id,env=env)
+            if not config:
+                continue
+            else:
+                connection_configs.append( config.as_config() )
+        except:
+            logger.error(f"Unable to get {env.value.lower()} configs for connection '{app_id}'")
+
+    return connection_configs
+
+def check_plugin_connection(app_id: List[str]):
+    app_ids = []
+    connections_client = get_connections_client()
+    connections = connections_client.get_draft_by_app_ids(app_id)
+
+    for conn in connections:
+        if isinstance(conn, tuple) and len(conn) == 2:
+            key, value = conn
+            if key == "app_id":
+                app_ids.append(value)
+
+    for app_id_check in app_ids:
+        conn_configs = get_connection_configs(app_id_check)
+        for conn_config in conn_configs:
+            if conn_config.preference == ConnectionPreference.MEMBER:
+                logger.error(f"{conn_config.app_id} connection has type of Member. Connection types for Plugin Tools must be Team and not Member")
+                sys.exit(1)
 
 class ToolKindImport(str, Enum):
     openapi = ToolKind.openapi.value
@@ -429,6 +463,15 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     for _, obj in inspect.getmembers(module):
         if not isinstance(obj, BaseTool):
             continue
+
+        # Plugin tool - if it was given an app-id
+        if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
+            if app_id and len(app_id):
+                check_plugin_connection(app_id)
+            if obj.kind == PythonToolKind.AGENTPREINVOKE:
+                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPREINVOKE
+            elif obj.kind == PythonToolKind.AGENTPOSTINVOKE:
+                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPOSTINVOKE
 
         obj.__tool_spec__.binding.python.requirements = requirements
 

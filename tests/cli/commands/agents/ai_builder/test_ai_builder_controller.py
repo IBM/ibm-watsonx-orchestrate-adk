@@ -484,6 +484,8 @@ class TestRefineAgentWithChat:
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
                 patch(
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
+                patch(
                     "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
                 patch(
                     "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
@@ -492,6 +494,7 @@ class TestRefineAgentWithChat:
 
             mock_input.side_effect = ['1']
             mock_get_agent.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
+            mock_reference_agent_dependencies.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
             mock_get_agent.return_value.instructions = "dummy instructions"
             mock_get_all_agents.return_value = {'test_agent': 123}
 
