@@ -27,6 +27,7 @@ JOIN_TOOL_PARAMS = {
 }
 
 TOOLS_DYNAMIC_PARAM_FLAG = "x-ibm-dynamic-field"
+TOOLS_DYNAMIC_SCHEMA_FLAG = "x-ibm-dynamic-schema"
 
 
 def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict):
@@ -86,6 +87,7 @@ def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynam
             # JsonSchemaObject has extra='allow'
             setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
         base_schema.properties.update(dynamic_schema.properties)
+        setattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
 
 
 class PythonTool(BaseTool):
