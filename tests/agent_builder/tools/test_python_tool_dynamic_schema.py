@@ -8,7 +8,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools.types import (
     ToolResponseBody,
     JsonSchemaObject,
 )
-from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import TOOLS_DYNAMIC_PARAM_FLAG, _merge_dynamic_schema
+from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import TOOLS_DYNAMIC_PARAM_FLAG, TOOLS_DYNAMIC_SCHEMA_FLAG, _merge_dynamic_schema
 from ibm_watsonx_orchestrate.run.context import AgentRun
 
 
@@ -62,6 +62,8 @@ def test_merge_dynamic_output_schema():
     assert 'base_field' in base_schema.properties
     assert 'dynamic_field' in base_schema.properties
     assert hasattr(base_schema.properties['dynamic_field'], TOOLS_DYNAMIC_PARAM_FLAG)
+    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
+    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
 
 
 def test_merge_dynamic_schema_with_none():
@@ -83,6 +85,7 @@ def test_merge_dynamic_schema_with_none():
     
     assert base_schema.properties == original_props
     assert base_schema.required == original_required
+    assert not hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
 
 
 def test_merge_dynamic_schema_initializes_none_fields():
@@ -107,6 +110,8 @@ def test_merge_dynamic_schema_initializes_none_fields():
     assert base_schema.required is not None
     assert 'dynamic_field' in base_schema.properties
     assert 'dynamic_field' in base_schema.required
+    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
+    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
 
 
 def test_tool_with_dynamic_schema_enabled():
@@ -206,6 +211,7 @@ def test_dynamic_schema_without_enable_flag():
     # Dynamic field should NOT be present
     assert 'base_param' in spec['input_schema']['properties']
     assert 'dynamic_param' not in spec['input_schema']['properties']
+    assert TOOLS_DYNAMIC_SCHEMA_FLAG not in spec['input_schema']
 
 
 def test_merge_dynamic_schema_with_duplicate_properties(caplog):
@@ -333,6 +339,8 @@ def test_merge_dynamic_schema_no_duplicates_succeeds():
     assert 'dynamic_field1' in base_schema.properties
     assert 'dynamic_field2' in base_schema.properties
     assert len(base_schema.properties) == 4
+    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
+    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
 
 
 def test_merge_dynamic_output_schema_with_duplicates(caplog):

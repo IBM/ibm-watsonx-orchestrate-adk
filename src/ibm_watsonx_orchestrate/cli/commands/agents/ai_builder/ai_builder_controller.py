@@ -22,6 +22,7 @@ from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, get_agent_details
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.ai_builder.agent_builder_client import AgentBuilderClient
@@ -369,7 +370,7 @@ def chat_with_agent_builder(
                 if agent_id is not None:
                     # Read the latest yaml file
                     if not dry_run_flag and output_file.exists():  # edits not possible in a dry run
-                        read_agent_yaml_and_publish_to_runtime(output_file)
+                        read_agent_yaml_and_publish_to_runtime(output_file, llm)
 
             else:
                 raise ValueError(
@@ -402,13 +403,13 @@ def prompt_tune(agent_spec: Path, chat_llm: str | None, llm:str, output_file: Pa
     client = get_agent_builder_client()
     _healthcheck_agent_builder_server(client=client)
 
-    agent = read_agent_yaml_and_publish_to_runtime(agent_spec)
+    agent = read_agent_yaml_and_publish_to_runtime(agent_spec, llm=llm)
     agent_id = get_agent_details(agent.name, client=get_native_client()).get("id")
     excluded_fields = _get_excluded_fields(agent)
     try:
         agent = chat_with_agent_builder(client=client,
                                           chat_llm=chat_llm,
-                                          llm=llm if llm else DEFAULT_LLM,
+                                          llm=llm if llm else agent.llm,
                                           description=None,
                                           output_file=output_file,
                                           agent_id=agent_id,
@@ -443,12 +444,17 @@ def prompt_tune(agent_spec: Path, chat_llm: str | None, llm:str, output_file: Pa
 
 def _validate_chat_llm(chat_llm):
     if chat_llm:
+        mc = ModelsController()
+        if not mc.does_model_exist(chat_llm):
+            raise BadRequest(f"The model provided for '--chat-llm' '{chat_llm}' does not exist in the current tenant. Ensure the provided '--chat-llm' model name matches the name in `orchestrate models list`")
+        
         formatted_chat_llm = re.sub(r'[^a-zA-Z0-9/]', '-', chat_llm)
-        if "llama-3-3-70b-instruct" not in formatted_chat_llm and "gpt-oss-120b" not in formatted_chat_llm and "claude-sonnet-4-5" not in formatted_chat_llm:
-            raise BadRequest(f"Unsupported chat model for AI Builder {chat_llm}. AI Builder supports only llama-3-3-70b-instruct and gpt-oss-120b at this point.")
+        if not re.fullmatch(r'^.+\/(?:llama-3-3-70b-instruct|claude-sonnet-4-5|gpt-oss-120b)$', formatted_chat_llm):
+            
+            raise BadRequest(f"Unsupported chat model for AI Builder {chat_llm}. AI Builder supports only llama-3-3-70b-instruct and gpt-oss-120b at this point.`")
 
 
-def read_agent_yaml_and_publish_to_runtime(agent_spec: Path) -> dict[Any, Any]:
+def read_agent_yaml_and_publish_to_runtime(agent_spec: Path, llm: str | None = None) -> dict[Any, Any]:
     agent = AgentsController.import_agent(file=str(agent_spec), app_id=None)[0]
 
     agent_kind = agent.kind
@@ -456,6 +462,9 @@ def read_agent_yaml_and_publish_to_runtime(agent_spec: Path) -> dict[Any, Any]:
         logger.error(
             f"Only native agents are supported for prompt tuning. Provided agent spec is on kind '{agent_kind}'")
         sys.exit(1)
+    
+    if llm:
+        agent.llm = llm
 
     agents_controller = AgentsController()
     agents_controller.publish_or_update_agents([agent])
