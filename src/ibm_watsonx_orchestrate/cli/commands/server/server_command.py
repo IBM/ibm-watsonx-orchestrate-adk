@@ -452,7 +452,7 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy compose file
-    compose_src = env_service.get_compose_file()
+    compose_src = env_service.get_compose_file(ignore_cache=True)
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
     # Merge default + user env

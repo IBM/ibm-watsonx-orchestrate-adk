@@ -1,5 +1,7 @@
 import os
 from ibm_watsonx_orchestrate.agent_builder.phone import GenesysAudioConnectorChannel
+from dotenv import load_dotenv
+load_dotenv()
 
 channel = GenesysAudioConnectorChannel(
     name="production_phone_channel",
