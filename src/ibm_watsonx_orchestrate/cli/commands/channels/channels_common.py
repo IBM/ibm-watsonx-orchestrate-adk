@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 import logging
 from functools import wraps
 from typing import Optional, List, Dict, Any, Callable, TypeVar
@@ -49,37 +50,49 @@ def parse_field(
     nested_fields: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """Parse CLI field options in key=value format into a dictionary.
-    
+
+    Automatically detects and parses JSON values for lists and objects.
+
     Args:
         field_list: List of field strings in "key=value" format
         nested_fields: Optional list of field names that should be nested under 'security' key
-    
+
     Returns:
         Dictionary with parsed field values
     """
     result = {}
-    
+
     if not field_list:
         return result
-    
+
     nested_fields = nested_fields or []
-    
+
     for field_str in field_list:
         if "=" not in field_str:
             raise ValueError(f"Field '{field_str}' must be in key=value format")
-        
+
         key, value = field_str.split("=", 1)
         key = key.strip()
         value = value.strip()
-        
+
+        # Try to parse as JSON for complex types (lists, dicts)
+        parsed_value = value
+        if value and (value.startswith('[') or value.startswith('{')):
+            try:
+                parsed_value = json.loads(value)
+                logger.debug(f"Parsed field '{key}' as JSON: {type(parsed_value).__name__}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Field '{key}' looks like JSON but failed to parse: {e}. Using as string.")
+                parsed_value = value
+
         # Check if this field should be nested under 'security'
         if key in nested_fields:
             if 'security' not in result:
                 result['security'] = {}
-            result['security'][key] = value
+            result['security'][key] = parsed_value
         else:
-            result[key] = value
-    
+            result[key] = parsed_value
+
     return result
 
 
