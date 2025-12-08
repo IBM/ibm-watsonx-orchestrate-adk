@@ -1,4 +1,4 @@
-name: sample_voice_config
+name: watson_voice_config
 speech_to_text:
   provider: watson_stt
   watson_stt_config: 

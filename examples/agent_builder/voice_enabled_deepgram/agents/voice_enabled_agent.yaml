@@ -12,4 +12,4 @@ tags:
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 style: react
 hidden: false
-voice_configuration: sample_voice_config
+voice_configuration: deepgram_voice_config

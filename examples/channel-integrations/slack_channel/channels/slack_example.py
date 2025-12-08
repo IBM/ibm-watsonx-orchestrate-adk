@@ -1,6 +1,8 @@
 import os
 from ibm_watsonx_orchestrate.agent_builder.channels import SlackChannel, SlackTeam
+from dotenv import load_dotenv
 
+load_dotenv()
 # Define the channel configuration
 channel = SlackChannel(
     name="production_slack_channel",
