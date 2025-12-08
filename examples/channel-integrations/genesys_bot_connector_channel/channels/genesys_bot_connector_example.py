@@ -2,6 +2,8 @@ import os
 from ibm_watsonx_orchestrate.agent_builder.channels import GenesysBotConnectorChannel
 from dotenv import load_dotenv
 
+load_dotenv()
+
 # Define the channel configuration
 channel = GenesysBotConnectorChannel(
     name="production_genesys_bot_channel",

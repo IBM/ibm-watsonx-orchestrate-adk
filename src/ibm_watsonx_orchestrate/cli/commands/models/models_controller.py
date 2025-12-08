@@ -158,6 +158,11 @@ class ModelsController:
         if not self.model_policies_client:
             self.model_policies_client = instantiate_client(ModelPoliciesClient)
         return self.model_policies_client
+    
+    def does_model_exist(self, model_name: str) -> bool:
+        models = self.list_models(format=ListFormats.JSON)
+        model_names = {model.name for model in models}
+        return model_name in model_names
 
     def list_models(self, print_raw: bool = False, format: Optional[ListFormats] = None) -> List[ModelListEntry] | str |None:
         models_client: ModelsClient = self.get_models_client()

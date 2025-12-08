@@ -1,5 +1,8 @@
 import os
 from ibm_watsonx_orchestrate.agent_builder.channels import TwilioSMSChannel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Define the channel configuration
 channel = TwilioSMSChannel(

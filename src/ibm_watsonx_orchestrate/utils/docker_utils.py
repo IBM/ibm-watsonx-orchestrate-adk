@@ -1579,14 +1579,11 @@ class DockerComposeCore:
         vm_env_file = vm_env_dir / final_env_file.name
         shutil.copy(final_env_file, vm_env_file)
 
-        # Copy compose file
-        vm_compose_file = vm_env_dir / compose_path.name
-        shutil.copy(compose_path, vm_compose_file)
 
         # Build docker compose exec command as a list
         docker_command = [
             "compose",
-            "-f", str(vm_compose_file),
+            "-f", str(compose_path),
             "--env-file", str(vm_env_file),
             "exec",
             service_name,

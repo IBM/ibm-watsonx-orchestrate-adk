@@ -1,0 +1,13 @@
+spec_version: v1
+kind: native
+name: channel_agent
+style: default
+llm: watsonx/meta-llama/llama-3-405b-instruct
+description: Main chat and call handling agent.
+instructions: >
+  You are the main chat and call handling agent.
+  You have access to everything under the context variables, particularly the {channel} context variable.
+  
+context_access_enabled: true
+context_variables:
+  - channel
