@@ -560,10 +560,9 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                                  description=model["spec"]["description"], 
                                  permission="read_only", 
                                  flow_model=model)   
-    
-    tools = import_flow_support_tools(model=model)
-    
-    tools.append(tool)
+    tools = [tool]
+    # tools = import_flow_support_tools(model=model)
+    # tools.append(tool)
 
     return tools
 
