@@ -1,23 +1,28 @@
-name: deepgram_advanced_voice_config
+name: elevenlabs_tts_config
 speech_to_text:
-  provider: deepgram_stt
-  deepgram_stt_config:
-    api_url: "wss://api.deepgram.com/v1/listen"
-    api_key: "your-deepgram-api-key"
-    model: "nova-2"
-    language: "en-US"
-    numerals: true
-    mip_opt_out: false
+  provider: watson_stt
+  watson_stt_config:
+    api_url: "example-stt.url"
+    api_key: "example stt key"
+    model: "example model"
 text_to_speech:
-  provider: deepgram_tts
-  deepgram_tts_config:
-    api_key: "your-deepgram-api-key"
-    language: "en"
-    voice: "aura-asteria-en"
-    mip_opt_out: false
+  provider: elevenlabs_tts
+  elevenlabs_tts_config:
+    api_key: "your-elevenlabs-api-key"
+    model_id: "example model" # e.g. eleven_turbo_v2_5
+    voice_id: "example voice"
+    language_code: "en"
+    apply_text_normalization: "auto"
+    voice_settings:
+      speed: 1.0
+      stability: 0.5
+      style: 0.0
+      similarity_boost: 0.75
+      use_speaker_boost: true
 language: "en-US"
 
-# Advanced Settings
+
+# Optional Advanced Settings
 # Voice Activity Detection (VAD)
 vad:
   enabled: true
