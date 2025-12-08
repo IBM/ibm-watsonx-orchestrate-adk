@@ -38,7 +38,8 @@ connection_type_security_schema_map = {
     ConnectionType.OAUTH2_CLIENT_CREDS: ConnectionSecurityScheme.OAUTH2,
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW: ConnectionSecurityScheme.OAUTH2,
     # ConnectionType.OAUTH2_IMPLICIT: ConnectionSecurityScheme.OAUTH2,
-    ConnectionType.OAUTH2_PASSWORD: ConnectionSecurityScheme.OAUTH2
+    ConnectionType.OAUTH2_PASSWORD: ConnectionSecurityScheme.OAUTH2,
+    ConnectionType.OAUTH2_TOKEN_EXCHANGE: ConnectionSecurityScheme.OAUTH2
 }
 
 def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -> dict[str,str]:

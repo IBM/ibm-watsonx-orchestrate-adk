@@ -1,0 +1,48 @@
+# Slack Channel Configuration Example
+#
+# Setup Instructions:
+# 1. Create a Slack app at https://api.slack.com/apps
+# 2. Configure your app with the necessary scopes 
+#    (app_mentions:read, chat:write, im:history, im:write, and users.profile:read)
+# 3. From your app's "Basic Information" and "OAuth" page, get:
+#    - Client ID
+#    - Client Secret
+#    - Signing Secret
+#    - Bot User OAuth Token
+
+# 4. Find the Team ID per this instruction: https://slack.com/help/articles/221769328-Locate-your-Slack-URL-or-ID
+# 5. Replace the values below with your actual credentials
+#
+# Usage:
+#   # Import a channel
+#   orchestrate channels import \
+#     --agent-name "My_Agent" \
+#     --env draft \
+#     --file slack_example.yaml
+
+spec_version: v1
+kind: channel
+
+# Required: Channel type identifier
+channel: byo_slack
+
+# Required: Name for this channel instance
+name: production_slack_channel
+
+# Optional: Description of this channel
+description: Main customer support Slack channel for production environment
+
+# Required: Your Slack app Client ID
+client_id: ${SLACK_CLIENT_ID}
+
+# Required: Your Slack app Client Secret
+client_secret: ${SLACK_CLIENT_SECRET}
+
+# Required: Your Slack app Signing Secret
+signing_secret: ${SLACK_SIGNING_SECRET}
+
+# Required: List of Slack teams/workspaces with bot access tokens
+# Each team needs an ID and bot_access_token
+teams:
+  - id: ${SLACK_TEAM_ID}  # Slack team/workspace ID (e.g., T012345UJBG)
+    bot_access_token: ${SLACK_BOT_TOKEN}  # Bot User OAuth Token (starts with xoxb-)

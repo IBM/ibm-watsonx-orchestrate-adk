@@ -4,9 +4,12 @@ import tempfile
 import pytest
 import shutil
 from pathlib import Path
-from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluateMode
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import TestCaseManager
+try:
+    from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluateMode
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import TestCaseManager
+except ImportError:
+    pytest.skip(allow_module_level=True)
 
 @pytest.fixture(autouse=True, scope="module")
 def user_env_file():
