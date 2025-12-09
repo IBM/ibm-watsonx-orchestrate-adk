@@ -15,7 +15,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredential
 from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -207,6 +207,14 @@ class PythonTool(BaseTool):
         else:
             spec.input_schema = self.input_schema
 
+        # Extract context param and note the param name in the tool binding
+        context_param = _extract_context_param(name=self.name, input_schema=spec.input_schema)
+
+        if context_param:
+            spec.binding.python.agent_run_paramater = context_param
+
+
+
         # Merge dynamic input schema if provided
         if self.enable_dynamic_input_schema:
             _merge_dynamic_schema(spec.input_schema, self.dynamic_input_schema)
@@ -240,12 +248,10 @@ class PythonTool(BaseTool):
         if self.kind == PythonToolKind.JOIN_TOOL:
             if not spec.is_custom_join_tool():
                 raise ValueError(f"Join tool '{spec.name}' does not conform to the expected join tool schema. Please ensure the input schema has the required fields: {JOIN_TOOL_PARAMS.keys()} and the output schema is a string.")
+        
 
         self._spec = spec
         return spec
-    
-    def add_run_param(self, param_name: str):
-        self.__tool_spec__.binding.python.agent_run_paramater = param_name
     
     def get_run_param(self):
         return self.__tool_spec__.binding.python.agent_run_paramater
@@ -366,6 +372,25 @@ def _validate_join_tool_func(fn: Callable, sig: inspect.Signature | None = None,
         if actual_type != expected_type:
             raise ValueError(f"Join tool function '{name}' has incorrect type for parameter '{param}'. Expected {expected_type}, got {actual_type}")
 
+def _extract_context_param(name: str, input_schema: ToolRequestBody) -> Optional[str]:
+    agent_run_param = None
+
+    if input_schema.properties:
+        for k,v in input_schema.properties.items():
+            if v.title == 'AgentRun':
+                if agent_run_param:
+                    raise ToolContextException(f"Tool {name} has multiple run context objects")
+                agent_run_param = k
+
+    if agent_run_param:
+        if agent_run_param in input_schema.properties:
+            del input_schema.properties[agent_run_param]
+        if agent_run_param in input_schema.required:
+            input_schema.required.remove(agent_run_param)
+
+    return agent_run_param
+
+
 def tool(
     *args,
     name: str = None,
@@ -395,17 +420,7 @@ def tool(
     :param dynamic_output_schema: the dynamic output schema for the tool - used to validate dynamic return values
     :return:
     """
-    # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
-    agent_run_param = None
-
-    if input_schema and input_schema.type == 'object':
-        for k,v in input_schema.properties:
-            if v.get('title','') == 'AgentRun':
-                if agent_run_param:
-                    raise BadRequest(f"Tool {name} has multiple run context objects")
-                del input_schema.properties[k]
-                agent_run_param = k
-    
+    # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py    
     if dynamic_input_schema and not isinstance(dynamic_input_schema, ToolRequestBody):
         dynamic_input_schema = ToolRequestBody(**dynamic_input_schema)
 
@@ -429,9 +444,6 @@ def tool(
             dynamic_input_schema=dynamic_input_schema,
             dynamic_output_schema=dynamic_output_schema
         )
-
-        if agent_run_param:
-            t.add_run_param(agent_run_param)
             
         _all_tools.append(t)
         return t
