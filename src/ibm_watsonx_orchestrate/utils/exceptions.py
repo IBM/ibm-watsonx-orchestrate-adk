@@ -29,4 +29,13 @@ class VMLifecycleException(Exception):
 
     def __str__(self):
         return self.message
+    
+
+class ToolContextException(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        return self.message
 
