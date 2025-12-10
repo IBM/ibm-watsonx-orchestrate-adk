@@ -1378,6 +1378,7 @@ services:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
+      CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
