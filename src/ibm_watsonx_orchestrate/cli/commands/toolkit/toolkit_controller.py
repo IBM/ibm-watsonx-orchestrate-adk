@@ -68,7 +68,7 @@ class ToolkitController:
         package_root = Path(package_root)
 
         if package_root.is_absolute():
-            return package_root
+            return str(package_root)
 
         file = Path(file)
         folder = file.parent

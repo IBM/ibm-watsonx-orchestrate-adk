@@ -17,7 +17,7 @@ from typer import BadParameter
 import json
 import pytest
 import uuid
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 import tempfile
 import os
 import sys
@@ -990,6 +990,41 @@ def test_update_python():
 
         mock_instantiate_client.assert_called_once_with(ToolClient)
         mock_zipfile.assert_called
+
+
+def test_python_tool_with_single_context_param():
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+        mock_client.list.return_value = []
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(
+            ToolKind.python, 
+            file = "tests/cli/resources/python_samples/tool_w_single_context_param.py",
+            requirements_file = "tests/cli/resources/python_samples/requirements.txt"
+        )
+        tools = list(tools)
+        assert len(tools) == 1
+        imported_tool = tools.pop()
+        assert imported_tool.__tool_spec__.binding.python is not None
+        assert imported_tool.__tool_spec__.binding.python.agent_run_paramater == "current_run"
+        # assert imported_tool.__tool_spec__.input_schema.properties == {}
+        # assert imported_tool.__tool_spec__.input_schema.required == []
+
+
+def test_python_tool_with_additional_context_param():
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client',) as mock_client:
+        with pytest.raises(Exception) as e:
+            tools_controller = ToolsController()
+            tools = tools_controller.import_tool(
+                ToolKind.python, 
+                file = "tests/cli/resources/python_samples/tool_w_additional_context_param.py",
+                requirements_file = "tests/cli/resources/python_samples/requirements.txt"
+            )
+            tools = list(tools)
+        
+        assert e.errisinstance(ToolContextException)
+
 
 
 @mock.patch(

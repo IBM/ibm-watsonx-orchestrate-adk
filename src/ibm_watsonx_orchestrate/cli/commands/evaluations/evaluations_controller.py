@@ -10,19 +10,20 @@ import sys
 from warnings import filterwarnings
 filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
 
-from wxo_agentic_evaluation import main as evaluate
-from wxo_agentic_evaluation import quick_eval
-from wxo_agentic_evaluation.tool_planner import build_snapshot
-from wxo_agentic_evaluation.analyze_run import run as run_analyze
-from wxo_agentic_evaluation.batch_annotate import generate_test_cases_from_stories
-from wxo_agentic_evaluation.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
-from wxo_agentic_evaluation.record_chat import record_chats
-from wxo_agentic_evaluation.external_agent.external_validate import ExternalAgentValidation
-from wxo_agentic_evaluation.external_agent.performance_test import ExternalAgentPerformanceTest
-from wxo_agentic_evaluation.red_teaming.attack_list import print_attacks
-from wxo_agentic_evaluation.red_teaming import attack_generator
-from wxo_agentic_evaluation.red_teaming.attack_runner import run_attacks
-from wxo_agentic_evaluation.arg_configs import AttackGeneratorConfig
+from agentops import main as evaluate
+from agentops import quick_eval
+from agentops.tool_planner import build_snapshot
+from agentops.analyze_run import run as run_analyze
+from agentops.batch_annotate import generate_test_cases_from_stories
+from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
+from agentops.record_chat import record_chats
+from agentops.external_agent.external_validate import ExternalAgentValidation
+from agentops.external_agent.performance_test import ExternalAgentPerformanceTest
+from agentops.red_teaming.attack_list import print_attacks
+from agentops.red_teaming import attack_generator
+from agentops.red_teaming.attack_runner import run_attacks
+from agentops.arg_configs import AttackGeneratorConfig
+
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
@@ -41,6 +42,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 import uuid
 
 logger = logging.getLogger(__name__)
+USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "TRUE").upper() == "TRUE"
 
 class EvaluateMode(StrEnum):
     default = "default" # referenceFUL evaluation
@@ -104,7 +106,8 @@ class EvaluationsController:
             "provider_config": ProviderConfig(
                 provider=provider,
                 model_id="meta-llama/llama-3-405b-instruct",
-            )
+            ),
+            "skip_legacy_evaluation": not USE_LEGACY_EVAL,
         }
 
         if config_file:

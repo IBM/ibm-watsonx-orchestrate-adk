@@ -30,6 +30,7 @@ services:
     volumes:
       - wxo-server-db:/var/lib/postgresql/data
       - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
+      - architect-migrations:/docker-entrypoint-initdb.d/agent_architecture/migrations:ro
     command: -c shared_preload_libraries=pgsodium
 
 
@@ -51,6 +52,7 @@ services:
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
+      WXCO_C_FEATURES: '{"feature-45580":1}'
     ports:
       - 3001:3001
   
@@ -147,6 +149,7 @@ services:
       WXO_VOICE_URL: http://localhost:9876/v1
       DPS_CACHE_URL: http://localhost:18083
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
+      WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -182,12 +185,14 @@ services:
       ENABLE_A2A_AGENTS: "true"
       ENABLE_THIRD_PARTY_MODELS: "true"
       ENABLE_CM_A2A_AGENTS: "false"
+      ENABLE_REMOTE_MCP_SERVER: "true"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
       LLM_DEFAULT_FLOW_MODEL: ${DEFAULT_FLOW_LLM_MODEL}
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
+      AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
     command: 'npm start'
     ports:
       - "4025:4025"
@@ -196,6 +201,145 @@ services:
       interval: 5s
       timeout: 60s
       retries: 5
+
+  wxo-agent-architect-server:
+    image: ${AGENT_ARCHITECT_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-architect-server:${AGENT_ARCHITECT_TAG:-latest}
+    profiles: [agent-builder]
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - 5321:4321
+    volumes:
+      - ./sdk:/packages
+      - tools:/tools
+      - architect-migrations:/app/migrations
+    command: >
+      bash -c '
+         export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
+         mkdir -p /tmp/monkey &&
+
+         echo -e "from uvicorn.supervisors.multiprocess import Process\n_original_is_alive = Process.is_alive\ndef patched_is_alive(self, timeout: float = 30):\n    return _original_is_alive(self, timeout=30)\nProcess.is_alive = patched_is_alive" > /tmp/monkey/sitecustomize.py &&
+
+         uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app &
+
+         for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
+         curl --silent --fail http://127.0.0.1:4321/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
+
+         wait
+       '
+    depends_on:
+      wxo-server-worker:
+        condition: service_started
+      wxo-server-redis:
+        condition: service_started
+      wxo-server-db:
+        condition: service_started
+      langfuse-worker:
+        condition: service_started
+        required: False
+    networks:
+      - default
+      - jaeger-network
+    environment:
+      ARCH_LLM_MODEL_ID: ${ARCH_LLM_MODEL_ID:-watsonx/meta-llama/llama-3-2-90b-vision-instruct}
+      WXO_SERVER_URL: http://wxo-server:4321
+      TEAM_SERVER_ENDPOINT: ${TEAM_SERVER_ENDPOINT}
+      SKILLS_CATALOG_ENDPOINT: ${SKILLS_CATALOG_ENDPOINT}
+      WXO_API_KEY: ${WXO_API_KEY}
+      WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
+      DEFAULT_AGENT_ENABLED: "true"
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey}
+      PIP_NO_CACHE_DIR:
+      JWT_SECRET: ${JWT_SECRET}
+      TRM_BASE_URL: http://tools-runtime-manager:8080
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/architect
+      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:6432/postgres
+      CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
+      AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
+      CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
+      FLOWER_URL: http://wxo-server-flower:5555
+      DB_ENCRYPTION_KEY: thisisthedbencryptionkeyforlocaltestingonly
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
+      STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
+      STORAGE_S3_REGION: us-east-1
+      EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
+      ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
+      ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_LLM_SPACE_ID: ${ASSISTANT_LLM_SPACE_ID}
+      BAM_API_KEY: ${BAM_API_KEY}
+      WXAI_API_KEY: ${WXAI_API_KEY}
+      ROUTING_LLM_MODEL_ID: ${ROUTING_LLM_MODEL_ID:-watsonx/ibm/granite-8b-unified-api-model-v2}
+      ROUTING_LLM_API_KEY: ${ROUTING_LLM_API_KEY}
+      ROUTING_LLM_API_BASE: ${ROUTING_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ROUTING_LLM_SPACE_ID: ${ROUTING_LLM_SPACE_ID}
+      ASSISTANT_EMBEDDINGS_MODEL_ID: ${ASSISTANT_EMBEDDINGS_MODEL_ID:-watsonx/ibm/slate-125m-english-rtrvr-v2}
+      ASSISTANT_EMBEDDINGS_API_KEY: ${ASSISTANT_EMBEDDINGS_API_KEY}
+      ASSISTANT_EMBEDDINGS_API_BASE: ${ASSISTANT_EMBEDDINGS_API_BASE:-https://us-south.ml.cloud.ibm.com}
+      ASSISTANT_EMBEDDINGS_SPACE_ID: ${ASSISTANT_EMBEDDINGS_SPACE_ID}
+      ASSISTANT_INDEX_CHUNK_SIZE: 400
+      ASSISTANT_INDEX_CHUNK_OVERLAP: 50
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      NLTK_DATA: /tmp/nltk_data
+      DO_NOT_TRACK: true
+      TELEMETRY_ENABLED: false
+      BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
+      AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
+      CELERY_RESULTS_TTL: "3600"
+      EVENT_BROKER_TTL: "3600"
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-dummy_tavily_api_key}
+      WATSONX_APIKEY: ${WATSONX_APIKEY}
+      WATSONX_URL: ${WATSONX_URL}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
+      CALLER_ID: 12345
+      AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
+      CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
+      IS_WXO_LITE: "TRUE"
+      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      ENABLE_WEBHOOKS: false
+      DISABLE_JSON_LOG_CELERY: true
+      WXO_DEPLOYMENT_PLATFORM: local
+      CPD_VERIFY: ${CPD_VERIFY}
+      CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
+      CHANNEL_SESSION_REDIS_URL: redis://wxo-server-redis:6379/5
+      WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
+      MILVUS_DB_NAME: default
+      MILVUS_USERNAME: root
+      MILVUS_PASSWORD: Milvus
+      WO_API_KEY: ${WO_API_KEY}
+      WO_USERNAME: ${WO_USERNAME}
+      WO_PASSWORD: ${WO_PASSWORD}
+      WO_INSTANCE: ${WO_INSTANCE}
+      USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE}
+      AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
+      AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
+      IBM_TELEMETRY_EXPORTER_TYPE: http
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
+      AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
+      ES_HOST: http://elasticsearch:9200
+      ORIGIN_HEADER: "internal"
+      LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
+      WATSONX_SERVER: WXO
+      EVALUATION_PLATFORM: lite-local
+      AGENTOPS_BACKEND_URL: https://frontend-server:443
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
+      POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/architect
+      WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
@@ -906,6 +1050,7 @@ services:
       FLOW_CALLBACK_REQUEST_RETRIES: "1"
       DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
+      FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -918,6 +1063,7 @@ services:
   
   cpe:
     image: ${CPE_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-prompt-optimizer:${CPE_TAG:-latest}
+    profiles: ["agent-builder"]
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -932,6 +1078,13 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
     ports:
       - 8081:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/version"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
 
 ########################
 # DOCPROC dependencies
@@ -1225,6 +1378,7 @@ services:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
+      CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
@@ -1248,6 +1402,8 @@ volumes:
   wxo-server-db:
     driver: local
   wxo-applied-migrations:
+    driver: local
+  architect-migrations:
     driver: local
   wxo-server-minio-data:
     driver: local

@@ -17,5 +17,11 @@ def get_request_status(attempt: Attempt) -> Attempt:
     Returns:
         Attempt: A Attempt object
     """
-    attempt['atmp'] += 1 
+    if attempt is None:
+        attempt = Attempt(atmp=0)
+
+    if attempt and attempt.atmp is None:
+        attempt.atmp = 0
+        
+    attempt.atmp += 1 
     return attempt

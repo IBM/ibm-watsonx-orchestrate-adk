@@ -18,10 +18,4 @@ def get_facts_about_numbers(number: int) -> FlowOutput:
     Returns:
         Info: A Info object
     """
-    url = f'http://numbersapi.com/{number}'
-
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        return FlowOutput(info=response.text)
     return FlowOutput(info=f"{number} is a lucky number")

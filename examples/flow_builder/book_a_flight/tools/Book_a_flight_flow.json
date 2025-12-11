@@ -1,0 +1,1473 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Book_a_flight_7958SB",
+        "initiators": [],
+        "description": "Use this flow to book a flight",
+        "display_name": "Book a flight",
+        "input_schema": {},
+        "output_schema": {
+            "type": "object",
+            "required": [],
+            "properties": {
+                "bookingReference": {
+                    "type": "string",
+                    "description": "The flight booking reference"
+                }
+            }
+        },
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "returnFlights": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gate": {
+                                "type": "string",
+                                "description": "Boarding gate (e.g., 'B14')"
+                            },
+                            "stop": {
+                                "type": "string",
+                                "description": "Number of stops written as text (e.g., 'Nonstop', '1 stop', '2 stops')"
+                            },
+                            "time": {
+                                "type": "string",
+                                "description": "Departure and arrival time (e.g., '10:30 AM - 01:40 PM')"
+                            },
+                            "price": {
+                                "type": "string",
+                                "description": "Flight price in USD or chosen currency"
+                            },
+                            "airline": {
+                                "type": "string",
+                                "description": "Name or airline + flight number (e.g., 'Delta DL404')"
+                            },
+                            "boarding": {
+                                "type": "string",
+                                "description": "Boarding time (e.g., '10:00 AM')"
+                            },
+                            "duration": {
+                                "type": "string",
+                                "description": "Flight duration (e.g., '5h 30m')"
+                            }
+                        }
+                    },
+                    "default": [],
+                    "description": "List of return flights"
+                },
+                "outboundFlights": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gate": {
+                                "type": "string",
+                                "description": "Boarding gate (e.g., 'B14')"
+                            },
+                            "stop": {
+                                "type": "string",
+                                "description": "Number of stops written as text (e.g., 'Nonstop', '1 stop', '2 stops')"
+                            },
+                            "time": {
+                                "type": "string",
+                                "description": "Departure and arrival time (e.g., '10:30 AM - 01:40 PM')"
+                            },
+                            "price": {
+                                "type": "string",
+                                "description": "Flight price in USD or chosen currency"
+                            },
+                            "airline": {
+                                "type": "string",
+                                "description": "Name or airline + flight number (e.g., 'Delta DL404')"
+                            },
+                            "boarding": {
+                                "type": "string",
+                                "description": "Boarding time (e.g., '10:00 AM')"
+                            },
+                            "duration": {
+                                "type": "string",
+                                "description": "Flight duration (e.g., '5h 30m')"
+                            }
+                        }
+                    },
+                    "default": [],
+                    "description": "List of outbound flights"
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "ee66ec2d-e896-436d-b742-268acb52ab75",
+            "end": "UserActivity 1",
+            "start": "__start__"
+        },
+        {
+            "id": "ada2c86a-dd6a-4576-8035-2936d0ca74bb",
+            "end": "__end__",
+            "start": "UserActivity 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 350.47709692939355,
+                    "y": 1426.9976057552703
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 360.3026676096267,
+                    "y": 403.9954000684239
+                }
+            }
+        },
+        "UserActivity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 1",
+                "position": {
+                    "x": -129.76850410119823,
+                    "y": 568.5738351434507
+                },
+                "dimensions": {
+                    "width": 1226,
+                    "height": 822
+                },
+                "initiators": [],
+                "display_name": "Book a flight"
+            },
+            "edges": [
+                {
+                    "id": "f8008af0-9ee5-486b-8e01-04dd01e96060",
+                    "end": "CodeBlock 1",
+                    "start": "UserActivity 1__start__"
+                },
+                {
+                    "id": "d65ea722-4272-411d-96ca-2d98801432b6",
+                    "end": "CodeBlock 2",
+                    "start": "user_e2c65df8-9c25-4e7e-8945-5c4e83d35e73"
+                },
+                {
+                    "id": "bd5457e7-179b-4998-981d-877b4d4720a5",
+                    "end": "user_e2c65df8-9c25-4e7e-8945-5c4e83d35e73",
+                    "start": "CodeBlock 1"
+                },
+                {
+                    "id": "913340c8-2fc0-4a54-98b2-ce3aad73ed22",
+                    "end": "user_425d4fed-210f-4c73-824d-13ef477a9907",
+                    "start": "CodeBlock 2"
+                },
+                {
+                    "id": "f193acf9-9044-4bce-a606-6a87435b0b17",
+                    "end": "user_83aec2e6-c3ce-4618-adb9-6c590ef97ecb",
+                    "start": "user_8230e263-f39f-4f90-a0dd-4f453ac6f1c5"
+                },
+                {
+                    "id": "1b0a933b-8d8d-4e77-b2ee-d666098185d2",
+                    "end": "user_cc4fcfd6-53af-4e00-9d56-0438e41d0bd9",
+                    "start": "user_425d4fed-210f-4c73-824d-13ef477a9907"
+                },
+                {
+                    "id": "64a6c37d-ab0b-450f-8d32-7ca6d190aa07",
+                    "end": "CodeBlock 3",
+                    "start": "user_cc4fcfd6-53af-4e00-9d56-0438e41d0bd9"
+                },
+                {
+                    "id": "4a708d2a-579e-4fdf-b461-63e7a0a0f0e9",
+                    "end": "user_40cfb2e2-33a5-41a5-b6ea-6d00f18e41d2",
+                    "start": "CodeBlock 3"
+                },
+                {
+                    "id": "8b702d60-1f6c-4d17-9af9-52fdc42d2a7a",
+                    "end": "Branch 1",
+                    "start": "user_83aec2e6-c3ce-4618-adb9-6c590ef97ecb"
+                },
+                {
+                    "id": "3b58b426-de6f-47be-9f14-9f700e1bb936",
+                    "end": "UserActivity 1__end__",
+                    "start": "Branch 1",
+                    "display_name": "No"
+                },
+                {
+                    "id": "f5f583f4-9dbe-4546-a642-c8c49717f206",
+                    "end": "CodeBlock 4",
+                    "start": "Branch 1",
+                    "display_name": "Yes"
+                },
+                {
+                    "id": "f5134461-bce0-4bd1-9612-cd4ffae4f76d",
+                    "end": "UserActivity 1__end__",
+                    "start": "user_9376ce02-64ab-42fb-b5f1-65332057cfbd"
+                },
+                {
+                    "id": "c4445737-1d78-4d88-a7c1-1f9cab657888",
+                    "end": "user_9376ce02-64ab-42fb-b5f1-65332057cfbd",
+                    "start": "CodeBlock 4"
+                },
+                {
+                    "id": "c8af653a-3b5b-44bd-90a7-b2c78a83de82",
+                    "end": "user_bed981d8-7f04-4586-ac5d-54e41bc840b3",
+                    "start": "user_40cfb2e2-33a5-41a5-b6ea-6d00f18e41d2"
+                },
+                {
+                    "id": "b4123071-73e4-4ff6-aa90-5e0e6babe1e1",
+                    "end": "user_8230e263-f39f-4f90-a0dd-4f453ac6f1c5",
+                    "start": "user_bed981d8-7f04-4586-ac5d-54e41bc840b3"
+                }
+            ],
+            "nodes": {
+                "Branch 1": {
+                    "spec": {
+                        "kind": "branch",
+                        "name": "Branch 1",
+                        "position": {
+                            "x": 828.8952166970695,
+                            "y": 352.2080712250513
+                        },
+                        "evaluator": {
+                            "conditions": [
+                                {
+                                    "default": false,
+                                    "edge_id": "3b58b426-de6f-47be-9f14-9f700e1bb936",
+                                    "metadata": {
+                                        "id": "3a2518a4-3e9c-4e5b-9169-2617cbe20098",
+                                        "conditions": [
+                                            {
+                                                "value": "False",
+                                                "isValid": true,
+                                                "dataType": "boolean",
+                                                "operator": "is",
+                                                "variableName": "flow[\"Book a flight\"][\"Do you want to book these flights?\"].output.value"
+                                            }
+                                        ]
+                                    },
+                                    "expression": "flow[\"Book a flight\"][\"Do you want to book these flights?\"].output.value is False"
+                                },
+                                {
+                                    "default": true,
+                                    "edge_id": "f5f583f4-9dbe-4546-a642-c8c49717f206",
+                                    "metadata": {
+                                        "id": "7282e065-01fa-4496-9891-413ac1c539d1"
+                                    }
+                                }
+                            ]
+                        },
+                        "display_name": "Book flights?",
+                        "match_policy": "FIRST_MATCH"
+                    }
+                },
+                "CodeBlock 1": {
+                    "spec": {
+                        "fn": "self.output.cities = [\n    \"Amsterdam\",\n    \"Atlanta\",\n    \"Bangalore\",\n    \"Bangkok\",\n    \"Barcelona\",\n    \"Beijing\",\n    \"Boston\",\n    \"Charlotte\",\n    \"Chicago\",\n    \"Dallas\",\n    \"Delhi\",\n    \"Denver\",\n    \"Detroit\",\n    \"Doha\",\n    \"Dubai\",\n    \"Frankfurt\",\n    \"Guangzhou\",\n    \"Hong Kong\",\n    \"Houston\",\n    \"Istanbul\",\n    \"Jakarta\",\n    \"Kuala Lumpur\",\n    \"Las Vegas\",\n    \"London\",\n    \"Los Angeles\",\n    \"Madrid\",\n    \"Mexico City\",\n    \"Miami\",\n    \"Minneapolis\",\n    \"Mumbai\",\n    \"New York\",\n    \"Orlando\",\n    \"Paris\",\n    \"Philadelphia\",\n    \"Phoenix\",\n    \"Rome\",\n    \"San Francisco\",\n    \"São Paulo\",\n    \"Seattle\",\n    \"Seoul\",\n    \"Shanghai\",\n    \"Singapore\",\n    \"Sydney\",\n    \"Tokyo\",\n    \"Toronto\",\n    \"Vancouver\",\n    \"Vienna\",\n    \"Zurich\"\n  ]\n\nself.output.airports = [\n  { \"city\": \"Amsterdam\", \"airport_code\": \"AMS\" },\n  { \"city\": \"Atlanta\", \"airport_code\": \"ATL\" },\n  { \"city\": \"Bangalore\", \"airport_code\": \"BLR\" },\n  { \"city\": \"Bangkok\", \"airport_code\": \"BKK\" },\n  { \"city\": \"Barcelona\", \"airport_code\": \"BCN\" },\n  { \"city\": \"Beijing\", \"airport_code\": \"PEK\" },\n  { \"city\": \"Boston\", \"airport_code\": \"BOS\" },\n  { \"city\": \"Charlotte\", \"airport_code\": \"CLT\" },\n  { \"city\": \"Chicago\", \"airport_code\": \"ORD\" },\n  { \"city\": \"Dallas\", \"airport_code\": \"DFW\" },\n  { \"city\": \"Delhi\", \"airport_code\": \"DEL\" },\n  { \"city\": \"Denver\", \"airport_code\": \"DEN\" },\n  { \"city\": \"Detroit\", \"airport_code\": \"DTW\" },\n  { \"city\": \"Doha\", \"airport_code\": \"DOH\" },\n  { \"city\": \"Dubai\", \"airport_code\": \"DXB\" },\n  { \"city\": \"Frankfurt\", \"airport_code\": \"FRA\" },\n  { \"city\": \"Guangzhou\", \"airport_code\": \"CAN\" },\n  { \"city\": \"Hong Kong\", \"airport_code\": \"HKG\" },\n  { \"city\": \"Houston\", \"airport_code\": \"IAH\" },\n  { \"city\": \"Istanbul\", \"airport_code\": \"IST\" },\n  { \"city\": \"Jakarta\", \"airport_code\": \"CGK\" },\n  { \"city\": \"Kuala Lumpur\", \"airport_code\": \"KUL\" },\n  { \"city\": \"Las Vegas\", \"airport_code\": \"LAS\" },\n  { \"city\": \"London\", \"airport_code\": \"LHR\" },\n  { \"city\": \"Los Angeles\", \"airport_code\": \"LAX\" },\n  { \"city\": \"Madrid\", \"airport_code\": \"MAD\" },\n  { \"city\": \"Mexico City\", \"airport_code\": \"MEX\" },\n  { \"city\": \"Miami\", \"airport_code\": \"MIA\" },\n  { \"city\": \"Minneapolis\", \"airport_code\": \"MSP\" },\n  { \"city\": \"Mumbai\", \"airport_code\": \"BOM\" },\n  { \"city\": \"New York\", \"airport_code\": \"JFK\" },\n  { \"city\": \"Orlando\", \"airport_code\": \"MCO\" },\n  { \"city\": \"Paris\", \"airport_code\": \"CDG\" },\n  { \"city\": \"Philadelphia\", \"airport_code\": \"PHL\" },\n  { \"city\": \"Phoenix\", \"airport_code\": \"PHX\" },\n  { \"city\": \"Rome\", \"airport_code\": \"FCO\" },\n  { \"city\": \"San Francisco\", \"airport_code\": \"SFO\" },\n  { \"city\": \"São Paulo\", \"airport_code\": \"GRU\" },\n  { \"city\": \"Seattle\", \"airport_code\": \"SEA\" },\n  { \"city\": \"Seoul\", \"airport_code\": \"ICN\" },\n  { \"city\": \"Shanghai\", \"airport_code\": \"PVG\" },\n  { \"city\": \"Singapore\", \"airport_code\": \"SIN\" },\n  { \"city\": \"Sydney\", \"airport_code\": \"SYD\" },\n  { \"city\": \"Tokyo\", \"airport_code\": \"HND\" },\n  { \"city\": \"Toronto\", \"airport_code\": \"YYZ\" },\n  { \"city\": \"Vancouver\", \"airport_code\": \"YVR\" },\n  { \"city\": \"Vienna\", \"airport_code\": \"VIE\" },\n  { \"city\": \"Zurich\", \"airport_code\": \"ZRH\" }\n]",
+                        "kind": "script",
+                        "name": "CodeBlock 1",
+                        "position": {
+                            "x": 53,
+                            "y": 131
+                        },
+                        "display_name": "Get list of cities",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "cities": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "List of cities for top 50 airports"
+                                },
+                                "airports": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "city": {
+                                                "type": "string",
+                                                "description": "The primary city served by the airport."
+                                            },
+                                            "airport_code": {
+                                                "type": "string",
+                                                "description": "The IATA airport code (three-letter identifier)."
+                                            }
+                                        }
+                                    },
+                                    "description": "list of cities and corresponding airport coides"
+                                }
+                            }
+                        }
+                    }
+                },
+                "CodeBlock 2": {
+                    "spec": {
+                        "fn": "def get_airport_code(city_name):\n    # Normalize city name (case-insensitive search)\n    city_name = city_name.strip().lower()\n\n    # Search for city in the list\n    for entry in flow[\"Book a flight\"][\"Get list of cities\"].output.airports:\n        if entry[\"city\"].lower() == city_name:\n            return entry[\"airport_code\"]\n    \n    # If not found\n    return None\n\nself.output.departureCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Departure City\"]\nself.output.departureAirport = get_airport_code(self.output.departureCity)\nself.output.arrivalCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Arrival City\"]\nself.output.arrivalAirport = get_airport_code(self.output.arrivalCity)\nself.output.tripType = flow[\"Book a flight\"][\"Search available flights\"].output[\"Trip Type\"]\nself.output.startDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Start Date\"]\nself.output.returnDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Return Date\"]\nself.output.ticketClass = flow[\"Book a flight\"][\"Search available flights\"].output[\"Ticket Class\"]\nself.output.travelers = flow[\"Book a flight\"][\"Search available flights\"].output.Travelers\n\nflow.private.outboundFlights = [\n    {\n        \"airline\": \"British Airways BA117\",\n        \"duration\": \"7h 55m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"720 USD\",\n        \"time\": \"10:30 AM – 02:25 PM\",\n        \"boarding\": \"10:00 AM\",\n        \"gate\": \"B14\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS3\",\n        \"duration\": \"8h 10m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"695 USD\",\n        \"time\": \"02:00 PM – 05:10 PM\",\n        \"boarding\": \"01:00 PM\",\n        \"gate\": \"D17\"\n    },\n    {\n        \"airline\": \"Delta DL1\",\n        \"duration\": \"11h 15m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"640 USD\",\n        \"time\": \"09:15 AM – 08:30 PM\",\n        \"boarding\": \"08:45 AM\",\n        \"gate\": \"C10\"\n    },\n    {\n        \"airline\": \"United Airlines UA15\",\n        \"duration\": \"8h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"12:45 PM – 04:50 PM\",\n        \"boarding\": \"12:15 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"American Airlines AA101\",\n        \"duration\": \"12h 20m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"660 USD\",\n        \"time\": \"07:30 AM – 07:50 PM\",\n        \"boarding\": \"07:00 AM\",\n        \"gate\": \"A17\"\n    }\n]\n\nflow.private.returnFlights = [\n    {\n        \"airline\": \"British Airways BA116\",\n        \"duration\": \"6h 50m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"06:30 PM – 06:20 AM\",\n        \"boarding\": \"04:30 PM\",\n        \"gate\": \"B10\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS4\",\n        \"duration\": \"7h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"690 USD\",\n        \"time\": \"08:15 PM – 07:20 AM\",\n        \"boarding\": \"07:45 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"Delta DL2\",\n        \"duration\": \"10h 40m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"635 USD\",\n        \"time\": \"05:45 PM – 08:25 AM\",\n        \"boarding\": \"03:15 PM\",\n        \"gate\": \"B11\"\n    },\n    {\n        \"airline\": \"United Airlines UA16\",\n        \"duration\": \"7h 25m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"705 USD\",\n        \"time\": \"09:00 PM – 09:25 AM\",\n        \"boarding\": \"08:30 PM\",\n        \"gate\": \"C5\"\n    },\n    {\n        \"airline\": \"American Airlines AA100\",\n        \"duration\": \"11h 10m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"645 USD\",\n        \"time\": \"04:15 PM – 06:25 AM\",\n        \"boarding\": \"02:45 PM\",\n        \"gate\": \"C1\"\n    }\n]\n",
+                        "kind": "script",
+                        "name": "CodeBlock 2",
+                        "position": {
+                            "x": 49.3196134858504,
+                            "y": 386.1934692713048
+                        },
+                        "display_name": "Get flight details",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "tripType": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "startDate": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": ""
+                                },
+                                "travelers": {
+                                    "type": "integer",
+                                    "description": ""
+                                },
+                                "returnDate": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": ""
+                                },
+                                "arrivalCity": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "ticketClass": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "departureCity": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "arrivalAirport": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "departureAirport": {
+                                    "type": "string",
+                                    "description": ""
+                                }
+                            }
+                        }
+                    }
+                },
+                "CodeBlock 3": {
+                    "spec": {
+                        "fn": "#outboundFlight = flow[\"Book a flight\"][\"Outbound Flights\"].output[\"Choose your flight\"][0]\noutboundFlight = flow[\"Book a flight\"][\"Outbound Flights\"].output[\"Choose your flight\"]\nself.output.outboundAirline = outboundFlight.airline\nself.output.outboundPrice = outboundFlight.price\noutboundDuration = outboundFlight.duration\noutboundTime = outboundFlight.time\n#self.output.outboundTimings = outboundDuration + \" | \" + outboundTime\nself.output.outboundTimings = outboundTime\nself.output.outboundStops = outboundFlight.stop\nself.output.outboundBoarding = outboundFlight.boarding\nself.output.outboundGate = outboundFlight.gate\n\n#returnFlight = flow[\"Book a flight\"][\"Return Flights\"].output[\"Choose your flight\"][0]\nreturnFlight = flow[\"Book a flight\"][\"Return Flights\"].output[\"Choose your flight\"]\nself.output.returnAirline = returnFlight.airline\nself.output.returnPrice = returnFlight.price\nreturnDuration = returnFlight.duration\nreturnTime = returnFlight.time\n#self.output.returnTimings = returnDuration + \" | \" + returnTime\nself.output.returnTimings = returnTime\nself.output.returnStops = returnFlight.stop\nself.output.returnBoarding = returnFlight.boarding\nself.output.returnGate = returnFlight.gate\n\n#price total\ndef extract_number(price_str):\n    return ''.join(c for c in price_str if (c.isdigit() or c == '.'))\n\noutbound_price = extract_number(outboundFlight.price)\nreturn_price = extract_number(returnFlight.price)\nself.output.totalPrice = str(float(outbound_price) + float(return_price))",
+                        "kind": "script",
+                        "name": "CodeBlock 3",
+                        "position": {
+                            "x": 428.6370332456052,
+                            "y": 224.23287719705354
+                        },
+                        "display_name": "Prepare flight summary",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "returnGate": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "totalPrice": {
+                                    "type": "string",
+                                    "description": "The total price of the outbound and return flights"
+                                },
+                                "returnPrice": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "returnStops": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundGate": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundPrice": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundStops": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "returnAirline": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "returnTimings": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "returnBoarding": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundAirline": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundTimings": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "outboundBoarding": {
+                                    "type": "string",
+                                    "description": ""
+                                }
+                            }
+                        }
+                    }
+                },
+                "CodeBlock 4": {
+                    "spec": {
+                        "fn": "flow.output.bookingRefernce = \"XA214-782B\"\n",
+                        "kind": "script",
+                        "name": "CodeBlock 4",
+                        "position": {
+                            "x": 940.4257892331669,
+                            "y": 500.2080712250513
+                        },
+                        "display_name": "Make booking",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    }
+                },
+                "UserActivity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 1__end__",
+                        "position": {
+                            "x": 490,
+                            "y": 739.7321933851892
+                        }
+                    }
+                },
+                "UserActivity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 1__start__",
+                        "position": {
+                            "x": 490,
+                            "y": 23
+                        }
+                    }
+                },
+                "user_40cfb2e2-33a5-41a5-b6ea-6d00f18e41d2": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_40cfb2e2-33a5-41a5-b6ea-6d00f18e41d2",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_04b6a68b-7d09-47cd-8a9d-7c2026176d7a",
+                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                                    \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                                    \n    {flow[\"Book a flight\"][\"Get flight details\"].output.departureCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundStops})                                                                                                          \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                                    \n    <div>                                                                                                                                   \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundAirline}                                                                                                                                     \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.startDate}                                                                                                                                    \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundBoarding}                                                                                                                                \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundGate}                                                                                                                                  \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Seat:</strong><br> 23C                                                                                                                                  \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n</div>                                                                                                                                    \n",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 425.7483961465429,
+                            "y": 364.3140655534355
+                        },
+                        "display_name": "Outbound flight summary"
+                    }
+                },
+                "user_425d4fed-210f-4c73-824d-13ef477a9907": {
+                    "spec": {
+                        "form": {
+                            "name": "form_c424bf9f-c7a0-4dd0-974f-d6be161e8e21",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_daae1468-340d-4543-aa8f-f1dbca81b059",
+                                    "uiSchema": {
+                                        "ui:title": "Choose your flight",
+                                        "ui:widget": "Table",
+                                        "ui:options": {
+                                            "label": false
+                                        },
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.private.outboundFlights"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "blank"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[\"item.airline\",\"item.duration\",\"item.price\",\"item.stop\",\"item.time\"]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Choose your flight",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "1b0a933b-8d8d-4e77-b2ee-d666098185d2",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": false,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_daae1468-340d-4543-aa8f-f1dbca81b059": {
+                                        "type": "object",
+                                        "title": "Choose your flight",
+                                        "properties": {
+                                            "stop": {
+                                                "type": "string",
+                                                "title": "Stop"
+                                            },
+                                            "time": {
+                                                "type": "string",
+                                                "title": "Time"
+                                            },
+                                            "price": {
+                                                "type": "string",
+                                                "title": "Price"
+                                            },
+                                            "airline": {
+                                                "type": "string",
+                                                "title": "Airline"
+                                            },
+                                            "duration": {
+                                                "type": "string",
+                                                "title": "Duration"
+                                            }
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_425d4fed-210f-4c73-824d-13ef477a9907",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 47.980719753744864,
+                            "y": 503.583472239548
+                        },
+                        "display_name": "Outbound Flights"
+                    }
+                },
+                "user_8230e263-f39f-4f90-a0dd-4f453ac6f1c5": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_8230e263-f39f-4f90-a0dd-4f453ac6f1c5",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_1430950e-7bb2-4c59-b556-6006479238bf",
+                                "text": "Total price: ${flow[\"Book a flight\"][\"Prepare flight summary\"].output.totalPrice}(USD)",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 431.7483961465429,
+                            "y": 650.3245174602748
+                        },
+                        "display_name": "Price summary"
+                    }
+                },
+                "user_83aec2e6-c3ce-4618-adb9-6c590ef97ecb": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_83aec2e6-c3ce-4618-adb9-6c590ef97ecb",
+                        "fields": [
+                            {
+                                "kind": "boolean",
+                                "name": "boolean_d6329953-d648-4cc1-8636-701534291d67",
+                                "direction": "input",
+                                "output_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 828.2148301829199,
+                            "y": 218.74439934063048
+                        },
+                        "display_name": "Do you want to book these flights?"
+                    }
+                },
+                "user_9376ce02-64ab-42fb-b5f1-65332057cfbd": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_9376ce02-64ab-42fb-b5f1-65332057cfbd",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_234ad1e2-d156-4337-b0d6-9f680d7aed71",
+                                "text": "Your flights have been booked.",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 940.4257892331669,
+                            "y": 642.2080712250513
+                        },
+                        "display_name": "Booking Confirmation"
+                    }
+                },
+                "user_bed981d8-7f04-4586-ac5d-54e41bc840b3": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_bed981d8-7f04-4586-ac5d-54e41bc840b3",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_739026dd-c26c-4f82-a3b0-b5e89ad249a1",
+                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                                    \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                                    \n    {flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.departureCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnStops})                                                                                                          \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnAirline}                                                                                                                                    \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.returnDate}                                                                                                                                    \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnBoarding}                                                                                                                               \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnGate}                                                                                                                           \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Seat:</strong><br> 11A                                                                                                                                  \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n</div>                                                                                                                                    \n",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 423.7483961465429,
+                            "y": 504
+                        },
+                        "display_name": "Return flight summary"
+                    }
+                },
+                "user_cc4fcfd6-53af-4e00-9d56-0438e41d0bd9": {
+                    "spec": {
+                        "form": {
+                            "name": "form_5a3e48c9-d02f-48f6-8ddb-53ade0b72307",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_923f4373-89f8-4dbf-a5f5-6da03749d91d",
+                                    "uiSchema": {
+                                        "ui:title": "Choose your flight",
+                                        "ui:widget": "Table",
+                                        "ui:options": {
+                                            "label": false
+                                        },
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.private.returnFlights"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "blank"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[\"item.airline\",\"item.duration\",\"item.price\",\"item.stop\",\"item.time\"]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Choose your flight",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "64a6c37d-ab0b-450f-8d32-7ca6d190aa07",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": false,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_923f4373-89f8-4dbf-a5f5-6da03749d91d": {
+                                        "title": "Choose your flight"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_cc4fcfd6-53af-4e00-9d56-0438e41d0bd9",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 41.98071975374489,
+                            "y": 650.6845089723727
+                        },
+                        "display_name": "Return Flights"
+                    }
+                },
+                "user_e2c65df8-9c25-4e7e-8945-5c4e83d35e73": {
+                    "spec": {
+                        "form": {
+                            "name": "form_4a2e630d-e1f5-473b-858b-76946afe3eb5",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_d5c5f06d-0bbc-46e3-a8ce-3ec557a529d9",
+                                    "uiSchema": {
+                                        "ui:title": "Departure City",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Where from ?"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.default"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of cities\"].output.cities"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Departure City",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_5a49b522-c2cd-4ea9-a382-07e4f2bbd0b8",
+                                    "uiSchema": {
+                                        "ui:title": "Arrival City",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Where to ?"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.default"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of cities\"].output.cities"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Arrival City",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_f9e968a1-2278-4277-a485-94c9452b0cb2",
+                                    "uiSchema": {
+                                        "ui:title": "Trip Type",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "\"Round Trip\""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Round Trip\",\"One-way\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "blank"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Trip Type",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "date",
+                                    "name": "field_bebf2e89-dd49-4eb8-aeef-4bfe6ac8fe64",
+                                    "uiSchema": {
+                                        "format": "YYYY-MM-DD",
+                                        "ui:title": "Start Date",
+                                        "ui:widget": "DateWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.default"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Start Date",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "default": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "maximum": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "minimum": {
+                                                "type": "string",
+                                                "format": "date"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "date"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "date",
+                                    "name": "field_8c5970ee-1fd2-46d7-b87e-bac78745542f",
+                                    "uiSchema": {
+                                        "format": "YYYY-MM-DD",
+                                        "ui:title": "Return Date",
+                                        "ui:widget": "DateWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.default"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Return Date",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "default": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "maximum": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "minimum": {
+                                                "type": "string",
+                                                "format": "date"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "date"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_ca6b5c73-9960-4205-9395-d3b601c1293a",
+                                    "uiSchema": {
+                                        "ui:title": "Ticket Class",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "\"Economy\""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Economy\",\"Premium Economy\", \"Business\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "blank"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Ticket Class",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "number",
+                                    "name": "field_d539db2e-928f-4e74-b30b-89d119058427",
+                                    "uiSchema": {
+                                        "ui:title": "Travelers",
+                                        "ui:widget": "NumberWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Travelers",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "default": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "d65ea722-4272-411d-96ca-2d98801432b6",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_5a49b522-c2cd-4ea9-a382-07e4f2bbd0b8": {
+                                        "title": "Arrival City"
+                                    },
+                                    "field_8c5970ee-1fd2-46d7-b87e-bac78745542f": {
+                                        "type": "string",
+                                        "title": "Return Date",
+                                        "format": "date"
+                                    },
+                                    "field_bebf2e89-dd49-4eb8-aeef-4bfe6ac8fe64": {
+                                        "type": "string",
+                                        "title": "Start Date",
+                                        "format": "date"
+                                    },
+                                    "field_ca6b5c73-9960-4205-9395-d3b601c1293a": {
+                                        "title": "Ticket Class"
+                                    },
+                                    "field_d539db2e-928f-4e74-b30b-89d119058427": {
+                                        "type": "integer",
+                                        "title": "Travelers"
+                                    },
+                                    "field_d5c5f06d-0bbc-46e3-a8ce-3ec557a529d9": {
+                                        "title": "Departure City"
+                                    },
+                                    "field_f9e968a1-2278-4277-a485-94c9452b0cb2": {
+                                        "title": "Trip Type"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_e2c65df8-9c25-4e7e-8945-5c4e83d35e73",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 50.83820176565281,
+                            "y": 243.60636520289984
+                        },
+                        "display_name": "Search available flights"
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "__internal_wxai__/meta-llama/llama-3-3-70b-instruct",
+        "source_kind": "ui"
+    }
+}
