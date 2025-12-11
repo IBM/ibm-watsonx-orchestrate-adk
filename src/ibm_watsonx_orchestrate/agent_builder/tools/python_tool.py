@@ -382,11 +382,11 @@ def _extract_context_param(name: str, input_schema: ToolRequestBody) -> Optional
                     raise ToolContextException(f"Tool {name} has multiple run context objects")
                 agent_run_param = k
 
-    if agent_run_param:
-        if agent_run_param in input_schema.properties:
-            del input_schema.properties[agent_run_param]
-        if agent_run_param in input_schema.required:
-            input_schema.required.remove(agent_run_param)
+    # if agent_run_param:
+    #     if agent_run_param in input_schema.properties:
+    #         del input_schema.properties[agent_run_param]
+    #     if agent_run_param in input_schema.required:
+    #         input_schema.required.remove(agent_run_param)
 
     return agent_run_param
 
