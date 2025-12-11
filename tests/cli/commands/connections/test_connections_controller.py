@@ -36,6 +36,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAuth2PasswordCredentials,
     OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
+    OAuth2TokenExchangeCredentials,
     KeyValueConnectionCredentials,
     ConnectionConfiguration,
     IdentityProviderCredentials
@@ -277,6 +278,7 @@ class TestValidateConnectionParams:
             (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"]),
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
+            (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.KEY_VALUE, []),
         ]
     )
@@ -297,6 +299,7 @@ class TestValidateConnectionParams:
             (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"]),
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
+            (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.KEY_VALUE, []),
         ]
     )
@@ -362,6 +365,7 @@ class TestGetCredentials:
             (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password"], OAuth2PasswordCredentials),
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"], OAuth2ClientCredentials),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"], OAuthOnBehalfOfCredentials),
+            (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"], OAuth2TokenExchangeCredentials),
         ]
     )
     def test_get_credentials(self, conn_type, required_args, expected_cred_type):
@@ -992,11 +996,12 @@ class TestSetCredentialsConnection:
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.BASIC_AUTH, auth_type=None), ["username", "password"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.BEARER_TOKEN, auth_type=None), ["token"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.API_KEY_AUTH, auth_type=None), ["api_key"]),
-            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE), ["client_id", "client_secret", "token_url", "auth_url"]),
+            (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE), ["client_id", "client_secret", "token_url", "auth_url"]),
             # (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_IMPLICIT), ["client_id", "auth_url"]),
-            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD), ["client_id", "client_secret", "token_url", "username", "password"]),
-            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS), ["client_id", "client_secret", "token_url"]),
+            (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD), ["client_id", "client_secret", "token_url", "username", "password"]),
+            (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS), ["client_id", "client_secret", "token_url"]),
             (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW), ["client_id", "token_url", "grant_type"]),
+            (GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE), ["client_id", "token_url", "grant_type"]),
             (GetConfigResponse(sso=False, security_scheme=ConnectionSecurityScheme.KEY_VALUE, auth_type=None), ["foo", "bar"]),
         ]
     )
@@ -1133,6 +1138,37 @@ class TestSetIdentityProviderConnection:
             captured = caplog.text
             
             assert f"Cannot set Identity Provider when 'sso' is false in configuration. Please enable sso for connection '{app_id}' in environment '{environment}' and try again." in captured
+    
+    @pytest.mark.parametrize(
+        "config",
+        [
+            GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_AUTH_CODE),
+            GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_CLIENT_CREDS),
+            GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_PASSWORD),
+            GetConfigResponse(sso=True, security_scheme=ConnectionSecurityScheme.OAUTH2, auth_type=ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE),
+        ]
+    )
+    def test_set_identity_provider_connection_non_obof(self, connections_spec_content, config, caplog):
+        app_id = connections_spec_content.get("app_id")
+        environment = ConnectionEnvironment.DRAFT
+
+        mock_connection_client = MockConnectionClient(
+            get_config_response=config
+        )
+         
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.add_identity_provider") as mock_add_identity_provider, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_client:
+                
+            mock_client.return_value = mock_connection_client
+
+            with pytest.raises(SystemExit) as e:
+                set_identity_provider_connection(app_id=app_id, environment=environment, **self.mock_idp_args)
+
+            mock_add_identity_provider.assert_not_called()
+
+            captured = caplog.text
+            
+            assert f"Identity Provider is only supported by '{ConnectionType.OAUTH_ON_BEHALF_OF_FLOW}'" in captured
 
     def test_set_identity_provider_connection_no_config(self, connections_spec_content, caplog):
         app_id = connections_spec_content.get("app_id")

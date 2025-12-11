@@ -2,10 +2,15 @@ import typer
 from typing_extensions import Annotated, List, Optional
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
+from ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_command import ai_builder_app
 import json
 
 agents_app = typer.Typer(no_args_is_help=True)
-
+agents_app.add_typer(
+    ai_builder_app,
+    name="ai-builder",
+    help="AI tools to help create and refine agents."
+)
 
 @agents_app.command(name="import", help='Import an agent definition into the active env from a file')
 def agent_import(

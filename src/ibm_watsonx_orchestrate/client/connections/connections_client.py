@@ -172,7 +172,7 @@ class ConnectionsClient(BaseAPIClient):
         if not conn_ids:
             return []
         try:
-            res = self._get(f"/connections/applications?connectionIds={','.join(conn_ids)}")
+            res = self._get(f"/connections/applications?include_details=true&connectionIds={','.join(conn_ids)}")
             import json
             json.dumps(res)
             return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]

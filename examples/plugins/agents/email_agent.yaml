@@ -1,0 +1,16 @@
+spec_version: v1
+kind: native
+style: default
+name: email_agent
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+description: Send Email to given email_id and body.
+instructions: |-
+  When a users asks to send an email, invoke the send_email_tool
+tools:
+- send_email_tool
+
+plugins:
+  agent_pre_invoke:
+      - plugin_name: guardrail_plugin
+  agent_post_invoke:
+      - plugin_name: email_masking_plugin

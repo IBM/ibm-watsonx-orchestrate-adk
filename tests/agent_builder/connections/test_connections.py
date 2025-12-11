@@ -130,6 +130,7 @@ class TestValidateSchemaType:
                 (ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_PASSWORD),
                 (ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_CLIENT_CREDS),
                 (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW),
+                (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ConnectionType.OAUTH2_TOKEN_EXCHANGE),
                 (ConnectionType.KEY_VALUE, ConnectionType.KEY_VALUE),
             ]
     )
@@ -147,6 +148,7 @@ class TestValidateSchemaType:
                 (ConnectionType.OAUTH2_PASSWORD, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_PASSWORD]),
                 (ConnectionType.OAUTH2_CLIENT_CREDS, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_CLIENT_CREDS]),
                 (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH_ON_BEHALF_OF_FLOW]),
+                (ConnectionType.OAUTH2_TOKEN_EXCHANGE, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.OAUTH2_TOKEN_EXCHANGE]),
                 (ConnectionType.KEY_VALUE, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.KEY_VALUE]),
             ]
     )
@@ -240,6 +242,7 @@ class TestGetApplicationConnectionCredentials:
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_PASSWORD, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_CLIENT_CREDS, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
+                (OAuth2TokenCredentials(**{"access_token": "Test Token", "url": "Test URL"}), ConnectionType.OAUTH2_TOKEN_EXCHANGE, TEST_APP_ID, ConnectionSecurityScheme.OAUTH2),
                 (KeyValueConnectionCredentials({"Foo": "Test Foo", "bar": "Test bar"}), ConnectionType.KEY_VALUE, f"{TEST_APP_ID}_kv", ConnectionSecurityScheme.KEY_VALUE),
             ]
     )
@@ -263,7 +266,7 @@ class TestGetApplicationConnectionCredentials:
                 (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BASIC_AUTH], ConnectionSecurityScheme.BASIC_AUTH),
                 (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.BEARER_TOKEN], ConnectionSecurityScheme.BEARER_TOKEN),
                 (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.API_KEY_AUTH], ConnectionSecurityScheme.API_KEY_AUTH),
-                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn not in {ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW}], ConnectionSecurityScheme.OAUTH2),
+                (TEST_APP_ID, [conn for conn in ALL_CONNECTION_TYPES if conn not in {ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_TOKEN_EXCHANGE}], ConnectionSecurityScheme.OAUTH2),
                 (f"{TEST_APP_ID}_kv", [conn for conn in ALL_CONNECTION_TYPES if conn != ConnectionType.KEY_VALUE], ConnectionSecurityScheme.KEY_VALUE),
             ]
     )
