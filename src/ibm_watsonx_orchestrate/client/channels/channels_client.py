@@ -152,7 +152,13 @@ class ChannelsClient(BaseAPIClient):
         try:
             import jwt
             decoded = jwt.decode(self.api_key, options={"verify_signature": False})
-            return decoded.get('subscriptionId')
+            subscription_id = decoded.get('subscriptionId')
+
+            if not subscription_id:
+                account = decoded.get('account', {})
+                subscription_id = account.get('bss')
+            return subscription_id
+            
         except Exception as e:
             logger.debug(f"Failed to extract subscription ID from token: {e}")
             return None
