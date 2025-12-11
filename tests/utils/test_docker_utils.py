@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,29 +12,29 @@ def skip_terms_and_conditions():
 
 
 def test_docker_login_success():
-    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=None), \
-         patch("subprocess.run") as mock_run, \
+
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.run_docker_command.return_value.returncode = 0
+
+    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=mock_vm_manager), \
          skip_terms_and_conditions():
-        mock_run.return_value.returncode = 0
 
         DockerLoginService._DockerLoginService__docker_login("test-key", "registry.example.com")
 
-        mock_run.assert_called_once_with(
-            ["docker", "login", "-u", "iamapikey", "--password-stdin", "registry.example.com"],
+        mock_vm_manager.run_docker_command.assert_called_once_with(
+            ["login", "-u", "iamapikey", "--password-stdin", "registry.example.com"],
             input="test-key",
-            text=True,
             capture_output=True
         )
 
 def test_docker_login_failure():
-    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager") as mock_vm, \
-         patch("subprocess.run") as mock_run, \
+
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.run_docker_command.return_value.returncode = 1
+    mock_vm_manager.run_docker_command.return_value.stderr = b"Login failed"
+
+    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=mock_vm_manager), \
          skip_terms_and_conditions():
-
-        mock_vm.return_value = None  
-
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stderr = b"Login failed"
 
         with pytest.raises(SystemExit) as exc:
             DockerLoginService._DockerLoginService__docker_login("bad-key", "bad-registry")
@@ -43,22 +43,26 @@ def test_docker_login_failure():
 
 
 def test_ensure_docker_installed_success():
-    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=None), \
-         patch("subprocess.run") as mock_run, \
+
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.run_docker_command.return_value.returncode = 0
+
+    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=mock_vm_manager), \
          skip_terms_and_conditions():
 
-        mock_run.return_value.returncode = 0
 
         DockerUtils.ensure_docker_installed()
 
-        mock_run.assert_called_once_with(
-            ["docker", "--version"],
-            check=True,
+        mock_vm_manager.run_docker_command.assert_called_once_with(
+            ["--version"],
             capture_output=True
         )
 
 def test_ensure_docker_installed_failure():
-    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=None), \
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.run_docker_command.return_value.returncode = 1
+
+    with patch("ibm_watsonx_orchestrate.utils.docker_utils.get_vm_manager", return_value=mock_vm_manager), \
          patch("subprocess.run", side_effect=FileNotFoundError), \
          skip_terms_and_conditions():
 

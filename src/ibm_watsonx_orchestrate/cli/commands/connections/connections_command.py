@@ -211,7 +211,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--client-id',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_implicit_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
         )
     ] = None,
     client_secret: Annotated[
@@ -233,7 +233,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--token-url',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the url of the application token server'
         )
     ] = None,
     auth_url: Annotated[
@@ -247,7 +247,7 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--grant-type',
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
         )
     ] = None,
     scope: Annotated[

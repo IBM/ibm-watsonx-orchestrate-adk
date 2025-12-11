@@ -3,6 +3,7 @@ import sys
 import rich
 import yaml
 import logging
+from pathlib import Path
 from typing import Optional, List, Any
 from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration, VoiceConfigurationListEntry
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
@@ -57,7 +58,8 @@ class VoiceConfigurationsController:
   
   def get_voice_config(self, voice_config_id: str) -> VoiceConfiguration | None:
     client = self.get_voice_configurations_client()
-    return client.get(voice_config_id)
+    logger.info(f"Sensitive fields, such as API keys, have been removed")
+    return client.get_by_id(voice_config_id)
 
   def get_voice_config_by_name(self, voice_config_name: str) -> VoiceConfiguration | None:
     client = self.get_voice_configurations_client()
@@ -70,6 +72,7 @@ class VoiceConfigurationsController:
       logger.error(f"Multiple voice_configs with the name '{voice_config_name}' found. Failed to get config")
       sys.exit(1)
       
+    logger.info(f"Sensitive fields, such as API keys, have been removed")
     return configs[0]
 
   def list_voice_configs(self, verbose: bool, format: Optional[ListFormats]=None) -> List[dict[str | Any]] | List[VoiceConfigurationListEntry] | str | None:
@@ -177,10 +180,102 @@ class VoiceConfigurationsController:
     else:
       logger.info(f"Voice config '{voice_config_name}' not found")
 
+  def resolve_config_id(
+      self,
+      config_id: Optional[str] = None,
+      config_name: Optional[str] = None
+  ) -> str:
+    """Resolve config ID from either ID or name."""
+    if not config_id and not config_name:
+      logger.error("Either --id or --name must be provided")
+      sys.exit(1)
 
+    if config_id and config_name:
+      # Validate they match
+      client = self.get_voice_configurations_client()
+      try:
+        config = client.get_by_id(config_id)
+        if not config:
+          logger.error(f"Voice config with ID '{config_id}' not found")
+          sys.exit(1)
 
+        actual_name = config.name if hasattr(config, 'name') else config.get('name')
+        if actual_name != config_name:
+          logger.error(f"Voice config ID '{config_id}' has name '{actual_name}', not '{config_name}'")
+          sys.exit(1)
 
-    
-    
+        return config_id
+      except Exception as e:
+        logger.error(f"Failed to validate voice config: {e}")
+        sys.exit(1)
 
+    if config_id:
+      return config_id
+
+    # Resolve by name
+    try:
+      client = self.get_voice_configurations_client()
+      configs = client.get_by_name(config_name)
+
+      if not configs:
+        logger.error(f"Voice config with name '{config_name}' not found")
+        sys.exit(1)
+
+      if len(configs) > 1:
+        logger.error(f"Multiple voice configs with name '{config_name}' found. Use --id to specify which one.")
+        sys.exit(1)
+
+      return configs[0].voice_configuration_id
+    except Exception as e:
+      logger.error(f"Failed to resolve voice config: {e}")
+      sys.exit(1)
+
+  def export_voice_config(
+      self,
+      config_id: str,
+      output_path: str
+  ) -> None:
+    """Export a voice config to a YAML file."""
+    output_file = Path(output_path)
+    output_file_extension = output_file.suffix
+
+    if output_file_extension not in [".yaml", ".yml"]:
+      logger.error(f"Output file must end with '.yaml' or '.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
+      sys.exit(1)
+
+    client = self.get_voice_configurations_client()
+
+    try:
+      config = client.get_by_id(config_id)
+    except Exception as e:
+      logger.error(f"Failed to get voice config: {e}")
+      sys.exit(1)
+
+    if not config:
+      logger.error(f"Voice config not found: {config_id}")
+      sys.exit(1)
+
+    # Validate structure
+    try:
+      voice_config_model = VoiceConfiguration.model_validate(config)
+    except Exception as e:
+      logger.error(f"Failed to validate voice config: {e}")
+      sys.exit(1)
+
+    # Remove response-only fields
+    export_data = voice_config_model.model_dump(
+      exclude_none=True,
+      exclude={'voice_configuration_id', 'tenant_id', 'attached_agents'}
+    )
+
+    try:
+      with safe_open(output_path, 'w') as outfile:
+        yaml.dump(export_data, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
+
+      logger.info(f"Exported voice config '{voice_config_model.name}' to '{output_path}'")
+      logger.info(f"Sensitive fields, such as API keys, have been removed")
+
+    except Exception as e:
+      logger.error(f"Failed to write export file: {e}")
+      sys.exit(1)
 

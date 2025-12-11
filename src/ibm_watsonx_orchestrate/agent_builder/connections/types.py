@@ -15,6 +15,7 @@ class ConnectionKind(str, Enum):
     oauth_auth_password_flow = 'oauth_auth_password_flow'
     oauth_auth_client_credentials_flow = 'oauth_auth_client_credentials_flow'
     oauth_auth_on_behalf_of_flow = 'oauth_auth_on_behalf_of_flow'
+    oauth_auth_token_exchange_flow = 'oauth_auth_token_exchange_flow'
     key_value = 'key_value'
     kv = 'kv'
 
@@ -44,6 +45,7 @@ class ConnectionAuthType(str, Enum):
     OAUTH2_PASSWORD = 'oauth2_password'
     OAUTH2_CLIENT_CREDS = 'oauth2_client_creds'
     OAUTH_ON_BEHALF_OF_FLOW = 'oauth_on_behalf_of_flow'
+    OAUTH2_TOKEN_EXCHANGE = 'oauth2_token_exchange'
 
     def __str__(self):
         return self.value 
@@ -75,6 +77,7 @@ class ConnectionType(str, Enum):
     OAUTH2_PASSWORD = ConnectionAuthType.OAUTH2_PASSWORD.value
     OAUTH2_CLIENT_CREDS = ConnectionAuthType.OAUTH2_CLIENT_CREDS.value
     OAUTH_ON_BEHALF_OF_FLOW = ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW.value
+    OAUTH2_TOKEN_EXCHANGE = ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE.value
     KEY_VALUE = ConnectionSecurityScheme.KEY_VALUE.value
 
     def __str__(self):
@@ -99,6 +102,12 @@ OAUTH_CONNECTION_TYPES = {
     # ConnectionType.OAUTH2_IMPLICIT,
     ConnectionType.OAUTH2_PASSWORD,
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
+    ConnectionType.OAUTH2_TOKEN_EXCHANGE
+}
+
+SSO_CONNECTION_TYPES = {
+    ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
+    ConnectionType.OAUTH2_TOKEN_EXCHANGE
 }
 
 class IdpConfigDataBody(BaseModel):
@@ -134,11 +143,11 @@ class ConnectionConfiguration(BaseModel):
     security_scheme: ConnectionSecurityScheme
     auth_type: Optional[ConnectionAuthType] = None
     sso: bool = False
-    server_url: str | None = None
+    server_url: Optional[str] = None
     idp_config_data: Optional[IdpConfigData] = Field(None, validation_alias=AliasChoices('idp_config_data', 'idp_config'), serialization_alias='idp_config_data')
     app_config_data: Optional[AppConfigData] = Field(None, validation_alias=AliasChoices('app_config_data', 'app_config'), serialization_alias='app_config_data')
-    config_id: str = None
-    tenant_id: str = None
+    config_id: Optional[str] = None
+    tenant_id: Optional[str] = None
     
     def __get_import_aliases_mapping(self) -> dict:
         return {
@@ -210,15 +219,17 @@ class ConnectionConfiguration(BaseModel):
             conn_type = self.auth_type
         else:
             conn_type = self.security_scheme
-        if self.sso and conn_type != ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW:
-            raise ValueError(f"SSO not supported for auth scheme '{conn_type}'. SSO can only be used with OAuth auth types")
-        if not self.sso and conn_type == ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW:
+        if self.sso and conn_type not in SSO_CONNECTION_TYPES:
+            raise ValueError(f"SSO not supported for auth scheme '{conn_type}'. SSO can only be used with support auth types {SSO_CONNECTION_TYPES}")
+        if not self.sso and conn_type in SSO_CONNECTION_TYPES:
             raise ValueError(f"SSO required for '{conn_type}'. Please enable SSO.")
         if self.sso:
-            if not self.idp_config_data:
-                raise ValueError("For SSO auth 'idp_config_data' is a required field")
             if not self.app_config_data:
                 self.app_config_data = AppConfigData()
+            if self.preference != ConnectionPreference.MEMBER:
+                raise ValueError("For SSO auth 'type' must be set to member")
+        if conn_type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and not self.idp_config_data:
+                raise ValueError("For SSO auth 'idp_config_data' is a required field")
         if self.security_scheme == ConnectionSecurityScheme.KEY_VALUE and self.preference == ConnectionPreference.MEMBER:
             raise ValueError("Connection of type 'key_value' cannot be configured at the 'member' level. Key value connections must be of type 'team'")
         return self
@@ -321,6 +332,11 @@ class OAuthOnBehalfOfCredentials(BaseOAuthCredentials):
     access_token_url: str
     grant_type: str
 
+class OAuth2TokenExchangeCredentials(BaseOAuthCredentials):
+    client_id: str
+    access_token_url: str
+    grant_type: str
+
 # KeyValue is just an alias of dictionary
 class KeyValueConnectionCredentials(dict):
     def __init__(self, *args, **kwargs):
@@ -352,6 +368,7 @@ CONNECTION_KIND_SCHEME_MAPPING = {
     ConnectionKind.oauth_auth_password_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_client_credentials_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionSecurityScheme.OAUTH2,
+    ConnectionKind.oauth_auth_token_exchange_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.key_value: ConnectionSecurityScheme.KEY_VALUE,
     ConnectionKind.kv: ConnectionSecurityScheme.KEY_VALUE,
 }
@@ -362,6 +379,7 @@ CONNECTION_KIND_OAUTH_TYPE_MAPPING = {
     ConnectionKind.oauth_auth_password_flow: ConnectionAuthType.OAUTH2_PASSWORD,
     ConnectionKind.oauth_auth_client_credentials_flow: ConnectionAuthType.OAUTH2_CLIENT_CREDS,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW,
+    ConnectionKind.oauth_auth_token_exchange_flow: ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE
 }
 
 CONNECTION_TYPE_CREDENTIAL_MAPPING = {
