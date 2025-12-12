@@ -675,7 +675,7 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
-  
+
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
@@ -725,8 +725,6 @@ services:
       OTEL_MASK_VALUE: ${OTEL_MASK_VALUE:-<REDACTED>}
       TRM_CLIENT_MASK_ATTRS: ${TRM_CLIENT_MASK_ATTRS:-url.full,server.address,server.port}
       TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   tools-runtime:
     image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
@@ -762,6 +760,25 @@ services:
       TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
       TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
       TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
+    
+  agent-runtime:
+    image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}
+    platform: linux/amd64
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    depends_on:
+      - wxo-server-db
+    volumes:
+      - $HOME/.kube/config:/root/.kube/config
+      - tools-runtime-data:/shared-data
+    environment:
+      DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
+      VOLUME_MOUNT_PATH: "/shared-data"
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+
   ########################
   # IBM AGENT-OPS
   ########################
