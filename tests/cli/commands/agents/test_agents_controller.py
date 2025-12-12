@@ -326,6 +326,7 @@ class MockAgent:
         self.return_get_drafts_by_ids = return_get_drafts_by_ids
         self.get_draft_by_name_response = get_draft_by_name_response
         self.creation_warning = creation_warning
+        self.base_endpoint = "/api/v1/agents"
 
     def delete(self, agent_id):
         pass
@@ -337,6 +338,10 @@ class MockAgent:
     def update(self, agent_id, agent_spec):
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
+    
+    def _post(self, endpoint, data):
+        """Mock _post method for publish_agent"""
+        return {"id": "mock-agent-id"}
     
     def get(self):
         return [self.fake_agent]
@@ -1587,8 +1592,11 @@ class TestAgentsControllerExportAgent:
         assert f"Skipping {self.mock_kb_name}, knowledge_bases are currently unsupported by export"
         assert f"Skipping {native_agent_content.get('collaborators')[0]}, no agent with id {native_agent_content.get('collaborators')[0]} found" in captured
 
-    def test_export_agent_bad_file_type(self, caplog):
+    def test_export_agent_bad_file_type(self, caplog, native_agent_content):
         ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
+        ac.external_client = MockAgent()
+        ac.assistant_client = MockAgent()
 
         with pytest.raises(SystemExit):
             ac.export_agent(
@@ -1603,8 +1611,11 @@ class TestAgentsControllerExportAgent:
         assert f"Exporting agent definition for '{self.mock_agent_name}'" not in captured
         assert f"Successfully wrote agents and tools to '{self.mock_zip_file_path}'" not in captured
     
-    def test_export_agent_agent_only_bad_file_type(self, caplog):
+    def test_export_agent_agent_only_bad_file_type(self, caplog, native_agent_content):
         ac = AgentsController()
+        ac.native_client = MockAgent(get_draft_by_name_response=[native_agent_content])
+        ac.external_client = MockAgent()
+        ac.assistant_client = MockAgent()
 
         with pytest.raises(SystemExit):
             ac.export_agent(

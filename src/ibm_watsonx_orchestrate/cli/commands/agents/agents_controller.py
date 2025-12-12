@@ -1,3 +1,10 @@
+import yaml
+import json
+import rich
+from rich.panel import Panel
+from rich.table import Table
+from rich.console import Console
+import requests
 import importlib
 import inspect
 import io
@@ -5,19 +12,23 @@ import json
 import logging
 import sys
 import zipfile
+import os
+import tempfile
+from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Iterable, List, TypeVar
+from typing import Iterable, List, Optional, TypeVar
 
 import requests
 import rich
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
+    CustomAgent,
     ExternalAgent,
     AssistantAgent,
     AgentKind,
@@ -34,9 +45,9 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
-from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
+from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -49,10 +60,43 @@ from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 logger = logging.getLogger(__name__)
 
 # Helper generic type for any agent
-AnyAgentT = TypeVar("AnyAgentT", bound=Agent | ExternalAgent | AssistantAgent)
+AnyAgentT = TypeVar("AnyAgentT", bound=Agent | CustomAgent | ExternalAgent | AssistantAgent)
+
+LOG_LEVEL_COLORS = {
+    "DEBUG": "blue",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "CRITICAL": "bold red"
+}
 
 
-def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+class CustomAgentConfig(BaseModel):
+    """Configuration details from custom agent upload response."""
+    language: Optional[str] = None
+    framework: Optional[str] = None
+    entrypoint: str
+    agent_name: str
+    agent_description: str
+    requirements: List[str] = []
+    file_count: int
+    
+    @field_validator('requirements', mode='before')
+    @classmethod
+    def parse_requirements(cls, v):
+        """Convert requirements from string to list if needed."""
+        if isinstance(v, str):
+            if '\n' in v:
+                return [r.strip() for r in v.split('\n') if r.strip()]
+        return [v] if v is not None else []
+
+
+class CustomAgentUploadResponse(BaseModel):
+    """Response from custom agent artifact upload."""
+    config: CustomAgentConfig
+
+
+def import_python_agent(file: str) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
     # Import tools
     import_python_tool(file)
     import_python_knowledge_base(file)
@@ -67,12 +111,12 @@ def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgen
 
     agents = []
     for _, obj in inspect.getmembers(module):
-        if isinstance(obj, Agent) or isinstance(obj, ExternalAgent) or isinstance(obj, AssistantAgent):
+        if isinstance(obj, (Agent, ExternalAgent, AssistantAgent)):
             agents.append(obj)
     return agents
 
 
-def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | AssistantAgent:
+def create_agent_from_spec(file:str, kind:str) -> Agent | CustomAgent | ExternalAgent | AssistantAgent:
     if not kind:
         kind = AgentKind.NATIVE
     match kind:
@@ -87,7 +131,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
 
     return agent
 
-def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+def parse_file(file: str) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
         with safe_open(file, 'r') as f:
             if file.endswith(".json"):
@@ -100,7 +144,7 @@ def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
         agents = import_python_agent(file)
         return agents
     else:
-        raise BadRequest("file must end in .json, .yaml, .yml or .py")
+        raise BadRequest("file must end in .json, .yaml, .yml, or .py")
 
 def parse_create_native_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
     agent_details = {
@@ -270,24 +314,74 @@ class AgentsController:
         return self.voice_configuration_client
     
     @staticmethod
-    def import_agent(file: str, app_id: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+    def import_agent(
+        file: str | None = None,
+        app_id: str | None = None,
+        custom_agent_file_path: str | None = None,
+        custom_agent_config_file: str | None = None
+    ) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        # Check if this is a custom agent with package root
+        if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
+            # This is a custom agent with a directory - create a CustomAgent
+            zip_path, extracted_agent_name = AgentsController._create_agent_zip(
+                custom_agent_file_path,
+                custom_agent_config_file
+            )
+            
+            # Create a CustomAgent instance
+            # Note: extracted_agent_name is guaranteed to be non-None because _create_agent_zip
+            # will exit with an error if no agent name is found
+            agent = CustomAgent(
+                name=extracted_agent_name,  # type: ignore
+                description="Custom agent imported from directory",
+                kind=AgentKind.NATIVE,
+                style=AgentStyle.CUSTOM
+            )
+            agent.custom_agent_file_path = zip_path
+            
+            return [agent]
+        
+        if not file:
+            raise ValueError("File must be provided for native agents")
+        
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
+        
         return agents
 
 
     @staticmethod
     def generate_agent_spec(
         name: str, kind: AgentKind, description: str, **kwargs
-    ) -> Agent | ExternalAgent | AssistantAgent:
+    ) -> Agent | CustomAgent | ExternalAgent | AssistantAgent:
         match kind:
             case AgentKind.NATIVE:
                 agent_details = parse_create_native_args(
                     name, kind=kind, description=description, **kwargs
                 )
-                agent = Agent.model_validate(agent_details)
+                # Use CustomAgent for custom style agents
+                if kwargs.get('style') == AgentStyle.CUSTOM:
+                    agent = CustomAgent.model_validate(agent_details)
+                    custom_agent_file_path = kwargs.get('custom_agent_file_path')
+                    custom_agent_config_file = kwargs.get('custom_agent_config_file')
+                    
+                    # If package_root is a directory, zip it and extract agent name
+                    if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
+                        zip_path, extracted_agent_name = AgentsController._create_agent_zip(
+                            custom_agent_file_path,
+                            custom_agent_config_file
+                        )
+                        agent.custom_agent_file_path = zip_path
+                        # Update agent name if we extracted it from config
+                        if extracted_agent_name:
+                            agent.name = extracted_agent_name
+                            agent_details['name'] = extracted_agent_name
+                    else:
+                        agent.custom_agent_file_path = custom_agent_file_path
+                else:
+                    agent = Agent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
             case AgentKind.EXTERNAL:
                 agent_details = parse_create_external_args(name, kind=kind, description=description, **kwargs)
@@ -773,9 +867,10 @@ class AgentsController:
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
-        self, agents: Iterable[Agent | ExternalAgent | AssistantAgent]
+        self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
+            # Check for existing agents by name
             agent_name = agent.name
 
             native_client = self.get_native_client()
@@ -783,13 +878,14 @@ class AgentsController:
             assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_construct(**agent) for agent in existing_native_agents]
-            existing_external_agents = external_client.get_draft_by_name(agent_name)
-            existing_external_agents = [ExternalAgent.model_construct(**agent) for agent in existing_external_agents]
-            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_agents = [AssistantAgent.model_construct(**agent) for agent in existing_assistant_agents]
+            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
+            existing_external_clients = external_client.get_draft_by_name(agent_name)
+            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
+            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
 
-            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
+            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+            
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
@@ -812,6 +908,7 @@ class AgentsController:
 
             if len(all_existing_agents) > 0:
                 existing_agent = all_existing_agents[0]
+                agent_name = agent.name
 
                 if agent_name == existing_agent.name:
                     if agent_kind != existing_agent.kind:
@@ -822,11 +919,227 @@ class AgentsController:
             else:
                 self.publish_agent(agent)
 
-    def publish_agent(self, agent: Agent, **kwargs) -> None:
+    @staticmethod
+    def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
+        """
+        Create a temporary zip file from a directory for custom agent upload.
+        
+        Args:
+            package_root: Path to the directory to zip
+            config_file: Optional path to a config.yaml file to include in the zip
+            
+        Returns:
+            Tuple of (path to the created temporary zip file, agent name from config or None)
+        """
+        # Create a temporary file that won't be automatically deleted
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.zip', prefix='agent_package_')
+        os.close(temp_fd)
+        
+        agent_name = None
+        
+        try:
+            with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Add all files from package_root
+                for root, _, files in os.walk(package_root):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        relative_path = os.path.relpath(full_path, start=package_root)
+                        zip_file.write(full_path, arcname=relative_path)
+                        
+                        # Try to extract agent name from agent.yaml
+                        if agent_name is None and file.lower() in ['agent.yaml', 'agent.yml']:
+                            try:
+                                with open(full_path, 'r') as f:
+                                    config_data = yaml.load(f, Loader=yaml.SafeLoader)
+                                    agent_name = config_data.get('name')
+                            except Exception as e:
+                                logger.warning(f"Failed to parse config file for agent name: {e}")
+                
+                # Add config file if provided and not already in package_root
+                if config_file:
+                    config_filename = os.path.basename(config_file)
+                    # Check if config.yaml already exists in the zip
+                    if config_filename not in zip_file.namelist():
+                        zip_file.write(config_file, arcname=config_filename)
+                        # Try to extract agent name from the provided config file
+                        if agent_name is None:
+                            try:
+                                with open(config_file, 'r') as f:
+                                    config_data = yaml.load(f, Loader=yaml.SafeLoader)
+                                    # Try 'name' field first (new format)
+                                    agent_name = config_data.get('name')
+                            except Exception as e:
+                                logger.warning(f"Failed to parse config file for agent name: {e}")
+                    else:
+                        logger.warning(f"Config file '{config_filename}' already exists in package root, using the one from package root")
+            
+            logger.info(f"Created temporary zip file from directory: {package_root}")
+            if agent_name:
+                logger.info(f"Detected agent name from config: {agent_name}")
+                return temp_path, agent_name
+            
+            # Clean up temp file if no agent name found
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            logger.error(
+                f"No agent name found in config file. Please ensure your package contains "
+                f"an 'agent.yaml' file with a 'name' field."
+            )
+            sys.exit(1)
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+
+    @staticmethod
+    def _upload_custom_agent_artifact(
+        native_client: AgentClient,
+        agent_id: str,
+        custom_agent_file_path: str
+    ) -> tuple[dict | None, bool]:
+        """
+        Upload a custom agent artifact and return the response and temp file flag.
+        
+        Args:
+            native_client: The agent client instance
+            agent_id: The agent ID to upload to
+            custom_agent_file_path: Path to the zip file
+            
+        Returns:
+            Tuple of (upload_response, is_temp_file)
+        """
+        upload_response = None
+        is_temp_file = False
+        
+        if custom_agent_file_path:
+            logger.info(f"Uploading custom agent package...")
+            upload_response = native_client.upload_agent_artifact(
+                agent_id=agent_id,
+                file_path=custom_agent_file_path
+            )
+            logger.info(f"Custom agent package uploaded successfully")
+            
+            # Check if this is a temporary file
+            if custom_agent_file_path.startswith(tempfile.gettempdir()):
+                is_temp_file = True
+        
+        return upload_response, is_temp_file
+    
+    @staticmethod
+    def _display_custom_agent_config(
+        config: CustomAgentConfig,
+        agent_id: str,
+        agent_name: str,
+        is_update: bool = False
+    ) -> None:
+        """
+        Display custom agent configuration details in a formatted table.
+        
+        Args:
+            config: The configuration from upload response
+            agent_id: The agent ID
+            agent_name: The agent name
+            is_update: Whether this is an update operation
+        """
+        console = Console()
+        
+        # Display operation type
+        operation = "Updated" if is_update else "Created"
+        logger.info(f"Agent '{agent_name}' {operation.lower()} successfully")
+        
+        # Create a panel with agent info
+        info_panel = Panel(
+            f"[bold cyan]Agent ID:[/bold cyan] {agent_id}\n"
+            f"[bold cyan]Operation:[/bold cyan] {operation}\n"
+            f"[bold cyan]Name:[/bold cyan] {agent_name}",
+            title=f"[bold green]✓ Custom Agent {operation}[/bold green]",
+            border_style="green"
+        )
+        console.print(info_panel)
+        
+        # Create a table for the custom agent configuration
+        config_table = Table(
+            title="Configuration Details",
+            show_header=True,
+            header_style="bold cyan",
+            show_lines=True,
+        )
+        config_table.add_column("Property", style="cyan", no_wrap=True)
+        config_table.add_column("Value", style="green")
+        
+        config_table.add_row("Language", config.language)
+        config_table.add_row("Framework", config.framework)
+        config_table.add_row("Entrypoint", config.entrypoint)
+        config_table.add_row("Agent Name", config.agent_name)
+        config_table.add_row("Agent Description", config.agent_description)
+        config_table.add_row("Requirements", '\n'.join(config.requirements) if config.requirements else "None")
+        config_table.add_row("Files in Package", str(config.file_count))
+        
+        console.print(config_table)
+    
+    @staticmethod
+    def _cleanup_temp_file(file_path: str, is_temp: bool) -> None:
+        """
+        Clean up a temporary file if needed.
+        
+        Args:
+            file_path: Path to the file
+            is_temp: Whether the file is temporary
+        """
+        if is_temp and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.debug(f"Cleaned up temporary zip file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary zip file: {e}")
+
+    def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
         if isinstance(agent, Agent):
-            response = self.get_native_client().create(agent.model_dump(exclude_none=True))
+            # Get the raw response to check for custom agent config
+            native_client = self.get_native_client()
+            response_data = native_client._post(
+                native_client.base_endpoint,
+                data=transform_agents_from_flat_agent_spec(agent.model_dump(exclude_none=True))
+            )
+            response = AgentUpsertResponse.model_validate(response_data)
             _raise_guidelines_warning(response)
-            logger.info(f"Agent '{agent.name}' imported successfully")
+            
+            # Check if this is a custom agent - always upload if file path provided
+            if agent.style == AgentStyle.CUSTOM and isinstance(response_data, dict):
+                custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
+                
+                if custom_agent_file_path:
+                    if response.id:
+                        # Upload artifact using helper
+                        upload_response, is_temp_file = self._upload_custom_agent_artifact(
+                            self.get_native_client(),
+                            response.id,
+                            custom_agent_file_path
+                        )
+                        
+                        # Display configuration if available
+                        if upload_response:
+                            try:
+                                response_model = CustomAgentUploadResponse.model_validate(upload_response)
+                                if response_model.config:
+                                    agent_name = response_model.config.agent_name or agent.name
+                                    self._display_custom_agent_config(response_model.config, response.id, agent_name, is_update=False)
+                                else:
+                                    logger.info(f"Agent '{agent.name}' imported successfully")
+                            except Exception as e:
+                                logger.warning(f"Could not parse upload response: {e}")
+                                logger.info(f"Agent '{agent.name}' imported successfully")
+                        else:
+                            logger.info(f"Agent '{agent.name}' imported successfully")
+                        
+                        # Clean up temporary file
+                        self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
+                else:
+                    logger.info(f"Agent '{agent.name}' imported successfully")
+            else:
+                logger.info(f"Agent '{agent.name}' imported successfully")
+                
         if isinstance(agent, ExternalAgent):
             self.get_external_client().create(agent.model_dump(exclude_none=True))
             logger.info(f"External Agent '{agent.name}' imported successfully")
@@ -835,13 +1148,46 @@ class AgentsController:
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
-        self, agent_id: str, agent: Agent, **kwargs
+        self, agent_id: str, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs
     ) -> None:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
-            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True))
+            exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
+            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields))
             _raise_guidelines_warning(response)
-            logger.info(f"Agent '{agent.name}' updated successfully")
+            
+            # Handle custom agent artifact upload for updates
+            if agent.style == AgentStyle.CUSTOM:
+                custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
+                
+                if custom_agent_file_path:
+                    # Upload artifact using helper
+                    upload_response, is_temp_file = self._upload_custom_agent_artifact(
+                        self.get_native_client(),
+                        agent_id,
+                        custom_agent_file_path
+                    )
+                    
+                    # Display configuration if available
+                    if upload_response and 'config' in upload_response:
+                        config_dict = upload_response.get('config', {})
+                        try:
+                            config = CustomAgentConfig.model_validate(config_dict)
+                            agent_name = config.agent_name or agent.name
+                            self._display_custom_agent_config(config, agent_id, agent_name, is_update=True)
+                        except Exception as e:
+                            logger.warning(f"Could not parse upload response config: {e}")
+                            logger.info(f"Agent '{agent.name}' updated successfully")
+                    else:
+                        logger.info(f"Agent '{agent.name}' updated successfully")
+                    
+                    # Clean up temporary file
+                    self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
+                else:
+                    logger.info(f"Agent '{agent.name}' updated successfully")
+            else:
+                logger.info(f"Agent '{agent.name}' updated successfully")
+                
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
             self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True))
@@ -1461,6 +1807,26 @@ class AgentsController:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
+        
+        # Get the agent first to check if it's a custom agent
+        agent = self.get_agent(name, kind)
+        is_custom_agent = isinstance(agent, Agent) and agent.style == AgentStyle.CUSTOM
+        
+        # For custom agents, handle differently
+        if is_custom_agent:
+            # Check if in local environment - custom agent export only allowed locally
+            if not is_local_dev():
+                logger.error("Exporting custom agents is only supported in local development environments")
+                sys.exit(1)
+            if output_file_extension != ".zip":
+                logger.error(f"Output file must end with the extension '.zip' for custom agents. Provided file '{output_path}' ends with '{output_file_extension}'")
+                sys.exit(1)
+            
+            # Download the custom agent package directly
+            self.download_agent_artifact(agent_name=name, output_path=output_path)
+            return
+        
+        # For non-custom agents, proceed with regular export logic
         if not agent_only_flag and output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
@@ -1741,5 +2107,361 @@ class AgentsController:
     @staticmethod
     def _format_agent_display_name(agent: AnyAgentT) -> str:
         return f"{agent.name} ({agent.display_name})" if agent.display_name and agent.name != agent.display_name else agent.name
+
+    def connect_connections_to_agent(self, agent_name: str, connection_ids: List[str]) -> None:
+        """
+        Connect connections to an agent using the PATCH endpoint.
+        
+        Args:
+            agent_name: Name of the agent to connect connections to
+            connection_ids: List of connection IDs (app_ids) to connect
+        """
+        native_client = self.get_native_client()
+        connections_client = get_connections_client()
+        
+        existing_agents = native_client.get_draft_by_name(agent_name)
+        
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to connect connections")
+            sys.exit(1)
+        
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+
+        if agent.get("style") != AgentStyle.CUSTOM:
+            logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
+            sys.exit(1)
+        
+        connection_uuids = []
+        for app_id in connection_ids:
+            connection = connections_client.get_draft_by_app_id(app_id=app_id)
+            if not connection:
+                logger.error(f"No connection exists with the app-id '{app_id}'")
+                sys.exit(1)
+            if connection.connection_id in agent.get("connection_ids", []):
+                logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
+                sys.exit(1)
+            connection_uuids.append(connection.connection_id)
+        
+        # Connect the connections to the agent
+        logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
+        native_client.connect_connections(agent_id, connection_uuids)
+        logger.info(f"Successfully connected connections to agent '{agent_name}'")
+
+    def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:
+        """
+        Upload a custom file artifact for an agent.
+        
+        Args:
+            agent_name: Name of the agent to upload the file for
+            file_path: Path to the file to upload
+            
+        Returns:
+            Response dictionary from the upload operation
+        """
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            sys.exit(1)
+        
+        native_client = self.get_native_client()
+        existing_agents = native_client.get_draft_by_name(agent_name)
+        
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to upload file")
+            sys.exit(1)
+        
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+        
+        try:
+            logger.info(f"Uploading file '{file_path}' for agent '{agent_name}'...")
+            response = native_client.upload_agent_artifact(
+                agent_id=agent_id,
+                file_path=file_path
+            )
+            logger.info(f"Successfully uploaded file for agent '{agent_name}'")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to upload file: {e}")
+            sys.exit(1)
+
+    def download_agent_artifact(self, agent_name: str, output_path: str) -> None:
+        """
+        Download a custom agent package (zip file).
+        Only works for custom agents.
+        
+        Args:
+            agent_name: Name of the custom agent to download
+            output_path: Path where the zip file should be saved
+        """
+        native_client = self.get_native_client()
+        existing_agents = native_client.get_draft_by_name(agent_name)
+        
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to download")
+            sys.exit(1)
+        
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+        agent_style = agent.get("style")
+        
+        if agent_style != AgentStyle.CUSTOM:
+            logger.error(f"Agent '{agent_name}' is not a custom agent (style: {agent_style}). Only custom agents can be downloaded.")
+            sys.exit(1)
+        
+        try:
+            logger.info(f"Downloading custom agent package for '{agent_name}'...")
+            zip_content = native_client.download_agent_artifact(agent_id=agent_id)
+            
+            with open(output_path, 'wb') as f:
+                f.write(zip_content)
+            
+            logger.info(f"Successfully downloaded custom agent package to '{output_path}'")
+        except Exception as e:
+            logger.error(f"Failed to download agent package: {e}")
+            sys.exit(1)
+
+    def run_agent(
+        self,
+        message: str,
+        agent_name: str | None = None,
+        thread_id: str | None = None,
+        capture_logs: bool = False
+    ) -> None:
+        """
+        Send a message to an agent, optionally capturing and displaying logs.
+        
+        Args:
+            message: The message to send to the agent
+            agent_name: Optional agent name to send the message to (will be resolved to agent_id)
+            thread_id: Optional thread ID to continue a conversation
+            capture_logs: Whether to capture and display logs (only works with custom agents)
+        """
+        from ibm_watsonx_orchestrate.client.orchestrate_client import OrchestrateClient
+        from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
+        from ibm_watsonx_orchestrate.client.utils import instantiate_client
+        from datetime import datetime
+        
+        if not is_local_dev():
+                logger.error("Running with logs is only supported in the local environment.")
+                sys.exit(1)
+        
+        console = Console()
+        
+        # Initialize clients
+        orchestrate_client = instantiate_client(OrchestrateClient)
+        threads_client = instantiate_client(ThreadsClient)
+        
+        # Resolve agent name to agent ID if provided
+        agent_id = None
+        if agent_name:
+            try:
+                native_client = self.get_native_client()
+                external_client = self.get_external_client()
+                assistant_client = self.get_assistant_client()
+                
+                # Try to find the agent by name
+                native_agents = native_client.get_draft_by_name(agent_name)
+                external_agents = external_client.get_draft_by_name(agent_name)
+                assistant_agents = assistant_client.get_draft_by_name(agent_name)
+                
+                all_agents = native_agents + external_agents + assistant_agents
+                
+                if len(all_agents) == 0:
+                    console.print(f"[red]✗[/red] No agent found with name '{agent_name}'")
+                    sys.exit(1)
+                elif len(all_agents) > 1:
+                    console.print(f"[red]✗[/red] Multiple agents found with name '{agent_name}'. Please use a unique agent name.")
+                    sys.exit(1)
+                
+                agent_details = all_agents[0]
+                agent_style = agent_details.get("style")
+                
+                # Verify this is a custom agent only if capture_logs is enabled
+                if capture_logs and agent_style != AgentStyle.CUSTOM:
+                    console.print(f"[red]✗[/red] Agent '{agent_name}' is not a custom agent (style: {agent_style}).")
+                    console.print("[red]The --capture-logs flag only works with custom style agents.[/red]")
+                    sys.exit(1)
+                
+                agent_id = agent_details.get("id")
+                if agent_style == AgentStyle.CUSTOM:
+                    console.print(f"[dim]Using custom agent: {agent_name} (ID: {agent_id})[/dim]")
+                else:
+                    console.print(f"[dim]Using agent: {agent_name} (ID: {agent_id})[/dim]")
+            except Exception as e:
+                console.print(f"[red]✗[/red] Error resolving agent name: {e}")
+                sys.exit(1)
+        
+        try:
+            # Step 1: Send message with optional log capture
+            console.print("\n[cyan]Sending message to agent...[/cyan]")
+            run_response = orchestrate_client.create_run(
+                message=message,
+                agent_id=agent_id,
+                thread_id=thread_id,
+                capture_logs=capture_logs
+            )
+            
+            returned_thread_id = run_response.get("thread_id")
+            run_id = run_response.get("run_id")
+            
+            if not run_id:
+                console.print("[red]✗[/red] Failed to get run ID from response")
+                return
+            
+            console.print(f"[green]✓[/green] Message sent (Thread: {returned_thread_id}, Run: {run_id})")
+            
+            # Step 2: Wait for run completion
+            console.print("\n[cyan]Waiting for response...[/cyan]")
+            
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Processing...", total=None)
+                final_status = orchestrate_client.wait_for_run_completion(run_id)
+            
+            run_state = final_status.get("status", "").lower()
+            
+            if run_state == "failed":
+                console.print("[red]✗[/red] Run failed")
+                error_msg = final_status.get("error", "Unknown error")
+                console.print(f"[red]Error: {error_msg}[/red]")
+                return
+            elif run_state == "cancelled":
+                console.print("[yellow]✗[/yellow] Run was cancelled")
+                return
+            
+            console.print("[green]✓[/green] Response received")
+            
+            # Step 3: Get the assistant's response message
+            thread_messages_response = threads_client.get_thread_messages(returned_thread_id)
+            
+            # Handle both list and dict responses
+            match thread_messages_response:
+                case list():
+                    messages = thread_messages_response
+                case {"messages": msgs}:
+                    messages = msgs
+                case _:
+                    messages = []
+            
+            # Find the assistant's response (last message with role 'assistant')
+            assistant_message = None
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                    assistant_message = msg
+                    break
+            
+            if not assistant_message:
+                console.print("[yellow]⚠[/yellow] No assistant response found")
+                return
+            
+            # Display agent response
+            console.print("\n[bold cyan]Agent Response:[/bold cyan]")
+            console.print("─" * 60)
+            content = assistant_message.get("content", [])
+            
+            # Handle different content structures
+            match content:
+                case list() if content:
+                    for item in content:
+                        match item:
+                            case {"type": "text", "text": dict() as text_obj}:
+                                console.print(text_obj.get("value", ""))
+                            case {"type": "text", "text": text_obj}:
+                                console.print(str(text_obj))
+                            case {"type": "text"}:
+                                console.print("")
+                            case {"text": text_val}:
+                                console.print(text_val)
+                            case dict():
+                                console.print(str(item))
+                            case str():
+                                console.print(item)
+                case str():
+                    console.print(content)
+                case []:
+                    console.print("[dim]No content in response[/dim]")
+                case _:
+                    console.print(str(content))
+            console.print("─" * 60)
+            
+            # Step 4: Retrieve and display logs only if capture_logs is enabled
+            if capture_logs:
+                # Get log_id from the assistant message
+                log_id = assistant_message.get("log_id")
+                
+                # If not found at top level, check in metadata
+                if not log_id:
+                    metadata = assistant_message.get("metadata", {})
+                    if isinstance(metadata, dict):
+                        log_id = metadata.get("log_id")
+                
+                # If still not found, check in the run response
+                if not log_id:
+                    log_id = final_status.get("log_id")
+                
+                # Check if log_id is valid
+                if not log_id or (isinstance(log_id, str) and log_id.strip() == ""):
+                    console.print("\n[yellow]✗ No logs captured for this run[/yellow]")
+                    return
+                
+                # Step 5: Retrieve captured logs
+                try:
+                    console.print(f"\n[bold cyan]Captured Logs (Log ID: {log_id}):[/bold cyan]")
+                    console.print("─" * 60)
+                    
+                    logs_response = threads_client.get_logs_by_log_id(log_id)
+                    captured_logs = logs_response.get("captured_logs", {})
+                    entries = captured_logs.get("logs", [])
+                    
+                    if not entries:
+                        console.print("[yellow]No log entries found[/yellow]")
+                    else:
+                        for entry in entries:
+                            timestamp = entry.get("timestamp", "")
+                            level = entry.get("level", "INFO")
+                            log_message = entry.get("message", "")
+                            
+                            # Format timestamp if present
+                            if timestamp:
+                                try:
+                                    dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                                except:
+                                    formatted_time = timestamp
+                            else:
+                                formatted_time = "Unknown"
+                            
+                            # Color code by level
+                            level_color = LOG_LEVEL_COLORS.get(level.upper(), "white")
+                            
+                            console.print(f"[dim]{formatted_time}[/dim] [{level_color}]{level}[/{level_color}]: {log_message}")
+                    
+                    console.print("─" * 60)
+                    console.print(f"[cyan]Total log entries: {len(entries)}[/cyan]")
+                    
+                except Exception as e:
+                    console.print(f"\n[red]✗ Error retrieving logs: {e}[/red]")
+        
+        except TimeoutError as e:
+            console.print(f"\n[red]✗ Error: {e}[/red]")
+            sys.exit(1)
+        except Exception as e:
+            console.print(f"\n[red]✗ Error: {e}[/red]")
+            logger.error(f"Failed to run with logs: {e}")
+            sys.exit(1)
 
 

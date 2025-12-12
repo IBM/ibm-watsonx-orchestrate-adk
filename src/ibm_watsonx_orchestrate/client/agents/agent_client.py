@@ -1,9 +1,11 @@
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from typing_extensions import List, Optional
 from enum import Enum
+import os
 
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from pydantic import BaseModel
+import requests
 import time
 import logging
 
@@ -187,4 +189,48 @@ class AgentClient(BaseWXOClient):
     def get_environments_for_agent(self, agent_id: str):
         return self._get(f"{self.base_endpoint}/{agent_id}/environment")
 
+    def connect_connections(self, agent_id: str, connection_ids: List[str]) -> dict:
+        """
+        Connect connections to an agent using PATCH endpoint.
+        
+        Args:
+            agent_id: The ID of the agent to connect connections to
+            connection_ids: List of connection UUIDs to connect
+            
+        Returns:
+            Response from the PATCH request
+        """
+        return self._patch(f"{self.base_endpoint}/{agent_id}", data={"connection_ids": connection_ids})
+    
+    def upload_agent_artifact(self, agent_id: str, file_path: str) -> dict:
+        """
+        Upload a custom file artifact for an agent.
+        
+        Args:
+            agent_id: The ID of the agent
+            file_path: Path to the file to upload
+            
+        Returns:
+            Response from the upload endpoint
+        """
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as f:
+            files = {
+                "file": (filename, f, "application/zip", {"Expires": "0"})
+            }
+            return self._post(f"{self.base_endpoint}/{agent_id}/upload", files=files)
+    
+    def download_agent_artifact(self, agent_id: str) -> bytes:
+        """
+        Download a custom agent package (zip file).
+        Only works for custom agents.
+        
+        Args:
+            agent_id: The ID of the custom agent
+            
+        Returns:
+            The zip file content as bytes
+        """
+        response: requests.Response = self._get(f"{self.base_endpoint}/{agent_id}/download", return_raw=True)  # type: ignore
+        return response.content
     
