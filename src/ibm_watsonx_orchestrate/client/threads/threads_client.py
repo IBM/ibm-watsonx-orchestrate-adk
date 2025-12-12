@@ -32,3 +32,28 @@ class ThreadsClient(BaseWXOClient):
             all_thread_messages.append(thread_messages)
 
         return all_thread_messages
+
+    def get_logs_by_log_id(self, log_id: str) -> dict:
+        """
+        Retrieve captured logs by log_id.
+        
+        Args:
+            log_id: The log ID to retrieve logs for
+            
+        Returns:
+            Dictionary containing captured logs
+        """
+        return self._get(f"{self.base_endpoint}/logs/{log_id}")
+
+    def get_logs_by_message_id(self, thread_id: str, message_id: str) -> dict:
+        """
+        Retrieve captured logs by thread_id and message_id.
+        
+        Args:
+            thread_id: The thread ID
+            message_id: The message ID
+            
+        Returns:
+            Dictionary containing captured logs
+        """
+        return self._get(f"{self.base_endpoint}/{thread_id}/messages/{message_id}/logs")
