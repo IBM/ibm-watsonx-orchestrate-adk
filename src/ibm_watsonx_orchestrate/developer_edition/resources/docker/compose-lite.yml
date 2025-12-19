@@ -194,7 +194,10 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
+<<<<<<< HEAD
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+=======
+>>>>>>> 581f1bc4 (update builder-ui image tag and added feature flag for EPIC-39988)
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
