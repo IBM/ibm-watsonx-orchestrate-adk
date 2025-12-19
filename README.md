@@ -96,7 +96,7 @@ $ orchestrate --help
 
 ## watsonx Orchestrate Developer Edition
 The Developer Edition of Watsonx Orchestrate can be installed following the
-instructions [here](https://developer.watson-orchestrate.ibm.com/getting_started/wxOde_setup). After which
+instructions [here](https://developer.watson-orchestrate.ibm.com/developer_edition/wxOde_setup). After which
 you will be able to start, activate, import into and rapidly reset a local server of watsonx Orchestrate.
 
 ### Starting the Developer Edition
