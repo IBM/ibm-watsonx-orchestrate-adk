@@ -1,6 +1,4 @@
 from typing import Any
-
-
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from typing_extensions import List
 from urllib.parse import urlparse, urlunparse
