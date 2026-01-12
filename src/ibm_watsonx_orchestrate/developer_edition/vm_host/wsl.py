@@ -37,6 +37,7 @@ class WSLLifecycleManager(VMLifecycleManager):
     def start_server(self):
         _ensure_wsl_distro_exists()
         _ensure_wsl_distro_started()
+        _ensure_docker_started()
 
     def stop_server(self):
         logger.info("Stopping WSL Distro...")
@@ -405,12 +406,6 @@ def _configure_wsl_distro():
 
             # Add orchestrate user to docker group if not already done by usermod above
             usermod -aG docker orchestrate || true
-
-            # Start Docker daemon
-            if ! pgrep -x dockerd >/dev/null 2>&1; then
-                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
-                sleep 15
-            fi
             """
         ],
         check=True,
@@ -642,6 +637,22 @@ def _get_distro_state():
         logger.error(f"Unexpected error while getting WSL distro state: {e}")
         logger.exception("An unexpected error occurred in _get_distro_state:")
         return None
+
+def _ensure_docker_started():
+    subprocess.run(
+        [
+            "wsl", "-d", VM_NAME, "-u", "root", "--", "sh", "-c",
+            r"""
+            # Start Docker daemon
+            if ! pgrep -x dockerd >/dev/null 2>&1; then
+                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+                sleep 15
+            fi
+            """
+        ],
+        check=True,
+        capture_output=True
+    )
 
 def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orchestrate") -> bool:
     """
