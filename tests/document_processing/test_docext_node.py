@@ -6,9 +6,9 @@ from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField
 import os
 import json
 class UserInput(BaseModel):
-    buyer: DocExtConfigField = Field(name="Buyer", default=DocExtConfigField(name="Buyer", field_name="buyer"))
-    seller: DocExtConfigField = Field(name="Seller", default=DocExtConfigField(name="Seller", field_name="seller"))
-    agreement_date: DocExtConfigField = Field(name="Agreement date", default=DocExtConfigField(name="Agreement Date", field_name="agreement_name"))
+    buyer: DocExtConfigField = Field(title="Buyer", default=DocExtConfigField(name="Buyer", field_name="buyer"))
+    seller: DocExtConfigField = Field(title="Seller", default=DocExtConfigField(name="Seller", field_name="seller"))
+    agreement_date: DocExtConfigField = Field(title="Agreement date", default=DocExtConfigField(name="Agreement Date", field_name="agreement_name"))
 
 
 class TestDocExtNode():

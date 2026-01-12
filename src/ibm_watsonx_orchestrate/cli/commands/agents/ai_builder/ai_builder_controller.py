@@ -213,7 +213,7 @@ def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
 def _get_excluded_fields(agent = None):
     excluded_fields = {"llm_config"}
     if agent:
-        for attr in dir(agent):
+        for attr in vars(agent):
             if not getattr(agent, attr, None):
                 excluded_fields.add(attr)
     else:
