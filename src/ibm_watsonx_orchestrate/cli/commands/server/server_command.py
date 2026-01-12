@@ -143,7 +143,8 @@ def run_compose_lite(
         if final_env_file.exists():
             final_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded= result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -270,7 +271,8 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
             except Exception as e:
                 logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -316,7 +318,8 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
         if vm_env_file.exists():
             vm_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -354,7 +357,8 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
         if lima_env_file.exists():
             lima_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -951,7 +955,8 @@ def create_langflow_db() -> None:
     if result.returncode == 0:
         logger.info("Langflow resources sucessfully created")
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Failed to create Langflow resources\n{error_message}"
         )
