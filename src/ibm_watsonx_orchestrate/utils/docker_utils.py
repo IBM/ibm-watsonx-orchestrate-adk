@@ -1569,15 +1569,16 @@ class DockerComposeCore:
         (works with Lima, WSL, or native Docker).
         """
 
-        final_env_file = Path(path_for_vm(final_env_file))
-        compose_path = Path(path_for_vm(self.__env_service.get_compose_file()))
+        compose_path = path_for_vm(self.__env_service.get_compose_file())
 
         vm_env_dir = Path.home() / ".cache/orchestrate"
         vm_env_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy env file
         vm_env_file = vm_env_dir / final_env_file.name
+
         shutil.copy(final_env_file, vm_env_file)
+
+        vm_env_file = path_for_vm(vm_env_file)
 
 
         # Build docker compose exec command as a list

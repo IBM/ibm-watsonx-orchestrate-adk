@@ -66,7 +66,6 @@ def get_relative_file_path(path, dir):
         return file_path
     
     return dir / file_path
-
     
 def build_file_object(file_dir: str | Path, file: str | FileUpload):
     if isinstance(file_dir, str):
@@ -135,6 +134,12 @@ class KnowledgeBaseController:
                 else:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
+
+            # Ensure these values are None to prevent issues with datetime not being JSON serializable
+            kb.updated_at = None
+            kb.created_on = None
+            kb.created_by = None
+
             try:
                 file_dir = file_path.parent
 
@@ -385,6 +390,10 @@ class KnowledgeBaseController:
         
         knowledge_base.tenant_id = None
         knowledge_base.id = None
+        knowledge_base.updated_at = None
+        knowledge_base.created_on = None
+        knowledge_base.created_by = None
+
         knowledge_base.spec_version = SpecVersion.V1
         knowledge_base.kind = KnowledgeBaseKind.KNOWLEDGE_BASE
         

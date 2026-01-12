@@ -917,7 +917,7 @@ def create_langflow_db() -> None:
     echo 'Waiting for pg to initialize...'
 
     timeout={pg_timeout}
-    while [[ -z `pg_isready | grep 'accepting connections'` ]] && (( timeout > 0 )); do
+    while [ -z `pg_isready | grep 'accepting connections'` ] && (( timeout > 0 )); do
       ((timeout-=1)) && sleep 1;
     done
 
