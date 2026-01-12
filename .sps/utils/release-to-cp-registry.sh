@@ -34,6 +34,7 @@ document-processing/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG}
 document-processing/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG}
 document-processing/wo_doc_processing_cache:${DOCPROC_CACHE_TAG}
 document-processing/wo_doc_processing_cache_rds_init:${DOCPROC_CACHE_TAG}
+wxo-agent-architect-server:${AGENT_ARCHITECT_TAG}
 EOF)
 
 for image in  $images; do
