@@ -105,9 +105,20 @@ def create_openapi_json_tool(
     :return: An OpenAPITool that can be used by an agent
     """
 
-    # limitation does not support circular $refs
-    openapi_contents = jsonref.replace_refs(openapi_spec, jsonschema=True)
+    def _resolve_jsonref(obj):
+        """Recursively resolve all JsonRef objects to plain Python types."""
+        if isinstance(obj, jsonref.JsonRef):
+            # Force resolution by accessing the underlying object
+            obj = obj.__subject__
+        if isinstance(obj, dict):
+            return {key: _resolve_jsonref(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [_resolve_jsonref(item) for item in obj]
+        else:
+            return obj
 
+    openapi_contents = jsonref.replace_refs(openapi_spec, jsonschema=True)
+    openapi_contents = _resolve_jsonref(openapi_contents)
     paths = openapi_contents.get('paths', {})
     route = paths.get(http_path)
     if route is None:
