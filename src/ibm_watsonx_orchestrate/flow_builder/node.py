@@ -794,11 +794,11 @@ class DocExtNode(Node):
         field_kwargs = {
             "title": value['name'],
             "description": f"Extracted value for {value['name']}",
-            "type": json_type
+            "json_schema_extra": {"type": json_type}
         }
-        
+
         if value["type"] == "date":
-            field_kwargs["json_schema_extra"] = {"format": "date"}
+            field_kwargs["json_schema_extra"]["format"] = "date"
         
         return (str, Field(**field_kwargs))
 
