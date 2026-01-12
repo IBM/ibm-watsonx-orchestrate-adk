@@ -51,7 +51,7 @@ services:
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
-      CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
+      CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1}'
     ports:
       - 3001:3001
@@ -307,7 +307,7 @@ services:
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       IS_WXO_LITE: "TRUE"
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       WXO_DEPLOYMENT_PLATFORM: local
@@ -527,7 +527,7 @@ services:
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       IS_WXO_LITE: "TRUE"
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       WXO_DEPLOYMENT_PLATFORM: saas
@@ -641,7 +641,7 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
