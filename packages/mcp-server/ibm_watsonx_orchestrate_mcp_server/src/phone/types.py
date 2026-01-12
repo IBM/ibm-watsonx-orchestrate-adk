@@ -40,7 +40,12 @@ class CreatePhoneConfigOptions(BaseModel):
         description="Optional description of the phone config"
     )
     channel_config: Dict[str, Any] = Field(
-        description="Channel-specific configuration. For Genesys Audio Connector: {'security': {'api_key': '...', 'client_secret': '...'}}"
+        description=(
+            "Channel-specific configuration. For Genesys Audio Connector: "
+            "{'security': {'api_key': '...', 'client_secret': '...'}}. "
+            "Note: api_key and client_secret are optional and will be auto-generated if not provided. "
+            "For SIP Trunk: optional fields include custom_invite_headers, security, error_handling, etc."
+        )
     )
 
 
@@ -94,3 +99,57 @@ class DetachAgentOptions(BasePhoneConfigOptions):
 class ListAttachmentsOptions(BasePhoneConfigOptions):
     """Options for listing attachments for a phone config."""
     pass
+
+
+class AddPhoneNumberOptions(BasePhoneConfigOptions):
+    """Options for adding a phone number to a SIP trunk phone config."""
+    number: str = Field(
+        description="Phone number to add (E.164 format recommended, e.g., +14155551234)"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Optional description for the phone number"
+    )
+    agent_name: Optional[str] = Field(
+        default=None,
+        description="Optional agent name to associate with this phone number"
+    )
+    environment: Optional[Literal["draft", "live"]] = Field(
+        default=None,
+        description="Optional environment (draft or live) to associate with this phone number. Required if agent_name is provided."
+    )
+
+
+class ListPhoneNumbersOptions(BasePhoneConfigOptions):
+    """Options for listing phone numbers from a SIP trunk phone config."""
+    pass
+
+
+class UpdatePhoneNumberOptions(BasePhoneConfigOptions):
+    """Options for updating a phone number in a SIP trunk phone config."""
+    number: str = Field(
+        description="Phone number to update"
+    )
+    new_number: Optional[str] = Field(
+        default=None,
+        description="New phone number (if changing the number itself)"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="New description for the phone number"
+    )
+    agent_name: Optional[str] = Field(
+        default=None,
+        description="Optional agent name to associate with this phone number"
+    )
+    environment: Optional[Literal["draft", "live"]] = Field(
+        default=None,
+        description="Optional environment (draft or live) to associate with this phone number. Required if agent_name is provided."
+    )
+
+
+class DeletePhoneNumberOptions(BasePhoneConfigOptions):
+    """Options for deleting a phone number from a SIP trunk phone config."""
+    number: str = Field(
+        description="Phone number to delete"
+    )
