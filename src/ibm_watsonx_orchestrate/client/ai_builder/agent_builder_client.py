@@ -1,7 +1,7 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
 
-class AgentBuilderClient(BaseAPIClient):
+class AgentBuilderClient(BaseWXOClient):
     """
     Client to handle CRUD operations for Conversational Prompt Engineering Service
     """

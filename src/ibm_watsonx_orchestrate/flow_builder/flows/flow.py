@@ -855,11 +855,9 @@ class Flow(Node):
         if end_id == START:
             raise ValueError("START cannot be used as an end Node")
 
-        # we need to check if the same edge already exist, is so, don't re-add them
-        # we also need to check if the edge is in the opposite direction, if so, don't add it
+
+        # if the same edge has been added before, don't need to re-add it
         for edge in self.edges:
-            if edge.start == end_id and edge.end == start_id:
-                return self
             if edge.start == start_id and edge.end == end_id:
                 return self
 
@@ -1291,6 +1289,7 @@ class FlowRun(BaseModel):
 
         # Start the flow
         client:TempusClient = instantiate_client(client=TempusClient)
+        client.debug = self.debug
         logger.info(f"Launching flow instance...")
         ack = client.arun_flow(self.deployed_flow_id,input_data)
         self.id=ack["instance_id"]

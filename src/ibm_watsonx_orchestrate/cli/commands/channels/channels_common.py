@@ -113,7 +113,7 @@ def check_local_dev_block(enable_developer_mode: bool = False, operation_type: s
             logger.warning("This environment is not validated for production use.")
 
 
-def get_agent_id_by_name(agent_client: AgentClient, agent_name: str) -> str:
+def get_agent_id_by_name(agent_client: AgentClient, agent_name: str) -> str | None:
     """Look up agent ID by agent name.
 
     Args:
@@ -123,19 +123,19 @@ def get_agent_id_by_name(agent_client: AgentClient, agent_name: str) -> str:
     Returns:
         Agent ID string
     """
-    agent_specs = agent_client.get_draft_by_name(agent_name)
+    agent_spec = agent_client.get_draft_by_name(agent_name)
 
-    if len(agent_specs) > 1:
+    if len(agent_spec) > 1:
         logger.error(f"Multiple agents with the name '{agent_name}' found. Please use a unique agent name.")
         sys.exit(1)
-    if len(agent_specs) == 0:
+    if len(agent_spec) == 0:
         logger.error(f"No agent with the name '{agent_name}' found.")
         sys.exit(1)
 
-    return agent_specs[0].get('id')
+    return agent_spec[0].get('id')
 
 
-def get_agent_name_by_id(agent_client: AgentClient, agent_id: str) -> str:
+def get_agent_name_by_id(agent_client: AgentClient, agent_id: str) -> str | None:
     """Look up agent name by agent ID.
 
     Args:
@@ -147,7 +147,7 @@ def get_agent_name_by_id(agent_client: AgentClient, agent_id: str) -> str:
     """
     agent_spec = agent_client.get_draft_by_id(agent_id)
 
-    if not agent_spec:
+    if not agent_spec or not isinstance(agent_spec, dict):
         logger.error(f"No agent with the ID '{agent_id}' found.")
         sys.exit(1)
 
@@ -253,9 +253,22 @@ def build_saas_webhook_url(
     instance_id = parts[1].rstrip('/')
 
     # Construct tenant ID
-    tenant_id = f"{subscription_id}_{instance_id}" if subscription_id else instance_id
-
-    if not subscription_id:
-        logger.debug("Subscription ID not found in token, using instance_id as tenant_id")
+    tenant_id = get_tenant_id(subscription_id, instance_id)
 
     return f"{domain}/tenants/{tenant_id}/agents/{agent_id}/environments/{environment_id}/channels/{channel_path}/{resource_id}/{endpoint}"
+
+def get_tenant_id(subscription_id: str | None, instance_id: str) -> str:
+    """Construct tenant ID from subscription and instance IDs.
+
+    Args:
+        subscription_id: Subscription ID obtained from JWT
+        instance_id: Instance ID from URL
+
+    Returns:
+        Combined tenant ID string
+    """
+    if not subscription_id:
+        logger.warning("Missing subscription ID in token. The generated Event URL may be invalid.")
+        return instance_id
+
+    return f"{subscription_id}_{instance_id}"

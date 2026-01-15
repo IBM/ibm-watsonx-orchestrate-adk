@@ -148,8 +148,13 @@ class PythonTool(BaseTool):
             doc = None
 
         _desc = self.description
-        if self.description is None and doc is not None:
-            _desc = doc.description
+        doc_arg_descriptions = {}
+
+        if doc is not None:
+            if self.description is None:
+                _desc = doc.description
+            
+            doc_arg_descriptions = { arg.arg_name: arg.description for arg in doc.params }
 
         
         spec = ToolSpec(
@@ -192,9 +197,13 @@ class PythonTool(BaseTool):
                     v.get("type") == "string" and v.get("default") is None:
                     v["default"] = input_schema_json_original.get("properties", {}).get(k, {}).get("default")
                 # in case the original arg has description but the reference doesn't
-                if input_schema_json_original.get("properties", {}).get(k, {}).get("description") and \
-                        v.get("description") is None:
-                    v["description"] = input_schema_json_original.get("properties", {}).get(k, {}).get("description")
+                if v.get("description") is None:
+                    if input_schema_json_original.get("properties", {}).get(k, {}).get("description"):
+                        v["description"] = input_schema_json_original.get("properties", {}).get(k, {}).get("description")
+                    elif doc_arg_descriptions.get(k,None):
+                        v["description"] = doc_arg_descriptions[k]
+                    
+                
             # Convert the input schema to a JsonSchemaObject
             input_schema_obj = JsonSchemaObject(**input_schema_json)
             input_schema_obj = _fix_optional(input_schema_obj)

@@ -6,6 +6,7 @@ from dotenv import dotenv_values
 import typer
 import sys
 
+from ibm_watsonx_orchestrate.cli.commands.langflow.utils import is_langflow_container_running
 from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, \
     PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT
 
@@ -22,6 +23,12 @@ def version_callback(checkVersion: bool=True):
             adk_version_str += f" [red bold](override: {pypi_override})[/red bold]"
         pprint(adk_version_str)
 
+        langflow_version = default_env.get("LANGFLOW_TAG")
+        langflow_version_string = f"[bold]Langflow Version[/bold]: {langflow_version}"
+        langflow_image = default_env.get("LANGFLOW_IMAGE")
+        if langflow_image:
+            langflow_version_string += f" ({langflow_image})"
+        pprint(langflow_version_string)
 
         pprint("[bold]Developer Edition Image Tags[/bold] [italic](if not overridden in env file)[/italic]")
         for key, value in default_env.items():

@@ -20,4 +20,4 @@ def get_vm_manager(ensure_installed: bool = True):
     case "windows":
       return WSLLifecycleManager(ensure_installed=ensure_installed)
     case _:
-      raise Exception(f"Unsupported OS: {system}")
+      raise Exception(f"Unsupported OS: {system}. Please run 'orchestrate settings docker host --user-managed' to use the local Docker install instead.")

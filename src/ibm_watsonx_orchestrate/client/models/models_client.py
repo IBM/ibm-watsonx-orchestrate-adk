@@ -1,7 +1,7 @@
 from typing import List
 
 from pydantic import ValidationError
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 
 import logging
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 
-class ModelsClient(BaseAPIClient):
+class ModelsClient(BaseWXOClient):
     """
     Client to handle CRUD operations for Models endpoint
     """

@@ -1,0 +1,23 @@
+spec_version: v1
+kind: phone
+service_provider: sip_trunk
+name: SIP Phone Channel
+description: Give your system a voice to help customers over the phone
+custom_invite_headers:
+  - name: header-name
+  - name: From
+  - name: To
+put_caller_on_hold_on_transfer: true
+send_provisional_response: true
+security:
+  secure_trunking: true
+  authentication: true
+  username: USER
+  password: PASS
+error_handling:
+  fallback_sip_uri: sip:username@domain.com
+  transfer_failure:
+    reply_message: Your call could not be transferred to a live agent. Please try again later. Thank you. Goodbye.
+    disconnect_call: true
+  call_failure:
+    reply_message: There's been a problem with the call. You're being transferred to a live agent now.

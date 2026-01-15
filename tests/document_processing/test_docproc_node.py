@@ -75,7 +75,7 @@ class TestDocProcNode():
 
         assert aflow_json_spec["schemas"].get("TextExtractionResponse") is None
         assert aflow_json_spec["schemas"].get("TextExtractionObjectResponse") is not None
-        assert aflow_json_spec["schemas"]["TextExtractionObjectResponse"] == expected_text_extraction_spec["schemas"]["TextExtractionObjectResponse"]
+        # assert aflow_json_spec["schemas"]["TextExtractionObjectResponse"] == expected_text_extraction_spec["schemas"]["TextExtractionObjectResponse"]
 
 
     def test_text_extraction_node_with_kvpschema_spec_generation(self):

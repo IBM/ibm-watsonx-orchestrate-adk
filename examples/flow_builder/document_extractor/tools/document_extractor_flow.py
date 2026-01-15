@@ -82,7 +82,7 @@ def build_docext_flow(aflow: Flow = None) -> Flow:
         name="contract_extractor",
         display_name="Extract fields from a contract",
         description="Extracts fields from an input contract file",
-        llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        llm="groq/openai/gpt-oss-120b",
         fields=Fields()
     )
 

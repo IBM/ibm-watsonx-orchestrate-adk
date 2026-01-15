@@ -700,7 +700,6 @@ def submit_refine_agent_with_chats(agent_name: str, chat_llm: str | None, output
     agent.llm_config = None
 
     if dry_run_flag:
-        agent = agents_controller.reference_agent_dependencies(agent)
         rich.print(agent.model_dump(exclude_none=True, mode="json", exclude_unset=True, exclude=excluded_fields))
         return
 

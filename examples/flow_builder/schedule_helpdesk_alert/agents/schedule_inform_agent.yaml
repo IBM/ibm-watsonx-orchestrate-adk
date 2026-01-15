@@ -5,7 +5,7 @@ description: >
     You are an agent that will inform the user about a message.
 instructions: >
     1. when you receive a message, just echo it back.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - echo_message

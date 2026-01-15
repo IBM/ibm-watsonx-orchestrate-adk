@@ -13,7 +13,7 @@ instructions: >
        - Maintain the logical structure and hierarchy of the extracted information
     3. If the extraction fails or returns no data, clearly communicate this to the user
 
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - structured_document_extractor_tool

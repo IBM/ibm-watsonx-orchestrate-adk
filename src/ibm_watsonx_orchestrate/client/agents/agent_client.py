@@ -1,4 +1,4 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from typing_extensions import List, Optional
 from enum import Enum
 
@@ -98,7 +98,7 @@ class AgentUpsertResponse(BaseModel):
     id: Optional[str] = None
     warning: Optional[str] = None
 
-class AgentClient(BaseAPIClient):
+class AgentClient(BaseWXOClient):
     """
     Client to handle CRUD operations for Native Agent endpoint
     """
@@ -127,7 +127,7 @@ class AgentClient(BaseAPIClient):
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(formatted_agent_names)}&include_hidden=true"))
     
-    def get_draft_by_id(self, agent_id: str) -> List[dict]:
+    def get_draft_by_id(self, agent_id: str) -> dict | str:
         if agent_id is None:
             return ""
         else:

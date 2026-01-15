@@ -2,13 +2,13 @@
 
 from typing import Optional, Dict, Any
 import logging
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
 logger = logging.getLogger(__name__)
 
 
-class PhoneClient(BaseAPIClient):
+class PhoneClient(BaseWXOClient):
     """
     Client for CRUD operations on phone channels.
     
@@ -150,13 +150,142 @@ class PhoneClient(BaseAPIClient):
             return result, True
 
     def get_subscription_id(self) -> Optional[str]:
-        """Extract subscription ID from the JWT token."""
+        """Extract subscription ID from the JWT token.
+
+        Returns:
+            Subscription ID if found, None otherwise
+        """
         if not self.api_key:
             return None
+
         try:
             import jwt
             decoded = jwt.decode(self.api_key, options={"verify_signature": False})
-            return decoded.get('subscriptionId')
+            subscription_id = decoded.get('subscriptionId')
+
+            if not subscription_id:
+                account = decoded.get('account', {})
+                subscription_id = account.get('bss')
+            return subscription_id
+            
         except Exception as e:
             logger.debug(f"Failed to extract subscription ID from token: {e}")
             return None
+
+    def _check_phone_numbers_supported(self, config_id: str) -> None:
+        """Verify the phone channel supports phone number management.
+        Phone number management is only supported for SIP channels.
+
+        Args:
+            config_id: Phone config identifier
+        """
+        from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+
+        config = self.get_phone_channel(config_id)
+        if not config:
+            raise BadRequest(f"Phone config not found: {config_id}")
+
+        service_provider = config.get('service_provider', '')
+
+        # Only SIP channels support phone number management
+        if service_provider != 'sip_trunk':
+            raise NotImplementedError(
+                f"Phone number management is not supported for {service_provider}."
+                "This feature is only available for SIP phone channels."
+            )
+
+    def add_phone_number(
+        self,
+        config_id: str,
+        number: str,
+        description: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        environment_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Add a phone number to a phone channel.
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to add
+            description: Optional description
+            agent_id: Optional agent ID to associate with this phone number
+            environment_id: Optional environment ID to associate with this phone number
+
+        Returns:
+            Dictionary with phone number details
+        """
+        self._check_phone_numbers_supported(config_id)
+        endpoint = f"/../{self.base_endpoint}/phone/{config_id}/numbers"
+
+        data = {"phone_number": number}
+        if description:
+            data["description"] = description
+        if agent_id:
+            data["agent_id"] = agent_id
+        if environment_id:
+            data["environment_id"] = environment_id
+
+        return self._post(endpoint, data=data)
+
+    def list_phone_numbers(self, config_id: str) -> list[dict[str, Any]]:
+        """List all phone numbers for a phone channel.
+
+        Args:
+            config_id: Phone config identifier
+
+        Returns:
+            List of phone number dictionaries
+        """
+        self._check_phone_numbers_supported(config_id)
+        config = self.get_phone_channel(config_id)
+        return config.get("phone_numbers", []) if config else []
+
+    def update_phone_number(
+        self,
+        config_id: str,
+        number: str,
+        new_number: Optional[str] = None,
+        description: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        environment_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Update a phone number's details.
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to update
+            new_number: New phone number
+            description: New description
+            agent_id: Optional agent ID to associate with this phone number
+            environment_id: Optional environment ID to associate with this phone number
+
+        Returns:
+            Dictionary with updated phone number details
+        """
+        self._check_phone_numbers_supported(config_id)
+        endpoint = f"/../{self.base_endpoint}/phone/{config_id}/numbers/{number}"
+
+        data = {"phone_number": new_number if new_number else number}
+        if description is not None:
+            data["description"] = description
+        if agent_id:
+            data["agent_id"] = agent_id
+        if environment_id:
+            data["environment_id"] = environment_id
+
+        return self._patch(endpoint, data=data)
+
+    def delete_phone_number(
+        self,
+        config_id: str,
+        number: str
+    ) -> None:
+        """Delete a phone number from a phone channel.
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to delete
+        """
+        self._check_phone_numbers_supported(config_id)
+        endpoint = f"/../{self.base_endpoint}/phone/{config_id}/numbers/{number}"
+        self._delete(endpoint)

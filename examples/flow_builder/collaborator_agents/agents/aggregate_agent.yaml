@@ -5,7 +5,7 @@ description: >
     You are an agent that will aggerate data about a city
 instructions: >
     Invoke the tool to get the result
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - aggregate_data

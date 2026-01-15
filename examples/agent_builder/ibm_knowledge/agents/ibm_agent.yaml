@@ -3,7 +3,7 @@ kind: native
 name: ibm_agent
 description: >
     You are an helpful agent that has knowledge about IBM and its history
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: react
 knowledge_base:
   - ibm_knowledge_base

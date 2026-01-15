@@ -1,7 +1,7 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from typing_extensions import List
 
-class ExternalAgentClient(BaseAPIClient):
+class ExternalAgentClient(BaseWXOClient):
     """
     Client to handle CRUD operations for External Agent endpoint
     """

@@ -12,7 +12,8 @@ def test_tool_import_call_no_params():
             file=None,
             app_id=None,
             requirements_file=None,
-            package_root=None
+            package_root=None,
+            name=None,
         )
 
 
@@ -24,7 +25,8 @@ def test_tool_import_call_python():
             file="test_file",
             app_id=None,
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
-            package_root=None
+            package_root=None,
+            name=None,
         )
 
 def test_tool_import_call_openapi():
@@ -35,7 +37,8 @@ def test_tool_import_call_openapi():
             file="test_file",
             app_id=None,
             requirements_file=None,
-            package_root=None
+            package_root=None,
+            name=None,
         )
 
 def test_tool_import_call_flow():
@@ -46,7 +49,8 @@ def test_tool_import_call_flow():
             file="test_file",
             app_id=None,
             requirements_file=None,
-            package_root=None
+            package_root=None,
+            name=None,
         )
 
 # def test_tool_import_call_skill():
@@ -67,7 +71,7 @@ def test_tool_import_call_flow():
 #             app_id=None
 #         )
 
-def test_tool_import_call_langflow():
+def test_tool_import_call_langflow_with_file():
     with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock:
         tools_command.tool_import(kind="langflow", file="test_file.json", requirements_file="tests/cli/resources/langflow_samples/requirements.txt")
         mock.assert_called_once_with(
@@ -75,7 +79,22 @@ def test_tool_import_call_langflow():
             file="test_file.json",
             app_id=None,
             requirements_file="tests/cli/resources/langflow_samples/requirements.txt",
-            package_root=None
+            package_root=None,
+            name=None,
+        )
+
+def test_tool_import_call_langflow_with_name():
+    with patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.import_tool") as mock,\
+        patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_command.ToolsController.resolve_file") as file_resolver:
+        file_resolver.return_value = "test_file.json"
+        tools_command.tool_import(kind="langflow",name="test_flow")
+        mock.assert_called_once_with(
+            kind="langflow",
+            file="test_file.json",
+            app_id=None,
+            requirements_file=None,
+            package_root=None,
+            name="test_flow",
         )
 
 def test_tool_remove():
@@ -121,7 +140,8 @@ def test_tool_import_call_python_with_package_root():
             file="test_file",
             app_id=None,
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
-            package_root="tests/cli/resources/python_samples"
+            package_root="tests/cli/resources/python_samples",
+            name=None,
         )
 
 def test_tool_import_call_python_with_package_root_as_empty_string():
@@ -135,7 +155,8 @@ def test_tool_import_call_python_with_package_root_as_empty_string():
             file="test_file",
             app_id=None,
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
-            package_root=""
+            package_root="",
+            name=None,
         )
 
 def test_tool_import_call_python_with_package_root_as_whitespace():
@@ -149,7 +170,8 @@ def test_tool_import_call_python_with_package_root_as_whitespace():
             file="test_file",
             app_id=None,
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
-            package_root="    "
+            package_root="    ",
+            name=None,
         )
 
 def test_tool_import_call_python_with_package_root_includes_whitespace_at_start_and_end():
@@ -163,7 +185,8 @@ def test_tool_import_call_python_with_package_root_includes_whitespace_at_start_
             file="test_file",
             app_id=None,
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
-            package_root="  tests/cli/resources/python_samples  "
+            package_root="  tests/cli/resources/python_samples  ",
+            name=None,
         )
 
 def test_tool_export_call():

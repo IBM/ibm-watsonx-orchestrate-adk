@@ -4,7 +4,7 @@ name: ibm_agent_dynamic_mode
 description: >
   You are an helpful agent that has knowledge about IBM and its history;
   you are also a knowledgeable agent in finance: you have a tool to check current stock prices
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct # a better model is recommended
+llm: groq/openai/gpt-oss-120b # a better model is recommended
 style: react
 knowledge_base:
   - ibm_knowledge_base_dynamic_mode

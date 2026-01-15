@@ -7,7 +7,7 @@ description: >
 instructions: >
     INPUT: number from 1 to 1000. If the inputted number is not in the range, ask user to re-enter the number
     Invoke the tool get_number_random_fact_flow to process the inputted number.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - get_number_random_fact_flow

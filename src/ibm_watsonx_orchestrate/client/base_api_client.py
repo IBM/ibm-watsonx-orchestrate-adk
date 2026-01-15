@@ -2,7 +2,7 @@ import json
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import requests
 from abc import ABC, abstractmethod
-from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
+from ibm_cloud_sdk_core.authenticators import Authenticator
 from typing_extensions import List
 from contextlib import contextmanager
 
@@ -38,20 +38,11 @@ class ClientAPIException(requests.HTTPError):
 
 
 class BaseAPIClient:
-    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: Authenticator = None):
         self.base_url = base_url.rstrip("/")  # remove trailing slash
         self.api_key = api_key
         self.authenticator = authenticator
-
-        # api path can be re-written by api proxy when deployed
-        # TO-DO: re-visit this when shipping to production
-        self.is_local = is_local
         self.verify = verify
-
-        if not self.is_local:
-            self.base_url = f"{self.base_url}/v1/orchestrate"
-        else:
-            self.base_url = f"{self.base_url}/v1"
 
     def _get_headers(self) -> dict:
         headers = {}
@@ -148,3 +139,15 @@ class BaseAPIClient:
     @abstractmethod
     def get(self, *args, **kwargs):
         raise NotImplementedError("get method of the client must be implemented")
+    
+
+class BaseWXOClient(BaseAPIClient):
+    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: Authenticator = None):
+        super().__init__(base_url=base_url, api_key=api_key, verify=verify, authenticator=authenticator) 
+        
+        self.is_local = is_local       
+        
+        if not self.is_local:
+            self.base_url = f"{self.base_url}/v1/orchestrate"
+        else:
+            self.base_url = f"{self.base_url}/v1"

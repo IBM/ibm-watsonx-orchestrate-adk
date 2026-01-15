@@ -20,9 +20,12 @@ name: production_phone_channel
 description: Main customer support phone channel via Genesys Audio Connector
 
 # Required: Security credentials for Genesys Audio Connector
+# Both API Key and Client Secret are user-generated values (not obtained from Genesys Cloud).
+# The same values must be configured in both: This configuration file AND Audio Connector integration credentials tab
+# The Client Secret must be base-64 encoded. The API Key has no encoding restrictions.
 security:
   # Required: Your Genesys API key
   api_key: ${GENESYS_API_KEY}
 
-  # Required: Your Genesys client secret
+  # Required: Your Genesys client secret (must be base-64 encoded)
   client_secret: ${GENESYS_CLIENT_SECRET}

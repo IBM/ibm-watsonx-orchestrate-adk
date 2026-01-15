@@ -28,7 +28,7 @@
         "config": {
           "domain": "other",
           "type": "class_configuration",
-          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+          "llm": "groq/openai/gpt-oss-120b",
           "min_confidence": 0.0,
           "classes": [
             {

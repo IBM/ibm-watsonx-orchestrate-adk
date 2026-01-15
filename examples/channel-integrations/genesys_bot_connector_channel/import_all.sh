@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -x
 
-orchestrate env activate local
+# orchestrate env activate your_environment
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 orchestrate tools import -k python -f ${SCRIPT_DIR}/tools/genesys_tools.py -r ${SCRIPT_DIR}/tools/requirements.txt;

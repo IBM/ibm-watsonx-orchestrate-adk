@@ -1,13 +1,18 @@
 import json
 import sys
-import rich
 import yaml
 import logging
+import secrets
+import base64
 from typing import Optional, List, Any, Dict
 from pathlib import Path
 from pydantic import ValidationError
+from rich.table import Table
+from rich.console import Console
+from rich import print_json
 
-from ibm_watsonx_orchestrate.agent_builder.phone import GenesysAudioConnectorChannel, BasePhoneChannel, PhoneChannelLoader
+from ibm_watsonx_orchestrate.agent_builder.phone import GenesysAudioConnectorChannel, SIPTrunkChannel, BasePhoneChannel, PhoneChannelLoader
+from ibm_watsonx_orchestrate.agent_builder.phone.phone import PHONE_CHANNEL_CLASSES
 from ibm_watsonx_orchestrate.cli.commands.phone.types import PhoneChannelType
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.client.phone.phone_client import PhoneClient
@@ -38,6 +43,102 @@ class PhoneController:
         """Check if phone operations should be blocked in local dev."""
         check_local_dev_block(enable_developer_mode, "Phone config")
 
+    def _block_sip_in_local(
+        self,
+        config_id: Optional[str] = None,
+        channel: Optional[BasePhoneChannel] = None,
+        service_provider: Optional[str] = None,
+        operation: str = "operation"
+    ) -> None:
+        """Block SIP operations in local development environment.
+
+        This is a hard block with no developer mode bypass.
+        Checks if the operation involves SIP and blocks it in local environments.
+
+        Args:
+            config_id: Phone config ID to check
+            channel: Phone channel object to check
+            service_provider: Service provider string to check
+            operation: Description of the operation being blocked
+
+        Raises:
+            SystemExit: If in local dev and operation involves SIP
+        """
+        if not is_local_dev():
+            return
+
+        is_sip = False
+
+        if service_provider:
+            is_sip = service_provider == 'sip_trunk'
+        elif channel:
+            is_sip = channel.service_provider == PhoneChannelType.SIP.value
+        elif config_id:
+            try:
+                client = self.get_phone_client()
+                config = client.get_phone_channel(config_id)
+                if config:
+                    is_sip = config.get('service_provider') == 'sip_trunk'
+            except Exception:
+                pass
+
+        if is_sip:
+            logger.error(
+                f"SIP trunk {operation} is not available in local development environment. "
+                f"Only Genesys Audio Connector is supported for local development."
+            )
+            sys.exit(1)
+
+    def _check_genesys_only(self, config: Dict[str, Any], operation: str) -> None:
+        """Block operations that are only supported for Genesys Audio Connector channels."""
+        if config.get('service_provider') != PhoneChannelType.GENESYS_AUDIO_CONNECTOR.value:
+            logger.error(
+                f"{operation} is only supported for Genesys Audio Connector channels. "
+            )
+            sys.exit(1)
+
+    def _check_sip_only(self, config: Dict[str, Any], operation: str) -> None:
+        """Block operations that are only supported for SIP trunk channels."""
+        if config.get('service_provider') != PhoneChannelType.SIP.value:
+            logger.error(
+                f"{operation} is only supported for SIP trunk channels. "
+            )
+            sys.exit(1)
+
+    def _generate_api_key(self, length: int = 16) -> str:
+        """Generate a random API key.
+
+        Args:
+            length: Length of the API key in characters (default: 16)
+
+        Returns:
+            A randomly generated API key string
+        """
+        return secrets.token_urlsafe(length)
+
+    def _generate_client_secret(self, length: int = 16) -> str:
+        """Generate a random client secret that is base64-encoded.
+
+        Args:
+            length: Length of the random bytes to generate before encoding (default: 16)
+
+        Returns:
+            A base64-encoded client secret string
+        """
+        random_bytes = secrets.token_bytes(length)
+        return base64.b64encode(random_bytes).decode('utf-8')
+
+    def _generate_genesys_credentials(self) -> Dict[str, str]:
+        """Generate both API key and client secret for Genesys Audio Connector.
+
+        Returns:
+            Dictionary with 'api_key' and 'client_secret' keys
+        """
+        return {
+            'api_key': self._generate_api_key(),
+            'client_secret': self._generate_client_secret()
+        }
+
     def get_phone_client(self) -> PhoneClient:
         """Get or create the phone client instance."""
         if not self.phone_client:
@@ -50,12 +151,12 @@ class PhoneController:
             self.agent_client = instantiate_client(AgentClient)
         return self.agent_client
 
-    def get_agent_id_by_name(self, agent_name: str) -> str:
+    def get_agent_id_by_name(self, agent_name: str) -> str | None:
         """Look up agent ID by agent name."""
         client = self.get_agent_client()
         return common_get_agent_id_by_name(client, agent_name)
 
-    def get_agent_name_by_id(self, agent_id: str) -> str:
+    def get_agent_name_by_id(self, agent_id: str) -> str | None:
         """Look up agent ID by agent name."""
         client = self.get_agent_client()
         return common_get_agent_name_by_id(client, agent_id)
@@ -65,15 +166,48 @@ class PhoneController:
         agent_client = self.get_agent_client()
         return common_get_environment_id(agent_client, agent_name, env)
 
+    def resolve_agent_and_environment(
+        self,
+        agent_name: Optional[str],
+        env: Optional[str]
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Resolve agent name and environment to their IDs.
+        
+        Args:
+            agent_name: Optional agent name
+            env: Optional environment type (draft/live)
+            
+        Returns:
+            Tuple of (agent_id, environment_id) or (None, None)
+            
+        Raises:
+            SystemExit: If only one of agent_name or env is provided
+        """
+        import typer
+        
+        if agent_name and env:
+            agent_id = self.get_agent_id_by_name(agent_name)
+            environment_id = self.get_environment_id(agent_name, env)
+            return agent_id, environment_id
+        elif agent_name or env:
+            missing = "--env" if agent_name else "--agent-name"
+            provided = "--agent-name" if agent_name else "--env"
+            typer.echo(f"Error: {missing} is required when {provided} is specified")
+            raise typer.Exit(1)
+        return None, None
+
     def list_phone_channel_types(self):
         """List all supported phone channel types (enum values)."""
-        table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
+        table = Table(show_header=True, header_style="bold white", show_lines=True)
         table.add_column("Phone Channel Type")
 
         for channel_type in PhoneChannelType.__members__.values():
+            # Hide SIP type in local environment
+            if is_local_dev() and channel_type == PhoneChannelType.SIP:
+                continue
             table.add_row(channel_type.value)
 
-        console = rich.console.Console()
+        console = Console()
         console.print(table)
 
     def resolve_config_id(
@@ -135,9 +269,21 @@ class PhoneController:
         output_file: Optional[str] = None,
         **channel_fields
     ) -> BasePhoneChannel:
-        """Create a phone config from CLI arguments."""
+        """Create a phone config from CLI arguments.
+
+        If credentials are not provided for Genesys Audio Connector, they will be
+        auto-generated and displayed to the user.
+        """
+        # Block SIP channel creation in local environment
+        if is_local_dev() and channel_type == PhoneChannelType.SIP:
+            logger.error(
+                "SIP trunk channels are not supported in local development environment. "
+                "Only Genesys Audio Connector is available for local development."
+            )
+            sys.exit(1)
         channel_class_map = {
             PhoneChannelType.GENESYS_AUDIO_CONNECTOR: GenesysAudioConnectorChannel,
+            PhoneChannelType.SIP: SIPTrunkChannel,
         }
 
         try:
@@ -146,6 +292,43 @@ class PhoneController:
             if not channel_class:
                 logger.error(f"Unsupported phone channel type: '{channel_type}'")
                 sys.exit(1)
+
+            # Auto-generate credentials for Genesys Audio Connector if not provided
+            generated_credentials = {}
+            if channel_type == PhoneChannelType.GENESYS_AUDIO_CONNECTOR:
+                security = channel_fields.get('security', {})
+
+                # Check which credentials are missing and generate them
+                needs_api_key = not security or not security.get('api_key')
+                needs_client_secret = not security or not security.get('client_secret')
+
+                if needs_api_key or needs_client_secret:
+                    # Merge with any existing security fields
+                    if not security:
+                        security = {}
+
+                    if needs_api_key:
+                        generated_credentials['api_key'] = self._generate_api_key()
+                        security['api_key'] = generated_credentials['api_key']
+
+                    if needs_client_secret:
+                        generated_credentials['client_secret'] = self._generate_client_secret()
+                        security['client_secret'] = generated_credentials['client_secret']
+
+                    channel_fields['security'] = security
+
+                    # Display generated credentials to the user
+                    logger.info("\n" + "="*20)
+                    logger.info("GENERATED CREDENTIALS - SAVE THESE!")
+                    logger.info("\nPlease paste these credentials in:")
+                    logger.info("  Genesys Audio Connector > Integration Settings > Credentials tab")
+                    logger.info("")
+                    if needs_api_key:
+                        logger.info(f"API Key: {generated_credentials['api_key']}")
+                    if needs_client_secret:
+                        logger.info(f"Client Secret: {generated_credentials['client_secret']}")
+                    logger.info("")
+                    logger.info("="*20 + "\n")
 
             # Create channel instance
             channel = channel_class(
@@ -188,7 +371,7 @@ class PhoneController:
             sys.exit(1)
 
     @block_local_dev()
-    def create_phone_config(self, channel: BasePhoneChannel) -> str:
+    def create_phone_config(self, channel: BasePhoneChannel) -> str | None:
         """Create a new phone config."""
         client = self.get_phone_client()
 
@@ -204,7 +387,7 @@ class PhoneController:
             sys.exit(1)
 
     @block_local_dev()
-    def create_or_update_phone_config(self, channel: BasePhoneChannel) -> str:
+    def create_or_update_phone_config(self, channel: BasePhoneChannel, enable_developer_mode: bool = False) -> str | None:
         """Create or update a phone config.
         
         If a phone config with the same name exists, update it.
@@ -216,6 +399,9 @@ class PhoneController:
         Returns:
             Phone config ID
         """
+        # Block SIP operations in local environment
+        self._block_sip_in_local(channel=channel, operation="creation/update")
+        
         client = self.get_phone_client()
 
         try:
@@ -224,6 +410,10 @@ class PhoneController:
             
             action = "created" if was_created else "updated"
             logger.info(f"Successfully {action} phone config '{channel.name or '<unnamed>'}'. id: '{config_id}'")
+            
+            # For SIP trunk configs, display SIP URI and Tenant ID
+            if result.get('service_provider') == 'sip_trunk':
+                self._display_sip_connection_info(result)
             
             return config_id
 
@@ -236,7 +426,8 @@ class PhoneController:
         self,
         channel_type: Optional[PhoneChannelType] = None,
         verbose: bool = False,
-        format: Optional[ListFormats] = None
+        format: Optional[ListFormats] = None,
+        enable_developer_mode: bool = False
     ) -> List[Dict[str, Any]]:
         """List all phone configs."""
         client = self.get_phone_client()
@@ -251,15 +442,19 @@ class PhoneController:
             logger.info("No phone configs found")
             return []
 
+        # Filter out SIP configs in local environment
+        if is_local_dev():
+            configs = [c for c in configs if c.get('service_provider') != 'sip_trunk']
+
         # Filter by type if specified
         if channel_type:
             configs = [c for c in configs if c.get('service_provider') == channel_type.value]
 
         if verbose:
-            rich.print_json(json.dumps(configs, indent=2))
+            print_json(json.dumps(configs, indent=2))
             return configs
 
-        table = rich.table.Table(
+        table = Table(
             show_header=True,
             header_style="bold white",
             title="Phone Configs",
@@ -303,7 +498,7 @@ class PhoneController:
         if format == ListFormats.JSON:
             return configs
 
-        console = rich.console.Console()
+        console = Console()
         console.print(table)
         return configs
 
@@ -311,9 +506,13 @@ class PhoneController:
     def get_phone_config(
         self,
         config_id: str,
-        verbose: bool = False
+        verbose: bool = False,
+        enable_developer_mode: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Get a specific phone config by ID."""
+        # Block SIP config access in local environment
+        self._block_sip_in_local(config_id=config_id, operation="access")
+        
         client = self.get_phone_client()
 
         try:
@@ -327,28 +526,68 @@ class PhoneController:
             sys.exit(1)
 
         if verbose:
-            rich.print_json(json.dumps(config, indent=2))
+            print_json(json.dumps(config, indent=2))
         else:
-            rich.print(f"Phone Config: {config.get('name', config_id)}")
-            rich.print(f"  Type: {config.get('service_provider')}")
-            rich.print(f"  ID: {config.get('id')}")
+            console = Console()
+            console.print(f"Phone Config: {config.get('name', config_id)}")
+            console.print(f"  Type: {config.get('service_provider')}")
+            console.print(f"  ID: {config.get('id')}")
             if config.get('description'):
-                rich.print(f"  Description: {config.get('description')}")
-            
+                console.print(f"  Description: {config.get('description')}")
+
+            # Show SIP URI and Tenant ID for SIP channels
+            if config.get('service_provider') == 'sip_trunk':
+
+                client = self.get_phone_client()
+
+                # Extract instance_id from base_url
+                base_url = client.base_url
+
+                tenant_id = None
+                if '/instances/' in base_url:
+                    instance_id = base_url.split('/instances/')[1].split('/')[0]
+                    tenant_id = self._get_tenant_id(client, instance_id)
+                else:
+                    logger.warning("Could not determine instance ID from base URL")
+
+                sip_uri_base = self._get_sip_uri(client.base_url)
+
+                if tenant_id:
+                    full_sip_uri = f"sips:{sip_uri_base}?x-tenant-id={tenant_id}"
+                else:
+                    full_sip_uri = f"sips:{sip_uri_base}"
+                    logger.warning("Could not determine tenant ID")
+
+                console.print(f"  SIP URI: {full_sip_uri}")
+
             # Show attached agents
             attached_envs = config.get('attached_environments', [])
             if attached_envs:
-                rich.print(f"  Attached Agents: {len(attached_envs)}")
+                console.print(f"  Attached Agents: {len(attached_envs)}")
                 for env in attached_envs:
-                    rich.print(f"    - Agent: {env.get('agent_id')}, Env: {env.get('environment_id')}")
+                    console.print(f"    - Agent: {env.get('agent_id')}, Env: {env.get('environment_id')}")
             else:
-                rich.print("  Attached Agents: None")
+                console.print("  Attached Agents: None")
+
+            # Show phone numbers for SIP channels
+            if config.get('service_provider') == 'sip_trunk':
+                phone_numbers = config.get('phone_numbers', [])
+                if phone_numbers:
+                    console.print(f"  Phone Numbers: {len(phone_numbers)}")
+                    for num in phone_numbers:
+                        desc = f" ({num.get('description')})" if num.get('description') else ""
+                        console.print(f"    - {num.get('phone_number')}{desc}")
+                else:
+                    console.print("  Phone Numbers: None")
 
         return config
 
     @block_local_dev()
-    def delete_phone_config(self, config_id: str) -> None:
+    def delete_phone_config(self, config_id: str, enable_developer_mode: bool = False) -> None:
         """Delete a phone config."""
+        # Block SIP config deletion in local environment
+        self._block_sip_in_local(config_id=config_id, operation="deletion")
+        
         client = self.get_phone_client()
 
         try:
@@ -449,6 +688,27 @@ class PhoneController:
 
         # Build SaaS environment URL (split format for Genesys)
         return self._build_saas_webhook_url(client, agent_id, environment_id, channel_type, config_id)
+    
+    def _get_tenant_id(self, client, instance_id: str) -> str:
+        """Construct tenant ID from subscription and instance IDs.
+
+        Args:
+            client: Phone client to extract subscription ID from
+            instance_id: Instance ID from URL
+
+        Returns:
+            Combined tenant ID string
+        """
+        if not client:
+            client = self.get_phone_client()
+
+        subscription_id = client.get_subscription_id()
+        
+        if not subscription_id:
+            logger.warning("Missing subscription ID in token. The generated Event URL may be invalid.")
+            return instance_id
+
+        return f"{subscription_id}_{instance_id}"
 
     @block_local_dev()
     def attach_agent_to_config(
@@ -457,17 +717,27 @@ class PhoneController:
         agent_id: str,
         environment_id: str,
         agent_name: Optional[str] = None,
-        env_name: Optional[str] = None
+        env_name: Optional[str] = None,
+        enable_developer_mode: bool = False
     ) -> None:
-        """Attach an agent/environment to a phone config."""
+        """Attach an agent/environment to a phone config (Genesys Audio Connector only)."""
         client = self.get_phone_client()
 
         try:
+            # Get current config to check if it's SIP
+            config = client.get_phone_channel(config_id)
+            if not config:
+                logger.error(f"Phone config not found: {config_id}")
+                sys.exit(1)
+
+            # Only allow for Genesys Audio Connector channels
+            self._check_genesys_only(config, "Agent attachment")
+
             # Check if agent has voice configuration
             agent_client = self.get_agent_client()
             agent_spec = agent_client.get_draft_by_id(agent_id)
 
-            if not agent_spec:
+            if not agent_spec or not isinstance(agent_spec, dict):
                 logger.error(f"Agent not found: {agent_name}")
                 sys.exit(1)
 
@@ -476,12 +746,6 @@ class PhoneController:
                     f"Warning: Agent '{agent_name}' does not have voice configuration set up. "
                     f"Phone integration may not work properly without voice configuration."
                 )
-
-            # Get current config to check existing attachments
-            config = client.get_phone_channel(config_id)
-            if not config:
-                logger.error(f"Phone config not found: {config_id}")
-                sys.exit(1)
 
             attached_envs = config.get('attached_environments', [])
 
@@ -536,9 +800,10 @@ class PhoneController:
         agent_id: str,
         environment_id: str,
         agent_name: Optional[str] = None,
-        env_name: Optional[str] = None
+        env_name: Optional[str] = None,
+        enable_developer_mode: bool = False
     ) -> None:
-        """Detach an agent/environment from a phone config."""
+        """Detach an agent/environment from a phone config (Genesys Audio Connector only)."""
         client = self.get_phone_client()
 
         try:
@@ -547,6 +812,9 @@ class PhoneController:
             if not config:
                 logger.error(f"Phone config not found: {config_id}")
                 sys.exit(1)
+
+            # Only allow for Genesys Audio Connector channels
+            self._check_genesys_only(config, "Agent detachment")
 
             attached_envs = config.get('attached_environments', [])
 
@@ -579,9 +847,10 @@ class PhoneController:
     def list_attachments(
         self,
         config_id: str,
-        format: Optional[ListFormats] = None
+        format: Optional[ListFormats] = None,
+        enable_developer_mode: bool = False
     ) -> List[Dict[str, Any]]:
-        """List all agent/environment attachments for a phone config."""
+        """List all agent/environment attachments for a phone config (Genesys Audio Connector only)."""
         client = self.get_phone_client()
 
         try:
@@ -590,6 +859,9 @@ class PhoneController:
                 logger.error(f"Phone config not found: {config_id}")
                 sys.exit(1)
 
+            # Only allow for Genesys Audio Connector channels
+            self._check_genesys_only(config, "Listing attachments")
+
             attached_envs = config.get('attached_environments', [])
 
             if not attached_envs:
@@ -597,12 +869,12 @@ class PhoneController:
                 return []
 
             if format == ListFormats.JSON:
-                rich.print_json(json.dumps(attached_envs, indent=2))
+                print_json(json.dumps(attached_envs, indent=2))
                 return attached_envs
 
             agent_client = self.get_agent_client()
 
-            table = rich.table.Table(
+            table = Table(
                 show_header=True,
                 header_style="bold white",
                 title=f"Attachments for Phone Config '{config.get('name')}'",
@@ -623,7 +895,7 @@ class PhoneController:
                 env_name = '<unknown>'
                 try:
                     agent_spec = agent_client.get_draft_by_id(agent_id)
-                    if agent_spec:
+                    if agent_spec and isinstance(agent_spec, dict):
                         agent_name = agent_spec.get('name', '<unknown>')
 
                         # Look up environment name
@@ -642,7 +914,7 @@ class PhoneController:
                     environment_id
                 )
 
-            console = rich.console.Console()
+            console = Console()
             console.print(table)
             return attached_envs
 
@@ -651,7 +923,11 @@ class PhoneController:
             sys.exit(1)
 
     def import_phone_config(self, file: str) -> BasePhoneChannel:
-        """Import phone config from YAML, JSON, or Python file."""
+        """Import phone config from YAML, JSON, or Python file.
+
+        If credentials are not provided for Genesys Audio Connector, they will be
+        auto-generated and displayed to the user.
+        """
         file_path = Path(file)
 
         if not file_path.exists():
@@ -665,10 +941,72 @@ class PhoneController:
                     logger.error("Python file must define at least one BasePhoneChannel instance.")
                     sys.exit(1)
                 # Return first phone channel found
-                return phone_channels[0]
+                channel = phone_channels[0]
             else:
-                phone_channel = PhoneChannelLoader.from_spec(file)
-                return phone_channel
+                # Load the file content first
+                from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+                from yaml import safe_load as yaml_safe_load
+                import json as json_module
+
+                with safe_open(file, 'r') as f:
+                    if file.endswith('.yaml') or file.endswith('.yml'):
+                        content = yaml_safe_load(f)
+                    elif file.endswith('.json'):
+                        content = json_module.load(f)
+                    else:
+                        raise BadRequest('file must end in .json, .yaml, or .yml')
+
+                # Auto-generate credentials for Genesys Audio Connector if not provided
+                if content.get('service_provider') == 'genesys_audio_connector':
+                    security = content.get('security', {})
+                    generated_credentials = {}
+
+                    # Check which credentials are missing and generate them
+                    needs_api_key = not security or not security.get('api_key')
+                    needs_client_secret = not security or not security.get('client_secret')
+
+                    if needs_api_key or needs_client_secret:
+                        # Merge with any existing security fields
+                        if not security:
+                            security = {}
+
+                        if needs_api_key:
+                            generated_credentials['api_key'] = self._generate_api_key()
+                            security['api_key'] = generated_credentials['api_key']
+
+                        if needs_client_secret:
+                            generated_credentials['client_secret'] = self._generate_client_secret()
+                            security['client_secret'] = generated_credentials['client_secret']
+
+                        content['security'] = security
+
+                        # Display generated credentials to the user
+                        logger.info("="*20)
+                        logger.info("GENERATED CREDENTIALS - SAVE THESE!")
+                        logger.info("Please paste these credentials in:")
+                        logger.info("  Genesys Audio Connector > Integration Settings > Credentials tab")
+                        logger.info("")
+                        if needs_api_key:
+                            logger.info(f"API Key: {generated_credentials['api_key']}")
+                        if needs_client_secret:
+                            logger.info(f"Client Secret: {generated_credentials['client_secret']}")
+                        logger.info("")
+                        logger.info("="*20 + "\n")
+
+                # Now validate the content with credentials included
+                channel_type = content.get('service_provider')
+                channel_class = PHONE_CHANNEL_CLASSES.get(channel_type)
+
+                if not channel_class:
+                    supported = ', '.join(PHONE_CHANNEL_CLASSES.keys())
+                    raise BadRequest(f"Unsupported phone channel type: '{channel_type}'. Supported types: {supported}")
+
+                channel = channel_class.model_validate(content)
+
+            # Block SIP config import in local environment
+            self._block_sip_in_local(channel=channel, operation="import")
+
+            return channel
         except BadRequest as e:
             logger.error(f"Failed to load phone config: {e}")
             sys.exit(1)
@@ -680,9 +1018,13 @@ class PhoneController:
     def export_phone_config(
         self,
         config_id: str,
-        output_path: str
+        output_path: str,
+        enable_developer_mode: bool = False
     ) -> None:
         """Export a phone config to a YAML file."""
+        # Block SIP config export in local environment
+        self._block_sip_in_local(config_id=config_id, operation="export")
+        
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
 
@@ -743,4 +1085,285 @@ class PhoneController:
 
         except Exception as e:
             logger.error(f"Failed to update phone config: {e}")
+            sys.exit(1)
+
+    def _get_sip_uri(self, base_url: str) -> str:
+        """Get SIP URI for the environment by parsing the API base URL.
+
+        Args:
+            base_url: API base URL
+
+        Returns:
+            SIP URI (FQDN) for the environment
+        """
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(base_url)
+        hostname = parsed.hostname or ""
+        
+        # Pattern matching for different environments
+        
+        # IBM Cloud - Test (Dallas)
+        if "watson-orchestrate.test.cloud.ibm.com" in hostname:
+            return "public.voip.us-south.watson-orchestrate.test.cloud.ibm.com"
+        
+        # IBM Cloud - Prod (Sao Paulo)
+        if "br-sao" in hostname and "watson-orchestrate.cloud.ibm.com" in hostname:
+            return "public.voip.br-sao.watson-orchestrate.cloud.ibm.com"
+        
+        # IBM Cloud - Prod (Dallas)
+        if "watson-orchestrate.cloud.ibm.com" in hostname:
+            return "public.voip.us-south.watson-orchestrate.cloud.ibm.com"
+        
+        # AWS - Dev
+        if "dev-wa.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.dev-wa.watson-orchestrate.ibm.com"
+        
+        # AWS - Dev Sandbox
+        if "dev-sbsz2.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.dev-sbsz2.watson-orchestrate.ibm.com"
+        
+        # AWS - Test (Staging)
+        if "staging-wa.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.staging-wa.watson-orchestrate.ibm.com"
+        
+        # AWS - Preprod
+        if "preprod.dl.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.preprod.dl.watson-orchestrate.ibm.com"
+        
+        # AWS - Prod (AP-South-1)
+        if "ap-south-1.dl.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.ap-south-1.dl.watson-orchestrate.ibm.com"
+        
+        # AWS - Prod (EU-Central-1)
+        if "eu-central-1.dl.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.eu-central-1.dl.watson-orchestrate.ibm.com"
+        
+        # AWS - Prod (US-East-1)
+        if "dl.watson-orchestrate.ibm.com" in hostname:
+            return "public.voip.dl.watson-orchestrate.ibm.com"
+        
+        # Default fallback to staging (test) environment
+        logger.warning(f"Could not determine SIP URI from base URL '{base_url}', defaulting to base URL.")
+        return "{base_url}"
+
+    def _display_sip_connection_info(self, config: Dict[str, Any]) -> None:
+        """Display SIP connection information for SIP trunk configs.
+
+        Args:
+            config: Phone config dictionary containing SIP trunk details
+        """
+
+        client = self.get_phone_client()
+
+        # Get tenant_id from config, or compute it if not present
+        tenant_id = None
+        if not tenant_id:
+            # Compute tenant_id client-side
+            # Extract instance_id from base_url
+            base_url = client.base_url
+            if '/instances/' in base_url:
+                instance_id = base_url.split('/instances/')[1].split('/')[0]
+                tenant_id = self._get_tenant_id(client, instance_id)
+            else:
+                logger.warning("Could not determine instance ID from base URL")
+
+        # Get SIP URI based on current environment
+        sip_uri_base = self._get_sip_uri(client.base_url)
+
+        # Build full SIP URI with tenant ID parameter
+        if tenant_id:
+            full_sip_uri = f"sips:{sip_uri_base}?x-tenant-id={tenant_id}"
+        else:
+            full_sip_uri = f"sips:{sip_uri_base}"
+
+        console = Console()
+        console.print("\n[bold yellow]Configure these values in your SIP trunk provider:[/bold yellow]")
+        console.print(f"   Full SIP URI: '{full_sip_uri}'")
+        console.print("")
+
+    @block_local_dev()
+    def add_phone_number(
+        self,
+        config_id: str,
+        number: str,
+        description: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        environment_id: Optional[str] = None,
+        enable_developer_mode: bool = False
+    ) -> None:
+        """Add a phone number to a phone config (SIP trunk only).
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to add (E.164 format recommended)
+            description: Optional description for the phone number
+            agent_id: Optional agent ID to associate with this phone number
+            environment_id: Optional environment ID to associate with this phone number
+        """
+        client = self.get_phone_client()
+
+        try:
+            # Get config and verify it's SIP trunk
+            config = client.get_phone_channel(config_id)
+            if not config:
+                logger.error(f"Phone config not found: {config_id}")
+                sys.exit(1)
+
+            # Only allow for SIP trunk channels
+            self._check_sip_only(config, "Phone number management")
+
+            result = client.add_phone_number(config_id, number, description, agent_id, environment_id)
+            logger.info(f"Successfully added phone number '{number}' to phone config")
+            if description:
+                logger.info(f"  Description: {description}")
+            if agent_id and environment_id:
+                logger.info(f"  Associated with agent: {agent_id}, environment: {environment_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to add phone number: {e}")
+            sys.exit(1)
+
+    @block_local_dev()
+    def list_phone_numbers(
+        self,
+        config_id: str,
+        format: Optional[ListFormats] = None,
+        enable_developer_mode: bool = False
+    ) -> List[Dict[str, Any]]:
+        """List all phone numbers for a phone config (SIP trunk only).
+
+        Args:
+            config_id: Phone config identifier
+            format: Output format (table, json)
+
+        Returns:
+            List of phone number dictionaries
+        """
+        client = self.get_phone_client()
+
+        try:
+            # Get config and verify it's SIP trunk
+            config = client.get_phone_channel(config_id)
+            if not config:
+                logger.error(f"Phone config not found: {config_id}")
+                sys.exit(1)
+
+            # Only allow for SIP trunk channels
+            self._check_sip_only(config, "Phone number management")
+
+            numbers = client.list_phone_numbers(config_id)
+
+            if not numbers:
+                logger.info("No phone numbers found for this config")
+                return []
+
+            if format == ListFormats.JSON:
+                print_json(json.dumps(numbers, indent=2))
+                return numbers
+
+            table = Table(
+                show_header=True,
+                header_style="bold white",
+                title="Phone Numbers",
+                show_lines=True
+            )
+
+            table.add_column("Number", overflow="fold")
+            table.add_column("Description", overflow="fold")
+
+            for num in numbers:
+                table.add_row(
+                    num.get('phone_number', ''),
+                    num.get('description', '')
+                )
+
+            console = Console()
+            console.print(table)
+            return numbers
+
+        except Exception as e:
+            logger.error(f"Failed to list phone numbers: {e}")
+            sys.exit(1)
+
+    @block_local_dev()
+    def update_phone_number(
+        self,
+        config_id: str,
+        number: str,
+        new_number: Optional[str] = None,
+        description: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        environment_id: Optional[str] = None,
+        enable_developer_mode: bool = False
+    ) -> None:
+        """Update a phone number's details (SIP trunk only).
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to update
+            new_number: New phone number (if changing the number itself)
+            description: New description
+            agent_id: Optional agent ID to associate with this phone number
+            environment_id: Optional environment ID to associate with this phone number
+        """
+        client = self.get_phone_client()
+
+        if not new_number and description is None and agent_id is None and environment_id is None:
+            logger.warning("No updates specified (provide --new-number, --description, --agent-name, or --env)")
+            return
+
+        try:
+            # Get config and verify it's SIP trunk
+            config = client.get_phone_channel(config_id)
+            if not config:
+                logger.error(f"Phone config not found: {config_id}")
+                sys.exit(1)
+
+            # Only allow for SIP trunk channels
+            self._check_sip_only(config, "Phone number management")
+
+            result = client.update_phone_number(config_id, number, new_number, description, agent_id, environment_id)
+            logger.info(f"Successfully updated phone number '{number}'")
+            if new_number:
+                logger.info(f"  New number: {new_number}")
+            if description is not None:
+                logger.info(f"  New description: {description}")
+            if agent_id and environment_id:
+                logger.info(f"  Associated with agent: {agent_id}, environment: {environment_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to update phone number: {e}")
+            sys.exit(1)
+
+    @block_local_dev()
+    def delete_phone_number(
+        self,
+        config_id: str,
+        number: str,
+        enable_developer_mode: bool = False
+    ) -> None:
+        """Delete a phone number from a phone config (SIP trunk only).
+
+        Args:
+            config_id: Phone config identifier
+            number: Phone number to delete
+        """
+        client = self.get_phone_client()
+
+        try:
+            # Get config and verify it's SIP trunk
+            config = client.get_phone_channel(config_id)
+            if not config:
+                logger.error(f"Phone config not found: {config_id}")
+                sys.exit(1)
+
+            # Only allow for SIP trunk channels
+            self._check_sip_only(config, "Phone number management")
+
+            client.delete_phone_number(config_id, number)
+            logger.info(f"Successfully deleted phone number '{number}'")
+
+        except Exception as e:
+            logger.error(f"Failed to delete phone number: {e}")
             sys.exit(1)

@@ -9,7 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from ibm_watsonx_orchestrate.agent_builder.channels import TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, \
-    BaseChannel, ChannelLoader, GenesysBotConnectorChannel
+    BaseChannel, ChannelLoader, GenesysBotConnectorChannel, FacebookChannel, TeamsChannel
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelType
 from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
@@ -157,6 +157,8 @@ class ChannelsController:
             ChannelType.TWILIO_SMS: TwilioSMSChannel,
             ChannelType.SLACK: SlackChannel,
             ChannelType.GENESYS_BOT_CONNECTOR: GenesysBotConnectorChannel,
+            ChannelType.FACEBOOK: FacebookChannel,
+            ChannelType.TEAMS: TeamsChannel,
         }
 
         try:

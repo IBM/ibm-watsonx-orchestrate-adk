@@ -117,6 +117,9 @@ class NativeDockerManager(VMLifecycleManager):
   def is_server_running(self):
     return _check_docker_status(docker_path=self.docker_path)
   
+  def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int = 24) -> None:
+    """ Native Docker doesn't use a VM, so memory management is handled by the host system. """
+    pass
 
 
 
