@@ -12,8 +12,8 @@ class ChannelType(str, Enum):
     TWILIO_SMS = "twilio_sms"
     SLACK = "byo_slack"
     GENESYS_BOT_CONNECTOR = "genesys_bot_connector"
-    # TEAMS = "teams"
-    # MESSENGER = "messenger"
+    FACEBOOK = "facebook"
+    TEAMS = "teams"
 
     def __str__(self):
         return self.value
@@ -333,5 +333,92 @@ class GenesysBotConnectorChannel(BaseChannel):
             raise ValueError("api_url is required for genesys_bot_connector channels")
         return self
 
-# Union type for all channel types (will expand)
-Channel = Union[WebchatChannel, TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, GenesysBotConnectorChannel]
+class FacebookChannel(BaseChannel):
+    """Facebook Messenger channel configuration.
+
+    Enables integration with Facebook Messenger.
+
+    Required credentials:
+        - application_secret
+        - verification_token
+        - page_access_token
+
+    Attributes:
+        channel: Always "facebook"
+        application_secret: Facebook application secret
+        verification_token: Token for webhook verification
+        page_access_token: Facebook page access token
+    """
+
+    channel: Literal["facebook"] = "facebook"
+    application_secret: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Facebook app secret"
+    )
+    verification_token: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Token for webhook verification"
+    )
+    page_access_token: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Page-specific access token"
+    )
+
+    @model_validator(mode='after')
+    def validate_required_fields(self):
+        """Validate that required Facebook credentials are provided."""
+        if not self.application_secret:
+            raise ValueError("application_secret is required for facebook channels")
+        if not self.verification_token:
+            raise ValueError("verification_token is required for facebook channels")
+        if not self.page_access_token:
+            raise ValueError("page_access_token is required for facebook channels")
+        return self
+
+class TeamsChannel(BaseChannel):
+    """Microsoft Teams channel configuration.
+
+    Enables integration with Microsoft Teams.
+
+    Required credentials:
+        - app_password
+        - app_id
+
+    Attributes:
+        channel: Always "teams"
+        app_password: Microsoft App Client secret
+        app_id: Microsoft Application (client) ID
+        teams_tenant_id: Microsoft Teams tenant ID
+    """
+
+    channel: Literal["teams"] = "teams"
+    app_password: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Microsoft App Client secret"
+    )
+    app_id: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Microsoft Application (client) ID"
+    )
+    teams_tenant_id: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Microsoft Teams tenant ID"
+    )
+
+    @model_validator(mode='after')
+    def validate_required_fields(self):
+        """Validate that required Teams credentials are provided."""
+        if not self.app_password:
+            raise ValueError("app_password is required for teams channels")
+        if not self.app_id:
+            raise ValueError("app_id is required for teams channels")
+        return self
+
+# Union type for all channel types
+Channel = Union[WebchatChannel, TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, GenesysBotConnectorChannel, FacebookChannel, TeamsChannel]

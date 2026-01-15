@@ -6,7 +6,7 @@ description: >
 instructions: >
     Invoke document_processing_flow tool and output the result
 
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - document_processing_flow

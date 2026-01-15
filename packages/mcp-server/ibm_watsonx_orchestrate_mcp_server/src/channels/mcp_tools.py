@@ -95,7 +95,7 @@ def import_channel(options: ImportChannelOptions) -> str:
         options: Import configuration including agent_name, environment, and file_path
 
     Returns:
-        Success message with the names of imported channels
+        Success message with the names and event URLs of imported channels
     """
     controller = ChannelsController()
 
@@ -109,17 +109,18 @@ def import_channel(options: ImportChannelOptions) -> str:
         file=working_directory_path
     )
 
-    channel_names = []
+    channel_info = []
     for channel in channels:
-        silent_call(
+        event_url = silent_call(
             fn=controller.publish_or_update_channel,
             agent_id=agent_id,
             environment_id=environment_id,
             channel=channel
         )
-        channel_names.append(channel.name or "<unnamed>")
+        channel_name = channel.name or "<unnamed>"
+        channel_info.append(f"{channel_name} (Event URL: {event_url})")
 
-    channels_str = ", ".join(channel_names)
+    channels_str = ", ".join(channel_info)
     return f"Successfully imported {len(channels)} channel(s): {channels_str}"
 
 

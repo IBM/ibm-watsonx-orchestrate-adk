@@ -10,7 +10,8 @@
 #    - Signing Secret
 #    - Bot User OAuth Token
 
-# 4. Find the Team ID per this instruction: https://slack.com/help/articles/221769328-Locate-your-Slack-URL-or-ID
+# 4. Find the Team ID from the URL of "Workflow Steps" or "App Manifest" tab in your Slack App Setup Page
+#    - Team ID starts with letter "T"
 # 5. Replace the values below with your actual credentials
 #
 # Usage:

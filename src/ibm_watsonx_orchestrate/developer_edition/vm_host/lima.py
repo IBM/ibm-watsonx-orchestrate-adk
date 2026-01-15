@@ -103,6 +103,19 @@ class LimaLifecycleManager(VMLifecycleManager):
             return True
         return False
 
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        memory_is_sufficient = _check_and_ensure_lima_memory_for_doc_processing(min_memory_gb)
+
+        if not memory_is_sufficient :
+            vm = _get_vm_state()
+            if vm is not None:
+                # VM exists, we can edit it
+                logger.info(f"Restarting VM to apply new memory allocation ({min_memory_gb}GB)...")
+                self.edit_server(memory=min_memory_gb)
+            else:
+                # VM doesn't exist yet, config will be used on creation
+                logger.info(f"VM will be created with {min_memory_gb}GB memory on first start.")
+
 def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command
 
@@ -111,15 +124,23 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
 
-    out = subprocess.run(
-        [str(limactl_path)] + command,
-        check=True,
-        capture_output=capture_output,
-        text=True
-    )
+    try:
+        out = subprocess.run(
+            [str(limactl_path)] + command,
+            check=True,
+            capture_output=capture_output,
+            text=True
+        )
 
-    if capture_output:
-        return out.stdout.strip()
+        if capture_output:
+            return out.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        logger.error(f"An error occured while executing the command: {[str(limactl_path)] + command}")
+        if "--debug" in sys.argv:
+            logger.error(f"RETURN CODE: {e.returncode}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise e
+        sys.exit(1)
     return None
 
 def _get_unix_os():
@@ -695,3 +716,60 @@ def _get_current_docker_context():
         capture_output=True, text=True
     )
     return result.stdout.strip()
+
+def _check_and_ensure_lima_memory_for_doc_processing(min_memory_gb: int=24) -> bool:
+    """Check if the Lima VM has enough memory for document processing.  """
+    vm_dir = Path.home() / ".lima" / VM_NAME
+    config_path = vm_dir / "lima.yaml"
+    
+    if not config_path.exists():
+        logger.warning(f"Lima config not found at {config_path}. VM may not be created yet.")
+        return True  # Will be set during VM creation
+    
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        
+        # Get current memory (format: "16GiB" or just number)
+        current_memory = config.get("memory", f"{DEFAULT_MEMORY}GiB")
+        
+        # Parse memory value
+        if isinstance(current_memory, str):
+            if current_memory.upper().endswith("GIB") or current_memory.upper().endswith("GB"):
+                current_memory_gb = int(''.join(filter(str.isdigit, current_memory)))
+            else:
+                current_memory_gb = int(current_memory)
+        else:
+            current_memory_gb = int(current_memory)
+        
+        # Check if memory is sufficient
+        if current_memory_gb >= min_memory_gb:
+            return True
+        else:
+            # Memory is insufficient - warn and increase
+            logger.warning(
+                f"\n{'='*70}\n"
+                f"MEMORY REQUIREMENT WARNING\n"
+                f"{'='*70}\n"
+                f"Document Processing requires at least {min_memory_gb}GB of memory.\n"
+                f"Current Lima VM memory allocation: {current_memory_gb}GB\n"
+                f"\n"
+                f"Automatically increasing memory to {min_memory_gb}GB...\n"
+                f"This requires restarting the VM.\n"
+                f"{'='*70}\n"
+            )
+            # Update memory in config (preserves all other settings)
+            config["memory"] = f"{min_memory_gb}GiB"
+            
+            # Write updated config back to file
+            with open(config_path, "w") as f:
+                yaml.dump(config, f)
+            
+            logger.info(f"Updated {config_path} with memory={min_memory_gb}GiB")
+        
+            return False        
+
+    except Exception as e:
+        logger.error(f"Failed to check Lima VM memory: {e}")
+        return False
+

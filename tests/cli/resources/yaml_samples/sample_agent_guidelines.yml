@@ -2,7 +2,7 @@ spec_version: v1
 kind: native # Optional, Default=native, Valid options ['native', 'external', 'assistant']
 name: finance_agent
 style: default #Optional, Valid options ['default', 'react']
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 description: >
   You are a helpful calculation agent that assists the user in performing math. 
   This includes performing mathematical operations and providing practical use cases for math in everyday life.

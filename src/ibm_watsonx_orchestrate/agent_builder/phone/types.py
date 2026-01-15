@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Union, ClassVar
+from typing import Optional, Literal, Union, ClassVar, Any
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 import json
 from enum import Enum
@@ -9,7 +9,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
 class PhoneChannelType(str, Enum):
     """Supported phone channel types."""
     GENESYS_AUDIO_CONNECTOR = "genesys_audio_connector"
-    # SIP = "sip"
+    SIP = "sip_trunk"
 
     def __str__(self):
         return self.value
@@ -132,5 +132,86 @@ class GenesysAudioConnectorChannel(BasePhoneChannel):
         return self
 
 
-# Union type for all phone channel types (will expand)
-PhoneChannel = Union[GenesysAudioConnectorChannel]
+class SIPTrunkChannel(BasePhoneChannel):
+    """SIP Trunk phone channel configuration.
+
+    Configuration options:
+        - custom_invite_headers: List of custom SIP INVITE headers
+        - put_caller_on_hold_on_transfer: Whether to put caller on hold during transfer
+        - send_provisional_response: Whether to send provisional responses
+        - security: Optional security configuration for secure trunking and authentication
+        - error_handling: Error handling configuration for transfer and call failures
+
+    Attributes:
+        service_provider: Always "sip_trunk"
+    """
+
+    service_provider: Literal[PhoneChannelType.SIP] = PhoneChannelType.SIP
+    custom_invite_headers: Optional[list[dict[str, str]]] = Field(
+        None,
+        description="List of custom SIP INVITE headers, each with a 'name' field"
+    )
+    put_caller_on_hold_on_transfer: Optional[bool] = Field(
+        None,
+        description="Put caller on hold when transferring to live agent"
+    )
+    send_provisional_response: Optional[bool] = Field(
+        None,
+        description="Send provisional SIP responses"
+    )
+    security: Optional[dict[str, Any]] = Field(
+        None,
+        description="Security configuration with secure_trunking, authentication, username, and password"
+    )
+    error_handling: Optional[dict[str, Any]] = Field(
+        None,
+        description="Error handling configuration for transfer_failure and call_failure scenarios"
+    )
+
+    @model_validator(mode='after')
+    def validate_sip_fields(self):
+        """Validate SIP trunk specific fields."""
+        # Validate custom_invite_headers if present
+        if self.custom_invite_headers:
+            if not isinstance(self.custom_invite_headers, list):
+                raise ValueError("custom_invite_headers must be a list")
+            for idx, header in enumerate(self.custom_invite_headers):
+                if not isinstance(header, dict):
+                    raise ValueError(f"custom_invite_headers[{idx}] must be a dictionary")
+                if "name" not in header:
+                    raise ValueError(f"custom_invite_headers[{idx}] must have a 'name' field")
+
+        # Validate security if present
+        if self.security:
+            if not isinstance(self.security, dict):
+                raise ValueError("security must be a dictionary")
+
+            # If authentication is enabled, username and password are requiredß
+            if self.security.get("authentication") is True:
+                if not self.security.get("username"):
+                    raise ValueError("security.username is required when authentication is enabled")
+                if not self.security.get("password"):
+                    raise ValueError("security.password is required when authentication is enabled")
+
+        # Validate error_handling if present
+        if self.error_handling:
+            if not isinstance(self.error_handling, dict):
+                raise ValueError("error_handling must be a dictionary")
+
+            # Validate transfer_failure if present
+            if "transfer_failure" in self.error_handling:
+                transfer_failure = self.error_handling["transfer_failure"]
+                if not isinstance(transfer_failure, dict):
+                    raise ValueError("error_handling.transfer_failure must be a dictionary")
+
+            # Validate call_failure if present
+            if "call_failure" in self.error_handling:
+                call_failure = self.error_handling["call_failure"]
+                if not isinstance(call_failure, dict):
+                    raise ValueError("error_handling.call_failure must be a dictionary")
+
+        return self
+
+
+# Union type for all phone channel types
+PhoneChannel = Union[GenesysAudioConnectorChannel, SIPTrunkChannel]

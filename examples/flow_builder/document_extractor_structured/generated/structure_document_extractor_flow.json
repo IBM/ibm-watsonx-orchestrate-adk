@@ -28,7 +28,7 @@
         "config": {
           "domain": "other",
           "type": "agreement",
-          "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+          "llm": "groq/openai/gpt-oss-120b",
           "fields": [
             {
               "name": "Buyer",

@@ -1,10 +1,10 @@
 from typing import Dict, Any, List
 from uuid import uuid4
 
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
 
-class CPEClient(BaseAPIClient):
+class CPEClient(BaseWXOClient):
     """
     Client to handle CRUD operations for Conversational Prompt Engineering Service
     """

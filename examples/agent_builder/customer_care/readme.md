@@ -3,6 +3,11 @@ This example was written to simulate a customer care agent for hospital. It is c
 querying remote apis with dummy data related to a nearby healthcare providers (limit queries to Lowell, MA)
 and 
 
+### Use customer care agent
+
+1. Create a `.env` file with the setting:
+    `GROQ_API_KEY=<your groq api key>`  using  https://console.groq.com/home
+
 ## Steps to import
 1. Run `orchestrate server start -e .my-env`
 2. Signup for a Sevice Now account at https://developer.servicenow.com/dev.do
@@ -16,8 +21,8 @@ orchestrate connections configure -a service-now --env draft --type team --kind 
 orchestrate connections set-credentials -a service-now --env draft -u admin -p <password from modal>
 ```
 6. Run `pip install -r tools/requirements.txt`
-6. Run the import all script `./import-all.sh`
-7. Run `orchestrate chat start`
+7. Run the import all script `./import-all.sh`
+8. Run `orchestrate chat start`
 
 ## Suggested script
 - Show me my benefits related to mental health

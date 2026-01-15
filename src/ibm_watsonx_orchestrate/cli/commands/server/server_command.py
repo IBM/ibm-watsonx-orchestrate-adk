@@ -593,6 +593,14 @@ def server_start(
     vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
 
     vm = get_vm_manager()
+    
+    if with_doc_processing:
+        try:
+            vm.check_and_ensure_memory_for_doc_processing(min_memory_gb=24)
+        except Exception as e:
+            logger.warning(f"Could not verify memory requirements: {e}")
+            logger.warning("Continuing with server start...")
+
     vm.start_server()
 
     logger.info("Running docker compose-up...")
@@ -643,6 +651,8 @@ def server_start(
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
+        
+
     if with_connections_ui:
         logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:

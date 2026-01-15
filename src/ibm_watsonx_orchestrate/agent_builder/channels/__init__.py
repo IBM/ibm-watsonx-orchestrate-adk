@@ -6,6 +6,8 @@ from .types import (
     SlackTeam,
     WebchatChannel,
     GenesysBotConnectorChannel,
+    FacebookChannel,
+    TeamsChannel,
     ChannelType,
 )
 from .channel import ChannelLoader
@@ -18,6 +20,8 @@ __all__ = [
     "SlackTeam",
     "WebchatChannel",
     "GenesysBotConnectorChannel",
+    "FacebookChannel",
+    "TeamsChannel",
     "ChannelLoader",
     "ChannelType",
 ]

@@ -33,7 +33,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.create_phone_config_from_args.assert_called_once()
-            mock_controller.create_or_update_phone_config.assert_called_once_with(mock_channel)
+            mock_controller.create_or_update_phone_config.assert_called_once_with(mock_channel, enable_developer_mode=False)
 
     def test_create_phone_config_with_fields(self):
         """Test create command with config-specific fields."""
@@ -104,7 +104,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.list_phone_configs.assert_called_once_with(
-                PhoneChannelType.GENESYS_AUDIO_CONNECTOR, False, None
+                PhoneChannelType.GENESYS_AUDIO_CONNECTOR, False, None, enable_developer_mode=False
             )
 
     def test_get_phone_config_by_id(self):
@@ -121,7 +121,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.resolve_config_id.assert_called_once_with("config-123", None)
-            mock_controller.get_phone_config.assert_called_once_with("config-123", False)
+            mock_controller.get_phone_config.assert_called_once_with("config-123", False, enable_developer_mode=False)
 
     def test_get_phone_config_by_name(self):
         """Test get command with config name."""
@@ -137,7 +137,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.resolve_config_id.assert_called_once_with(None, "test_config")
-            mock_controller.get_phone_config.assert_called_once_with("config-123", False)
+            mock_controller.get_phone_config.assert_called_once_with("config-123", False, enable_developer_mode=False)
 
     def test_delete_phone_config_with_confirmation(self):
         """Test delete command with confirmation flag."""
@@ -153,7 +153,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.resolve_config_id.assert_called_once_with("config-123", None)
-            mock_controller.delete_phone_config.assert_called_once_with("config-123")
+            mock_controller.delete_phone_config.assert_called_once_with("config-123", enable_developer_mode=False)
 
     def test_import_phone_config(self):
         """Test import command."""
@@ -168,7 +168,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.import_phone_config.assert_called_once_with("test_config.yaml")
-            mock_controller.create_or_update_phone_config.assert_called_once_with(mock_channel)
+            mock_controller.create_or_update_phone_config.assert_called_once_with(mock_channel, enable_developer_mode=False)
 
     def test_export_phone_config(self):
         """Test export command."""
@@ -184,7 +184,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.resolve_config_id.assert_called_once_with("config-123", None)
-            mock_controller.export_phone_config.assert_called_once_with("config-123", "output.yaml")
+            mock_controller.export_phone_config.assert_called_once_with("config-123", "output.yaml", enable_developer_mode=False)
 
     def test_attach_agent(self):
         """Test attach command."""
@@ -206,7 +206,7 @@ class TestPhoneCommands:
             mock_controller.get_agent_id_by_name.assert_called_once_with("test_agent")
             mock_controller.get_environment_id.assert_called_once_with("test_agent", EnvironmentType.DRAFT)
             mock_controller.attach_agent_to_config.assert_called_once_with(
-                "config-123", "agent-456", "env-789", "test_agent", EnvironmentType.DRAFT
+                "config-123", "agent-456", "env-789", "test_agent", EnvironmentType.DRAFT, enable_developer_mode=False
             )
 
     def test_detach_agent_with_confirmation(self):
@@ -227,7 +227,7 @@ class TestPhoneCommands:
             )
 
             mock_controller.detach_agent_from_config.assert_called_once_with(
-                "config-123", "agent-456", "env-789", "test_agent", EnvironmentType.DRAFT
+                "config-123", "agent-456", "env-789", "test_agent", EnvironmentType.DRAFT, enable_developer_mode=False
             )
 
     def test_list_attachments(self):
@@ -244,4 +244,4 @@ class TestPhoneCommands:
             )
 
             mock_controller.resolve_config_id.assert_called_once_with("config-123", None)
-            mock_controller.list_attachments.assert_called_once_with("config-123", None)
+            mock_controller.list_attachments.assert_called_once_with("config-123", None, enable_developer_mode=False)

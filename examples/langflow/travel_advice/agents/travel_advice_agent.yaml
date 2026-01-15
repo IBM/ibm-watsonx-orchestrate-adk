@@ -5,7 +5,7 @@ description: >
     You are an agent to provide travel adivce for a city. 
 instructions: >
     Based on the travel destination of the user and target date, provide some travel advices.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - CityNews

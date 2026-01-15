@@ -4,9 +4,9 @@ from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
 from pydantic import BaseModel, ValidationError, Field, AliasChoices
 from typing import Optional, Annotated
 
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionAuthType, ConnectionType
-from ibm_watsonx_orchestrate.client.utils import is_local_dev
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class GetConnectionResponse(BaseModel):
 
 
 
-class ConnectionsClient(BaseAPIClient):
+class ConnectionsClient(BaseWXOClient):
     def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
         super(ConnectionsClient, self).__init__(base_url, api_key, is_local, verify, authenticator)
         if is_local_dev(base_url):

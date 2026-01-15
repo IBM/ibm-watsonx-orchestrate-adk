@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import List
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-from .types import BasePhoneChannel, GenesysAudioConnectorChannel
+from .types import BasePhoneChannel, GenesysAudioConnectorChannel, SIPTrunkChannel
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -13,8 +13,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 # Mapping of phone channel type strings to their implementation classes
 PHONE_CHANNEL_CLASSES = {
     'genesys_audio_connector': GenesysAudioConnectorChannel,
-    # TODO: will add other phone channel types as they are implemented
-    # 'sip'
+    'sip_trunk': SIPTrunkChannel,
 }
 
 class PhoneChannelLoader:

@@ -1,10 +1,10 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from typing_extensions import List
 import os
 import json
 
-class ToolKitClient(BaseAPIClient):
+class ToolKitClient(BaseWXOClient):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
