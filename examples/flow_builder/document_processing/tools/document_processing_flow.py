@@ -25,7 +25,7 @@ def build_docclassifier_node(aflow: Flow = None) -> Flow:
         name="document_classifier_node",
         display_name="document_classifier_node",
         description="Classifies documents into a custom class.",
-        llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        llm="groq/openai/gpt-oss-120b",
         classes=CustomClasses(),
     )
     return doc_classifier_node
@@ -35,7 +35,7 @@ def build_docext_node(aflow: Flow= None) -> Flow:
         name="doc_ext_node",
         display_name="doc_ext_node",
         description="Extracts custom field values (key-value-pairs) from a document using different extraction schemas.",
-        llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        llm="groq/openai/gpt-oss-120b",
         fields=Fields(),
         enable_hw=True
     )
@@ -48,9 +48,10 @@ def build_docproc_node_for_invoice(aflow: Flow= None) -> Flow:
         description="Extracts the raw text and semantic structure from a document.",
         task="text_extraction",
         document_structure=True,
-        input_map="kvp_schemas=flow.get_kvp_schemas_for_invoice.output",
         enable_hw=True
     )
+    # Map the kvp_schemas from the previous tool node output
+    doc_proc_node.map_input(input_variable="kvp_schemas", expression="flow.get_kvp_schemas_for_invoice_tool_node.output")
     return doc_proc_node
 
 def build_docproc_node_for_utility_bill(aflow: Flow= None) -> Flow:
@@ -60,9 +61,10 @@ def build_docproc_node_for_utility_bill(aflow: Flow= None) -> Flow:
         description="Extracts the raw text and semantic structure from a document.",
         task="text_extraction",
         document_structure=True,
-        input_map="kvp_schemas=flow.get_kvp_schemas_for_utility_bill.output",
         enable_hw=True
     )
+    # Map the kvp_schemas from the previous tool node output
+    doc_proc_node.map_input(input_variable="kvp_schemas", expression="flow.get_kvp_schemas_for_utility_bill_tool_node.output")
     return doc_proc_node
 
 

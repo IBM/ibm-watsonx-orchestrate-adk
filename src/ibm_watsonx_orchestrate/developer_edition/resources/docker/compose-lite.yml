@@ -193,7 +193,9 @@ services:
       LLM_DEFAULT_FLOW_MODEL: ${DEFAULT_FLOW_LLM_MODEL}
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
-    command: 'npm start'
+      ENABLE_MORE_MODELS_ACCESSIBLE: "true"
+      ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+    command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
     healthcheck:

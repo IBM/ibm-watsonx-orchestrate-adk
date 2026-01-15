@@ -6,7 +6,7 @@ description: >
 instructions: >
     INPUT: city. Valid cities are San Jose, Fremont, New York, Los Angeles. If user input different cities from the list, prompt user to pick a city again
     OUTPUT: results from aggregate_agent
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - collaborator_agents_flow

@@ -1,10 +1,12 @@
 import logging
 import importlib
 import inspect
+import os
 import sys
 import io
 import re
 import tempfile
+from types import FunctionType
 from pydantic import BaseModel
 import requests
 import zipfile
@@ -25,7 +27,9 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, Tool
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.cli.commands.langflow.langflow_controller import LangflowController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
+from ibm_watsonx_orchestrate.cli.commands.tools.auto_discover.auto_discover import auto_discover_python_tools
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController 
@@ -56,7 +60,7 @@ __supported_characters_pattern = re.compile("^(\\w|_)+$")
 
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
-    "lfx==0.1.13"
+    "lfx==0.2.1"
 ]
 
 DEFAULT_LANGFLOW_RUNNER_MODULES = [
@@ -397,7 +401,10 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     try:
+        
+        # standard file import
         file_path = Path(file).absolute()
+
         file_path_str = str(file_path)
 
         if file_path.is_dir():
@@ -434,6 +441,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             sys.path.append(str(package_folder))
 
         module = importlib.import_module(package, package=package_folder)
+
         if resolved_package_root:
             del sys.path[-1]
         del sys.path[-1]
@@ -460,9 +468,12 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             raise typer.BadParameter(f"Failed to read file {resolved_requirements_file} {e}")
 
     tools = []
+
+    
     for _, obj in inspect.getmembers(module):
         if not isinstance(obj, BaseTool):
             continue
+            
 
         # Plugin tool - if it was given an app-id
         if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
@@ -493,7 +504,11 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
         validate_python_connections(obj)
         tools.append(obj)
 
+    
+
     return tools
+    
+
 
 async def import_flow_tool(file: str) -> None:
     
@@ -641,7 +656,6 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
     
     tool = create_langflow_tool(tool_definition=imported_tool, connections=connections)
 
-
     return tool    
 
 
@@ -707,12 +721,33 @@ class ToolsController:
         self.client = None
         self.tool_kind = tool_kind
         self.file = file
+        self.cleanup_file = False
         self.requirements_file = requirements_file
 
     def get_client(self) -> ToolClient:
         if not self.client:
             self.client = instantiate_client(ToolClient)
         return self.client
+    
+    def resolve_file(self, name: str = None):        
+        if not self.file and self.tool_kind == ToolKind.langflow:
+            langflow_tool_json = LangflowController().export_tool_from_langflow(name)
+
+            with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8", suffix=".json", delete=False) as fp:
+                json.dump(langflow_tool_json, fp, indent=4)
+                fp.flush()
+                tempfile_path = os.path.abspath(fp.name)
+                self.set_file(new_file=tempfile_path, cleanup=True)
+
+        return self.file
+
+    def set_file(self, new_file: str, cleanup: bool = False):
+        self.file = new_file
+        self.cleanup_file = cleanup
+
+    def remove_temp_file(self):
+        if self.cleanup_file:
+            os.unlink(self.file)
 
     @staticmethod
     def import_tool(kind: ToolKind, **args) -> Iterable[BaseTool]:
@@ -746,7 +781,9 @@ class ToolsController:
                 tools = []
                 logger.warning("Skill Import not implemented yet")
             case "langflow":
-                tools = run_coroutine_sync(import_langflow_tool(file=args["file"],app_id=args.get('app_id',None)))
+                app_id = args.get('app_id', None)
+                file_path = args.get('file')
+                tools = run_coroutine_sync(import_langflow_tool(file=file_path,app_id=app_id))
             case _:
                 raise BadRequest("Invalid kind selected")
 
@@ -1091,7 +1128,6 @@ class ToolsController:
     
         return zip_in_memory.getvalue()
 
-
     def download_tool(self, name: str) -> DownloadResult | None:
         tool_client = self.get_client()
         draft_tools = tool_client.get_draft_by_name(tool_name=name)
@@ -1217,3 +1253,26 @@ class ToolsController:
                     zip_file_out=zip_file_out,
                     connections_output_path=connections_output_path
                 )
+
+    def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
+        
+        if Path(input_file).suffix.lower() != ".py":
+            raise typer.BadParameter(f"Auto-discover is only valid for python tools")
+        
+        if output_file and Path(output_file).suffix.lower() != ".py":
+            raise typer.BadParameter(f"Output file must be a valid python file name")
+
+        if not env_file:
+            raise typer.BadParameter(f"Python tool auto discover requires an env file to be passed with the '--env-file' flag")
+        
+        if function_names is not None and not isinstance(function_names,list):
+            function_names = [function_names]
+        
+        output_path = auto_discover_python_tools(
+            file=input_file, 
+            output_file=output_file,
+            env_file=env_file,
+            llm=llm,
+            function_names=function_names
+        )
+        return Path(output_path).absolute()

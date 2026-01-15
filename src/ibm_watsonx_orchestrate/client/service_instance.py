@@ -5,10 +5,13 @@
 
 from __future__ import annotations
 
-from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator 
-from ibm_cloud_sdk_core.authenticators import MCSPV2Authenticator
-from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-from ibm_cloud_sdk_core.authenticators import CloudPakForDataAuthenticator
+from ibm_cloud_sdk_core.authenticators import (
+    Authenticator,
+    MCSPAuthenticator,
+    MCSPV2Authenticator,
+    IAMAuthenticator,
+    CloudPakForDataAuthenticator
+) 
 
 from ibm_watsonx_orchestrate.client.utils import check_token_validity, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.client.base_service_instance import BaseServiceInstance
@@ -41,14 +44,55 @@ class ServiceInstance(BaseServiceInstance):
 
         return self._client.token
     
-    def _create_token(self) -> str:
-        inferred_auth_type = None
+    def _infer_auth_type(self) -> EnvironmentAuthType:
         if is_ibm_cloud_platform(self._credentials.url):
-            inferred_auth_type = EnvironmentAuthType.IBM_CLOUD_IAM
+            return EnvironmentAuthType.IBM_CLOUD_IAM
         elif is_cpd_env(self._credentials.url):
-            inferred_auth_type = EnvironmentAuthType.CPD
+            return EnvironmentAuthType.CPD
         else:
-            inferred_auth_type = EnvironmentAuthType.MCSP
+            return EnvironmentAuthType.MCSP
+    
+    def _get_authenticator(self, auth_type: str | EnvironmentAuthType) -> Authenticator:
+        match auth_type:
+            case EnvironmentAuthType.MCSP | EnvironmentAuthType.MCSP_V1:
+                url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://iam.platform.saas.ibm.com"
+                return MCSPAuthenticator(apikey=self._credentials.api_key, url=url)
+            case EnvironmentAuthType.MCSP_V2:
+                url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://account-iam.platform.saas.ibm.com"
+                wxo_url = self._credentials.url
+                instance_id = wxo_url.split("instances/")[1]
+                return MCSPV2Authenticator(
+                    apikey=self._credentials.api_key, 
+                    url=url, 
+                    scope_collection_type="services", 
+                    scope_id=instance_id
+                )
+            case EnvironmentAuthType.IBM_CLOUD_IAM:
+                return IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
+            case EnvironmentAuthType.CPD:
+                url = ""
+                if self._credentials.iam_url is not None: 
+                    url = self._credentials.iam_url
+                else: 
+                    base_url = self._credentials.url.split("/orchestrate")[0]
+                    url = f"{base_url}/icp4d-api"
+
+                password = self._credentials.password if self._credentials.password is not None else None
+                api_key = self._credentials.api_key if self._credentials.api_key is not None else None
+                cpd_password=password if password else None
+                cpd_apikey=api_key if api_key else None
+                return CloudPakForDataAuthenticator(
+                    username=self._credentials.username, 
+                    password=cpd_password, 
+                    apikey=cpd_apikey, 
+                    url=url, 
+                    disable_ssl_verification=True
+                )
+            case _:
+                raise ClientError(f"Unsupported authentication type: {auth_type}")
+    
+    def _create_token(self) -> str:
+        inferred_auth_type = self._infer_auth_type()
         
         if self._credentials.auth_type:
             if self._credentials.auth_type != inferred_auth_type:
@@ -70,44 +114,7 @@ class ServiceInstance(BaseServiceInstance):
     def _authenticate(self, auth_type: str) -> str:
         """Handles authentication based on the auth_type."""
         try:
-            match auth_type:
-                case EnvironmentAuthType.MCSP | EnvironmentAuthType.MCSP_V1:
-                    url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://iam.platform.saas.ibm.com"
-                    authenticator = MCSPAuthenticator(apikey=self._credentials.api_key, url=url)
-                case EnvironmentAuthType.MCSP_V2:
-                    url = self._credentials.iam_url if self._credentials.iam_url is not None else "https://account-iam.platform.saas.ibm.com"
-                    wxo_url = self._credentials.url
-                    instance_id = wxo_url.split("instances/")[1]
-                    authenticator = MCSPV2Authenticator(
-                        apikey=self._credentials.api_key, 
-                        url=url, 
-                        scope_collection_type="services", 
-                        scope_id=instance_id
-                    )
-                case EnvironmentAuthType.IBM_CLOUD_IAM:
-                    authenticator = IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
-                case EnvironmentAuthType.CPD:
-                    url = ""
-                    if self._credentials.iam_url is not None: 
-                        url = self._credentials.iam_url
-                    else: 
-                        base_url = self._credentials.url.split("/orchestrate")[0]
-                        url = f"{base_url}/icp4d-api"
-
-                    password = self._credentials.password if self._credentials.password is not None else None
-                    api_key = self._credentials.api_key if self._credentials.api_key is not None else None
-                    cpd_password=password if password else None
-                    cpd_apikey=api_key if api_key else None
-                    authenticator = CloudPakForDataAuthenticator(
-                        username=self._credentials.username, 
-                        password=cpd_password, 
-                        apikey=cpd_apikey, 
-                        url=url, 
-                        disable_ssl_verification=True
-                    )
-                case _:
-                    raise ClientError(f"Unsupported authentication type: {auth_type}")
-
+            authenticator = self._get_authenticator(auth_type)
             return authenticator.token_manager.get_token()
 
         except Exception as e:

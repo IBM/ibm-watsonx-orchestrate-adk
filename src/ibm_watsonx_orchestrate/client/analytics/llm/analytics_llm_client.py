@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class AnalyticsLLMConfig(BaseModel):
     mask_pii: bool = False
     config_json: dict
 
-class AnalyticsLLMClient(BaseAPIClient):
+class AnalyticsLLMClient(BaseWXOClient):
     """
     Client to handle CRUD operations for Analytics LLM Endpoint
     """

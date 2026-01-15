@@ -124,7 +124,7 @@ def build_docext_flow(aflow: Flow) -> Flow:
         name="structured_document_extractor",
         display_name="Extract fields from an invoice",
         description="Extracts fields from an input invoice file",
-        llm="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        llm="groq/openai/gpt-oss-120b",
         fields=Fields(),
         enable_hw=True,
         field_extraction_method="layout",

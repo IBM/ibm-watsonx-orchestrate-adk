@@ -1,7 +1,7 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
 
-class ThreadsClient(BaseAPIClient):
+class ThreadsClient(BaseWXOClient):
     """
     Client to handle read operations for Threads (chat history- trajectories) endpoints
     """

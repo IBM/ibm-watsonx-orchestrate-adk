@@ -228,7 +228,6 @@ def generate(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()

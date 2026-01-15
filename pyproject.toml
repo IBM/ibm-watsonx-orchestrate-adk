@@ -23,8 +23,7 @@ dependencies = [
     "httpx>=0.28.1,<1.0.0",
     "ibm-cloud-sdk-core>=3.24.2",
     "jsonref==1.1.0",
-    "langchain-core<=0.3.63",
-    "langsmith<=0.3.45",
+    "langchain-core~=1.2.4",
     "packaging>=24.2",
     "pydantic>=2.10.3,<3.0.0",
     "pyjwt>=2.10.1,<3.0.0",
@@ -50,7 +49,7 @@ dev = [
     "pylint~=2.16.4",
 ]
 agentops = [
-    "ibm_watsonx_orchestrate_evaluation_framework==1.2.0",
+    "ibm_watsonx_orchestrate_evaluation_framework>=1.2.1",
 ]
 [tool.pytest.ini_options]
 pythonpath = "src"

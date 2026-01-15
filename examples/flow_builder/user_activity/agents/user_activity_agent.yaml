@@ -5,7 +5,7 @@ description: >
     You are an agent to gather input from the user. 
 instructions: >
     Invoke user_flow_example tool and output the result
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - user_flow_example

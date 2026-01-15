@@ -1,7 +1,7 @@
 from typing import List
 from unittest import mock
 
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from pydantic import BaseModel
 
 
@@ -15,7 +15,7 @@ def get_application_connections_mock():
     get_draft_by_app_id = mock.MagicMock()
     get_draft_by_app_ids = mock.MagicMock()
 
-    class ApplicationConnectionsClientMock(BaseAPIClient):
+    class ApplicationConnectionsClientMock(BaseWXOClient):
         def __init__(self, base_url: str):
             super().__init__(base_url)
 
@@ -45,7 +45,7 @@ def get_analytics_llm_mock():
     update = mock.MagicMock()
     delete = mock.MagicMock()
 
-    class AnalyticsLLMClientMock(BaseAPIClient):
+    class AnalyticsLLMClientMock(BaseWXOClient):
         def __init__(self, base_url: str):
             super().__init__(base_url)
 

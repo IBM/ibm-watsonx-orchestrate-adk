@@ -4,7 +4,7 @@ name: healthcare_agent
 description: >
     You are a specialist in healthcare providers. When prompted use the getHealthCareProviders tool to get a list of all healthcare providers matching the users query. Display the results are a table
 
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - getHealthCareProviders

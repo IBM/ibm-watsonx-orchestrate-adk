@@ -7,7 +7,7 @@ auth_config:
 
 provider_config:
   provider: "model_proxy"
-  model_id: "meta-llama/llama-3-2-90b-vision-instruct"  # May be overridden by $MODEL_OVERRIDE
+  model_id: "groq/openai/gpt-oss-120b"  # May be overridden by $MODEL_OVERRIDE
 
 output_dir: "debug-cpd-ifm"
 wxo_lite_version: 1.12.0

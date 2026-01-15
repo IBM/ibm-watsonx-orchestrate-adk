@@ -95,6 +95,51 @@ class WSLLifecycleManager(VMLifecycleManager):
         if state == 'Running':
             return True
         return False
+    
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        memory_is_sufficient = _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb)
+
+        if not memory_is_sufficient:
+            # Check if VM exists before trying to edit it
+            state = _get_distro_state()
+            if state is not None:
+                # VM exists, we can edit it
+                logger.info(f"Restarting VM to apply new memory allocation ({min_memory_gb}GB)...")
+                self.edit_server(memory=min_memory_gb)
+            else: 
+                logger.info(f"VM will be created with {min_memory_gb}GB memory on first start.")
+
+class WSLConfigLinesManager:
+    """Manager for manipulating WSL configuration lines without file I/O."""
+
+    def __init__(self, config_lines: list[str]):
+        """Initialize with existing config lines.
+        
+        Args:
+            config_lines: List of configuration lines from .wslconfig file
+        """
+        self.config_lines = config_lines.copy()  # Make a copy to avoid mutating original
+
+    def set_or_replace(self, key: str, value: str):
+        """Set or replace a configuration key, value pair.
+        
+        Args:
+            key: Configuration key (e.g., "memory", "processors")
+            value: Configuration value (e.g., "16GB", "8")
+        """
+        for i, line in enumerate(self.config_lines):
+            if line.strip().startswith(f"{key}="):
+                self.config_lines[i] = f"{key}={value}"
+                return
+        self.config_lines.append(f"{key}={value}")
+
+    def get_config_lines(self) -> list[str]:
+        """Get the modified configuration lines.
+        
+        Returns:
+            List of configuration lines
+        """
+        return self.config_lines
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
     if isinstance(command, str):
@@ -313,19 +358,14 @@ def _ensure_wsl_resources():
     if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
         config_lines.insert(0, "[wsl2]")
     
-    # Helper to set or replace a key
-    def set_or_replace(key, value):
-        for i, line in enumerate(config_lines):
-            if line.strip().startswith(f"{key}="):
-                config_lines[i] = f"{key}={value}"
-                return
-        config_lines.append(f"{key}={value}")
+    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
 
-    set_or_replace("processors", f"{DEFAULT_CPUS}")
-    set_or_replace("memory", f"{DEFAULT_MEMORY}GB")
-    set_or_replace("idleTimeout", "0")
+    config_manager.set_or_replace("processors", f"{DEFAULT_CPUS}")
+    config_manager.set_or_replace("memory", f"{DEFAULT_MEMORY}GB")
+    config_manager.set_or_replace("idleTimeout", "0")
 
-    wslconfig_path.write_text("\n".join(config_lines), encoding="utf-8")
+
+    wslconfig_path.write_text("\n".join(config_manager.get_config_lines()), encoding="utf-8")
 
 def _configure_wsl_distro():
     """
@@ -581,6 +621,22 @@ def _ensure_wsl_distro_deleted() -> bool:
     except Exception as e:
         logger.error(f"Unexpected error deleting WSL distro {VM_NAME}: {e}")
         return False
+    
+def _ensure_docker_started():
+    subprocess.run(
+        [
+            "wsl", "-d", VM_NAME, "-u", "root", "--", "sh", "-c",
+            r"""
+            # Start Docker daemon
+            if ! pgrep -x dockerd >/dev/null 2>&1; then
+                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+                sleep 15
+            fi
+            """
+        ],
+        check=True,
+        capture_output=True
+    )
 
 def _get_distro_state():
     """Return the current state ('Running', 'Stopped', etc.) of the WSL distro, or None if not found."""
@@ -669,16 +725,25 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
         was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
 
         wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
+        
+        # Read existing config
+        config_lines = []
+        if wslconfig_path.exists():
+            config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
 
-        # Write clean WSL2 section
-        config_lines = ["[wsl2]"]
+        # Ensure [wsl2] section exists
+        if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
+            config_lines.insert(0, "[wsl2]")
+        
+        config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
+        
         if cpus:
-            config_lines.append(f"processors={cpus}")
+            config_manager.set_or_replace("processors", f"{cpus}")
         if memory:
             memory_value = f"{memory}GB" if str(memory).isdigit() else str(memory)
-            config_lines.append(f"memory={memory_value}")
+            config_manager.set_or_replace("memory", f"{memory_value}")
 
-        wslconfig_path.write_text("\n".join(config_lines) + "\n", encoding="utf-8")
+        wslconfig_path.write_text("\n".join(config_manager.get_config_lines()) + "\n", encoding="utf-8")
 
         logger.info("Restarting WSL for configuration changes to take effect...")
         subprocess.run(["wsl", "--terminate", distro_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -963,5 +1028,64 @@ def _ssh_into_wsl():
     except Exception as e:
         logger.error(f"ERROR: Unexpected error while connecting to WSL: {e}")
         return False
+    
+def _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb: int=24) -> bool:
+    """Check if the WSL distro has enough memory for document processing.  """
+    
+    wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
+    
+    # Read existing config
+    config_lines = []
+    current_memory_gb = None
+    
+    if wslconfig_path.exists():
+        config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
+        
+        # Find current memory setting
+        for line in config_lines:
+            if line.strip().startswith("memory="):
+                memory_value = line.split("=", 1)[1].strip()
+                
+                # Parse memory value (supports "16GB", "16384MB", or just "16")
+                if memory_value.upper().endswith("GB"):
+                    current_memory_gb = int(re.sub(r'[^\d]', '', memory_value))
+                elif memory_value.upper().endswith("MB"):
+                    current_memory_gb = int(re.sub(r'[^\d]', '', memory_value)) // 1024
+                elif memory_value.isdigit():
+                    current_memory_gb = int(memory_value)
+                break
+    
+    # If no memory setting found, assume default (16GB)
+    if current_memory_gb is None:
+        current_memory_gb = DEFAULT_MEMORY
+    
+    # Check if memory is sufficient
+    if current_memory_gb >= min_memory_gb:
+        return True
+    else:
+        # Memory is insufficient - warn and increase
+        logger.warning(
+            f"\n{'='*70}\n"
+            f"MEMORY REQUIREMENT WARNING\n"
+            f"{'='*70}\n"
+            f"Document Processing requires at least {min_memory_gb}GB of memory.\n"
+            f"Current WSL memory allocation: {current_memory_gb}GB\n"
+            f"\n"
+            f"Automatically increasing memory to {min_memory_gb}GB...\n"
+            f"{'='*70}\n"
+        )
+    # Ensure [wsl2] section exists
+    if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
+        config_lines.insert(0, "[wsl2]")
+    
+    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
+    config_manager.set_or_replace("memory", f"{min_memory_gb}GB")
+    
+    # Write back all config lines (preserves everything else)
+    wslconfig_path.write_text("\n".join(config_manager.get_config_lines()), encoding="utf-8")
+    
+    logger.info(f"Updated {wslconfig_path} with memory={min_memory_gb}GB")
+
+    return False
     
 

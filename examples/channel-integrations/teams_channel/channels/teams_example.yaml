@@ -1,0 +1,20 @@
+spec_version: v1
+kind: channel
+
+# Required: Channel type identifier
+channel: teams
+
+# Required: Name for this channel instance
+name: production_teams_channel
+
+# Optional: Description of this channel
+description: Main customer support Microsoft Teams channel for production environment
+
+# Required: Microsoft App Client secret (from Certificates & secrets)
+app_password: ${TEAMS_APP_PASSWORD}
+
+# Required: Microsoft Application (client) ID
+app_id: ${TEAMS_APP_ID}
+
+# Optional: Microsoft Teams tenant ID (also called Directory ID)
+teams_tenant_id: ${TEAMS_TENANT_ID}

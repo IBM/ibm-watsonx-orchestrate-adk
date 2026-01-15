@@ -25,11 +25,14 @@ def create_phone_config(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Create a new phone config using CLI arguments."""
-    controller._check_local_dev_block(enable_developer_mode)
-
-    # Parse field arguments, nesting api_key and client_secret under 'security'
+    # Parse field arguments
+    # For Genesys Audio Connector: nest api_key and client_secret under 'security'
+    # For SIP Trunk: security and other complex fields are passed as JSON
     try:
-        config_fields = parse_field(field, nested_fields=['api_key', 'client_secret'])
+        if channel_type == PhoneChannelType.GENESYS_AUDIO_CONNECTOR:
+            config_fields = parse_field(field, nested_fields=['api_key', 'client_secret'])
+        else:
+            config_fields = parse_field(field)
     except ValueError as e:
         typer.echo(f"Error: {e}")
         raise typer.Exit(1)
@@ -43,7 +46,7 @@ def create_phone_config(
     )
 
     if not output_file:
-        controller.create_or_update_phone_config(channel)
+        controller.create_or_update_phone_config(channel, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="list-configs", help="List all phone configs")
@@ -54,8 +57,7 @@ def list_phone_configs(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """List all phone configs."""
-    controller._check_local_dev_block(enable_developer_mode)
-    controller.list_phone_configs(channel_type, verbose, format)
+    controller.list_phone_configs(channel_type, verbose, format, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="get", help="Get details of a specific phone config by ID or name")
@@ -66,9 +68,8 @@ def get_phone_config(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Get a specific phone config by ID or name."""
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_id = controller.resolve_config_id(config_id, config_name)
-    controller.get_phone_config(resolved_id, verbose)
+    controller.get_phone_config(resolved_id, verbose, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="delete", help="Delete a phone config by ID or name")
@@ -79,7 +80,6 @@ def delete_phone_config(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Delete a phone config by ID or name."""
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_id = controller.resolve_config_id(config_id, config_name)
 
     identifier = config_name if config_name else resolved_id
@@ -89,7 +89,7 @@ def delete_phone_config(
             typer.echo("Deletion cancelled")
             return
 
-    controller.delete_phone_config(resolved_id)
+    controller.delete_phone_config(resolved_id, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="import", help="Import a phone config from a file")
@@ -98,9 +98,8 @@ def import_phone_config(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Import phone config from a configuration file (creates or updates by name)."""
-    controller._check_local_dev_block(enable_developer_mode)
     channel = controller.import_phone_config(file)
-    controller.create_or_update_phone_config(channel)
+    controller.create_or_update_phone_config(channel, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="export", help="Export a phone config to a YAML file by ID or name")
@@ -111,9 +110,8 @@ def export_phone_config(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """Export a phone config to a YAML file."""
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_id = controller.resolve_config_id(config_id, config_name)
-    controller.export_phone_config(resolved_id, output)
+    controller.export_phone_config(resolved_id, output, enable_developer_mode=enable_developer_mode)
 
 
 @phone_app.command(name="attach", help="Attach an agent/environment to a phone config")
@@ -131,17 +129,21 @@ def attach_agent(
     Examples:
         orchestrate phone attach --name "Phone Support" --agent-name my_agent --env draft
     """
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_config_id = controller.resolve_config_id(config_id, config_name)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
-    
+
+    # Type assertions to ensure non-None values
+    assert agent_id is not None, f"Agent '{agent_name}' not found"
+    assert environment_id is not None, f"Environment '{env}' not found for agent '{agent_name}'"
+
     controller.attach_agent_to_config(
         resolved_config_id,
         agent_id,
         environment_id,
         agent_name,
-        env
+        env,
+        enable_developer_mode=enable_developer_mode
     )
 
 
@@ -159,23 +161,27 @@ def detach_agent(
     Examples:
         orchestrate phone detach --name "Phone Support" --agent-name my_agent --env draft
     """
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_config_id = controller.resolve_config_id(config_id, config_name)
     agent_id = controller.get_agent_id_by_name(agent_name)
     environment_id = controller.get_environment_id(agent_name, env)
-    
+
+    # Type assertions to ensure non-None values
+    assert agent_id is not None, f"Agent '{agent_name}' not found"
+    assert environment_id is not None, f"Environment '{env}' not found for agent '{agent_name}'"
+
     if not confirm:
         response = typer.confirm(f"Are you sure you want to detach agent '{agent_name}' / environment '{env}' from this phone config?")
         if not response:
             typer.echo("Detach cancelled")
             return
-    
+
     controller.detach_agent_from_config(
         resolved_config_id,
         agent_id,
         environment_id,
         agent_name,
-        env
+        env,
+        enable_developer_mode=enable_developer_mode
     )
 
 
@@ -187,6 +193,70 @@ def list_attachments(
     enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
 ):
     """List all agent/environment pairs attached to a specific phone config."""
-    controller._check_local_dev_block(enable_developer_mode)
     resolved_config_id = controller.resolve_config_id(config_id, config_name)
-    controller.list_attachments(resolved_config_id, format)
+    controller.list_attachments(resolved_config_id, format, enable_developer_mode=enable_developer_mode)
+
+
+@phone_app.command(name="add-number", help="Add a phone number to a phone config")
+def add_phone_number(
+    config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Phone config ID (either --id or --name required)"),
+    config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Phone config name (either --id or --name required)"),
+    number: str = typer.Option(..., "--number", help="Phone number (E.164 format recommended, e.g., +15551234567)"),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="Description for the phone number"),
+    agent_name: Optional[str] = typer.Option(None, "--agent-name", help="Agent name to associate with this phone number"),
+    env: Optional[EnvironmentType] = typer.Option(None, "--env", "-e", help="Environment (draft or live) to associate with this phone number"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
+):
+    """Add a phone number to a phone config (SIP channels only)."""
+    resolved_config_id = controller.resolve_config_id(config_id, config_name)
+    agent_id, environment_id = controller.resolve_agent_and_environment(agent_name, env)
+    controller.add_phone_number(resolved_config_id, number, description, agent_id, environment_id, enable_developer_mode=enable_developer_mode)
+
+
+@phone_app.command(name="list-numbers", help="List all phone numbers for a phone config")
+def list_phone_numbers(
+    config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Phone config ID (either --id or --name required)"),
+    config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Phone config name (either --id or --name required)"),
+    format: Optional[ListFormats] = typer.Option(None, "--format", "-f", help="Output format (table, json)"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
+):
+    """List all phone numbers associated with a phone config (SIP channels only)."""
+    resolved_config_id = controller.resolve_config_id(config_id, config_name)
+    controller.list_phone_numbers(resolved_config_id, format, enable_developer_mode=enable_developer_mode)
+
+
+@phone_app.command(name="update-number", help="Update a phone number's details")
+def update_phone_number(
+    config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Phone config ID (either --id or --name required)"),
+    config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Phone config name (either --id or --name required)"),
+    number: str = typer.Option(..., "--number", help="Phone number to update"),
+    new_number: Optional[str] = typer.Option(None, "--new-number", help="New phone number"),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description"),
+    agent_name: Optional[str] = typer.Option(None, "--agent-name", help="Agent name to associate with this phone number"),
+    env: Optional[EnvironmentType] = typer.Option(None, "--env", "-e", help="Environment (draft or live) to associate with this phone number"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
+):
+    """Update a phone number's details (SIP channels only)."""
+    resolved_config_id = controller.resolve_config_id(config_id, config_name)
+    agent_id, environment_id = controller.resolve_agent_and_environment(agent_name, env)
+    controller.update_phone_number(resolved_config_id, number, new_number, description, agent_id, environment_id, enable_developer_mode=enable_developer_mode)
+
+
+@phone_app.command(name="delete-number", help="Delete a phone number from a phone config")
+def delete_phone_number(
+    config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Phone config ID (either --id or --name required)"),
+    config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Phone config name (either --id or --name required)"),
+    number: str = typer.Option(..., "--number", help="Phone number to delete"),
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    enable_developer_mode: bool = typer.Option(False, "--enable-developer-mode", hidden=True)
+):
+    """Remove a phone number from a phone config (SIP channels only)."""
+    resolved_config_id = controller.resolve_config_id(config_id, config_name)
+
+    if not confirm:
+        response = typer.confirm(f"Are you sure you want to delete phone number '{number}'?")
+        if not response:
+            typer.echo("Deletion cancelled")
+            return
+
+    controller.delete_phone_number(resolved_config_id, number, enable_developer_mode=enable_developer_mode)

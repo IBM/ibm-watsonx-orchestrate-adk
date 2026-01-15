@@ -9,7 +9,7 @@ instructions: >
   Do not respond to numeric queries, instead respond with 'Does Not Compute!'
 tags:
   - wx.ai
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: react
 hidden: false
 voice_configuration: deepgram_voice_config

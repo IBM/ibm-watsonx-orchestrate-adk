@@ -1,0 +1,837 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "triage_issue_flow",
+    "display_name": "triage_issue_flow",
+    "description": "Flow to triage customer issue",
+    "input_schema": {
+      "$ref": "#/schemas/triage_issue_flow_input"
+    },
+    "output_schema": {
+      "$ref": "#/schemas/FlowOutput"
+    },
+    "private_schema": {
+      "$ref": "#/schemas/SwarmState"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "setup_swarm_state": {
+      "spec": {
+        "kind": "script",
+        "name": "setup_swarm_state",
+        "display_name": "setup_swarm_state",
+        "fn": "\nflow.private.original_issue = flow.input.original_issue\nflow.private.steps_taken = []\nflow.private.final_solution = None\nflow.private.next_agent = \"triage_agent\"\nflow.private.next_agent_instruction = \"Analyze the issue, classify it to either billing, technical or unknown (fallback) and route to the next agent.\"\nflow.private.iteration = 0\nflow.private.current_status = \"Open\"\nflow.private.question = \"\"\nflow.private.agents_called = []\nflow.private.available_agents = [\n    {\n        \"agent\": \"triage_agent\",\n        \"description\": \"An agent that will route issue to the correct agents\"\n    },\n    {\n        \"agent\": \"billing_agent\",\n        \"description\": \"An agent that will solve billing issues\"\n    },\n    {\n        \"agent\": \"technical_agent\",\n        \"description\": \"An agent that will solve technical issues\"\n    },\n    {\n        \"agent\": \"fallback_agent\",\n        \"description\": \"An agent that handle any issues that are not handled by other agents\"\n    }\n]\n        "
+      }
+    },
+    "triage_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "triage_agent",
+        "display_name": "triage_agent",
+        "input_schema": {
+          "$ref": "#/schemas/triage_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/AgentOutput"
+        },
+        "message": "\nFollow <instruction> to process the <issue>{original_issue}</issue>:\n\n1. You are the 'triage_agent'.\n2. DO NOT generate conversational responses, greetings, or questions.\n3. Analyze the issue and classify it as:\n    - billing\n    - technical\n    - unknown (fallback)\nThen route to the appropriate next agent.\n4. Populate the following fields in the output:\n    - steps_taken: list describing routing decisions (e.g., [\"Analyzed user intent.\", \"Classified as Technical issue.\"])\n    - next_agent: chosen agent from <available_agents>{available_agents}</available_agents>\n    - next_agent_instruction: 1\u20132 sentences explaining why the next agent is receiving the context and what they should do\n    (e.g., \"Customer reports login failure after refund. Investigate authentication system.\").\n    - current_status: concise factual status message (e.g., \"Routing to Technical Agent.\")\n    - final_solution: always set to \"\" (triage_agent does not solve issues).\n5. If this agent is repeatedly called for the same issue (see <issue> and <agents_called>{flow.private.agents_called}</agents_called>):\n    - Set next_agent to 'fallback_agent'.\n6. Ensure the output strictly conforms to the JSON schema in <output_schema>{self.spec.output_schema}</output_schema>.\n7. Use the provided <instruction>{agent_instruction}</instruction> for additional context.\n8. Review <steps_taken>{flow.private.steps_taken}</steps_taken> for additional context.\n9. Do not include any text outside the JSON object.\n\nConstraints:\n- Do not attempt to solve the issue or use external APIs.\n- Do not include any text outside the JSON object.\n\nExample Output (Routing to Billing Agent):\n{\n    \"steps_taken\": [\"Analyzed user intent.\", \"Classified as Billing issue.\"],\n    \"final_solution\": \"\",\n    \"current_status\": \"Routing to Billing Agent.\",\n    \"next_agent\": \"billing_agent\",\n    \"next_agent_instruction\": \"Customer reports double charge. Investigate transaction ID X and issue refund.\"\n}\n\nExample Output (Routing to Technical Agent):\n{\n    \"steps_taken\": [\"Analyzed user intent.\", \"Classified as Technical issue.\"],\n    \"final_solution\": \"\",\n    \"current_status\": \"Routing to Technical Agent.\",\n    \"next_agent\": \"technical_agent\",\n    \"next_agent_instruction\": \"Customer reports app crash during login. Diagnose and resolve authentication error.\"\n}\n\nExample Output (Routing to Fallback Agent):\n{\n    \"steps_taken\": [\"Analyzed user intent.\", \"Unable to classify query after repeated attempts.\"],\n    \"final_solution\": \"solution not found\",\n    \"current_status\": \"Workflow concluded as unclassifiable.\",\n    \"next_agent\": \"fallback_agent\",\n    \"next_agent_instruction\": \"System cannot proceed. No valid  \"next_agent_instruction\": \"System cannot proceed. No valid classification possible.\"\n}\n            ",
+        "agent": "triage_agent"
+      }
+    },
+    "update_state_from_triage": {
+      "spec": {
+        "kind": "script",
+        "name": "update_state_from_triage",
+        "display_name": "update_state_from_triage",
+        "fn": "\nif flow.triage_agent.output.steps_taken is not None:\n    if isinstance(flow.triage_agent.output.steps_taken, str):\n        flow.private.steps_taken.append(flow.triage_agent.output.steps_taken)\n    if isinstance(flow.triage_agent.output.steps_taken, list):\n        flow.private.steps_taken.extend(flow.triage_agent.output.steps_taken)\nflow.private.final_solution = flow.triage_agent.output.final_solution\nflow.private.current_status = flow.triage_agent.output.current_status\nflow.private.next_agent = flow.triage_agent.output.next_agent\nflow.private.next_agent_instruction = flow.triage_agent.output.next_agent_instruction\nflow.private.iteration += 1\nflow.private.agents_called.append(\"triage_agent\")\nif flow.triage_agent.output.question:\n    flow.private.question = flow.triage_agent.output.question\nelse:\n    flow.private.question = \"\"\n        "
+      }
+    },
+    "billing_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "billing_agent",
+        "display_name": "billing_agent",
+        "input_schema": {
+          "$ref": "#/schemas/billing_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/AgentOutput"
+        },
+        "message": "\nFollow <instruction> to process the <issue>{original_issue}</issue>:\n\n1. You are the 'billing_agent'.\n2. DO NOT generate conversational responses, greetings.\n3. Attempt to resolve the billing issue using provided tools.\n4. Populate the following fields in the output:\n    - steps_taken: list of actions performed (e.g., [\"Checked payment status.\", \"Processed refund.\"])\n    - final_solution:\n        - If the issue is fully resolved: set to a concise, factual summary (e.g., \"Refund of $50 processed for transaction ID X.\")\n        - If unresolved: set final_solution to \"\".\n    - current_status: concise factual status message (e.g., \"Subscription canceled.\" or \"Unable to resolve billing issue.\")\n    - next_agent:\n        - If resolved: set to 'billing_agent' (terminal state).\n        - If unresolved and technical error detected: set to 'technical_agent'.\n        - If unresolved after repeated attempts: set to 'fallback_agent'.\n        - If resolved but new non-billing issue detected: set to 'triage_agent'.\n    - next_agent_instruction: 1\u20132 sentences explaining why the next agent is receiving the context and what they should do\n      (e.g., \"Customer reports login failure after refund. Investigate technical issue.\").\n4.5 Only populate the 'question' field if the customer ID is not provided and cannot be found in the <steps_taken>.  Do not ask for any other question.\n5. If this agent is repeatedly called for the same issue (see <issue> and <agents_called>{flow.private.agents_called}</agents_called>):\n    - Set next_agent to 'fallback_agent'.\n6. Ensure the output strictly conforms to the JSON schema in <output_schema>{self.spec.output_schema}</output_schema>.\n7. Use the provided <instruction>{agent_instruction}</instruction> for additional context.\n8. Review <steps_taken>{flow.private.steps_taken}</steps_taken> for additional context.\n9. Do not include any text outside the JSON object.\n\nConstraints:\n- Do not attempt to solve non-billing issues.\n- Do not include any text outside the JSON object.\n- Always attempt resolution using provided tools before routing.\n\nExample Output (Issue Resolved):\n{\n  \"steps_taken\": [\"Checked payment status.\", \"Processed refund.\"],\n  \"final_solution\": \"Refund of $50 processed for transaction ID X.\",\n  \"current_status\": \"Billing issue resolved.\",\n  \"next_agent\": \"billing_agent\",\n  \"next_agent_instruction\": \"\"\n}\n\nExample Output (Routing to Technical Agent):\n{\n  \"steps_taken\": [\"Attempted refund.\", \"Detected API error preventing transaction.\"],\n  \"final_solution\": \"\",\n  \"current_status\": \"Routing to Technical Agent for troubleshooting.\",\n  \"next_agent\": \"technical_agent\",\n  \"next_agent_instruction\": \"Payment API server unresponsive. Diagnose and restore connectivity.\"\n}\n\nExample Output (Routing to Fallback Agent):\n{\n  \"steps_taken\": [\"Attempted refund multiple times.\", \"Unable to resolve after repeated attempts.\"],\n  \"final_solution\": \"\",\n  \"current_status\": \"Workflow concluded as unresolved billing failure.\",\n  \"next_agent\": \"fallback_agent\",\n  \"next_agent_instruction\": \"System cannot proceed. Billing issue unresolvable.\"\n}\n\nExample Output (when there is a question):\n{\n  \"steps_taken\": [\"Attempted refund multiple times.\", \"Find customer ID.\"],\n  \"final_solution\": \"\",\n  \"current_status\": \"Need to ask for customer ID.\",\n  \"next_agent\": \"billing_agent\",\n  \"next_agent_instruction\": \"System cannot proceed. Need customer ID.\",\n  \"question\": \"What is the customer ID?\"\n}\n",
+        "agent": "billing_agent"
+      }
+    },
+    "update_state_from_billing": {
+      "spec": {
+        "kind": "script",
+        "name": "update_state_from_billing",
+        "display_name": "update_state_from_billing",
+        "fn": "\nif flow.billing_agent.output.steps_taken is not None:\n    if isinstance(flow.billing_agent.output.steps_taken, str):\n        flow.private.steps_taken.append(flow.billing_agent.output.steps_taken)\n    if isinstance(flow.billing_agent.output.steps_taken, list):\n        flow.private.steps_taken.extend(flow.billing_agent.output.steps_taken)\nflow.private.final_solution = flow.billing_agent.output.final_solution\nflow.private.current_status = flow.billing_agent.output.current_status\nflow.private.next_agent = flow.billing_agent.output.next_agent\nflow.private.next_agent_instruction = flow.billing_agent.output.next_agent_instruction\nflow.private.iteration += 1\nflow.private.agents_called.append(\"billing_agent\")\nif flow.billing_agent.output.question:\n    flow.private.question = flow.billing_agent.output.question\nelse:\n    flow.private.question = None\n        "
+      }
+    },
+    "technical_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "technical_agent",
+        "display_name": "technical_agent",
+        "input_schema": {
+          "$ref": "#/schemas/technical_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/AgentOutput"
+        },
+        "message": "\nFollow <instruction> to process the <issue>{original_issue}</issue>:\n\n1. You are the 'technical_agent'.\n2. DO NOT generate conversational responses, greetings, or questions.\n3. Diagnose and attempt to resolve the technical issue using provided tools.\n4. Populate the following fields in the output:\n    - steps_taken: list of diagnostic actions performed (e.g., [\"Ran system diagnostics.\", \"Cleared cache.\"])\n    - final_solution:\n        - If the issue is fully resolved: set to a concise, actionable resolution (e.g., \"Issue fixed. Please clear browser cache and try logging in again.\")\n        - If unresolved: set final_solution to \"\".\n    - current_status: concise factual status message (e.g., \"Technical issue resolved.\" or \"Unable to resolve after multiple attempts.\")\n    - next_agent:\n        - If resolved: set to 'technical_agent' (terminal state).\n        - If unresolved and related to payment/account: set to 'billing_agent'.\n        - If unresolved and technical failure persists: set to 'fallback_agent'.\n        - If partially resolved but next issue is non-technical: set to 'triage_agent'.\n    - next_agent_instruction: 1\u20132 sentences explaining why the next agent is receiving the context and what they should do\n      (e.g., \"Customer account suspended due to billing error. Investigate payment status.\").\n5. If this agent is repeatedly called for the same issue (see <issue> and <agents_called>{flow.private.agents_called}</agents_called>):\n    - Set next_agent to 'fallback_agent'.\n6. Ensure the output strictly conforms to the JSON schema in <output_schema>{self.spec.output_schema}</output_schema>.\n7. Use the provided <instruction>{agent_instruction}</instruction> for additional context.\n8. Review <steps_taken>{flow.private.steps_taken}</steps_taken> for additional context.\n9. Do not include any text outside the JSON object.\n\nConstraints:\n- Do not include any text outside the JSON object.\n- Do not use external APIs beyond provided tools.\n- Do not attempt financial transactions.\n\nExample Output (Issue Resolved):\n{\n  \"steps_taken\": [\"Ran system diagnostics.\", \"Cleared cache.\"],\n  \"final_solution\": \"Issue fixed. Please clear browser cache and try logging in again.\",\n  \"current_status\": \"Technical issue resolved.\",\n  \"next_agent\": \"technical_agent\",\n  \"next_agent_instruction\": \"\"\n}\n\nExample Output (Routing to Billing Agent):\n{\n  \"steps_taken\": [\"Verified login failure.\", \"Detected account suspension due to billing.\"],\n  \"final_solution\": \"\",\n  \"current_status\": \"Routing to Billing Agent for account reactivation.\",\n  \"next_agent\": \"billing_agent\",\n  \"next_agent_instruction\": \"Customer account suspended due to unpaid invoice. Investigate and resolve billing issue.\"\n}\n\nExample Output (Routing to Fallback Agent):\n{\n  \"steps_taken\": [\"Ran diagnostics.\", \"Unable to resolve after multiple attempts.\"],\n  \"final_solution\": \"\",\n  \"current_status\": \"Workflow concluded as unresolved technical failure.\",\n  \"next_agent\": \"fallback_agent\",\n  \"next_agent_instruction\": \"System cannot proceed. Technical issue unresolvable.\"\n}\n",
+        "agent": "technical_agent"
+      }
+    },
+    "update_state_from_technical": {
+      "spec": {
+        "kind": "script",
+        "name": "update_state_from_technical",
+        "display_name": "update_state_from_technical",
+        "fn": "\nif flow.technical_agent.output.steps_taken is not None:\n    if isinstance(flow.technical_agent.output.steps_taken, str):\n        flow.private.steps_taken.append(flow.technical_agent.output.steps_taken)\n    if isinstance(flow.technical_agent.output.steps_taken, list):\n        flow.private.steps_taken.extend(flow.technical_agent.output.steps_taken)\nflow.private.final_solution = flow.technical_agent.output.final_solution\nflow.private.current_status = flow.technical_agent.output.current_status\nflow.private.next_agent = flow.technical_agent.output.next_agent\nflow.private.next_agent_instruction = flow.technical_agent.output.next_agent_instruction\nflow.private.iteration += 1\nflow.private.agents_called.append(\"technical_agent\")\nif flow.technical_agent.output.question:\n    flow.private.question = flow.technical_agent.output.question\nelse:\n    flow.private.question = \"\"\n        "
+      }
+    },
+    "fallback_agent": {
+      "spec": {
+        "kind": "agent",
+        "name": "fallback_agent",
+        "display_name": "fallback_agent",
+        "input_schema": {
+          "$ref": "#/schemas/fallback_agent_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/AgentOutput"
+        },
+        "message": "\nFollow <instruction> to process the <issue>{original_issue}</issue>:\n\n1. You are the 'fallback_agent'.\n2. DO NOT generate conversational responses, greetings, or questions.\n3. Do not analyze or attempt to solve the original issue.\n4. Populate the following fields in the output:\n    - steps_taken: brief statement confirming inability to classify or resolve (e.g., [\"Received unclassifiable query from Triage Agent.\"])\n    - final_solution: literal string \"solution not found\"\n    - current_status: concise factual status message (e.g., \"Workflow concluded as unclassifiable.\")\n    - next_agent: set to 'fallback_agent' (indicates terminal workflow state)\n    - next_agent_instruction: concluding statement (e.g., \"System cannot proceed. No valid classification possible.\")\n5. Ensure the output strictly conforms to the JSON schema in <output_schema>{self.spec.output_schema}</output_schema>.\n6. Use the provided <instruction>{agent_instruction}</instruction> for additional context.\n7. Review <steps_taken>{flow.private.steps_taken}</steps_taken> for additional context.\n8. Do not include any text outside the JSON object.\n\nConstraints:\n- Do not interpret or address the user's original query.\n- Do not use external tools or APIs.\n- Do not include any text outside the JSON object.\n\nExample Output (Standard Fallback Response):\n{\n  \"steps_taken\": [\"Received unclassifiable query from Triage Agent.\"],\n  \"final_solution\": \"solution not found\",\n  \"current_status\": \"Workflow concluded as unclassifiable.\",\n  \"next_agent\": \"fallback_agent\",\n  \"next_agent_instruction\": \"System cannot proceed. No valid classification possible  \"next_agent_instruction\": \"System cannot proceed. No valid classification possible.\"\n}\n\n        ",
+        "agent": "fallback_agent"
+      }
+    },
+    "update_state_from_fallback": {
+      "spec": {
+        "kind": "script",
+        "name": "update_state_from_fallback",
+        "display_name": "update_state_from_fallback",
+        "fn": "\nif flow.fallback_agent.output.steps_taken is not None:\n    if isinstance(flow.fallback_agent.output.steps_taken, str):\n        flow.private.steps_taken.append(flow.fallback_agent.output.steps_taken)\n    if isinstance(flow.fallback_agent.output.steps_taken, list):\n        flow.private.steps_taken.extend(flow.fallback_agent.output.steps_taken)\nflow.private.final_solution = flow.fallback_agent.output.final_solution\nflow.private.current_status = flow.fallback_agent.output.current_status\nflow.private.next_agent = flow.fallback_agent.output.next_agent\nflow.private.next_agent_instruction = flow.fallback_agent.output.next_agent_instruction\nflow.private.iteration += 1\nflow.private.agents_called.append(\"fallback_agent\")\nflow.private.question = \"\"\n        "
+      }
+    },
+    "ask_question_flow": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "ask_question_flow",
+        "display_name": "ask_question_flow",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
+      },
+      "nodes": {
+        "question": {
+          "spec": {
+            "kind": "user",
+            "name": "question",
+            "display_name": "question from agent",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "question",
+                "kind": "text",
+                "direction": "input",
+                "display_name": "{flow.private.question}",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "question"
+        },
+        {
+          "start": "question",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "update_state_from_question": {
+      "spec": {
+        "kind": "script",
+        "name": "update_state_from_question",
+        "display_name": "update_state_from_question",
+        "fn": "\nflow.private.steps_taken.append(f\"question: {flow.private.question}, answer: {flow.ask_question_flow.output.value}\")\nflow.private.iteration += 1\nflow.private.question = \"\"\n        "
+      }
+    },
+    "last_update": {
+      "spec": {
+        "kind": "script",
+        "name": "last_update",
+        "display_name": "last_update",
+        "fn": "flow.private.final_solution = flow.private.final_solution"
+      }
+    },
+    "branch_7": {
+      "spec": {
+        "kind": "branch",
+        "name": "branch_7",
+        "display_name": "branch_7",
+        "evaluator": {
+          "conditions": [
+            {
+              "expression": "flow.private.final_solution != None and len(flow.private.final_solution) > 0",
+              "node_id": "last_update",
+              "default": false
+            },
+            {
+              "expression": "flow.private.iteration > 10",
+              "node_id": "last_update",
+              "default": false
+            },
+            {
+              "expression": "flow.private.question != None and len(flow.private.question) > 0",
+              "node_id": "ask_question_flow",
+              "default": false
+            },
+            {
+              "expression": "flow.private.next_agent != None and flow.private.next_agent == 'triage_agent'",
+              "node_id": "triage_agent",
+              "default": false
+            },
+            {
+              "expression": "flow.private.next_agent != None and flow.private.next_agent == 'technical_agent'",
+              "node_id": "technical_agent",
+              "default": false
+            },
+            {
+              "expression": "flow.private.next_agent != None and flow.private.next_agent == 'billing_agent'",
+              "node_id": "billing_agent",
+              "default": false
+            },
+            {
+              "expression": "flow.private.next_agent != None and flow.private.next_agent == 'fallback_agent'",
+              "node_id": "fallback_agent",
+              "default": false
+            },
+            {
+              "node_id": "last_update",
+              "default": true
+            }
+          ]
+        },
+        "cases": {},
+        "match_policy": "FIRST_MATCH"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "branch_7",
+      "end": "last_update"
+    },
+    {
+      "start": "branch_7",
+      "end": "ask_question_flow"
+    },
+    {
+      "start": "branch_7",
+      "end": "triage_agent"
+    },
+    {
+      "start": "branch_7",
+      "end": "technical_agent"
+    },
+    {
+      "start": "branch_7",
+      "end": "billing_agent"
+    },
+    {
+      "start": "branch_7",
+      "end": "fallback_agent"
+    },
+    {
+      "start": "__start__",
+      "end": "setup_swarm_state"
+    },
+    {
+      "start": "setup_swarm_state",
+      "end": "branch_7"
+    },
+    {
+      "start": "triage_agent",
+      "end": "update_state_from_triage"
+    },
+    {
+      "start": "update_state_from_triage",
+      "end": "branch_7"
+    },
+    {
+      "start": "billing_agent",
+      "end": "update_state_from_billing"
+    },
+    {
+      "start": "update_state_from_billing",
+      "end": "branch_7"
+    },
+    {
+      "start": "technical_agent",
+      "end": "update_state_from_technical"
+    },
+    {
+      "start": "update_state_from_technical",
+      "end": "branch_7"
+    },
+    {
+      "start": "fallback_agent",
+      "end": "update_state_from_fallback"
+    },
+    {
+      "start": "update_state_from_fallback",
+      "end": "branch_7"
+    },
+    {
+      "start": "ask_question_flow",
+      "end": "update_state_from_question"
+    },
+    {
+      "start": "update_state_from_question",
+      "end": "branch_7"
+    },
+    {
+      "start": "last_update",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "triage_issue_flow_input": {
+      "type": "object",
+      "title": "triage_issue_flow_input",
+      "required": [
+        "original_issue"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue",
+          "description": "Original Issue"
+        }
+      }
+    },
+    "FlowOutput": {
+      "type": "object",
+      "title": "FlowOutput",
+      "required": [
+        "steps_taken",
+        "final_solution"
+      ],
+      "properties": {
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "description": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "final_solution": {
+          "type": "string",
+          "title": "Final Solution",
+          "description": "Final Solution"
+        }
+      }
+    },
+    "AvailableAgent": {
+      "type": "object",
+      "title": "AvailableAgent",
+      "required": [
+        "agent",
+        "description"
+      ],
+      "properties": {
+        "agent": {
+          "type": "string",
+          "title": "Agent",
+          "description": "Agent Name"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "Agent Description"
+        }
+      }
+    },
+    "AvailableAgents": {
+      "type": "object",
+      "title": "AvailableAgents",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "title": "Agents",
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "AvailableAgents_1": {
+      "type": "object",
+      "title": "AvailableAgents_1",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "AvailableAgents_2": {
+      "type": "object",
+      "title": "AvailableAgents_2",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "SwarmState": {
+      "type": "object",
+      "title": "SwarmState",
+      "required": [
+        "original_issue",
+        "steps_taken",
+        "available_agents",
+        "next_agent",
+        "next_agent_instruction",
+        "iteration"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue"
+        },
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "final_solution": {
+          "title": "Final Solution",
+          "description": "Final Solution (optional)",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_status": {
+          "title": "Current Status",
+          "description": "Current Status (optional)",
+          "default": "pending",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question": {
+          "title": "Question",
+          "description": "Question (optional)",
+          "default": "",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "available_agents": {
+          "title": "AvailableAgents",
+          "$ref": "#/schemas/AvailableAgents"
+        },
+        "next_agent": {
+          "type": "string",
+          "title": "Next Agent"
+        },
+        "next_agent_instruction": {
+          "type": "string",
+          "title": "Next Agent Instruction",
+          "description": "Next Agent Instruction"
+        },
+        "agents_called": {
+          "type": "array",
+          "title": "Agents Called",
+          "description": "Agents Called",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "iteration": {
+          "type": "integer",
+          "title": "Iteration"
+        }
+      }
+    },
+    "AvailableAgents_3": {
+      "type": "object",
+      "title": "AvailableAgents_3",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "title": "Agents",
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "triage_agent_input": {
+      "type": "object",
+      "title": "triage_agent_input",
+      "required": [
+        "original_issue",
+        "steps_taken",
+        "agent_instruction",
+        "available_agents"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue"
+        },
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_instruction": {
+          "type": "string",
+          "title": "Agent Instruction"
+        },
+        "available_agents": {
+          "title": "AvailableAgents",
+          "$ref": "#/schemas/AvailableAgents_3"
+        }
+      }
+    },
+    "AgentOutput": {
+      "type": "object",
+      "title": "AgentOutput",
+      "required": [],
+      "properties": {
+        "steps_taken": {
+          "title": "Steps Taken",
+          "description": "Steps Taken",
+          "default": [],
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "final_solution": {
+          "title": "Final Solution",
+          "description": "Final Solution",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_status": {
+          "title": "Current Status",
+          "description": "Current Status",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question": {
+          "title": "Question",
+          "description": "Question (optional)",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_agent": {
+          "title": "Next Agent",
+          "description": "Next Agent",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_agent_instruction": {
+          "title": "Next Agent Instruction",
+          "description": "Next Agent Instruction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AvailableAgents_4": {
+      "type": "object",
+      "title": "AvailableAgents_4",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "title": "Agents",
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "billing_agent_input": {
+      "type": "object",
+      "title": "billing_agent_input",
+      "required": [
+        "original_issue",
+        "steps_taken",
+        "agent_instruction",
+        "available_agents"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue"
+        },
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_instruction": {
+          "type": "string",
+          "title": "Agent Instruction"
+        },
+        "available_agents": {
+          "title": "AvailableAgents",
+          "$ref": "#/schemas/AvailableAgents_4"
+        }
+      }
+    },
+    "AvailableAgents_5": {
+      "type": "object",
+      "title": "AvailableAgents_5",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "title": "Agents",
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "technical_agent_input": {
+      "type": "object",
+      "title": "technical_agent_input",
+      "required": [
+        "original_issue",
+        "steps_taken",
+        "agent_instruction",
+        "available_agents"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue"
+        },
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_instruction": {
+          "type": "string",
+          "title": "Agent Instruction"
+        },
+        "available_agents": {
+          "title": "AvailableAgents",
+          "$ref": "#/schemas/AvailableAgents_5"
+        }
+      }
+    },
+    "AvailableAgents_6": {
+      "type": "object",
+      "title": "AvailableAgents_6",
+      "required": [
+        "agents"
+      ],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "title": "Agents",
+          "description": "Available Agents",
+          "items": {
+            "title": "Agents",
+            "$ref": "#/schemas/AvailableAgent"
+          }
+        }
+      }
+    },
+    "fallback_agent_input": {
+      "type": "object",
+      "title": "fallback_agent_input",
+      "required": [
+        "original_issue",
+        "steps_taken",
+        "agent_instruction",
+        "available_agents"
+      ],
+      "properties": {
+        "original_issue": {
+          "type": "string",
+          "title": "Original Issue"
+        },
+        "steps_taken": {
+          "type": "array",
+          "title": "Steps Taken",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agent_instruction": {
+          "type": "string",
+          "title": "Agent Instruction"
+        },
+        "available_agents": {
+          "title": "AvailableAgents",
+          "$ref": "#/schemas/AvailableAgents_6"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2025-12-04T14:50:17.046159+00:00"
+  }
+}

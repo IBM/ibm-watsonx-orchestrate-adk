@@ -42,6 +42,11 @@ class VMLifecycleManager(ABC):
     def edit_server(self, cpus: Optional[int] = None, memory: Optional[int] = None, disk: Optional[int] = None) -> None:
         """Edit VM resource allocation (CPU, memory, disk)."""
         pass
+
+    @abstractmethod
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        """Check if the VM has enough memory for document processing.  """
+        pass 
     
     @abstractmethod
     def show_current_context(self) -> Optional[str]:

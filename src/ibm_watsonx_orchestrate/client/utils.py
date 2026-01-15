@@ -18,7 +18,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     VERIFY
 )
 from threading import Lock
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
 import logging
@@ -30,7 +30,7 @@ import sys
 
 logger = logging.getLogger(__name__)
 LOCK = Lock()
-T = TypeVar("T", bound=BaseAPIClient)
+T = TypeVar("T", bound=BaseWXOClient)
 
 def get_current_env_url() -> str:
     cfg = Config()

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import List
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-from .types import BaseChannel, TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, WebchatChannel, GenesysBotConnectorChannel
+from .types import BaseChannel, TwilioWhatsappChannel, TwilioSMSChannel, SlackChannel, WebchatChannel, GenesysBotConnectorChannel, FacebookChannel, TeamsChannel
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -16,11 +16,9 @@ CHANNEL_CLASSES = {
     'twilio_whatsapp': TwilioWhatsappChannel,
     'twilio_sms': TwilioSMSChannel,
     'byo_slack': SlackChannel,
-    'genesys_bot_connector': GenesysBotConnectorChannel
-    # TODO: will add other channel types as they are implemented
-    # 'genesys_audio_connector': GenesysAudioConnectorChannel
-    # 'teams': TeamsChannel,
-    # etc.
+    'genesys_bot_connector': GenesysBotConnectorChannel,
+    'facebook': FacebookChannel,
+    'teams': TeamsChannel
 }
 
 class ChannelLoader:

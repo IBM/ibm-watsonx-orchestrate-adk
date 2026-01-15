@@ -8,7 +8,7 @@ instructions: >
     When invoking QueryIndiaVisaInfo, ensure the query is specifically about travel to India, and ask the user for their citizenship before calling the tool.
     Use the IndexIndiaVisaInfo tool to refresh the visa requirement information for travel to India. When doing so, inform the user that indexing may take some time.
     If the user asks about travel requirements for a destination other than India, politely inform them that this agent only supports travel requirements for India.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - QueryIndiaVisaInfo

@@ -883,6 +883,149 @@ def test_server_ssh_native():
 
 
 
+def test_server_start_with_doc_processing_checks_memory(monkeypatch, tmp_path):
+    """Test that server start with -d flag checks and ensures sufficient memory for WSL. """
+    # Create a mock .wslconfig with insufficient memory (16GB) in the temp directory, and mock the USERPROFILE environment variable
+    mock_wslconfig = tmp_path / ".wslconfig"
+    mock_wslconfig.write_text(
+        "[wsl2]\n"
+        "memory=16GB\n"
+        "processors=4\n"
+    )
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    
+    # Create a real temporary env file for the test
+    env_file = tmp_path / "test.env"
+    env_file.write_text("WATSONX_APIKEY=test-key\nWATSONX_SPACE_ID=test-space")
+    
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.check_and_ensure_memory_for_doc_processing = MagicMock()
+    mock_vm_manager.start_server = MagicMock()
+    
+    with (
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=mock_vm_manager),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_db_migration"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerLoginService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.copy_files_to_cache", return_value=env_file),
+    ):
+        mock_env_service_instance = MagicMock()
+        mock_env_service_instance.get_user_env.return_value = {
+            "WATSONX_APIKEY": "test-key",
+            "WATSONX_SPACE_ID": "test-space",
+            "WXO_USER": "testuser", 
+            "WXO_PASS": "testpass"  
+        }
+        mock_env_service_instance.get_dev_edition_source_core.return_value = "internal"
+        mock_env_service_instance.prepare_server_env_vars.return_value = {
+            "WATSONX_APIKEY": "test-key",
+            "WATSONX_SPACE_ID": "test-space",
+            "WXO_USER": "testuser",  
+            "WXO_PASS": "testpass",  
+            "HEALTH_TIMEOUT": "1"    
+        }
+        mock_env_service_instance.write_merged_env_file.return_value = env_file
+        
+        with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService", return_value=mock_env_service_instance):
+            # Import and call server_start with doc processing flag
+            from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_start
+            
+            server_start(
+                user_env_file=None,
+                experimental_with_langfuse=False,
+                experimental_with_ibm_telemetry=False,
+                persist_env_secrets=False,
+                accept_terms_and_conditions=False,
+                with_doc_processing=True,
+                custom_compose_file=None,
+                with_voice=False,
+                with_connections_ui=False,
+                with_langflow=False,
+                with_ai_builder=False
+            )
+        
+        # Verify that check_and_ensure_memory_for_doc_processing was called with min_memory_gb=24 and that start_server was called
+        mock_vm_manager.check_and_ensure_memory_for_doc_processing.assert_called_once_with(min_memory_gb=24)
+        mock_vm_manager.start_server.assert_called_once()
+
+def test_server_start_with_doc_processing_checks_memory_lima(monkeypatch, tmp_path):
+    """Test that server start with -d flag checks and ensures sufficient memory for Lima (macOS/Linux)."""
+    # Create a mock lima.yaml with insufficient memory (16GB) in the temp directory
+    lima_dir = tmp_path / ".lima" / "orchestrate"
+    lima_dir.mkdir(parents=True)
+    lima_yaml = lima_dir / "lima.yaml"
+    lima_yaml.write_text(
+        "memory: 16GiB\n"
+        "cpus: 4\n"
+        "disk: 100GiB\n"
+    )
+
+    # Create the .cache/orchestrate directory that cleanup_orchestrate_cache expects
+    cache_dir = tmp_path / ".cache" / "orchestrate"
+    cache_dir.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    
+    # Create a real temporary env file for the test
+    env_file = tmp_path / "test.env"
+    env_file.write_text("WATSONX_APIKEY=test-key\nWATSONX_SPACE_ID=test-space")
+    
+    mock_vm_manager = MagicMock()
+    mock_vm_manager.check_and_ensure_memory_for_doc_processing = MagicMock()
+    mock_vm_manager.start_server = MagicMock()
+    
+    with (
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager", return_value=mock_vm_manager),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_db_migration"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerLoginService"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.copy_files_to_cache", return_value=env_file),
+    ):
+        mock_env_service_instance = MagicMock()
+        mock_env_service_instance.get_user_env.return_value = {
+            "WATSONX_APIKEY": "test-key",
+            "WATSONX_SPACE_ID": "test-space",
+            "WXO_USER": "testuser",
+            "WXO_PASS": "testpass"
+        }
+        mock_env_service_instance.get_dev_edition_source_core.return_value = "internal"
+        mock_env_service_instance.prepare_server_env_vars.return_value = {
+            "WATSONX_APIKEY": "test-key",
+            "WATSONX_SPACE_ID": "test-space",
+            "WXO_USER": "testuser",
+            "WXO_PASS": "testpass",
+            "HEALTH_TIMEOUT": "1"
+        }
+        mock_env_service_instance.write_merged_env_file.return_value = env_file
+        
+        with patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.EnvService", return_value=mock_env_service_instance):
+            # Import and call server_start with doc processing flag
+            from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_start
+            
+            server_start(
+                user_env_file=None,
+                experimental_with_langfuse=False,
+                experimental_with_ibm_telemetry=False,
+                persist_env_secrets=False,
+                accept_terms_and_conditions=False,
+                with_doc_processing=True,  # This is the key flag we're testing
+                custom_compose_file=None,
+                with_voice=False,
+                with_connections_ui=False,
+                with_langflow=False,
+                with_ai_builder=False
+            )
+        
+        # Verify that check_and_ensure_memory_for_doc_processing was called with min_memory_gb=24 and start_server was called
+        mock_vm_manager.check_and_ensure_memory_for_doc_processing.assert_called_once_with(min_memory_gb=24)
+        mock_vm_manager.start_server.assert_called_once()
+
+
 
 class MockConfig2():
     def __init__(self):

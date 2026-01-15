@@ -1,3 +1,4 @@
+from pathlib import Path
 import typer
 from typing import List
 from typing_extensions import Annotated, Optional
@@ -49,19 +50,72 @@ included in this folder will be included within the uploaded package. Local depe
 relative to this package root folder or imported using relative imports from the --file. This only applies when the 
 --kind=python. If not specified it is assumed only a single python file is being uploaded."""),
     ] = None,
+    name: Annotated[
+        Optional[str],
+        typer.Option(
+        "--name","-n",
+        help="The name of the flow to import when importing from langflow, if an existing tool has the same name it will be updated"
+        )
+    ] = None,
+    auto_discover: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--auto-discover",
+            help="Automatically generates docstring for imported python file and converts it into a python tool"
+        )
+    ] = False,
+    llm: Annotated[
+        Optional[str],
+        typer.Option(
+            "--llm",
+            help="Model name/id to be used for auto-discover llm callouts"
+        )
+    ] = None,
+    env_file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file with connection configurations for auto-discover llm callouts"
+        )
+    ] = None,
+    function_names: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--function",
+            help="Used to specify a function for autodiscover, all other functions will not be converted. (Default behavior is to convert all top level functions found)"
+        )
+    ] = None
 ):
     tools_controller = ToolsController(kind, file, requirements_file)
-    tools = tools_controller.import_tool(
-        kind=kind,
-        file=file,
-        # skillset_id=skillset_id,
-        # skill_id=skill_id,
-        # skill_operation_path=skill_operation_path,
-        app_id=app_id,
-        requirements_file=requirements_file,
-        package_root=package_root
-    )
-    tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+    if auto_discover:
+        if kind != ToolKindImport.python:
+            raise typer.BadParameter(f"Auto-discover is only valid for python tools")
+        
+        resolved_file = tools_controller.auto_discover_tools(
+            input_file=file,
+            env_file=env_file,
+            llm=llm,
+            function_names=function_names
+        )
+        tools_controller.file = resolved_file
+    else:
+        resolved_file = tools_controller.resolve_file(name=name)
+    try:
+        tools = tools_controller.import_tool(
+            kind=kind,
+            file=resolved_file,
+            # skillset_id=skillset_id,
+            # skill_id=skill_id,
+            # skill_operation_path=skill_operation_path,
+            app_id=app_id,
+            requirements_file=requirements_file,
+            package_root=package_root,
+            name=name,
+        )
+        tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+    finally:
+        tools_controller.remove_temp_file()
  
 @tools_app.command(name="list", help='List the imported tools in the active environment')
 def list_tools(
@@ -103,3 +157,59 @@ def tool_export(
         name=name,
         output_path=output_file
     )
+
+@tools_app.command(
+    name="auto-discover",
+    help="Annotate and generate docstring for a python tool",
+    hidden=True)
+def tool_auto_discover(
+    env_file: Annotated[
+        str,
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to a .env file that overrides default.env. Then environment variables override both."
+        )
+    ],
+    input_file: Annotated[
+        str,
+        typer.Option(
+            "--file",
+            "-f",
+            help="Path to the python file to annotate"
+        )
+    ],
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="File to export the annotated file to"
+        )
+    ],
+    llm: Annotated[
+        Optional[str],
+        typer.Option(
+            "--llm",
+            help="Model name/id to be used for auto-discover llm callouts"
+        )
+    ] = None,
+    function_names: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--function",
+            help="Used to specify a function for autodiscover, all other functions will not be converted. (Default behavior is to convert all top level functions found)"
+        )
+    ] = None
+):
+    tools_controller = ToolsController(ToolKindImport.python, input_file)
+    
+    file = tools_controller.auto_discover_tools(
+        input_file=input_file,
+        output_file=output_file,
+        env_file=env_file,
+        llm=llm,
+        function_names=function_names
+    )
+    tools_controller.file = file
+

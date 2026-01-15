@@ -83,7 +83,7 @@ export WO_API_KEY=<your-cpd-api-key>
 export WO_SSL_VERIFY="false"
 
 #### Optional: model override if your CPD IFM only has a single or limited models
-export MODEL_OVERRIDE="meta-llama/llama-3-2-90b-vision-instruct"
+export MODEL_OVERRIDE="groq/openai/gpt-oss-120b"
 
 Note: This setup uses CPD IFM as the inference provider for the agent evaluator.
 
@@ -113,7 +113,7 @@ auth_config:
 
 provider_config:
   provider: "model_proxy"
-  model_id: "meta-llama/llama-3-2-90b-vision-instruct"
+  model_id: "groq/openai/gpt-oss-120b"
 
 output_dir: "debug-cpd-no-ifm"
 enable_verbose_logging: true
@@ -130,7 +130,7 @@ auth_config:
 
 provider_config:
   provider: "model_proxy"
-  model_id: "meta-llama/llama-3-2-90b-vision-instruct"  # May be overridden by $MODEL_OVERRIDE
+  model_id: "groq/openai/gpt-oss-120b"  # May be overridden by $MODEL_OVERRIDE
 
 output_dir: "debug-cpd-ifm"
 enable_verbose_logging: true

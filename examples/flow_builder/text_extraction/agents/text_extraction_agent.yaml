@@ -7,7 +7,7 @@ instructions: >
     Run the 'text_extaction_flow_example' tool. 
 
     Output the output file reference returned by the tool.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - text_extraction_simple_flow_example

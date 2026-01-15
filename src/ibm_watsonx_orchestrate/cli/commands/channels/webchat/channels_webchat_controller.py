@@ -97,10 +97,6 @@ class ChannelsWebchatController:
                 logger.error(f'This agent does not exist in the {env} environment. You need to deploy it to {env} before you can embed the agent')
             exit(1)
 
-        if target_env == 'live' and is_saas == True:
-            logger.warning("For SAAS, please ensure this agent exists in a Live Environment, i.e. you've hit the Deploy button for that agent.")
-            exit(1)
-
         return filtered_environments[0].get("id")
 
     def get_tenant_id(self):

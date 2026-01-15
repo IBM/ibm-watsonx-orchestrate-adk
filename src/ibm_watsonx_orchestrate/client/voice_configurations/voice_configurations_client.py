@@ -1,12 +1,12 @@
 from pydantic import ValidationError
 from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate.client.client_errors import MissingArgument
 
 import logging
 logger = logging.getLogger(__name__)
 
-class VoiceConfigurationsClient(BaseAPIClient):
+class VoiceConfigurationsClient(BaseWXOClient):
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
