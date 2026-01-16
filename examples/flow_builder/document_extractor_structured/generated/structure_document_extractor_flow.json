@@ -28,7 +28,7 @@
         "config": {
           "domain": "other",
           "type": "agreement",
-          "llm": "groq/openai/gpt-oss-120b",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
           "fields": [
             {
               "name": "Buyer",
@@ -163,10 +163,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -188,10 +190,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -275,6 +279,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-12T10:59:29.821789+00:00"
+    "compiled_on": "2026-01-15T23:52:28.112209+00:00"
   }
 }
