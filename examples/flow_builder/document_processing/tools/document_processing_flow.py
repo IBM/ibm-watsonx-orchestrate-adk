@@ -25,7 +25,7 @@ def build_docclassifier_node(aflow: Flow = None) -> Flow:
         name="document_classifier_node",
         display_name="document_classifier_node",
         description="Classifies documents into a custom class.",
-        llm="groq/openai/gpt-oss-120b",
+        llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
         classes=CustomClasses(),
     )
     return doc_classifier_node
@@ -35,7 +35,7 @@ def build_docext_node(aflow: Flow= None) -> Flow:
         name="doc_ext_node",
         display_name="doc_ext_node",
         description="Extracts custom field values (key-value-pairs) from a document using different extraction schemas.",
-        llm="groq/openai/gpt-oss-120b",
+        llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
         fields=Fields(),
         enable_hw=True
     )
