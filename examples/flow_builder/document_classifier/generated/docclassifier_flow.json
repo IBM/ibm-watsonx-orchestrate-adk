@@ -28,12 +28,24 @@
         "config": {
           "domain": "other",
           "type": "class_configuration",
-          "llm": "groq/openai/gpt-oss-120b",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
           "min_confidence": 0.0,
           "classes": [
             {
               "class_name": "Invoice",
-              "class_id": "6d0c113f-a81d-5ec9-ae68-93dec9335e17"
+              "class_id": "725b1c39-6698-5b49-baa5-76e3b36602bb"
+            },
+            {
+              "class_name": "Contract",
+              "class_id": "c37d4777-c49e-5154-9dbc-9b9a623a4bba"
+            },
+            {
+              "class_name": "TaxForm",
+              "class_id": "95e80fc0-117b-55e0-890b-54cb2e346e77"
+            },
+            {
+              "class_name": "BillOfLading",
+              "class_id": "5b9679a7-cec0-5402-acfd-920e221703c2"
             }
           ]
         },
@@ -120,9 +132,10 @@
         }
       }
     },
-    "CustomClassOutput": {
+    "Custom Classification": {
       "type": "object",
-      "title": "CustomClassOutput",
+      "title": "Custom Classification",
+      "description": "The Class extracted by the llm",
       "properties": {
         "class_name": {
           "type": "string",
@@ -140,14 +153,14 @@
       ],
       "properties": {
         "custom_class_response": {
-          "title": "CustomClassOutput",
-          "$ref": "#/schemas/CustomClassOutput"
+          "title": "Custom Classification",
+          "$ref": "#/schemas/Custom Classification"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-10-24T08:01:14.536935+00:00"
+    "compiled_on": "2026-01-15T23:50:22.466730+00:00"
   }
 }
