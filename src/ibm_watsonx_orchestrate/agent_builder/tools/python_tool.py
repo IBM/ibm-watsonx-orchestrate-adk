@@ -182,11 +182,23 @@ class PythonTool(BaseTool):
             _validate_join_tool_func(self.fn, sig, spec.name)
 
         if not self.input_schema:
+            input_schema_model = None
             try:
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=True)
-            except:
-                logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
-                input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+            except ValueError as e:
+                err_msg = str(e)
+                if "Found invalid Google-Style docstring" in err_msg:
+                    logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
+                elif "in docstring not found in function signature." in err_msg:
+                    logger.warning("Unable to properly parse parameter descriptions due to missing or incorrect type hints. This may result in degraded agent performance. To fix this, please ensure the tool inputs have type hints that match those in the docstring.")
+                else:
+                    logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            except Exception as e:
+                logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            finally:
+                if not input_schema_model:   
+                    input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+
             input_schema_json_original = input_schema_model.model_json_schema()
             input_schema_json = dereference_refs(input_schema_json_original)
             # fix missing default during dereference
