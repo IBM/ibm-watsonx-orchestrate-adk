@@ -560,7 +560,8 @@ FORM_SCHEMA_TEMPLATES = {
             properties={
                 "choices": {"type": "array", "items": {}},
                 "display_items": {"type": "array", "items": {}},
-                "display_text": {"type": "string"}
+                "display_text": {"type": "string"},
+                "default":{}
             },
             required=["choices"]
         ),
