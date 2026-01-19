@@ -445,35 +445,3 @@ def experimental_connect_connections(
     """
     agents_controller = AgentsController()
     agents_controller.connect_connections_to_agent(agent_name=name, connection_ids=connection_ids)
-
-@agents_app.command(name="experimental-run", help="Send a message to a custom agent", hidden=True)
-def experimental_run(
-    message: Annotated[
-        str,
-        typer.Option("--message", "-m", help="The message to send to the agent"),
-    ],
-    agent_name: Annotated[
-        str,
-        typer.Option("--agent-name", "-a", help="The custom agent name to send the message to (required)"),
-    ],
-    thread_id: Annotated[
-        Optional[str],
-        typer.Option("--thread-id", "-t", help="Existing thread ID to continue conversation (optional)"),
-    ] = None,
-    capture_logs: Annotated[
-        bool,
-        typer.Option("--capture-logs", help="Capture and display logs from the agent execution (only available for custom agents)"),
-    ] = False,
-):
-    """
-    Send a message to a custom agent, optionally capturing and displaying execution logs.
-    
-    This command only works with custom style agents.
-    
-    Examples:
-        adk agents experimental-run --message "What is the weather today?" --agent-name "my-custom-agent"
-        adk agents experimental-run --message "Tell me more" --agent-name "my-custom-agent" --thread-id "thread-456"
-        adk agents experimental-run --message "Debug this" --agent-name "my-custom-agent" --capture-logs
-    """
-    agents_controller = AgentsController()
-    agents_controller.run_agent(message=message, agent_name=agent_name, thread_id=thread_id, capture_logs=capture_logs)
