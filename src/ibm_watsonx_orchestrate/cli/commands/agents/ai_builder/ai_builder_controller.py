@@ -660,9 +660,15 @@ def submit_refine_agent_with_chats(agent_name: str, chat_llm: str | None, output
     try:
         with _get_progress_spinner() as progress:
             agent = agents_controller.get_agent_by_id(id=agent_id)
+            tools_client = get_tool_client()
+            if agent.guidelines:
+                for guideline in agent.guidelines:
+                    if not guideline.tool:
+                        continue
+                    tool_draft = tools_client.get_draft_by_id(guideline.tool)
+                    guideline.tool = tool_draft["name"]
             excluded_fields = _get_excluded_fields(agent)
             task = progress.add_task(description="Running Prompt Refiner", total=None)
-            tools_client = get_tool_client()
             knowledge_base_client = get_knowledge_bases_client()
             # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
             agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
