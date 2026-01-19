@@ -1021,6 +1021,9 @@ services:
   wxo-tempus-runtime:
     image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
+    networks:
+      - default
+      - jaeger-network
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
       SERVER_MODE: production
@@ -1070,6 +1073,7 @@ services:
       DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
+      TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
