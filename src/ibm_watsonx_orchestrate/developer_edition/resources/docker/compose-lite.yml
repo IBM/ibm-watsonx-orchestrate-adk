@@ -1326,7 +1326,7 @@ services:
       PGDATABASE: wxo-document-processing-dpi
       PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD:-postgres}"
       USE_PGBOUNCER: "false"
-    entrypoint: /liquibase-init.sh
+    entrypoint: /flyway-init.sh
       - pgbouncer
     profiles:
       - docproc
