@@ -1,13 +1,15 @@
 import logging
-from typing_extensions import Annotated
 import typer
 import webbrowser
-from pathlib import Path
 
-chat_app = typer.Typer(no_args_is_help=True)
+from pathlib import Path
+from typing_extensions import Annotated
+
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import run_compose_lite_ui, run_compose_lite_down_ui
+from ibm_watsonx_orchestrate.cli.commands.chat.chat_controller import chat_ask_interactive
 
 logger = logging.getLogger(__name__)
+chat_app = typer.Typer(no_args_is_help=True)
 
 @chat_app.command(name="start")
 def chat_start(
@@ -25,6 +27,8 @@ def chat_start(
         )
     ] = False,
 ):
+    """Start the web-based chat UI service for your local Developer Edition server.
+    """
     user_env_file_path = Path(user_env_file) if user_env_file else None
 
     is_ui_service_started = run_compose_lite_ui(user_env_file=user_env_file_path)
@@ -47,9 +51,39 @@ def chat_stop(
         help="Path to a .env file that overrides default.env. Then environment variables override both."
     )
 ):
+    """Stop the web-based chat UI service.
+    """
     user_env_file_path = Path(user_env_file) if user_env_file else None
     run_compose_lite_down_ui(user_env_file=user_env_file_path)
 
+@chat_app.command(name="ask")
+def chat_ask(
+    agent_name: Annotated[
+        str,
+        typer.Option("--agent-name", "-n", help="Agent Name to chat with")
+    ],
+    message: Annotated[
+        str,
+        typer.Argument(help="Single message to send")
+    ] = None,
+    include_reasoning: Annotated[
+        bool,
+        typer.Option("--include-reasoning", "-r", help="Show reasoning trace from the agent")
+    ] = False,
+):
+    """Chat with an agent: interactive mode or start chat by asking a question.
+    
+    Examples:
+    
+    \b
+    orchestrate chat ask --agent-name <my-agent-name> "What is the weather?"
+    orchestrate chat ask --agent-name <my-agent-name> "What is the weather?" --include-reasoning
+    orchestrate chat ask --agent-name <my-agent-name>
+    orchestrate chat ask --agent-name <my-agent-name> --include-reasoning
+    
+    """
+
+    chat_ask_interactive(agent_name, include_reasoning=include_reasoning, initial_message=message)
 
 if __name__ == "__main__":
     chat_app()

@@ -39,7 +39,7 @@ app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledg
 app.add_typer(connections_app, name="connections", help='Interact with the agents in your active env')
 app.add_typer(voice_configurations_app, name="voice-configs", help="Configure voice providers to enable voice interaction with your agents")
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires entitlement]')
-app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Developer Edition server [requires entitlement]')
+app.add_typer(chat_app, name="chat", help='Launch the chat ui and CLI chat interface for your local Developer Edition server [requires entitlement]')
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
 app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)")
 app.add_typer(phone_app, name="phone", help="Manage phone configurations (global resources that can be attached to multiple agents)")

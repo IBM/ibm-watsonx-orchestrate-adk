@@ -1,4 +1,4 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseAPIClient
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from typing import Optional, TypedDict
 import time
 import logging
@@ -25,7 +25,7 @@ class RunStatus(TypedDict, total=False):
     log_id: str
 
 
-class OrchestrateClient(BaseAPIClient):
+class RunClient(BaseWXOClient):
     """
     Client to handle orchestrate/runs operations for sending messages and managing runs
     """
