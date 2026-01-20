@@ -1,12 +1,7 @@
-from concurrent.futures import thread
 import logging
 import json
-from pdb import run
-from threading import Thread
-import typer
 
 from typing import Optional
-from typing_extensions import Annotated
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -38,7 +33,7 @@ def create_threads_client() -> ThreadsClient:
 def display_message(role: str, content: str, agent_name:str, include_reasoning: bool = False, reasoning_trace: Optional[dict] = None):
     """Display a message with appropriate emoji and formatting."""
     emoji = USER_EMOJI if role == "user" else BOT_EMOJI
-    if role is "user":
+    if role == "user":
         title = f"{emoji} {role.capitalize()}"
     else:
         title: str = f"{emoji} {agent_name}"
