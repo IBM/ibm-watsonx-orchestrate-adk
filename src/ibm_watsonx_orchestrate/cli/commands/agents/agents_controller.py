@@ -38,10 +38,10 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
 )
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id, get_conn_id_from_app_id
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import \
     import_python_knowledge_base, KnowledgeBaseController
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model, ModelsController
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
@@ -241,23 +241,6 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
     agent_details["context_variables"] = context_variables
 
     return agent_details
-
-def get_conn_id_from_app_id(app_id: str) -> str:
-    connections_client = get_connections_client()
-    connection = connections_client.get_draft_by_app_id(app_id=app_id)
-    if not connection:
-        logger.error(f"No connection exists with the app-id '{app_id}'")
-        exit(1)
-    return connection.connection_id
-
-def get_app_id_from_conn_id(conn_id: str) -> str:
-    connections_client = get_connections_client()
-    app_id = connections_client.get_draft_by_id(conn_id=conn_id)
-    if not app_id or app_id == conn_id:
-        logger.error(f"No connection exists with the connection id '{conn_id}'")
-        exit(1)
-    return app_id
-
 
 def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | AssistantAgentClient) -> dict:
     agent_specs = client.get_draft_by_name(name)
@@ -1988,6 +1971,14 @@ class AgentsController:
                     output_path=output_path,
                     agent_only_flag=False,
                     zip_file_out=zip_file_out)
+
+        # Export Models / Model Policies
+        models_controller = ModelsController()
+        model_name = agent_spec_file_content.get("llm", "")
+        if model_name.startswith("virtual-model/"):
+            models_controller.export_model(name=model_name, output_path=output_path, zip_file_out=zip_file_out)
+        elif model_name.startswith("virtual-policy/"):
+            models_controller.export_model_policy(name=model_name, output_path=output_path, zip_file_out=zip_file_out)
 
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
