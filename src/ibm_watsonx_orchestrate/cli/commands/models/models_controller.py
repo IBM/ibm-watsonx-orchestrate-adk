@@ -1,5 +1,7 @@
 import logging
 import os
+import io
+import zipfile
 import sys
 import json
 import yaml
@@ -22,8 +24,11 @@ from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, Pro
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id
+
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 
 logger = logging.getLogger(__name__)
 
@@ -393,6 +398,74 @@ class ModelsController:
         models_client.delete(model_id=model.id)
         logger.info(f"Successfully removed the model '{name}'")
 
+    def export_model(self, name: str, output_path: str, zip_file_out: zipfile.ZipFile | None = None):
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+        output_file_name = output_file.stem
+
+        if output_file_extension != ".zip":
+            logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+
+        models_client  = self.get_models_client()
+        virtual_models = models_client.get_draft_by_name(name)
+
+        if len(virtual_models) > 1:
+            logger.error(f"Multiple models with the name '{name}' found. Failed to export model")
+            return
+        if len(virtual_models) == 0:
+            logger.error(f"No model found with the name '{name}'")
+            return
+
+        model = virtual_models[0]
+        model_spec = model.model_dump(mode='json', exclude_none=True)
+
+        connection_id = model_spec.get("connection_id")
+        try:
+            app_id = get_app_id_from_conn_id(connection_id) if connection_id else None
+        except:
+            app_id = None
+
+        if app_id:
+            model_spec["app_id"] = app_id
+
+        model_spec.pop("id", None)
+        model_spec.pop("connection_id", None)
+        model_spec.pop("tenant_id", None)
+        model_spec.pop("tenant_name", None)
+        model_spec.pop("created_on", None)
+        model_spec.pop("updated_at", None)
+        model_spec["spec_version"] = SpecVersion.V1.value
+        model_spec["kind"] = "model"
+
+        close_file_flag = False
+        if zip_file_out is None:
+            close_file_flag = True
+            zip_file_out = zipfile.ZipFile(output_path, "w")
+
+        model_name = model_spec.get('name')
+        logger.info(f"Exporting model for '{model_name}'")
+
+        model_spec_yaml = yaml.dump(model_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+
+        model_spec_yaml_bytes = model_spec_yaml.encode("utf-8")
+        model_spec_yaml_file = io.BytesIO(model_spec_yaml_bytes)
+
+        model_file_name = model_name.rsplit('/', 1)[-1]
+        model_file_path = f"{output_file_name}/models/{model_file_name}.yaml"
+
+        zip_file_out.writestr(
+            model_file_path,
+            model_spec_yaml_file.getvalue()
+        )
+
+        if app_id:
+            export_connection(output_file=f"{output_file_name}/connections", app_id=app_id, zip_file_out=zip_file_out)
+
+        if close_file_flag:
+            logger.info(f"Successfully exported model '{model_name}' to '{output_path}'")
+            zip_file_out.close()
+
     def import_model_policy(self, file: str) -> List[ModelPolicy]:
         policies = parse_policy_file(file)
         model_client: ModelsClient = self.get_models_client()
@@ -409,6 +482,65 @@ class ModelsController:
                 policy.name = f"virtual-policy/{policy.name}"
 
         return policies
+
+    def export_model_policy(self, name: str, output_path: str, zip_file_out: zipfile.ZipFile | None = None):
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+        output_file_name = output_file.stem
+
+        if output_file_extension != ".zip":
+            logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+
+        model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
+        model_policies = model_policies_client.get_draft_by_name(name)
+
+        if len(model_policies) > 1:
+            logger.error(f"Multiple models with the name '{name}' found. Failed to export model")
+            return
+        if len(model_policies) == 0:
+            logger.error(f"No model found with the name '{name}'")
+            return
+
+        model_policy = model_policies[0]
+        model_policy_spec = model_policy.model_dump(mode='json', exclude_none=True)
+
+        model_policy_spec.pop("id", None)
+        model_policy_spec["spec_version"] = SpecVersion.V1.value
+        model_policy_spec["kind"] = "model"
+
+        close_file_flag = False
+        if zip_file_out is None:
+            close_file_flag = True
+            zip_file_out = zipfile.ZipFile(output_path, "w")
+
+        model_policy_name = model_policy_spec.get('name')
+        logger.info(f"Exporting model policy for '{model_policy_name}'")
+
+        model_policy_spec_yaml = yaml.dump(model_policy_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+        model_policy_spec_yaml_bytes = model_policy_spec_yaml.encode("utf-8")
+        model_policy_spec_yaml_file = io.BytesIO(model_policy_spec_yaml_bytes)
+
+        model_policy_file_name = model_policy_name.rsplit('/', 1)[-1]
+        model_policy_file_path = f"{output_file_name}/models/{model_policy_file_name}.yaml"
+
+        zip_file_out.writestr(
+            model_policy_file_path,
+            model_policy_spec_yaml_file.getvalue()
+        )
+
+        # Export Models
+        model_policy_dict = model_policy_spec.get('policy', {})
+        for target in model_policy_dict.get('targets', []):
+            model_name = target.get('model_name', None)
+            if not model_name:
+                continue
+
+            self.export_model(name=model_name, output_path=output_path, zip_file_out=zip_file_out)
+
+        if close_file_flag:
+            logger.info(f"Successfully exported model policy '{model_policy_name}' to '{output_path}'")
+            zip_file_out.close()
 
     def create_model_policy(
         self,

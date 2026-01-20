@@ -37,6 +37,19 @@ class TestModelsImport:
                 model="Model"
             )
 
+class TestModelsExport:
+    def test_models_export(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.export_model") as export_model_mock:
+            models_command.models_export(
+                name="virtual-model/test",
+                output_path="test_output.zip"
+            )
+
+            export_model_mock.assert_called_once_with(
+                name="virtual-model/test",
+                output_path="test_output.zip"
+            )
+
 class TestModelsAdd:
     def test_models_add(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.create_model") as create_model_mock, \
@@ -110,6 +123,20 @@ class TestModelsPolicyImport:
             )
             publish_mock.assert_called_once_with(
                 policy="Policy"
+            )
+
+class TestModelsPolicyExport:
+    def test_models_policy_export(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.export_model_policy") as export_model_policy_mock:
+
+            models_command.models_policy_export(
+                name="test_name",
+                output_path="test_output.zip"
+            )
+
+            export_model_policy_mock.assert_called_once_with(
+                name="test_name",
+                output_path="test_output.zip"
             )
 
 class TestModelsPolicyAdd:
