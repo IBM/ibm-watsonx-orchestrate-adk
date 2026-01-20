@@ -1,7 +1,10 @@
-from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
-from typing import Optional, TypedDict
 import time
 import logging
+
+from typing import Optional, TypedDict
+
+from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
+from ibm_watsonx_orchestrate.client.utils import is_local_dev
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ class RunClient(BaseWXOClient):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.base_endpoint = "/orchestrate"
+        self.base_endpoint = "/orchestrate/runs" if is_local_dev(self.base_url) else "/runs"
 
     def create_run(
         self,
@@ -67,7 +70,7 @@ class RunClient(BaseWXOClient):
         if thread_id:
             payload["thread_id"] = thread_id
         
-        return self._post(f"{self.base_endpoint}/runs", data=payload)
+        return self._post(f"{self.base_endpoint}", data=payload)
 
     def get_run_status(self, run_id: str) -> RunStatus:
         """
@@ -79,8 +82,8 @@ class RunClient(BaseWXOClient):
         Returns:
             Run status information
         """
-        return self._get(f"{self.base_endpoint}/runs/{run_id}")
-
+        return self._get(f"{self.base_endpoint}/{run_id}")
+        
     def wait_for_run_completion(
         self,
         run_id: str,
