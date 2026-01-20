@@ -18,9 +18,10 @@ from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     parse_create_external_args,
     parse_create_assistant_args,
     get_conn_id_from_app_id,
-    get_app_id_from_conn_id,
     get_agent_details
     )
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import get_app_id_from_conn_id
+
 from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind, AgentStyle, SpecVersion, Agent, ExternalAgent, AssistantAgent, AgentProvider, ExternalAgentAuthScheme
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import AgentPrompt, StarterPrompts, WelcomeContent
 from ibm_watsonx_orchestrate.client.connections.connections_client import GetConnectionResponse
@@ -598,7 +599,7 @@ class TestGetConnIdFromAppId:
                 connection_id=self.mock_conn_id
             )
         )
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
 
             response = get_conn_id_from_app_id(self.mock_app_id)
@@ -607,7 +608,7 @@ class TestGetConnIdFromAppId:
     
     def test_get_conn_id_from_app_id_no_connections(self, caplog):
         mock_connection_client = MockConnectionClient()
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
 
             with pytest.raises(SystemExit):
@@ -626,7 +627,7 @@ class TestGetAppIdFromConnId:
         mock_connection_client = MockConnectionClient(
             get_draft_by_id_response=self.mock_app_id
         )
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
 
             response = get_app_id_from_conn_id(self.mock_conn_id)
@@ -635,7 +636,7 @@ class TestGetAppIdFromConnId:
     
     def test_get_app_id_from_conn_id_no_connections(self, caplog):
         mock_connection_client = MockConnectionClient()
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
 
             with pytest.raises(SystemExit):
@@ -754,7 +755,7 @@ class TestAgentsControllerGenerateAgentSpec:
                 connection_id=mock_conn_id
             )
         )
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
             agent = AgentsController.generate_agent_spec(
                 name=self.mock_agent_name,
@@ -1103,7 +1104,7 @@ class TestListAgents:
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_collaborator_names')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_tool_names')
-    @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client')
+    @mock.patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client')
     @mock.patch('ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_knowledge_base_names')
     def test_list_agents(self, get_agent_knowledge_base_names, mock_get_connections_client, mock_get_agent_tool_names, mock_get_agent_collaborator_names, mock_get_assistant_client, mock_get_external_client, mock_get_native_client, mock_get_knowledge_base_client, mock_get_tool_client):
         mock_get_connections_client.return_value = MockConnectionClient()
@@ -1257,7 +1258,7 @@ class TestAgentsControllerGetSpecFileContent:
         mock_connection_client = MockConnectionClient(
             get_draft_by_id_response="testing"
         )
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             mock_get_connection_client.return_value = mock_connection_client
 
             spec_file_content = ac.get_spec_file_content(agent)
@@ -1372,8 +1373,9 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ModelsController") as mock_models_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.export_connection") as mock_export_connection:
             
             mock_get_connection_client.return_value = mock_connection_client
@@ -1386,6 +1388,10 @@ class TestAgentsControllerExportAgent:
             
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
+            )
+
+            mock_models_controller.return_value = MagicMock(
+                get_models_client=MagicMock()
             )
 
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
@@ -1422,7 +1428,7 @@ class TestAgentsControllerExportAgent:
         )
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.yaml") as mock_yaml, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.safe_open", mock_open()) as mock_file:
             
             mock_get_connection_client.return_value = mock_connection_client
@@ -1453,7 +1459,7 @@ class TestAgentsControllerExportAgent:
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.check_file_in_zip") as mock_zip_check, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_zip_check.return_value = True
@@ -1487,8 +1493,9 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ModelsController") as mock_models_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.check_file_in_zip") as mock_zip_check, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_zip_check.side_effect = lambda file_path, zip_file : True if "tools" in file_path else False
@@ -1497,6 +1504,10 @@ class TestAgentsControllerExportAgent:
                     kind=ToolKind.python,
                     content=b"abc"
                 )))
+            
+            mock_models_controller.return_value = MagicMock(
+                get_models_client=MagicMock()
+            )
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1524,7 +1535,8 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ModelsController") as mock_models_controller, \
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_tools_controller.return_value = MagicMock(
@@ -1532,6 +1544,9 @@ class TestAgentsControllerExportAgent:
                     kind=ToolKind.python,
                     content=b"abc"
                 )))
+            mock_models_controller.return_value = MagicMock(
+                get_models_client=MagicMock()
+            )
 
             ac.export_agent(
                 name = self.mock_agent_name,
@@ -1560,9 +1575,10 @@ class TestAgentsControllerExportAgent:
 
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ToolsController") as mock_tools_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.ModelsController") as mock_models_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.KnowledgeBaseController") as mock_kb_controller, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_connections_client") as mock_get_connection_client:
+            patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client") as mock_get_connection_client:
             
             mock_get_connection_client.return_value = mock_connection_client
             mock_get_agent.return_value = None
@@ -1575,6 +1591,10 @@ class TestAgentsControllerExportAgent:
             
             mock_kb_controller.return_value = MagicMock(
                 knowledge_base_export=MagicMock()
+            )
+
+            mock_models_controller.return_value = MagicMock(
+                get_models_client=MagicMock()
             )
 
             mock_zipfile().__enter__().infolist.return_value = [MagicMock()]
