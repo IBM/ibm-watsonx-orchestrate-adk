@@ -111,7 +111,7 @@ class GenerationConfiguration(BaseModel):
     display_text_no_results_found: Optional[str] = None
     display_text_connectivity_issue: Optional[str] = None
     idk_message: Optional[str] = None
-    enabled: bool = True
+    enabled: bool = False
 
 class FieldMapping(BaseModel):
     """
@@ -266,7 +266,7 @@ class ConversationalSearchConfig(BaseModel):
     citations: Optional[CitationsConfig] = None
     hap_filtering: Optional[HAPFiltering] = None
     confidence_thresholds: Optional[ConfidenceThresholds] = None
-    query_source: QuerySource = QuerySource.SessionHistory
+    query_source: QuerySource = QuerySource.Agent
     agent_query_description: str = "The query to search for in the knowledge base"
     supports_full_document: Optional[bool] = None
 
