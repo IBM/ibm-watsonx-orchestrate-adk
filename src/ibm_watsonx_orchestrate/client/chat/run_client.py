@@ -88,7 +88,7 @@ class RunClient(BaseWXOClient):
         self,
         run_id: str,
         poll_interval: int = 2,
-        max_retries: int = 60
+        max_retries: Optional[int] = None
     ) -> RunStatus:
         """
         Poll for run completion and return the final status.
@@ -96,15 +96,16 @@ class RunClient(BaseWXOClient):
         Args:
             run_id: The ID of the run to wait for
             poll_interval: Seconds between polling attempts
-            max_retries: Maximum number of polling attempts
+            max_retries: Maximum number of polling attempts (None for unlimited, will poll until completion or Ctrl+C)
             
         Returns:
             Final run status
             
         Raises:
-            TimeoutError: If run doesn't complete within max_retries
+            KeyboardInterrupt: If user presses Ctrl+C
         """
-        for attempt in range(max_retries):
+        attempt = 0
+        while True:
             try:
                 status = self.get_run_status(run_id)
                 
@@ -114,13 +115,18 @@ class RunClient(BaseWXOClient):
                     return status
                 
                 time.sleep(poll_interval)
+                attempt += 1
+                
+                if max_retries is not None and attempt >= max_retries:
+                    raise TimeoutError(f"Run {run_id} did not complete within {max_retries * poll_interval} seconds")
+                    
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
                 logger.warning(f"Error polling run status (attempt {attempt + 1}): {e}")
-                if attempt == max_retries - 1:
+                if max_retries is not None and attempt >= max_retries - 1:
                     raise
                 time.sleep(poll_interval)
-        
-        raise TimeoutError(f"Run {run_id} did not complete within {max_retries * poll_interval} seconds")
 
     # Required abstract methods from BaseAPIClient
     def create(self, *args, **kwargs):
