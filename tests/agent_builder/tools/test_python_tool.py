@@ -4,7 +4,7 @@ from typing import Any, Optional, List, Dict
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolPermission, tool
-from ibm_watsonx_orchestrate.agent_builder.tools.tool_response import ToolResponse
+from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind, WXOFile
 
 
@@ -25,7 +25,7 @@ def test_should_allow_naked_decorators(snapshot):
     assert spec['permission'] == 'read_only'
     assert spec['binding']['python']['function'] == 'test_python_tool:my_tool'
     assert isinstance(result,ToolResponse)
-    assert result.result == 3
+    assert result.content == 3
 
 def test_should_use_correct_defaults(snapshot):
     description = "test python description"
