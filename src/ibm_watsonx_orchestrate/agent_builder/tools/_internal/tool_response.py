@@ -16,20 +16,20 @@ class ToolResponse:
   - Accessed like a dict for backward compatibility
   
   Example:
-      >>> response = ToolResponse(result={"data": "value"}, context_updates={"key": "val"})
+      >>> response = ToolResponse(content={"data": "value"}, context_updates={"key": "val"})
       >>> json_str = response.to_json()
       >>> restored = ToolResponse.from_json(json_str)
   """
 
-  def __init__(self, result: Any, context_updates: Optional[Dict[str, Any]] = None):
+  def __init__(self, content: Any, context_updates: Optional[Dict[str, Any]] = None):
     """
     Initialize ToolResponse.
     
     Args:
-        result: The tool execution result
+        content: The tool execution result
         context_updates: Optional dictionary of context updates
     """
-    self.result = result
+    self.content = content
     self.context_updates = context_updates if context_updates is not None else {}
 
   def has_context_updates(self) -> bool:
@@ -41,10 +41,10 @@ class ToolResponse:
     Convert to dictionary.
     
     Returns:
-        Dictionary with 'result' and 'context_updates' keys
+        Dictionary with 'content' and 'context_updates' keys
     """
     return {
-        "result": self.result,
+        "content": self.content,
         "context_updates": self.context_updates
     }
 
@@ -56,7 +56,7 @@ class ToolResponse:
         JSON string representation
         
     Example:
-        >>> response = ToolResponse(result={"data": "value"})
+        >>> response = ToolResponse(content={"data": "value"})
         >>> json_str = response.to_json()
         >>> # Can be sent over network, saved to file, etc.
     """
@@ -74,31 +74,31 @@ class ToolResponse:
         ToolResponse instance
         
     Example:
-        >>> json_str = '{"result": {"data": "value"}, "context_updates": {"key": "val"}}'
+        >>> json_str = '{"content": {"data": "value"}, "context_updates": {"key": "val"}}'
         >>> response = ToolResponse.from_json(json_str)
     """
     data = json.loads(json_str)
     return cls(
-        result=data.get("result"),
+        content=data.get("content"),
         context_updates=data.get("context_updates", {})
     )
 
   def __repr__(self) -> str:
     """String representation."""
-    return f"ToolResponse(result={self.result}, context_updates={self.context_updates})"
+    return f"ToolResponse(content={self.content}, context_updates={self.context_updates})"
 
   def __getitem__(self, key: str) -> Any:
     """
     Allow dict-like access for backward compatibility.
     
     Example:
-        >>> response = ToolResponse(result={"data": "value"})
-        >>> response["result"]  # Returns {"data": "value"}
+        >>> response = ToolResponse(content={"data": "value"})
+        >>> response["content"]  # Returns {"data": "value"}
         >>> response["context_updates"]  # Returns {}
     """
     if key == "result":
-        return self.result
+        return self.content
     elif key == "context_updates":
         return self.context_updates
     else:
-        raise KeyError(f"Invalid key: {key}. Use 'result' or 'context_updates'")
+        raise KeyError(f"Invalid key: {key}. Use 'content' or 'context_updates'")

@@ -17,7 +17,7 @@ from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
-from ibm_watsonx_orchestrate.agent_builder.tools.tool_response import ToolResponse
+from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ class PythonTool(BaseTool):
         result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
-        return ToolResponse(result=result,context_updates=context_updates)
+        return ToolResponse(content=result,context_updates=context_updates)
 
     
     @property
