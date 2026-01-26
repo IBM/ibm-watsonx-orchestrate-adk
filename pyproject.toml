@@ -48,8 +48,10 @@ dev = [
     "black~=22.3.0",
     "pylint~=2.16.4",
 ]
+
+
 agentops = [
-    "ibm_watsonx_orchestrate_evaluation_framework>=1.2.1",
+    "ibm_watsonx_orchestrate_evaluation_framework>=1.2.2",
 ]
 [tool.pytest.ini_options]
 pythonpath = "src"
