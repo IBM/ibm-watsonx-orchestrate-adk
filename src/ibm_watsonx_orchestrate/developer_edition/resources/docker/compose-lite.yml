@@ -576,7 +576,6 @@ services:
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
-      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
