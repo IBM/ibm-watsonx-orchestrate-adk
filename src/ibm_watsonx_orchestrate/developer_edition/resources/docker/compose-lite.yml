@@ -38,6 +38,8 @@ services:
     image: ${CM_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
+    volumes:
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/postgres
       DB_NAME: ${DB_NAME:-postgres}
@@ -53,6 +55,7 @@ services:
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1}'
+      NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
     ports:
       - 3001:3001
   
@@ -80,6 +83,8 @@ services:
     restart: unless-stopped
     ports:
       - "8787:8787"
+    volumes:
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       WATSONX_API_KEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
@@ -87,6 +92,7 @@ services:
       NODE_TLS_REJECT_UNAUTHORIZED: ${AI_GATEWAY_TLS_REJECT_UNAUTHORIZED}
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_URL: ${GROQ_URL}
+      NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -94,11 +100,14 @@ services:
     restart: unless-stopped
     ports:
       - "8989:8989"
+    volumes:
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       JWT_SECRET: ${JWT_SECRET}
       DEPLOYMENT_PLATFORM: laptop-lite
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-}
       REDIS_URL: redis://wxo-server-redis:6379/0
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
     entrypoint: >
       sh -c '
         if [ ! -z "$$CALLBACK_HOST_URL" ]; then
@@ -441,6 +450,7 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     command: >
       bash -c '
          export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
@@ -564,6 +574,9 @@ services:
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -580,6 +593,7 @@ services:
     volumes:
       - ./sdk:/packages
       - tools:/tools
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     networks:
       - default
       - jaeger-network
@@ -675,6 +689,8 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
@@ -688,6 +704,7 @@ services:
     volumes:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
       KUBECONFIG: /root/.kube/config
@@ -725,6 +742,10 @@ services:
       OTEL_MASK_VALUE: ${OTEL_MASK_VALUE:-<REDACTED>}
       TRM_CLIENT_MASK_ATTRS: ${TRM_CLIENT_MASK_ATTRS:-url.full,server.address,server.port}
       TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   tools-runtime:
     image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
@@ -737,6 +758,7 @@ services:
     volumes:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
@@ -760,6 +782,8 @@ services:
       TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
       TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
       TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
     
   agent-runtime:
     image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}

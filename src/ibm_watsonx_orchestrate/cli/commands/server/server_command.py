@@ -516,7 +516,7 @@ def server_start(
         None,
         '--compose-file', '-f',
         help='Provide the path to a custom docker-compose file to use instead of the default compose file'
-    ),  
+    ),
     with_voice: bool = typer.Option(
         False,
         '--with-voice', '-v',
@@ -535,6 +535,11 @@ def server_start(
         False,
         '--with-ai-builder',
         help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
+    ),
+    cert_bundle_path: str = typer.Option(
+        None,
+        "--cert-bundle-path", '-c',
+        help="Path to a custom certificate bundle file."
     ),
 ):
     cli_config = Config()
@@ -594,6 +599,16 @@ def server_start(
     
     if with_ai_builder:
         merged_env_dict['AI_BUILDER_ENABLED'] = 'true'
+
+    if cert_bundle_path:
+        cert_path: Path = Path(cert_bundle_path)
+        if not cert_path.exists() or not cert_path.is_file():
+            logger.error(msg=f"Certificate bundle not found: {cert_bundle_path}")
+            sys.exit(1)
+            
+        cert_bundle_path: str = str(cert_path.absolute())
+        merged_env_dict['CERT_BUNDLE_PATH'] = cert_bundle_path
+        merged_env_dict['CERT_BUNDLE_ENABLED'] = 'true'
 
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
