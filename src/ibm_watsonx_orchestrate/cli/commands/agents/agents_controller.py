@@ -1785,6 +1785,17 @@ class AgentsController:
             return ExternalAgent.model_validate(external_result)
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
+        
+    def get_agent_by_names(self, names: List[str]) -> List[dict]:
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        native_result = native_client.get_drafts_by_names(names)
+        external_result = external_client.get_drafts_by_names(names)
+        assistant_result = assistant_client.get_drafts_by_names(names)
+
+        return native_result + external_result + assistant_result
 
     def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None) -> None:
         output_file = Path(output_path)
