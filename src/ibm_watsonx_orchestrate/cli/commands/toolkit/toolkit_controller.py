@@ -424,8 +424,8 @@ class ToolkitController:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
             column_args = {
                 "Name": {"overflow": "fold"},
-                "Kind": {},
                 "Description": {},
+                "Kind": {},
                 "Tools": {},
                 "App ID": {"overflow": "fold"}
             }
