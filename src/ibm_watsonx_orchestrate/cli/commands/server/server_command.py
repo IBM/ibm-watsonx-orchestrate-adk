@@ -655,6 +655,12 @@ def server_start(
     cleanup_orchestrate_cache()
 
     if experimental_with_langfuse:
+        # Local Development Service Credentials
+        #------------------------------------------------
+        # These credentials are for local development only.
+        # They are default values and can be overridden by the user.
+        # These do NOT provide access to any production or sensitive system
+        # ------------------------------------------------
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
