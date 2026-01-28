@@ -88,6 +88,31 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_URL: ${GROQ_URL}
 
+  mcp-gateway:
+    image: ${MCP_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/mcp-gateway:${MCP_GATEWAY_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+    environment:
+      APP_NAME: MCP Gateway
+      CONNECTION_MANAGER_BASE_URL: http://wxo-server-connection-manager:3001
+      PORT: 4444
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/mcpgateway
+      JWT_SECRET_KEY: ${JWT_SECRET}
+      MCPGATEWAY_UI_ENABLED: true
+      MCPGATEWAY_ADMIN_API_ENABLED: true 
+      HOST: 0.0.0.0 
+      BASIC_AUTH_USER: ${MCP_GATEWAY_BASIC_USER} 
+      BASIC_AUTH_PASSWORD: ${MCP_GATEWAY_BASIC_PASSWORD} 
+      AUTH_REQUIRED: true 
+      PLATFORM_ADMIN_EMAIL: ${MCP_GATEWAY_ADMIN_EMAIL}
+      PLATFORM_ADMIN_PASSWORD: ${MCP_GATEWAY_ADMIN_PASSWORD} 
+      PLATFORM_ADMIN_FULL_NAME: "Platform Administrator" 
+      SECURE_COOKIES: false
+      PLUGINS_ENABLED: true
+      JWT_AUDIENCE_VERIFICATION: false
+      LOG_LEVEL: DEBUG
+      
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
     platform: linux/amd64
@@ -564,6 +589,8 @@ services:
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}

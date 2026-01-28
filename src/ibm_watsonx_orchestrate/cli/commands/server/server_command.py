@@ -814,7 +814,7 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
         createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
         psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
     fi
-
+    
 
     # Run observability-specific migrations
     OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
@@ -837,6 +837,16 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
             fi
         fi
     done
+    
+    # Create mcpgateway database if it doesn't exist
+    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw mcpgateway; then
+        echo 'Existing mcpgateway DB found'
+    else
+        echo 'Creating mcpgateway DB'
+        createdb -U "{pg_user}" -O "{pg_user}" mcpgateway;
+        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE mcpgateway TO {pg_user}";
+    fi
+    
     '''
 
     if with_ai_builder:
