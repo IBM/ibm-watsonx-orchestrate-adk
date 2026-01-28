@@ -1,3 +1,10 @@
+# Local Development Service Credentials
+#------------------------------------------------
+# Any credentials in this file are for local development only.
+# They are default values and can be overridden by the user.
+# These do NOT provide access to any production or sensitive system
+# ------------------------------------------------
+
 name: dev-edition
 services:
   ########################

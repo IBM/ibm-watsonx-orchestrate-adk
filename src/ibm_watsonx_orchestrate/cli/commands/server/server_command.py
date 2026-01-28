@@ -648,7 +648,7 @@ def server_start(
     cleanup_orchestrate_cache()
 
     if experimental_with_langfuse:
-        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: {merged_env_dict.get('LANGFUSE_EMAIL')}, password: {merged_env_dict.get('LANGFUSE_PASSWORD')}")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
         
