@@ -1808,10 +1808,6 @@ class AgentsController:
         
         # For custom agents, handle differently
         if is_custom_agent:
-            # Check if in local environment - custom agent export only allowed locally
-            if not is_local_dev():
-                logger.error("Exporting custom agents is only supported in local development environments")
-                sys.exit(1)
             if output_file_extension != ".zip":
                 logger.error(f"Output file must end with the extension '.zip' for custom agents. Provided file '{output_path}' ends with '{output_file_extension}'")
                 sys.exit(1)
@@ -2136,7 +2132,7 @@ class AgentsController:
         if agent.get("style") != AgentStyle.CUSTOM:
             logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
             sys.exit(1)
-        
+            
         connection_uuids = []
         for app_id in connection_ids:
             connection = connections_client.get_draft_by_app_id(app_id=app_id)
@@ -2152,6 +2148,241 @@ class AgentsController:
         logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
         native_client.connect_connections(agent_id, connection_uuids)
         logger.info(f"Successfully connected connections to agent '{agent_name}'")
+
+    def run_agent(
+        self,
+        message: str,
+        agent_name: str | None = None,
+        thread_id: str | None = None,
+        capture_logs: bool = False
+    ) -> None:
+        """
+        Send a message to an agent, optionally capturing and displaying logs.
+        
+        Args:
+            message: The message to send to the agent
+            agent_name: Optional agent name to send the message to (will be resolved to agent_id)
+            thread_id: Optional thread ID to continue a conversation
+            capture_logs: Whether to capture and display logs (only works with custom agents)
+        """
+        from ibm_watsonx_orchestrate.client.chat import RunClient
+        from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
+        from ibm_watsonx_orchestrate.client.utils import instantiate_client
+        from datetime import datetime
+        
+        console = Console()
+        
+        # Initialize clients
+        run_client = instantiate_client(RunClient)
+        threads_client = instantiate_client(ThreadsClient)
+        
+        # Resolve agent name to agent ID if provided
+        agent_id = None
+        if agent_name:
+            try:
+                native_client = self.get_native_client()
+                external_client = self.get_external_client()
+                assistant_client = self.get_assistant_client()
+                
+                # Try to find the agent by name
+                native_agents = native_client.get_draft_by_name(agent_name)
+                external_agents = external_client.get_draft_by_name(agent_name)
+                assistant_agents = assistant_client.get_draft_by_name(agent_name)
+                
+                all_agents = native_agents + external_agents + assistant_agents
+                
+                if len(all_agents) == 0:
+                    console.print(f"[red]✗[/red] No agent found with name '{agent_name}'")
+                    sys.exit(1)
+                elif len(all_agents) > 1:
+                    console.print(f"[red]✗[/red] Multiple agents found with name '{agent_name}'. Please use a unique agent name.")
+                    sys.exit(1)
+                
+                agent_details = all_agents[0]
+                agent_style = agent_details.get("style")
+                
+                # Verify this is a custom agent only if capture_logs is enabled
+                if capture_logs and agent_style != AgentStyle.CUSTOM:
+                    console.print(f"[red]✗[/red] Agent '{agent_name}' is not a custom agent (style: {agent_style}).")
+                    console.print("[red]The --capture-logs flag only works with custom style agents.[/red]")
+                    sys.exit(1)
+                
+                agent_id = agent_details.get("id")
+                if agent_style == AgentStyle.CUSTOM:
+                    console.print(f"[dim]Using custom agent: {agent_name} (ID: {agent_id})[/dim]")
+                else:
+                    console.print(f"[dim]Using agent: {agent_name} (ID: {agent_id})[/dim]")
+            except Exception as e:
+                console.print(f"[red]✗[/red] Error resolving agent name: {e}")
+                sys.exit(1)
+        
+        try:
+            # Step 1: Send message with optional log capture
+            console.print("\n[cyan]Sending message to agent...[/cyan]")
+            run_response = run_client.create_run(
+                message=message,
+                agent_id=agent_id,
+                thread_id=thread_id,
+                capture_logs=capture_logs
+            )
+            
+            returned_thread_id = run_response.get("thread_id")
+            run_id = run_response.get("run_id")
+            
+            if not run_id:
+                console.print("[red]✗[/red] Failed to get run ID from response")
+                return
+            
+            console.print(f"[green]✓[/green] Message sent (Thread: {returned_thread_id}, Run: {run_id})")
+            
+            # Step 2: Wait for run completion
+            console.print("\n[cyan]Waiting for response...[/cyan]")
+            
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Processing...", total=None)
+                final_status = run_client.wait_for_run_completion(run_id)
+            
+            run_state = final_status.get("status", "").lower()
+            
+            if run_state == "failed":
+                console.print("[red]✗[/red] Run failed")
+                error_msg = final_status.get("error", "Unknown error")
+                console.print(f"[red]Error: {error_msg}[/red]")
+                return
+            elif run_state == "cancelled":
+                console.print("[yellow]✗[/yellow] Run was cancelled")
+                return
+            
+            console.print("[green]✓[/green] Response received")
+            
+            # Step 3: Get the assistant's response message
+            thread_messages_response = threads_client.get_thread_messages(returned_thread_id)
+            
+            # Handle both list and dict responses
+            match thread_messages_response:
+                case list():
+                    messages = thread_messages_response
+                case {"messages": msgs}:
+                    messages = msgs
+                case _:
+                    messages = []
+            
+            # Find the assistant's response (last message with role 'assistant')
+            assistant_message = None
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                    assistant_message = msg
+                    break
+            
+            if not assistant_message:
+                console.print("[yellow]⚠[/yellow] No assistant response found")
+                return
+            
+            # Display agent response
+            console.print("\n[bold cyan]Agent Response:[/bold cyan]")
+            console.print("─" * 60)
+            content = assistant_message.get("content", [])
+            
+            # Handle different content structures
+            match content:
+                case list() if content:
+                    for item in content:
+                        match item:
+                            case {"type": "text", "text": dict() as text_obj}:
+                                console.print(text_obj.get("value", ""))
+                            case {"type": "text", "text": text_obj}:
+                                console.print(str(text_obj))
+                            case {"type": "text"}:
+                                console.print("")
+                            case {"text": text_val}:
+                                console.print(text_val)
+                            case dict():
+                                console.print(str(item))
+                            case str():
+                                console.print(item)
+                case str():
+                    console.print(content)
+                case []:
+                    console.print("[dim]No content in response[/dim]")
+                case _:
+                    console.print(str(content))
+            console.print("─" * 60)
+            
+            # Step 4: Retrieve and display logs only if capture_logs is enabled
+            if capture_logs:
+                log_id = assistant_message.get("log_id")
+                
+                # Check in assistant message metadata
+                if not log_id:
+                    metadata = assistant_message.get("additional_properties", {})
+                    if isinstance(metadata, dict):
+                        log_id = metadata.get("log_id")
+                
+                # Check in the run response (nested in result.data.message)
+                if not log_id:
+                    result = final_status.get("result", {})
+                    if isinstance(result, dict):
+                        data = result.get("data", {})
+                        if isinstance(data, dict):
+                            message = data.get("message", {})
+                            if isinstance(message, dict):
+                                log_id = message.get("log_id")
+                
+                # Check if log_id is valid
+                if not log_id or (isinstance(log_id, str) and log_id.strip() == ""):
+                    console.print("\n[yellow]✗ No logs captured for this run[/yellow]")
+                    return
+                
+                # Step 5: Retrieve captured logs
+                try:
+                    console.print(f"\n[bold cyan]Captured Logs (Log ID: {log_id}):[/bold cyan]")
+                    console.print("─" * 60)
+                    
+                    logs_response = threads_client.get_logs_by_log_id(log_id)
+                    captured_logs = logs_response.get("captured_logs", {})
+                    entries = captured_logs.get("logs", [])
+                    
+                    if not entries:
+                        console.print("[yellow]No log entries found[/yellow]")
+                    else:
+                        for entry in entries:
+                            timestamp = entry.get("timestamp", "")
+                            level = entry.get("level", "INFO")
+                            log_message = entry.get("message", "")
+                            
+                            # Format timestamp if present
+                            if timestamp:
+                                try:
+                                    dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                                    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                                except:
+                                    formatted_time = timestamp
+                            else:
+                                formatted_time = "Unknown"
+                            
+                            # Color code by level
+                            level_color = LOG_LEVEL_COLORS.get(level.upper(), "white")
+                            
+                            console.print(f"[dim]{formatted_time}[/dim] [{level_color}]{level}[/{level_color}]: {log_message}")
+                    
+                    console.print("─" * 60)
+                    console.print(f"[cyan]Total log entries: {len(entries)}[/cyan]")
+                    
+                except Exception as e:
+                    console.print(f"\n[red]✗ Error retrieving logs: {e}[/red]")
+        
+        except TimeoutError as e:
+            console.print(f"\n[red]✗ Error: {e}[/red]")
+            sys.exit(1)
+        except Exception as e:
+            console.print(f"\n[red]✗ Error: {e}[/red]")
+            logger.error(f"Failed to run with logs: {e}")
+            sys.exit(1)
 
     def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:
         """
