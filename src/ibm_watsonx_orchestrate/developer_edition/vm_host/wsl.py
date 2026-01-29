@@ -146,7 +146,7 @@ def _command_to_list(command: Union[str, List[str]]) -> List[str]:
         return command.split()
     return command
 
-def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate", **kwags) -> subprocess.CompletedProcess:
+def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate", check: bool = True, **kwags) -> subprocess.CompletedProcess:
     """
     Executes a command inside the WSL distribution.
 
@@ -161,7 +161,7 @@ def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate",
     try:
         result = subprocess.run(
             cmd,
-            check=True,
+            check=check,
             capture_output=capture_output,
             text=True,
             **kwags

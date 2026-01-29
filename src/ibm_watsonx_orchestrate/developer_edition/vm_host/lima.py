@@ -56,6 +56,7 @@ class LimaLifecycleManager(VMLifecycleManager):
         capture_output: bool = False,
         input: str | None = None,
         env: dict | None = None, 
+        **kwargs
     ) -> subprocess.CompletedProcess:
         """
         Run a Docker command inside the Lima VM.
@@ -71,6 +72,7 @@ class LimaLifecycleManager(VMLifecycleManager):
             text=True,
             input=input,
             env=env,
+            **kwargs
         )
         
     def edit_server(self, cpus=None, memory=None, disk=None):
