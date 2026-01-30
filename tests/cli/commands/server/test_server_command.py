@@ -635,6 +635,7 @@ def test_run_db_migration_success():
         dummy_manager.run_observabilty_migrations.return_value = None        
         dummy_manager.run_langflow_migrations.return_value = None
         dummy_manager.run_architect_migrations.return_value = None
+        dummy_manager.run_mcp_gateway_migrations.return_value = None
         mock_migration_manager.return_value = dummy_manager
 
         run_db_migration()
@@ -642,6 +643,7 @@ def test_run_db_migration_success():
         assert mock_migration_manager.called
         assert dummy_manager.run_orchestrate_migrations.called
         assert dummy_manager.run_observability_migrations.called
+        assert dummy_manager.run_mcp_gateway_migrations.called
         assert not dummy_manager.run_langflow_migrations.called
         assert not dummy_manager.run_architect_migrations.called
         mock_exit.assert_not_called()
@@ -656,6 +658,7 @@ def test_run_db_migration_with_ai_builder():
         dummy_manager.run_observabilty_migrations.return_value = None        
         dummy_manager.run_langflow_migrations.return_value = None
         dummy_manager.run_architect_migrations.return_value = None
+        dummy_manager.run_mcp_gateway_migrations.return_value = None
         mock_migration_manager.return_value = dummy_manager
 
         run_db_migration(with_ai_builder=True)
@@ -663,6 +666,7 @@ def test_run_db_migration_with_ai_builder():
         assert mock_migration_manager.called
         assert dummy_manager.run_orchestrate_migrations.called
         assert dummy_manager.run_observability_migrations.called
+        assert dummy_manager.run_mcp_gateway_migrations.called
         assert not dummy_manager.run_langflow_migrations.called
         assert dummy_manager.run_architect_migrations.called
         mock_exit.assert_not_called()
