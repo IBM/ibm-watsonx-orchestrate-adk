@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Care Agent Chat</title>
+    <base href="http://localhost:3000"> <!-- only needed on developer edition -->
+</head>
+
+<body style="padding: 0; margin: 0; height: 100vh; width: 100vw; position: relative;">
+<div id="root" style="
+    position: fixed;
+    bottom: 20px;
+    right: 50px;
+    width: 380px;
+    height: 600px;
+    overflow: visible;
+"></div>
+
+<script>
+    function sendHandler(event, instance) {
+        event.message.context = {
+            ...event.message.context,
+            //TODO copy the phone number and jwt token from any tenant here: toolkits/banking_mcp_server/src/customerDatabase.ts
+            telephoneNumber:"+15551234567",
+            jwtToken:"<token>" // this just has to be non-blank for the demo server to work
+        };
+        console.log('send event', event);
+    }
+
+    function onChatLoad(instance) {
+        instance.on('chatstarted', (instance) => {
+            window.wxoChatInstance = instance;
+        });
+        instance.on('send', sendHandler);
+    }
+    const hostElement = document.getElementById('root');
+    window.wxOConfiguration = {
+        // TODO copy the orchestrateID, agentId, and agentEnvironmentId
+        orchestrationID: "<instance id>",
+        hostURL: "http://localhost:3000",
+        rootElementID: "root",
+        showLauncher: false,
+        chatOptions: {
+            agentId: "<agent-id>",
+            // agentEnvironmentId: "<env id>", // only needed for saas
+
+            onLoad: onChatLoad
+        },
+        layout: {
+            form: 'custom',
+            customElement: hostElement
+        }
+    };
+
+    const script = document.createElement('script');
+    script.src = `${window.wxOConfiguration.hostURL}/wxoLoader.js?embed=true`;
+    script.addEventListener('load', function () {
+        wxoLoader.init();
+    });
+    document.head.appendChild(script);
+</script>
+</body>
+
+</html>
