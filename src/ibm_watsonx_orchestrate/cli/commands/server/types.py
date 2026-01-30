@@ -86,8 +86,8 @@ def _create_wxai_authenticator(api_key:str, wxai_url: str, auth_url: Optional[st
 class DirectAIEnvConfig(BaseModel):
     WATSONX_SPACE_ID: Optional[str]
     WATSONX_APIKEY: Optional[str]
-    AWS_ACCESS_KEY_ID: Optional[str]
-    AWS_SECRET_ACCESS_KEY: Optional[str]
+    BEDROCK_AWS_ACCESS_KEY_ID: Optional[str]
+    BEDROCK_AWS_SECRET_ACCESS_KEY: Optional[str]
     GROQ_API_KEY: Optional[str]
     USE_SAAS_ML_TOOLS_RUNTIME: bool
 
@@ -100,7 +100,7 @@ class DirectAIEnvConfig(BaseModel):
         groq_key_set = bool(config.get("GROQ_API_KEY"))
         wxai_space_id_set = bool(config.get("WATSONX_SPACE_ID"))
         wxai_key_set = bool(config.get("WATSONX_APIKEY"))
-        aws_bedrock_creds_set = bool(config.get("AWS_ACCESS_KEY_ID")) and bool(config.get("AWS_SECRET_ACCESS_KEY"))
+        aws_bedrock_creds_set = bool(config.get("BEDROCK_AWS_ACCESS_KEY_ID")) and bool(config.get("BEDROCK_AWS_SECRET_ACCESS_KEY"))
 
         if not wxai_key_set and not groq_key_set and not aws_bedrock_creds_set:
             raise ValueError("Missing configuration requirements 'GROQ_API_KEY' or 'WATSONX_APIKEY' or 'AWS_ACCESS_KEY_ID'+'AWS_SECRET_ACCESS_KEY'")
