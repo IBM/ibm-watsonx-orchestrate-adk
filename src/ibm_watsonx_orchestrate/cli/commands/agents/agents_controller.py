@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Iterable, List, Optional, TypeVar
+from typing import Any, Iterable, List, Optional, TypeVar
 
 import requests
 import rich
@@ -50,6 +50,7 @@ from ibm_watsonx_orchestrate.client.agents.external_agent_client import External
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
+from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
@@ -264,6 +265,7 @@ class AgentsController:
         self.assistant_client = None
         self.tool_client = None
         self.knowledge_base_client = None
+        self.toolkit_client = None
         self.voice_configuration_client = None
 
     def get_native_client(self):
@@ -290,6 +292,11 @@ class AgentsController:
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
+
+    def get_toolkit_client(self):
+        if not self.toolkit_client:
+            self.toolkit_client = instantiate_client(ToolKitClient)
+        return self.toolkit_client
     
     def get_voice_configuration_client(self):
         if not self.voice_configuration_client:
@@ -651,6 +658,46 @@ class AgentsController:
             ref_knowledge_bases.append(name)
         ref_agent.knowledge_base = ref_knowledge_bases
         return ref_agent
+
+    def dereference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        deref_agent = deepcopy(agent)
+        matching_toolkits: Any = client.get_drafts_by_names(deref_agent.toolkits)
+
+        name_id_lookup = {}
+        for tk in matching_toolkits:
+            if tk.get("name") in name_id_lookup:
+                logger.error(f"Duplicate draft entries for toolkit '{tk.get('name')}'")
+                sys.exit(1)
+            name_id_lookup[tk.get("name")] = tk.get("id")
+        
+        deref_toolkits: list[Any] = []
+        for name in agent.toolkits:
+            id = name_id_lookup.get(name)
+            if not id:
+                logger.error(f"Failed to find toolkit. No toolkit found with the name '{name}'")
+                sys.exit(1)
+            deref_toolkits.append(id)
+        deref_agent.toolkits = deref_toolkits
+
+        return deref_agent
+    
+    def reference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        ref_agent = deepcopy(agent)
+        
+        ref_toolkits = []
+        for id in agent.toolkits:
+            matching_toolkit = client.get_draft_by_id(id)
+            name = matching_toolkit.get("name")
+            if not name:
+                logger.error(f"Failed to find knowledge base. No knowledge base found with the id '{id}'")
+                sys.exit(1)
+            ref_toolkits.append(name)
+        ref_agent.toolkits = ref_toolkits
+        return ref_agent
     
     def dereference_guidelines(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
@@ -800,6 +847,8 @@ class AgentsController:
             agent = self.dereference_knowledge_bases(agent)
         if agent.guidelines and len(agent.guidelines) > 0:
             agent = self.dereference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits) > 0:
+            agent = self.dereference_toolkits(agent)
 
         return agent
     
@@ -812,6 +861,8 @@ class AgentsController:
             agent = self.reference_knowledge_bases(agent)
         if agent.guidelines and len(agent.guidelines):
             agent = self.reference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits):
+            agent = self.reference_toolkits(agent)
 
         return agent
     

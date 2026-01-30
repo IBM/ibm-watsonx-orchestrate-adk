@@ -1,0 +1,17 @@
+spec_version: v1
+style: experimental_customer_care
+name: banking_agent
+display_name: Banking Agent
+description: The banking agent demonstrates how the customer care style of agents works
+starter_prompts:
+  prompts:
+    - id: "verify_pin"
+      title: "Login to my banking"
+      subtitle: "Verify my pin"
+      prompt: "verify my pin"
+instructions: >
+  When calling to prepare a money transfer only ask for the amount, do not ask the user for the account to transfer from or to, instead pass in null if the user does not provide a value.
+  When an account is mentioned, disambiguate the account id by looking up accounts first.
+toolkits:
+  - banking
+# note it's not possible to specify tools or collaborators here, only toolkits
