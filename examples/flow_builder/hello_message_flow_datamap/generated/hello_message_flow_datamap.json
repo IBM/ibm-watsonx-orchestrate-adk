@@ -67,6 +67,21 @@
           "description": "The greeting message with the provided name."
         },
         "tool": "get_hello_message"
+      },
+      "input_map": {
+        "spec": {
+          "maps": [
+            {
+              "target_variable": "self.input.name",
+              "value_expression": "flow.combine_names.output",
+              "has_no_value": false,
+              "default_value": null,
+              "metadata": {
+                "assignmentType": "pyExpression"
+              }
+            }
+          ]
+        }
       }
     },
     "__start__": {
@@ -167,7 +182,7 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T15:53:01.446603+00:00"
+    "compiled_on": "2026-01-23T15:21:48.819902+00:00"
   },
   "output_map": {
     "spec": {
