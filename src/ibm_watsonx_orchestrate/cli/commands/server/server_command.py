@@ -790,6 +790,7 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
 
     migration_manager.run_orchestrate_migrations()
     migration_manager.run_observability_migrations()
+    migration_manager.run_mcp_gateway_migrations()
 
     if with_ai_builder:
         migration_manager.run_architect_migrations()

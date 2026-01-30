@@ -20,12 +20,14 @@ class MigrationType(str, Enum):
   OBSERVABILITY = "observability"
   ARCHITECT = "architect"
   LANGFLOW = "langflow"
+  MCPGATEWAY = "mcpgateway"
 
 MIGRATION_FILE_MAP = {
   MigrationType.LANGFLOW : 'langflow_migrations.sh',
   MigrationType.ARCHITECT : 'architect_migrations.sh',
   MigrationType.OBSERVABILITY : 'observability_migrations.sh',
   MigrationType.ORCHESTRATE : 'orchestrate_migrations.sh',
+  MigrationType.MCPGATEWAY : 'mcpgateway_migrations.sh'
 }
 
 DB_SERVICE_LABEL = "wxo-server-db"
@@ -141,6 +143,10 @@ class MigrationsManager:
 
   def run_architect_migrations(self):
     self.run_migration(type=MigrationType.ARCHITECT)
+  
+
+  def run_mcp_gateway_migrations(self):
+    self.run_migration(type=MigrationType.MCPGATEWAY)
 
     
   def run_migration(self, type: MigrationType, additional_env: Optional[dict] = None):    
