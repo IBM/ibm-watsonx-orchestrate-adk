@@ -87,6 +87,11 @@ class FlowInput(BaseModel):
         description="A list of fruits."
     )
 
+    listOfPreferredFruits: List[str] = Field(
+        default=["apple", "oranges"],
+        description="A list of preferred fruits."
+    )
+
 @flow(
     name ="user_flow_application_form",
     display_name="Application form",
@@ -148,8 +153,13 @@ def build_user_form(aflow: Flow = None) -> Flow:
     #Mult-chocice: List of fruits dowpdown primitives
     data_map_multi_choice = DataMap()
     data_map_multi_choice.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.listOfFruits"))
+
+    data_map_multi_choice_default = DataMap()
+    data_map_multi_choice_default.add(Assignment(target_variable="self.input.default", value_expression="flow.input.listOfPreferredFruits"))
+
     user_node_with_form.multi_choice_input_field(name="multi-choice", label="List of Fruits", required=False, choices=data_map_multi_choice, 
-                                                  show_as_dropdown=True, placeholder_text="Please enter your choice")
+                                                  show_as_dropdown=True, placeholder_text="Please enter your choice", default=data_map_multi_choice_default)
+    
     #Mult-chocice: Books dowpdown complex
     data_map_list_books = DataMap()
     data_map_list_books.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.books"))

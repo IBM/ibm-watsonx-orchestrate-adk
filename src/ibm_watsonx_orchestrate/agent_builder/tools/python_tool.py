@@ -9,6 +9,7 @@ import logging
 
 from pydantic import TypeAdapter, BaseModel
 
+from ibm_watsonx_orchestrate.run.context import AgentRun
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
@@ -16,6 +17,7 @@ from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
+from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -40,15 +42,6 @@ def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict
                 parsed_expected_credentials.append(ExpectedCredentials.model_validate(credential))
     
     return parsed_expected_credentials
-
-def _create_immutable_struct(input):
-    match input:
-        case dict():
-            return MappingProxyType({k:_create_immutable_struct(v) for k,v in input})
-        case list() | set():
-            return tuple([_create_immutable_struct(v) for v in input])
-        case _:
-            return input
     
 
 def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynamic_schema: Optional[ToolRequestBody|ToolResponseBody]) -> None:
@@ -125,13 +118,27 @@ class PythonTool(BaseTool):
         self.dynamic_output_schema = dynamic_output_schema
 
     def __call__(self, *args, **kwargs):
+
         run_context_param = self.get_run_param()
+        context_object = None
+
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
-                kwargs[run_context_param] = _create_immutable_struct(context_param_value)
-            
-        return self.fn(*args, **kwargs)
+                context_object = context_param_value if isinstance(context_param_value,AgentRun) \
+                    else AgentRun(request_context=context_param_value)
+                kwargs[run_context_param] = context_object
+
+
+        result = self.fn(*args, **kwargs)
+        context_updates = context_object.get_context_updates() if context_object else {}
+
+        # Temporarily needed to address a backend limitation with nesting bytes
+        if type(result) == bytes:
+            return result
+
+        return ToolResponse(content=result,context_updates=context_updates)
+
     
     @property
     def __tool_spec__(self):
@@ -182,11 +189,23 @@ class PythonTool(BaseTool):
             _validate_join_tool_func(self.fn, sig, spec.name)
 
         if not self.input_schema:
+            input_schema_model = None
             try:
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=True)
-            except:
-                logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
-                input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+            except ValueError as e:
+                err_msg = str(e)
+                if "Found invalid Google-Style docstring" in err_msg:
+                    logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
+                elif "in docstring not found in function signature." in err_msg:
+                    logger.warning("Unable to properly parse parameter descriptions due to missing or incorrect type hints. This may result in degraded agent performance. To fix this, please ensure the tool inputs have type hints that match those in the docstring.")
+                else:
+                    logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            except Exception as e:
+                logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            finally:
+                if not input_schema_model:   
+                    input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+
             input_schema_json_original = input_schema_model.model_json_schema()
             input_schema_json = dereference_refs(input_schema_json_original)
             # fix missing default during dereference

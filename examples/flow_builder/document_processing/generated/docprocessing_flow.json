@@ -62,7 +62,7 @@
         "config": {
           "domain": "other",
           "type": "agreement",
-          "llm": "groq/openai/gpt-oss-120b",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
           "fields": [
             {
               "name": "Buyer",
@@ -91,8 +91,12 @@
               "example_value": "",
               "examples": []
             }
-          ]
-        }
+          ],
+          "field_extraction_method": "classic"
+        },
+        "min_confidence": 0.0,
+        "review_fields": [],
+        "enable_review": false
       }
     },
     "document_classifier_node": {
@@ -113,35 +117,36 @@
         "config": {
           "domain": "other",
           "type": "class_configuration",
-          "llm": "groq/openai/gpt-oss-120b",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
           "min_confidence": 0.0,
           "classes": [
             {
               "class_name": "invoice",
-              "class_id": "d7b5acde-d1a1-5459-bf92-9d0b7ade0b5d"
+              "class_id": "e1616849-0a16-509e-a495-354d223495bd"
             },
             {
               "class_name": "bill_of_lading",
-              "class_id": "0a09112e-c6d0-53d2-a2af-f05ad55328a7"
+              "class_id": "0de29853-4383-5e8e-b632-8e21b502e7dc"
             },
             {
               "class_name": "contract",
-              "class_id": "04c94196-7560-5664-aeaa-a6e6a971df84"
+              "class_id": "f2cc6e9f-d85c-56f6-bcf8-f1a034be4e0f"
             },
             {
               "class_name": "purchase_order",
-              "class_id": "0d65ee0f-92e6-5ec2-8e0b-640ee4b786e4"
+              "class_id": "01da16c6-e439-563c-a478-b17d0d68a94d"
             },
             {
               "class_name": "utility_bill",
-              "class_id": "734ef95e-6f7d-512d-b888-6112af747fa7"
+              "class_id": "eccc8573-edb0-5334-a907-f6b30ba90a19"
             },
             {
               "class_name": "tax_form",
-              "class_id": "8363b3ed-2929-5271-93f8-6afbeb3679fb"
+              "class_id": "79002f57-a649-52c0-bb2e-7f4118fa37a9"
             }
           ]
-        }
+        },
+        "enable_review": false
       }
     },
     "text_extraction_with_document_structure_for_invoice": {
@@ -158,7 +163,23 @@
         },
         "task": "text_extraction",
         "enable_hw": true,
-        "document_structure": true
+        "document_structure": true,
+        "kvp_enable_text_hints": true
+      },
+      "input_map": {
+        "spec": {
+          "maps": [
+            {
+              "target_variable": "self.input.kvp_schemas",
+              "value_expression": "flow.get_kvp_schemas_for_invoice_tool_node.output",
+              "has_no_value": false,
+              "default_value": null,
+              "metadata": {
+                "assignmentType": "pyExpression"
+              }
+            }
+          ]
+        }
       }
     },
     "text_extraction_with_document_structure_for_utility_bill": {
@@ -175,7 +196,23 @@
         },
         "task": "text_extraction",
         "enable_hw": true,
-        "document_structure": true
+        "document_structure": true,
+        "kvp_enable_text_hints": true
+      },
+      "input_map": {
+        "spec": {
+          "maps": [
+            {
+              "target_variable": "self.input.kvp_schemas",
+              "value_expression": "flow.get_kvp_schemas_for_utility_bill_tool_node.output",
+              "has_no_value": false,
+              "default_value": null,
+              "metadata": {
+                "assignmentType": "pyExpression"
+              }
+            }
+          ]
+        }
       }
     },
     "branch_1": {
@@ -187,12 +224,12 @@
           "conditions": [
             {
               "expression": "flow.document_classifier_node.output.class_name.strip().lower() in ['invoice','bill_of_lading']",
-              "node_id": "text_extraction_with_document_structure_for_invoice",
+              "node_id": "get_kvp_schemas_for_invoice",
               "default": false
             },
             {
               "expression": "flow.document_classifier_node.output.class_name.strip().lower() in ['utility_bill']",
-              "node_id": "text_extraction_with_document_structure_for_utility_bill",
+              "node_id": "get_kvp_schemas_for_utility_bill",
               "default": false
             },
             {
@@ -228,15 +265,11 @@
   "edges": [
     {
       "start": "branch_1",
-      "end": "text_extraction_with_document_structure_for_invoice"
+      "end": "get_kvp_schemas_for_invoice"
     },
     {
       "start": "branch_1",
-      "end": "text_extraction_with_document_structure_for_utility_bill"
-    },
-    {
-      "start": "branch_1",
-      "end": "doc_ext_node"
+      "end": "get_kvp_schemas_for_utility_bill"
     },
     {
       "start": "branch_1",
@@ -248,15 +281,15 @@
     },
     {
       "start": "document_classifier_node",
-      "end": "get_kvp_schemas_for_invoice"
+      "end": "branch_1"
     },
     {
       "start": "get_kvp_schemas_for_invoice",
-      "end": "get_kvp_schemas_for_utility_bill"
+      "end": "text_extraction_with_document_structure_for_invoice"
     },
     {
       "start": "get_kvp_schemas_for_utility_bill",
-      "end": "branch_1"
+      "end": "text_extraction_with_document_structure_for_utility_bill"
     },
     {
       "start": "text_extraction_with_document_structure_for_utility_bill",
@@ -288,10 +321,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -306,7 +341,8 @@
       "properties": {
         "place_holder": {
           "type": "string",
-          "title": "Place Holder"
+          "title": "Place Holder",
+          "description": "str object"
         }
       }
     },
@@ -319,7 +355,8 @@
       "properties": {
         "place_holder": {
           "type": "string",
-          "title": "Place Holder"
+          "title": "Place Holder",
+          "description": "str object"
         }
       }
     },
@@ -339,10 +376,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
@@ -391,18 +430,21 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         }
       }
     },
-    "CustomClassOutput": {
+    "Custom Classification": {
       "type": "object",
-      "title": "CustomClassOutput",
+      "title": "Custom Classification",
+      "description": "The Class extracted by the llm",
       "properties": {
         "class_name": {
           "type": "string",
@@ -420,8 +462,8 @@
       ],
       "properties": {
         "custom_class_response": {
-          "title": "CustomClassOutput",
-          "$ref": "#/schemas/CustomClassOutput"
+          "title": "Custom Classification",
+          "$ref": "#/schemas/Custom Classification"
         }
       }
     },
@@ -441,10 +483,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -472,6 +516,18 @@
                     "type": "string",
                     "title": "Document Description",
                     "description": "A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction."
+                  },
+                  "additional_prompt_instructions": {
+                    "title": "Additional Prompt Instructions",
+                    "description": "Additional instructions to guide the extraction. This is used to provide more context to the model about the document.",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "fields": {
                     "type": "object",
@@ -504,6 +560,22 @@
                               "default": "",
                               "description": "A default value for the field to extract from the document.",
                               "title": "Default"
+                            },
+                            "available_options": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "default": null,
+                              "description": "A list of possible values for the field.",
+                              "title": "Available Options"
                             }
                           },
                           "required": [
@@ -550,6 +622,22 @@
                                     "default": "",
                                     "description": "A default value for the field to extract from the document.",
                                     "title": "Default"
+                                  },
+                                  "available_options": {
+                                    "anyOf": [
+                                      {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "description": "A list of possible values for the field.",
+                                    "title": "Available Options"
                                   }
                                 },
                                 "required": [
@@ -584,13 +672,50 @@
               "type": "null"
             }
           ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_force_schema_name": {
+          "title": "KVP Force Schema Name",
+          "description": "Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_enable_text_hints": {
+          "title": "KVP Enable Text Hints",
+          "description": "Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)",
+          "default": true,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
     "TextExtractionResponse": {
       "type": "object",
       "title": "TextExtractionResponse",
-      "description": "The text extraction operation response.\nAttributes:\n    output_file_ref (str): The url to the file that contains the extracted text and kvps. ",
+      "description": "The text extraction operation response when output_format is set to \"docref\" (default).\nAttributes:\n    output_file_ref (str): The url to the file that contains the extracted text and kvps.",
       "required": [
         "output_file_ref"
       ],
@@ -618,10 +743,12 @@
             },
             {
               "type": "string",
-              "title": "Document reference",
-              "description": "Either an ID or a URL identifying the document to be used.",
-              "required": [],
-              "format": "binary"
+              "title": "File reference",
+              "description": "A URL identifying the File to be used.",
+              "format": "wxo-file"
+            },
+            {
+              "type": "null"
             }
           ]
         },
@@ -649,6 +776,18 @@
                     "type": "string",
                     "title": "Document Description",
                     "description": "A description of the kind of documents we want to extractI. This is used to select which schema to use for extraction."
+                  },
+                  "additional_prompt_instructions": {
+                    "title": "Additional Prompt Instructions",
+                    "description": "Additional instructions to guide the extraction. This is used to provide more context to the model about the document.",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "fields": {
                     "type": "object",
@@ -681,6 +820,22 @@
                               "default": "",
                               "description": "A default value for the field to extract from the document.",
                               "title": "Default"
+                            },
+                            "available_options": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "default": null,
+                              "description": "A list of possible values for the field.",
+                              "title": "Available Options"
                             }
                           },
                           "required": [
@@ -727,6 +882,22 @@
                                     "default": "",
                                     "description": "A default value for the field to extract from the document.",
                                     "title": "Default"
+                                  },
+                                  "available_options": {
+                                    "anyOf": [
+                                      {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "description": "A list of possible values for the field.",
+                                    "title": "Available Options"
                                   }
                                 },
                                 "required": [
@@ -761,12 +932,49 @@
               "type": "null"
             }
           ]
+        },
+        "kvp_model_name": {
+          "title": "KVP Model Name",
+          "description": "The LLM model to be used for key-value pair extraction",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_force_schema_name": {
+          "title": "KVP Force Schema Name",
+          "description": "Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kvp_enable_text_hints": {
+          "title": "KVP Enable Text Hints",
+          "description": "Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)",
+          "default": true,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-08-29T16:02:14.704617+00:00"
+    "compiled_on": "2026-01-15T23:53:56.753595+00:00"
   }
 }

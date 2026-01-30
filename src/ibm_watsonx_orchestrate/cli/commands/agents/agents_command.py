@@ -3,7 +3,14 @@ from typing_extensions import Annotated, List, Optional
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
 from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
 from ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_command import ai_builder_app
+from ibm_watsonx_orchestrate.client.utils import is_local_dev
 import json
+import os
+import datetime
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
 
 agents_app = typer.Typer(no_args_is_help=True)
 agents_app.add_typer(
@@ -15,9 +22,17 @@ agents_app.add_typer(
 @agents_app.command(name="import", help='Import an agent definition into the active env from a file')
 def agent_import(
     file: Annotated[
-        str,
-        typer.Option("--file", "-f", help="YAML file with agent definition"),
-    ],
+        Optional[str],
+        typer.Option("--file", "-f", help="Path to a file: YAML file with agent definition"),
+    ] = None,
+    experimental_package_root: Annotated[
+        Optional[str],
+        typer.Option("--experimental-package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded.", hidden=True),
+    ] = None,
+    experimental_config_file: Annotated[
+        Optional[str],
+        typer.Option("--experimental-config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --experimental-package-root.", hidden=True),
+    ] = None,
     app_id: Annotated[
         Optional[str], typer.Option(
             '--app-id', '-a',
@@ -25,24 +40,77 @@ def agent_import(
         )
     ] = None,
 ):
+    
+    # Validate that either file or experimental_package_root is provided
+    if not file and not experimental_package_root:
+        raise ValueError("Either --file or --experimental-package-root is required")
+    
+    if file and experimental_package_root:
+        raise ValueError("Specify either --file or --experimental-package-root, not both")
+    
+    if experimental_config_file and not experimental_package_root:
+        raise ValueError("--experimental-config-file can only be used with --experimental-package-root")
+    
+    custom_agent_file_path = None
+    custom_agent_config_file = None
+    
+    if experimental_package_root:
+        # Validate the directory exists
+        if not os.path.exists(experimental_package_root):
+            raise ValueError(f"Package root directory not found: {experimental_package_root}")
+        if not os.path.isdir(experimental_package_root):
+            raise ValueError(f"Package root must be a directory: {experimental_package_root}")
+        
+        # Validate config file if provided
+        if experimental_config_file:
+            if not os.path.exists(experimental_config_file):
+                raise ValueError(f"Config file not found: {experimental_config_file}")
+            if not os.path.isfile(experimental_config_file):
+                raise ValueError(f"Config file must be a file: {experimental_config_file}")
+            custom_agent_config_file = experimental_config_file
+        
+        custom_agent_file_path = experimental_package_root
+        file = experimental_package_root
+    elif file:
+        # Validate the file exists
+        if not os.path.exists(file):
+            raise ValueError(f"File not found: {file}")
+    
     agents_controller = AgentsController()
-    agent_specs = agents_controller.import_agent(file=file, app_id=app_id)
+    agent_specs = agents_controller.import_agent(
+        file=file,
+        app_id=app_id,
+        custom_agent_file_path=custom_agent_file_path,
+        custom_agent_config_file=custom_agent_config_file
+    )
     agents_controller.publish_or_update_agents(agent_specs)
 
 
 @agents_app.command(name="create", help='Create and import an agent into the active env')
 def agent_create(
     name: Annotated[
-        str,
-        typer.Option("--name", "-n", help="Name of the agent you wish to create"),
-    ],
+        Optional[str],
+        typer.Option("--name", "-n", help="Name of the agent you wish to create. Not required for custom agents (read from config.yaml)."),
+    ] = None,
     description: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             "--description",
-            help="Description of the agent",
+            help="Description of the agent. Not required for custom agents (read from config.yaml).",
         ),
-    ],
+    ] = None,
+    file: Annotated[
+        Optional[str],
+        typer.Option("--file", "-f", help="Path to a file: YAML file with agent definition or ZIP file for custom style agents"),
+    ] = None,
+    experimental_package_root: Annotated[
+        Optional[str],
+        typer.Option("--experimental-package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded.", hidden=True),
+    ] = None,
+    experimental_config_file: Annotated[
+        Optional[str],
+        typer.Option("--experimental-config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --experimental-package-root.", hidden=True),
+    ] = None,
     title: Annotated[
         str,
         typer.Option("--title", "-t", help="Title of the agent you wish to create. Only needed for External and Assistant Agents"),
@@ -176,12 +244,66 @@ def agent_create(
         ),
     ] = None,
 ):
+    
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
     auth_config_dict = json.loads(auth_config) if auth_config else {}
     structured_output_dict = json.loads(structured_output) if structured_output else None
+    
+    custom_agent_file_path = None
+    custom_agent_config_file = None
+    
+    if style == AgentStyle.CUSTOM:
+        if not file and not experimental_package_root:
+            raise ValueError("For custom style agents, either --file or --experimental-package-root is required")
+        
+        if file and experimental_package_root:
+            raise ValueError("For custom style agents, specify either --file or --experimental-package-root, not both")
+        
+        if experimental_config_file and not experimental_package_root:
+            raise ValueError("--experimental-config-file can only be used with --experimental-package-root")
+        
+        if file:
+            # Validate the zip file exists
+            if not os.path.exists(file):
+                raise ValueError(f"Custom code package file not found: {file}")
+            custom_agent_file_path = file
+        
+        if experimental_package_root:
+            # Validate the directory exists
+            if not os.path.exists(experimental_package_root):
+                raise ValueError(f"Package root directory not found: {experimental_package_root}")
+            if not os.path.isdir(experimental_package_root):
+                raise ValueError(f"Package root must be a directory: {experimental_package_root}")
+            
+            # Validate config file if provided
+            if experimental_config_file:
+                if not os.path.exists(experimental_config_file):
+                    raise ValueError(f"Config file not found: {experimental_config_file}")
+                if not os.path.isfile(experimental_config_file):
+                    raise ValueError(f"Config file must be a file: {experimental_config_file}")
+                custom_agent_config_file = experimental_config_file
+            
+            # The directory path will be passed and zipped in the controller
+            custom_agent_file_path = experimental_package_root
 
     agents_controller = AgentsController()
+    
+    # For custom agents, name and description are optional (read from config.yaml by backend)
+    # For other agent types, they are required
+    if style != AgentStyle.CUSTOM:
+        if not name:
+            raise ValueError("--name is required for non-custom agents")
+        if not description:
+            raise ValueError("--description is required for non-custom agents")
+    else:
+        # For custom agents, use placeholders if not provided - backend will read from config.yaml
+        timestamp_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        if not name:
+            name = f"placeholder_{timestamp_str}"
+        if not description:
+            description = f"placeholder_{timestamp_str}"
+    
     agent = agents_controller.generate_agent_spec(
         name=name,
         kind=kind,
@@ -207,6 +329,8 @@ def agent_create(
         output_file=output_file,
         context_access_enabled=context_access_enabled,
         context_variables=context_variables,
+        custom_agent_file_path=custom_agent_file_path,
+        custom_agent_config_file=custom_agent_config_file,
     )
     agents_controller.publish_or_update_agents([agent])
 
@@ -286,3 +410,62 @@ def undeploy_agent(
 ):
     agents_controller = AgentsController()
     agents_controller.undeploy_agent(name=name)
+
+@agents_app.command(name="experimental-connect", help="Connect connections to an agent", hidden=True)
+def experimental_connect_connections(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent to connect connections to"),
+    ],
+    connection_ids: Annotated[
+        List[str],
+        typer.Option(
+            "--connection-id",
+            "-c",
+            help="Connection app_id to connect. Multiple can be specified: --connection-id conn1 --connection-id conn2",
+        ),
+    ],
+):
+    """
+    Connect one or more connections to a custom agent.
+    
+    This command uses the PATCH /orchestrate/agents/{id} endpoint to associate
+    connections with an agent by their connection IDs.
+    
+    Example:
+        wxo agents experimental-connect --name my-agent --connection-id conn1 --connection-id conn2
+    """
+    agents_controller = AgentsController()
+    agents_controller.connect_connections_to_agent(agent_name=name, connection_ids=connection_ids)
+
+@agents_app.command(name="experimental-run", help="Send a message to a custom agent", hidden=True)
+def experimental_run(
+    message: Annotated[
+        str,
+        typer.Option("--message", "-m", help="The message to send to the agent"),
+    ],
+    agent_name: Annotated[
+        str,
+        typer.Option("--agent-name", "-a", help="The custom agent name to send the message to (required)"),
+    ],
+    thread_id: Annotated[
+        Optional[str],
+        typer.Option("--thread-id", "-t", help="Existing thread ID to continue conversation (optional)"),
+    ] = None,
+    capture_logs: Annotated[
+        bool,
+        typer.Option("--capture-logs", help="Capture and display logs from the agent execution (only available for custom agents)"),
+    ] = False,
+):
+    """
+    Send a message to a custom agent, optionally capturing and displaying execution logs.
+    
+    This command only works with custom style agents.
+    
+    Examples:
+        adk agents experimental-run --message "What is the weather today?" --agent-name "my-custom-agent"
+        adk agents experimental-run --message "Tell me more" --agent-name "my-custom-agent" --thread-id "thread-456"
+        adk agents experimental-run --message "Debug this" --agent-name "my-custom-agent" --capture-logs
+    """
+    agents_controller = AgentsController()
+    agents_controller.run_agent(message=message, agent_name=agent_name, thread_id=thread_id, capture_logs=capture_logs)
