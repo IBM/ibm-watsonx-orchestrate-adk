@@ -4,6 +4,9 @@ import requests
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 import json
 import base64
+from requests.exceptions import ConnectionError, Timeout, SSLError, HTTPError
+import sys
+from ibm_watsonx_orchestrate.client.utils import handle_error
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +77,94 @@ class LocalServiceInstance(BaseServiceInstance):
         return tenant_id
 
     def _get_user_auth_token(self):
-        resp = requests.post(DEFAULT_LOCAL_AUTH_ENDPOINT, data=DEFAULT_USER)
-        if resp.status_code == 200:
-            return resp.json()["access_token"]
-        else:
+        try:
+            resp = requests.post(
+                DEFAULT_LOCAL_AUTH_ENDPOINT,
+                data=DEFAULT_USER,
+            )
             resp.raise_for_status()
 
-    def _get_tenant_token(self, tenant_id: str):
-        resp = requests.post(DEFAULT_LOCAL_TENANT_AUTH_ENDPOINT.format(DEFAULT_LOCAL_SERVICE_URL, tenant_id),
-                             data=DEFAULT_USER)
-        if resp.status_code == 200:
             return resp.json()["access_token"]
-        else:
+
+        except Timeout as e:
+            handle_error(
+                "Auth service did not respond in time.",
+                e
+            )
+
+        except ConnectionError as e:
+            handle_error(
+                "Could not connect to the auth service. "
+                "Please make sure that all services are up and running.",
+                e
+            )
+
+        except SSLError as e:
+            handle_error(
+                "TLS error while connecting to the auth service.",
+                e
+            )
+
+        except HTTPError as e:
+            status = e.response.status_code if e.response else "unknown"
+            handle_error(
+                f"Auth service returned HTTP {status}. "
+                "Check credentials or service logs.",
+                e
+            )
+
+        except Exception as e:
+            handle_error(
+                "Failed to fetch access token. "
+                "Check credentials or service logs.",
+                e
+            )
+
+    def _get_tenant_token(self, tenant_id: str):
+        try:
+            resp = requests.post(
+                DEFAULT_LOCAL_TENANT_AUTH_ENDPOINT.format(
+                    DEFAULT_LOCAL_SERVICE_URL,
+                    tenant_id,
+                ),
+                data=DEFAULT_USER,
+            )
             resp.raise_for_status()
+
+            return resp.json()["access_token"]
+
+        except Timeout as e:
+            handle_error(
+                "Tenant auth service did not respond in time.",
+                e
+            )
+
+        except ConnectionError as e:
+            handle_error(
+                "Could not connect to the tenant auth service. "
+                "Please make sure all services are up and running.",
+                e
+            )
+
+        except SSLError as e:
+            handle_error(
+                "TLS error while connecting to the tenant auth service.",
+                e
+            )
+
+        except HTTPError as e:
+            status = e.response.status_code if e.response else "unknown"
+            handle_error(
+                f"Tenant auth service returned HTTP {status}.",
+                e
+            )
+
+        except Exception as e:
+            handle_error(
+                "Failed to fetch tenant access token. "
+                "Check credentials or service logs.",
+                e
+            )
 
     def _create_token(self) -> str:
 
