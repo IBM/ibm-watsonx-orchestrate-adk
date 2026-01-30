@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3.4.0
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}" 
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - opensearch-net
+
+volumes:
+  opensearch-data:
+    driver: local
+
+networks:
+  opensearch-net:
