@@ -7,10 +7,12 @@ import importlib
 import inspect
 import io
 import yaml
+import time
 from pathlib import Path
 from typing import List, Any, Optional
 from zipfile import ZipFile
 from io import BytesIO
+from rich.console import Console
 
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
@@ -24,6 +26,7 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import Knowledg
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 def import_python_knowledge_base(file: str) -> List[KnowledgeBase]:
     file_path = Path(file)
@@ -150,6 +153,7 @@ class KnowledgeBaseController:
                     continue
 
                 kb.validate_documents_or_index_exists()
+                response = None
                 if kb.documents:
                     files = [build_file_object(file_dir, file) for file in kb.documents]
                     file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
@@ -163,7 +167,14 @@ class KnowledgeBaseController:
                         'file_urls': json.dumps(file_urls)
                     }
 
-                    client.create_built_in(payload=data, files=files)
+                    response = client.create_built_in(payload=data, files=files)
+                    
+                    # Poll for import completion when documents are included
+                    if response and 'knowledge_base' in response:
+                        kb_id = response['knowledge_base']
+                        self._poll_knowledge_base_status(client, kb_id, kb.name, False)
+                    else:
+                        logger.info(f"Successfully started import for knowledge base '{kb.name}'")
                 else:
                     if len(kb.conversational_search_tool.index_config) != 1:
                         raise ValueError(f"Must provide exactly one conversational_search_tool.index_config. Provided {len(kb.conversational_search_tool.index_config)}.")
@@ -177,10 +188,109 @@ class KnowledgeBaseController:
                     data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
 
                     client.create(payload=data)
-                
-                logger.info(f"Successfully imported knowledge base '{kb.name}'")
+                    # No polling needed when no documents are included
+                    logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                logger.error(f"Error importing knowledge base '{kb.name}\n' {e.response.text}")
+                error_msg = e.response.json()["detail"] if e.response.json and "detail" in e.response.json() else e.response.text
+                logger.error(f"Error importing knowledge base '{kb.name}': {error_msg}")
+    
+    def _poll_knowledge_base_status(
+        self,
+        client: KnowledgeBaseClient,
+        kb_id: str,
+        kb_name: str,
+        is_update: bool = False,
+        poll_interval: int = 2,
+        max_wait_time: int = 1200 # 20 minutes
+    ) -> None:
+        """
+        Poll the knowledge base status until it becomes 'ready' or 'error'.
+        
+        Args:
+            client: The knowledge base client
+            kb_id: The knowledge base ID
+            kb_name: The knowledge base name (for logging)
+            poll_interval: Time in seconds between status checks (default: 2)
+            max_wait_time: Maximum time in seconds to wait (default: 1200)
+        """
+        start_time = time.time()
+        status_display_map = {
+            'update_pending': 'Update pending',
+            'rebuilding': 'Rebuilding index',
+            'ready': 'Ready',
+            'not_ready': 'Not Ready',
+            'error': 'Error'
+        }
+        
+        last_status = None
+        prefix_action_str = "Updating" if is_update else "Importing"
+        dot_count = 0  # Track the number of dots for animation
+        last_poll_time = 0  # Track when we last polled the API
+        animation_interval = 0.5  # Update dots every 0.5 seconds
+        status = None  # Initialize status
+        status_msg = ''  # Initialize status_msg
+        
+        with console.status(f"[bold green]{prefix_action_str} knowledge base '{kb_name}'.", spinner="dots") as status_display:
+            while True:
+                current_time = time.time()
+                elapsed_time = current_time - start_time
+                
+                if elapsed_time > max_wait_time:
+                    status_display.stop()
+                    logger.warning(f"Knowledge base status polling timed out after {max_wait_time} seconds. Please use \"orchestrate knowledge-bases status -n {kb_name}\" to check the status of your {'update' if is_update else 'import'}.")
+                    return
+                
+                # Check if it's time to poll the API
+                should_poll = (current_time - last_poll_time) >= poll_interval
+                
+                try:
+                    if should_poll:
+                        status_response = client.status(kb_id)
+                        status = status_response.get('built_in_index_status', '').lower()
+                        status_msg = status_response.get('built_in_index_status_msg', '')
+                        last_poll_time = current_time
+                        
+                        # Update last_status if it changed
+                        if status != last_status:
+                            last_status = status
+                        
+                        # Check for terminal states
+                        if status == 'ready':
+                            action_str = "updated" if is_update else "imported"
+                            if status_msg:
+                                console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{status_msg}[/bold white]")
+                            else:
+                                console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}'")
+                            return
+                        elif status == 'error' or status == "not_ready":
+                            action_str = "update" if is_update else "import"
+                            if status_msg:
+                                console.print(f"[red]✗[/red] Knowledge base [bold red]'{kb_name}'[/bold red] {action_str} failed: [bold white]{status_msg}[/bold white]", style="bold red")
+                            else:
+                                console.print(f"[red]✗[/red] Knowledge base [bold red]'{kb_name}'[/bold red] {action_str} failed", style="bold red")
+                            return
+                    
+                    # Animate the dots (cycle through 1, 2, 3 dots) - happens every animation_interval
+                    dot_count = (dot_count % 3) + 1
+                    dots = "." * dot_count
+                    
+                    # Update the spinner text with current status and animated dots
+                    friendly_status = status_display_map.get(last_status, last_status.replace('_', ' ').title()) if last_status else ""
+                    
+                    if friendly_status:
+                        status_display.update(f"[bold green]{prefix_action_str} knowledge base '{kb_name}' - {friendly_status}{dots}", spinner="dots")
+                    else:
+                        status_display.update(f"[bold green]{prefix_action_str} knowledge base '{kb_name}'{dots}", spinner="dots")
+                    
+                    # Sleep for animation interval
+                    time.sleep(animation_interval)
+                    
+                except ClientAPIException as e:
+                    logger.error(f"Error checking status for knowledge base '{kb_name}': {e.response.text}")
+                    return
+                except Exception as e:
+                    logger.error(f"Unexpected error checking status for knowledge base '{kb_name}': {str(e)}")
+                    return
     
     def get_id(
         self, id: str, name: str
@@ -235,14 +345,18 @@ class KnowledgeBaseController:
             }
 
             self.get_client().update_with_documents(knowledge_base_id, payload=data, files=files)
+            
+            # Poll for update completion when documents are included
+            self._poll_knowledge_base_status(self.get_client(), knowledge_base_id, kb.name, True)
         else:
             if kb.conversational_search_tool and kb.conversational_search_tool.index_config:
                 kb.prioritize_built_in_index = False
 
             data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
             self.get_client().update(knowledge_base_id, payload=data)
-
-        logger.info(f"Knowledge base '{kb.name}' updated successfully")
+            
+            # No polling needed when no documents are included
+            logger.info(f"Knowledge base '{kb.name}' updated successfully")
 
     def knowledge_base_status( self, id: str, name: str, format: ListFormats = None) ->  dict | str | None:
         knowledge_base_id = self.get_id(id, name)
