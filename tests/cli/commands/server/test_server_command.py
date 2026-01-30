@@ -948,7 +948,8 @@ def test_server_start_with_doc_processing_checks_memory(monkeypatch, tmp_path):
                 with_voice=False,
                 with_connections_ui=False,
                 with_langflow=False,
-                with_ai_builder=False
+                with_ai_builder=False,
+                cert_bundle_path=None
             )
         
         # Verify that check_and_ensure_memory_for_doc_processing was called with min_memory_gb=24 and that start_server was called
@@ -1022,7 +1023,8 @@ def test_server_start_with_doc_processing_checks_memory_lima(monkeypatch, tmp_pa
                 with_voice=False,
                 with_connections_ui=False,
                 with_langflow=False,
-                with_ai_builder=False
+                with_ai_builder=False,
+                cert_bundle_path=None
             )
         
         # Verify that check_and_ensure_memory_for_doc_processing was called with min_memory_gb=24 and start_server was called

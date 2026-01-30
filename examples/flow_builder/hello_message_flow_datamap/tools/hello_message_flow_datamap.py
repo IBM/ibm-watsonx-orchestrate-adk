@@ -40,6 +40,8 @@ def build_hello_message_flow_datamap(aflow: Flow = None) -> Flow:
     combine_names_node.map_input(input_variable="last_name", expression="flow.input.last_name", default_value="default_last_name")
 
     get_hello_message_node = aflow.tool(get_hello_message)
+    get_hello_message_node.map_input(input_variable="name", expression="flow.combine_names.output")
+
 
     aflow.edge(START, combine_names_node).edge(combine_names_node, get_hello_message_node).edge(get_hello_message_node, END)
 
