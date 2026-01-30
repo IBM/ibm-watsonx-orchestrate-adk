@@ -13,9 +13,12 @@ from ibm_cloud_sdk_core.authenticators import (
     CloudPakForDataAuthenticator
 ) 
 
-from ibm_watsonx_orchestrate.client.utils import check_token_validity, is_cpd_env, is_ibm_cloud_platform
+from ibm_watsonx_orchestrate.client.utils import check_token_validity, is_cpd_env, is_ibm_cloud_platform, handle_error
 from ibm_watsonx_orchestrate.client.base_service_instance import BaseServiceInstance
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
+import requests
+import sys
+from requests.exceptions import ConnectionError, Timeout, SSLError, HTTPError
 
 from ibm_watsonx_orchestrate.client.client_errors import (
     ClientError,
@@ -117,8 +120,37 @@ class ServiceInstance(BaseServiceInstance):
             authenticator = self._get_authenticator(auth_type)
             return authenticator.token_manager.get_token()
 
+        except Timeout as e:
+            handle_error(
+                f"{auth_type.upper()} auth service did not respond in time.",
+                e
+            )
+
+        except ConnectionError as e:
+            handle_error(
+                f"Could not connect to the {auth_type.upper()} auth service.",
+                e
+            )
+
+        except SSLError as e:
+            handle_error(
+                f"TLS error while connecting to the {auth_type.upper()} auth service.",
+                e
+            )
+
+        except HTTPError as e:
+            status = e.response.status_code if e.response else "unknown"
+            handle_error(
+                f"{auth_type.upper()} auth service returned HTTP {status}.",
+                e
+            )
+
         except Exception as e:
-            raise ClientError(f"Error getting {auth_type.upper()} Token", logg_messages=False)
+            raise ClientError(
+                f"Error getting {auth_type.upper()} Token",
+                logg_messages=False
+            ) from e
+
 
 
     
