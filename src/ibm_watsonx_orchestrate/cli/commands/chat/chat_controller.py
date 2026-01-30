@@ -1,6 +1,7 @@
 import logging
 import json
 import ast
+import time
 
 from typing import Optional
 from rich.console import Console
@@ -166,6 +167,151 @@ def _check_for_widgets_and_extract_text(content) -> tuple[bool, str]:
     return has_widgets, extracted_text
 
 
+def _poll_and_display_async_messages(
+    threads_client: ThreadsClient,
+    thread_id: str,
+    initial_message_count: int,
+    agent_name: str,
+    poll_interval: int = 1
+) -> Optional[dict]:
+    """
+    Poll for flow completion and display async messages as they arrive.
+    
+    Args:
+        threads_client: The threads client instance
+        thread_id: The thread ID to poll
+        initial_message_count: Number of messages before the flow started
+        agent_name: Name of the agent for display
+        poll_interval: Seconds between polling attempts
+        
+    Returns:
+        The final message dict (with is_async=false), or None if not found
+    """
+    
+    displayed_message_ids = set()
+    attempt = 0
+    warning_shown = False
+    start_time = time.time()
+
+    with console.status("[bold green]Waiting for flow to complete...", spinner="dots"):
+        while True:
+            try:
+                # Check if 30 seconds have passed and show warning
+                elapsed_time = time.time() - start_time
+                if elapsed_time >= 30 and not warning_shown:
+                    console.print()
+                    warning_panel = Panel(
+                        "This is taking longer than expected, CTRL+C to cancel the run.\nUse 'orchestrate chat start' for the full chat experience.",
+                        title="⚠️  Warning",
+                        title_align="left",
+                        border_style="yellow",
+                        padding=(1, 2)
+                    )
+                    console.print(warning_panel)
+                    console.print()
+                    warning_shown = True
+                
+                thread_messages_response = threads_client.get_thread_messages(thread_id)
+                if isinstance(thread_messages_response, list):
+                    messages = thread_messages_response
+                elif isinstance(thread_messages_response, dict) and "data" in thread_messages_response:
+                    messages = thread_messages_response["data"]
+                else:
+                    messages = []
+                
+                if len(messages) > initial_message_count:
+                    # Check all new messages
+                    for msg in messages[initial_message_count:]:
+                        if isinstance(msg, dict) and msg.get("role") == "assistant":
+                            msg_id = msg.get("id")
+                                                        
+                            # Skip if already displayed
+                            if msg_id in displayed_message_ids:
+                                continue
+                            
+                            content = msg.get("content", "")
+                            is_flow_started_msg = False
+                            
+                            if isinstance(content, str):
+                                if "flow has started" in content.lower() or "flow instance ID" in content:
+                                    is_flow_started_msg = True
+                            elif isinstance(content, list):
+                                text_parts = []
+                                for item in content:
+                                    if isinstance(item, dict):
+                                        if item.get("response_type") == "text":
+                                            text_parts.append(item.get("text", ""))
+                                        elif "text" in item:
+                                            text_parts.append(item["text"])
+                                full_text = "\n".join(text_parts)
+                                if "flow has started" in full_text.lower() or "flow instance ID" in full_text:
+                                    is_flow_started_msg = True
+                            
+                            # Skip flow started messages
+                            if is_flow_started_msg:
+                                displayed_message_ids.add(msg_id)
+                                continue
+                            
+                            # Check if this is an async message or the final message
+                            additional_props = msg.get("additional_properties", {})
+                            display_props = additional_props.get("display_properties") if additional_props else None
+                            is_async = display_props.get("is_async", False) if display_props else False
+                            
+                            # Check for widgets/forms that need user input (check BEFORE displaying)
+                            has_widgets, _ = _check_for_widgets_and_extract_text(content)
+                            if has_widgets:
+                                logger.info(f"Found widget/form in async message (id: {msg_id}) - flow needs user input")
+                                console.print()
+                                widget_panel = Panel(
+                                    "Sorry the chat ask command cannot render widgets.\nPlease use orchestrate chat start to access the full ui experience",
+                                    title="Widget Detected",
+                                    title_align="left",
+                                    border_style="yellow",
+                                    padding=(1, 2)
+                                )
+                                console.print(widget_panel)
+                                console.print()
+                                return None
+                            
+                            if isinstance(content, list):
+                                text_parts = []
+                                for item in content:
+                                    if isinstance(item, dict):
+                                        if item.get("response_type") == "text":
+                                            text_parts.append(item.get("text", ""))
+                                        elif "text" in item:
+                                            text_parts.append(item["text"])
+                                content_text = "\n".join(text_parts) if text_parts else str(content)
+                            else:
+                                content_text = str(content)
+                            
+                            console.print()  # Add spacing
+                            if is_async:
+                                # Display thinking async message
+                                async_panel = Panel(
+                                    content_text,
+                                    title=f"💭 {agent_name} (Thinking...)",
+                                    title_align="left",
+                                    border_style="yellow",
+                                    padding=(1, 2)
+                                )
+                                console.print(async_panel)
+                            else: # This is the final message
+                                return msg
+                            
+                            displayed_message_ids.add(msg_id)
+                
+                time.sleep(poll_interval)
+                attempt += 1
+                
+            except KeyboardInterrupt:
+                logger.info(f"Flow polling interrupted by user (Ctrl+C) after {attempt} attempts")
+                raise
+            except Exception as e:
+                logger.warning(f"Error polling for flow completion (attempt {attempt + 1}): {e}")
+                time.sleep(poll_interval)
+    
+
 def _execute_agent_interaction(run_client:RunClient, threads_client:ThreadsClient, message:str, agent_id:str, include_reasoning:bool, agent_name:str, thread_id: Optional[str] = None) -> Optional[str]:
     """Execute agent interaction: send message, wait for response, display answer, and return thread_id to keep the conversation context in interactive mode."""
     try:
@@ -237,9 +383,6 @@ def _execute_agent_interaction(run_client:RunClient, threads_client:ThreadsClien
                         logger.error(f"Could not retrieve reasoning trace: {e}")
                         raise e
                 
-                if not reasoning_trace:
-                    logger.debug("No reasoning trace available from any source")
-
             # Check if we got content indicating flow (in content or reasoning trace)
             is_flow_started = False
             flow_message = None
@@ -260,35 +403,68 @@ def _execute_agent_interaction(run_client:RunClient, threads_client:ThreadsClien
                             if step_detail.get("type") == "tool_response":
                                 tool_content = str(step_detail.get("content", ""))
                                 if ("flow instance id" in tool_content.lower() or
-                                    "thread will remain blocked" in tool_content.lower()):
+                                    "thread will remain blocked" in tool_content.lower() or
+                                    "flow has started" in content.lower()  
+                                    ):
                                     is_flow_started = True
                                     flow_message = tool_content
                                     break
                     if is_flow_started:
                         break
-            
-            if is_flow_started: # Display the flow started message
-                console.print()
-                flow_panel = Panel(
-                    flow_message if flow_message else "A new flow has started. This chat session is currently dedicated to the flow and will resume once the flow is complete.",
-                    title="🔄 Flow Started",
-                    title_align="left",
-                    border_style="blue",
-                    padding=(1, 2)
-                )
-                console.print(flow_panel)
-                console.print()
+            # Also check if the message has is_async=true (indicates more messages coming)
+            if not is_flow_started and assistant_message:
+                additional_props = assistant_message.get("additional_properties", {})
+                display_props = additional_props.get("display_properties") if additional_props else None
+                is_async = display_props.get("is_async", False) if display_props else False
                 
-                # Now wait for flow completion with spinner
-                with console.status("[bold green]Waiting for flow to complete...", spinner="dots"):
-                    flow_completion_message = threads_client.poll_for_flow_completion(thread_id, initial_message_count)
+                if is_async:
+                    is_flow_started = True
+            
+            if is_flow_started: # Display the flow started message (if we have one)
+                if flow_message:
+                    console.print()
+                    flow_panel = Panel(
+                        flow_message,
+                        title="🔄 Flow Started",
+                        title_align="left",
+                        border_style="blue",
+                        padding=(1, 2)
+                    )
+                    console.print(flow_panel)
+                    console.print()
+                    
+                # Also check if the current message already contains a widget in content
+                if assistant_message:
+                    current_content = assistant_message.get("content", "")
+                    has_widgets, _ = _check_for_widgets_and_extract_text(current_content)
+                    if has_widgets:
+                        logger.info("Flow started message contains widget - needs user input")
+                        console.print()
+                        widget_panel = Panel(
+                            "Sorry the chat ask command cannot render widgets.\nPlease use orchestrate chat start to access the full ui experience",
+                            title="Widget Detected",
+                            title_align="left",
+                            border_style="yellow",
+                            padding=(1, 2)
+                        )
+                        console.print(widget_panel)
+                        console.print()
+                        return None
+                
+                # Now wait for flow completion and display async messages as they arrive
+                flow_completion_message = _poll_and_display_async_messages(
+                    threads_client, thread_id, initial_message_count, agent_name
+                )
+                
+                # If None was returned, it means a widget was detected or an error occurred
+                if flow_completion_message is None:
+                    return None
                 
                 if flow_completion_message:
                     # Update with the flow completion message
                     assistant_message = flow_completion_message
                     content = assistant_message.get("content", "No response")
-                    
-                    if include_reasoning and not reasoning_trace: # Update reasoning trace if not provided in the beginning
+                    if include_reasoning and (not reasoning_trace or not reasoning_trace["steps"]): # Update reasoning trace if not provided in the beginning
                         if "step_history" in assistant_message and assistant_message["step_history"]:
                             reasoning_trace = {"steps": assistant_message["step_history"]}
                         elif run_status and "result" in run_status:
