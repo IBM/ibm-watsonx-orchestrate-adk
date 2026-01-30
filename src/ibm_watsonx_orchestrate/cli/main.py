@@ -1,6 +1,5 @@
 
 import typer
-import sys
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
 from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
