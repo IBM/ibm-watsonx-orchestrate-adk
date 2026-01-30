@@ -4,6 +4,8 @@ import logging
 import pytest
 import re
 import requests
+import yaml
+import traceback
 from unittest.mock import patch, mock_open, MagicMock
 
 from ibm_watsonx_orchestrate.cli.commands.models import models_controller
@@ -60,11 +62,17 @@ class MockModel():
     name=""
     description=""
     id=""
-    def __init__(self, name = "", description= "", id = ""):
+    spec={}
+
+    def __init__(self, name = "", description= "", id = "", spec= {}):
         self.name = name
         self.description = description
         self.id = id
-   
+        self.spec = spec
+    
+    def model_dump(self, mode, exclude_none):
+        return self.spec
+
 class DummyResponse:
     def __init__(self, status_code, json_data, content=b""):
         self.status_code = status_code
@@ -74,6 +82,20 @@ class DummyResponse:
     def json(self):
         return self._json_data
 
+class MockConnectionClient:
+    def __init__(self, get_response=[], get_draft_by_id_response=None, get_draft_by_app_id_reponse=None):
+        self.get_response = get_response
+        self.get_draft_by_id_response = get_draft_by_id_response
+        self.get_draft_by_app_id_reponse = get_draft_by_app_id_reponse
+    
+    def get(self):
+        return self.get_response
+    
+    def get_draft_by_id(self, conn_id):
+        return self.get_draft_by_id_response
+    
+    def get_draft_by_app_id(self, app_id):
+        return self.get_draft_by_app_id_reponse
 
 def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None) -> MockModelsClient | MockModelPoliciesClient:
     if client == ModelsClient:
@@ -638,6 +660,46 @@ class TestImportModel:
             assert model.provider_config.provider == provider
             assert model.connection_id == self.mock_connection_id
 
+class TestExportModel:
+    mock_model_spec = {
+        "spec_version": "v1",
+        "name": "test_name",
+        "display_name": "test_display_name",
+        "description": "test_description",
+        "config": {"abc": 123},
+        "provider_config": {"provider": "test_provider"},
+        "tags": ["test_tag_1"],
+        "model_type": ModelType.CHAT,
+        "connection_id": "test_connection_id"
+    }
+    mock_model_name = "test_model"
+    mock_output_path = "test_output.zip"
+
+    def test_export_model(self, caplog):
+        mock_models_client = MockModelsClient(get_draft_by_name_response=[MockModel(name=self.mock_model_name, spec=self.mock_model_spec)])
+        mock_connection_client = MockConnectionClient(
+            get_draft_by_id_response="testing"
+        )
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.dump", wraps = yaml.dump) as yaml_dump_spy, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.get_app_id_from_conn_id") as mock_get_app_id, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.export_connection") as mock_export_connection:
+            instantiate_client_mock.return_value = mock_models_client
+            mock_get_app_id.return_value = "test_app_id"
+
+            mc = ModelsController()
+            mc.export_model(name=self.mock_model_name, output_path=self.mock_output_path)
+
+        captured = caplog.text
+        yaml_dump_spy.assert_called_once()
+
+        assert "Exporting model" in captured
+        assert f"Successfully exported model" in captured
+        mock_export_connection.assert_called_once()
+        mock_export_connection.assert_called_once()
+
 class TestCreateModel:
     mock_model_name = "test_model"
     mock_env_file = "test_env_file"
@@ -948,6 +1010,85 @@ class TestCreateModelPolicy:
         captured = caplog.text
 
         assert f"No model found with the name '{self.mock_model_name}'" in captured
+
+class TestExportModelPolicy:
+    mock_model_spec = {
+        "spec_version": "v1",
+        "name": "test_name",
+        "display_name": "test_display_name",
+        "description": "test_description",
+        "policy": {
+            "strategy": {
+                "mode": "fallback"
+            },
+            "retry": {
+                "attempts": 1,
+                "on_status_codes": [503]
+            },
+            "targets": [
+                {
+                    "model_name": "virtual-model/openai/o4-mini"
+                }
+            ]
+        },
+    }
+
+    mock_model_spec_no_policy = {
+        "spec_version": "v1",
+        "name": "test_name_2",
+        "display_name": "test_display_name",
+        "description": "test_description",
+        "policy": {
+            "strategy": {
+                "mode": "fallback"
+            },
+            "retry": {
+                "attempts": 1,
+                "on_status_codes": [503]
+            },
+            "targets": []
+        }
+    }
+
+    mock_model_name = "test_model"
+    mock_output_path = "test_output.zip"
+    def test_export_model_policy(self, caplog):
+        mock_models_client = MockModelsClient(get_draft_by_name_response=[MockModel(name=self.mock_model_name, spec=self.mock_model_spec)])
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.dump", wraps = yaml.dump) as yaml_dump_spy, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.export_model") as mock_export_model:
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.export_model_policy(name=self.mock_model_name, output_path=self.mock_output_path)
+
+        captured = caplog.text
+        assert yaml_dump_spy.call_count == 1
+
+        assert "Exporting model policy" in captured
+        assert f"Successfully exported model policy" in captured
+        mock_export_model.assert_called_once()
+
+    def test_export_model_policy_only(self, caplog):
+        mock_models_client = MockModelsClient(get_draft_by_name_response=[MockModel(name=self.mock_model_name, spec=self.mock_model_spec_no_policy)])
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.dump", wraps = yaml.dump) as yaml_dump_spy, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.zipfile.ZipFile") as mock_zipfile, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.export_model") as mock_export_model:
+
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.export_model_policy(name=self.mock_model_name, output_path=self.mock_output_path)
+
+        captured = caplog.text
+        assert yaml_dump_spy.call_count == 1
+
+        assert "Exporting model policy" in captured
+        assert f"Successfully exported model policy" in captured
 
 class TestPublishOrUpdateModelPoliciess:
     mock_policy_name = "test_name"

@@ -1,3 +1,10 @@
+# Local Development Service Credentials
+#------------------------------------------------
+# Any credentials in this file are for local development only.
+# They are default values and can be overridden by the user.
+# These do NOT provide access to any production or sensitive system
+# ------------------------------------------------
+
 name: dev-edition
 services:
   ########################
@@ -51,7 +58,7 @@ services:
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
-      CALLBACK_URL: http://localhost:3001/auth/oauth2/callback
+      CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1}'
     ports:
       - 3001:3001
@@ -88,6 +95,31 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_URL: ${GROQ_URL}
 
+  mcp-gateway:
+    image: ${MCP_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/mcp-gateway:${MCP_GATEWAY_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+    environment:
+      APP_NAME: MCP Gateway
+      CONNECTION_MANAGER_BASE_URL: http://wxo-server-connection-manager:3001
+      PORT: 4444
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/mcpgateway
+      JWT_SECRET_KEY: ${JWT_SECRET}
+      MCPGATEWAY_UI_ENABLED: true
+      MCPGATEWAY_ADMIN_API_ENABLED: true 
+      HOST: 0.0.0.0 
+      BASIC_AUTH_USER: ${MCP_GATEWAY_BASIC_USER} 
+      BASIC_AUTH_PASSWORD: ${MCP_GATEWAY_BASIC_PASSWORD} 
+      AUTH_REQUIRED: true 
+      PLATFORM_ADMIN_EMAIL: ${MCP_GATEWAY_ADMIN_EMAIL}
+      PLATFORM_ADMIN_PASSWORD: ${MCP_GATEWAY_ADMIN_PASSWORD} 
+      PLATFORM_ADMIN_FULL_NAME: "Platform Administrator" 
+      SECURE_COOKIES: false
+      PLUGINS_ENABLED: true
+      JWT_AUDIENCE_VERIFICATION: false
+      LOG_LEVEL: DEBUG
+      
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
     platform: linux/amd64
@@ -307,7 +339,7 @@ services:
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       IS_WXO_LITE: "TRUE"
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       WXO_DEPLOYMENT_PLATFORM: local
@@ -527,7 +559,7 @@ services:
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
       IS_WXO_LITE: "TRUE"
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       WXO_DEPLOYMENT_PLATFORM: saas
@@ -564,6 +596,8 @@ services:
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -641,7 +675,7 @@ services:
       CALLER_ID: 12345
       AGENTIC_FLOW_ENABLED: ${AGENTIC_FLOW_ENABLED}
       CELERY_WORKER_POOL: ${CELERY_WORKER_POOL}
-      OAUTH_REDIRECT_URL: https://localhost:4322/api/v1/connections/callback
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       ENABLE_WEBHOOKS: false
       DISABLE_JSON_LOG_CELERY: true
       CONNECTION_MANAGER_URL: http://wxo-server-connection-manager:3001
@@ -675,7 +709,7 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
-  
+
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
@@ -725,8 +759,6 @@ services:
       OTEL_MASK_VALUE: ${OTEL_MASK_VALUE:-<REDACTED>}
       TRM_CLIENT_MASK_ATTRS: ${TRM_CLIENT_MASK_ATTRS:-url.full,server.address,server.port}
       TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   tools-runtime:
     image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
@@ -762,6 +794,25 @@ services:
       TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
       TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
       TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
+    
+  agent-runtime:
+    image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}
+    platform: linux/amd64
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    depends_on:
+      - wxo-server-db
+    volumes:
+      - $HOME/.kube/config:/root/.kube/config
+      - tools-runtime-data:/shared-data
+    environment:
+      DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
+      VOLUME_MOUNT_PATH: "/shared-data"
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
+      USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+
   ########################
   # IBM AGENT-OPS
   ########################
@@ -1004,6 +1055,9 @@ services:
   wxo-tempus-runtime:
     image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
+    networks:
+      - default
+      - jaeger-network
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
       SERVER_MODE: production
@@ -1053,6 +1107,7 @@ services:
       DOCPROC_CACHE_SERVER_URL: http://wxo-doc-processing-cache:8080
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
+      TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -1305,7 +1360,7 @@ services:
       PGDATABASE: wxo-document-processing-dpi
       PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD:-postgres}"
       USE_PGBOUNCER: "false"
-    entrypoint: /liquibase-init.sh
+    entrypoint: /flyway-init.sh
       - pgbouncer
     profiles:
       - docproc
@@ -1392,6 +1447,7 @@ services:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
+      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
     volumes:
       - langflow-data:/app/langflow
 

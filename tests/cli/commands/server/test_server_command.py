@@ -626,46 +626,50 @@ def test_cli_command_failure(caplog):
     assert "Missing required model access environment variables" in captured
 
 def test_run_db_migration_success():
-    with patch.object(EnvService, "get_compose_file") as mock_compose, \
-         skip_terms_and_conditions(), \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as server_command_logger, \
+    with skip_terms_and_conditions(), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.MigrationsManager") as mock_migration_manager, \
          patch("sys.exit") as mock_exit:
 
-        mock_compose.return_value = "/fake/path/docker-compose.yml"
-
-        dummy_vm = MagicMock()
-        dummy_vm.run_docker_command.return_value = MagicMock(returncode=0)
-        mock_get_vm.return_value = dummy_vm
+        dummy_manager = MagicMock()
+        dummy_manager.run_orchestrate_migrations.return_value = None
+        dummy_manager.run_observabilty_migrations.return_value = None        
+        dummy_manager.run_langflow_migrations.return_value = None
+        dummy_manager.run_architect_migrations.return_value = None
+        dummy_manager.run_mcp_gateway_migrations.return_value = None
+        mock_migration_manager.return_value = dummy_manager
 
         run_db_migration()
 
-        mock_compose.assert_called_once()
-        assert mock_get_vm.called
-        server_command_logger.info.assert_any_call("Migration ran successfully.")
+        assert mock_migration_manager.called
+        assert dummy_manager.run_orchestrate_migrations.called
+        assert dummy_manager.run_observability_migrations.called
+        assert dummy_manager.run_mcp_gateway_migrations.called
+        assert not dummy_manager.run_langflow_migrations.called
+        assert not dummy_manager.run_architect_migrations.called
         mock_exit.assert_not_called()
 
-def test_run_db_migration_failure():
-    with patch.object(EnvService, "get_compose_file") as mock_compose, \
-         skip_terms_and_conditions(), \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
-         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.logger") as mock_logger, \
+def test_run_db_migration_with_ai_builder():
+    with skip_terms_and_conditions(), \
+         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.MigrationsManager") as mock_migration_manager,\
          patch("sys.exit") as mock_exit:
 
-        mock_compose.return_value = "/fake/path/docker-compose.yml"
+        dummy_manager = MagicMock()
+        dummy_manager.run_orchestrate_migrations.return_value = None
+        dummy_manager.run_observabilty_migrations.return_value = None        
+        dummy_manager.run_langflow_migrations.return_value = None
+        dummy_manager.run_architect_migrations.return_value = None
+        dummy_manager.run_mcp_gateway_migrations.return_value = None
+        mock_migration_manager.return_value = dummy_manager
 
-        # Dummy VM that simulates a migration failure
-        dummy_vm = MagicMock()
-        dummy_vm.run_docker_command.return_value = MagicMock(returncode=1, stderr=b"Mocked migration failure.")
-        mock_get_vm.return_value = dummy_vm
+        run_db_migration(with_ai_builder=True)
 
-        run_db_migration()
-
-        mock_exit.assert_called_once_with(1)
-
-        mock_logger.error.assert_called_with(
-            "Error running database migration:\nb'Mocked migration failure.'"
-        )
+        assert mock_migration_manager.called
+        assert dummy_manager.run_orchestrate_migrations.called
+        assert dummy_manager.run_observability_migrations.called
+        assert dummy_manager.run_mcp_gateway_migrations.called
+        assert not dummy_manager.run_langflow_migrations.called
+        assert dummy_manager.run_architect_migrations.called
+        mock_exit.assert_not_called()
 
 # Purge VM
 def test_server_purge_success(monkeypatch):

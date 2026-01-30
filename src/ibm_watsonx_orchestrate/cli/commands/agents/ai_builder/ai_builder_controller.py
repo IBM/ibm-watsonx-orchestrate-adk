@@ -118,7 +118,7 @@ def _get_incomplete_tool_from_name(tool_name: str) -> dict:
 
 
 def _get_incomplete_agent_from_name(agent_name: str) -> dict:
-    spec = BaseAgentSpec(**{"name": agent_name, "description": agent_name, "kind": AgentKind.NATIVE})
+    spec = BaseAgentSpec(**{"name": agent_name, "description": agent_name, "kind": AgentKind.NATIVE, "id": agent_name})
     return spec.model_dump()
 
 
@@ -159,12 +159,12 @@ def _get_agents_from_names(collaborators_names: List[str]) -> List[dict]:
     if not len(collaborators_names):
         return []
 
-    native_agents_client = get_native_client()
+    agent_controller = AgentsController()
 
     try:
         with _get_progress_spinner() as progress:
             task = progress.add_task(description="Fetching agents", total=None)
-            agents = native_agents_client.get_drafts_by_names(collaborators_names)
+            agents = agent_controller.get_agent_by_names(collaborators_names)
             found_agents = {tool.get("name") for tool in agents}
             progress.remove_task(task)
             progress.refresh()
@@ -213,7 +213,7 @@ def _get_knowledge_bases_from_names(kb_names: List[str]) -> List[dict]:
 def _get_excluded_fields(agent = None):
     excluded_fields = {"llm_config"}
     if agent:
-        for attr in dir(agent):
+        for attr in vars(agent):
             if not getattr(agent, attr, None):
                 excluded_fields.add(attr)
     else:
@@ -660,14 +660,20 @@ def submit_refine_agent_with_chats(agent_name: str, chat_llm: str | None, output
     try:
         with _get_progress_spinner() as progress:
             agent = agents_controller.get_agent_by_id(id=agent_id)
+            tools_client = get_tool_client()
+            if agent.guidelines:
+                for guideline in agent.guidelines:
+                    if not guideline.tool:
+                        continue
+                    tool_draft = tools_client.get_draft_by_id(guideline.tool)
+                    guideline.tool = tool_draft["name"]
             excluded_fields = _get_excluded_fields(agent)
             task = progress.add_task(description="Running Prompt Refiner", total=None)
-            tools_client = get_tool_client()
             knowledge_base_client = get_knowledge_bases_client()
             # loaded agent contains the ids of the tools/collabs/knowledge bases, convert them back to names.
             agent.tools = [tools_client.get_draft_by_id(id)['name'] for id in agent.tools]
             agent.knowledge_base = [knowledge_base_client.get_by_id(id)['name'] for id in agent.knowledge_base]
-            agent.collaborators = [agents_client.get_draft_by_id(id)['name'] for id in agent.collaborators]
+            agent.collaborators = agents_controller.reference_collaborators(agent).collaborators
             tools = _get_tools_from_names(agent.tools)
             collaborators = _get_agents_from_names(agent.collaborators)
             knowledge_bases = _get_knowledge_bases_from_names(agent.knowledge_base)

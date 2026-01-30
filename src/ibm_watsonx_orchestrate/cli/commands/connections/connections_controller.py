@@ -750,3 +750,19 @@ def auth_entry_connection_credentials_parse(text: str) -> ConnectionCredentialsE
     if entry.location != ConnectionCredentialsEntryLocation.QUERY:
         raise typer.BadParameter(f"Only location '{ConnectionCredentialsEntryLocation.QUERY}' is supported for --auth-entry")
     return entry
+
+def get_app_id_from_conn_id(conn_id: str) -> str:
+    connections_client = get_connections_client()
+    app_id = connections_client.get_draft_by_id(conn_id=conn_id)
+    if not app_id or app_id == conn_id:
+        logger.error(f"No connection exists with the connection id '{conn_id}'")
+        exit(1)
+    return app_id
+
+def get_conn_id_from_app_id(app_id: str) -> str:
+    connections_client = get_connections_client()
+    connection = connections_client.get_draft_by_app_id(app_id=app_id)
+    if not connection:
+        logger.error(f"No connection exists with the app-id '{app_id}'")
+        exit(1)
+    return connection.connection_id

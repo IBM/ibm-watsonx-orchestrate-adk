@@ -27,6 +27,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.migration_manager import MigrationsManager
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
@@ -143,7 +144,8 @@ def run_compose_lite(
         if final_env_file.exists():
             final_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded= result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -270,7 +272,8 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
             except Exception as e:
                 logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -316,7 +319,8 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
         if vm_env_file.exists():
             vm_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -354,7 +358,8 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
         if lima_env_file.exists():
             lima_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -578,6 +583,9 @@ def server_start(
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
+        merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = merged_env_dict.get('FLOW_TRACING_OTLP_ENDPOINT') or 'http://jaeger:4318/v1/traces'
+    else:
+        merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = ''
 
     if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
@@ -648,6 +656,12 @@ def server_start(
     cleanup_orchestrate_cache()
 
     if experimental_with_langfuse:
+        # Local Development Service Credentials
+        #------------------------------------------------
+        # These credentials are for local development only.
+        # They are default values and can be overridden by the user.
+        # These do NOT provide access to any production or sensitive system
+        # ------------------------------------------------
         logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
@@ -756,152 +770,32 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
         'ASSISTANT_LLM_API_KEY': '',
     })
 
-    # Write merged env file to a temporary location
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
-    # Ensure orchestrate directory exists (shared between host & VM)
-    orchestrate_dir = Path.home() / ".cache/orchestrate"
-    orchestrate_dir.mkdir(parents=True, exist_ok=True)
-
-    # Ensure final_env_file is a Path
-    if isinstance(final_env_file, str):
-        final_env_file = Path(final_env_file)
-
-    # Create path in orchestrate dir
-    vm_env_file = orchestrate_dir / final_env_file.name
-
-    # Copy using host path
-    shutil.copy(final_env_file, vm_env_file)
-
-    # Now convert for VM use
-    final_env_file_vm = path_for_vm(vm_env_file)
-
     pg_user = merged_env_dict.get("POSTGRES_USER", "postgres")
+    pg_timeout = merged_env_dict.get("POSTGRES_READY_TIMEOUT", 10)
 
-    migration_script = rf'''
-    APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
-    mkdir -p "$(dirname "$APPLIED_MIGRATIONS_FILE")"
-    touch "$APPLIED_MIGRATIONS_FILE"
+    migration_manager = MigrationsManager(
+        env_path=final_env_file,
+        context={
+            'PG_USER': pg_user,
+            'PG_TIMEOUT': pg_timeout
+        }
+    )
+    logger.info(f"Running DB migrations inside {migration_manager.vm_manager.__class__.__name__}...")
 
-    for file in /docker-entrypoint-initdb.d/*.sql; do
-        filename=$(basename "$file")
-        if grep -Fxq "$filename" "$APPLIED_MIGRATIONS_FILE"; then
-            echo "Skipping already applied migration: $filename"
-        else
-            echo "Applying migration: $filename"
-            if psql -U {pg_user} -d postgres -q -f "$file" > /dev/null 2>&1; then
-                echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
-            else
-                echo "Error applying $filename. Stopping migrations."
-                exit 1
-            fi
-        fi
-    done
-
-
-    # Create wxo_observability database if it doesn't exist
-    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw wxo_observability; then
-        echo 'Existing wxo_observability DB found'
-    else
-        echo 'Creating wxo_observability DB'
-        createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
-        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
-    fi
-
-
-    # Run observability-specific migrations
-    OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
-    touch "$OBSERVABILITY_MIGRATIONS_FILE"
-
-    for file in /docker-entrypoint-initdb.d/observability/*.sql; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            
-            if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
-                echo "Skipping already applied observability migration: $filename"
-            else
-                echo "Applying observability migration: $filename"
-                if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
-                    echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
-                else
-                    echo "Error applying observability migration: $filename. Stopping migrations."
-                    exit 1
-                fi
-            fi
-        fi
-    done
-    '''
-
-    if with_ai_builder:
-        migration_script += rf'''
-        # Create architect database if it doesn't exist
-        if psql -U {pg_user} -lqt | cut -d \| -f 1 | grep -qw architect; then
-            echo 'Existing architect DB found'
-        else
-            echo 'Creating architect DB'
-            createdb -U "{pg_user}" -O "{pg_user}" architect;
-            psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE architect TO {pg_user}";
-        fi
-
-        # Run architect-specific migrations
-        ARCHITECT_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/architect_migrations.txt"
-        touch "$ARCHITECT_MIGRATIONS_FILE"
-
-        for file in /docker-entrypoint-initdb.d/agent_architecture/migrations/*.sql; do
-            if [ -f "$file" ]; then
-                filename=$(basename "$file")
-                
-                if grep -Fxq "$filename" "$ARCHITECT_MIGRATIONS_FILE"; then
-                    echo "Skipping already applied architect migration: $filename"
-                else
-                    echo "Applying architect migration: $filename"
-                    if psql -U {pg_user} -d architect -q -f "$file" > /dev/null 2>&1; then
-                        echo "$filename" >> "$ARCHITECT_MIGRATIONS_FILE"
-                    else
-                        echo "Error applying architect migration: $filename. Stopping migrations."
-                        exit 1
-                    fi
-                fi
-            fi
-        done
-        '''
-
-    # Encode the migration script to base64
-    encoded_script = base64.b64encode(migration_script.encode('utf-8')).decode('utf-8')
-
-    # need to use shlex.quote around the base64 string to ensure it's treated as a single argument
-    command_to_execute = f"echo {shlex.quote(encoded_script)} | base64 --decode | bash"
-
-    compose_path = EnvService(Config()).get_compose_file()
-    compose_path_vm = path_for_vm(compose_path)
-    command = [
-        "compose",
-        "-f", str(compose_path_vm),
-        "--env-file", str(final_env_file_vm),
-        "exec",
-        "-u", "root",
-        "wxo-server-db",
-        "bash",
-        "-c",
-        command_to_execute
-    ]
-
-    vm = get_vm_manager()
-    logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
     system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
     if system == "windows":
         time.sleep(60)
-    result = vm.run_docker_command(command, capture_output=False)
 
-    if result.returncode == 0:
-        logger.info("Migration ran successfully.")
-        if vm_env_file.exists():
-            vm_env_file.unlink()
+    migration_manager.run_orchestrate_migrations()
+    migration_manager.run_observability_migrations()
+    migration_manager.run_mcp_gateway_migrations()
 
-    else:
-        error_message = getattr(result, "stderr", None) or "Error occurred."
-        logger.error(f"Error running database migration:\n{error_message}")
-        sys.exit(1)
+    if with_ai_builder:
+        migration_manager.run_architect_migrations()
+
+
 
 def create_langflow_db() -> None:
     default_env_path = EnvService.get_default_env_file()
@@ -917,45 +811,24 @@ def create_langflow_db() -> None:
     merged_env_dict['ASSISTANT_EMBEDDINGS_SPACE_ID'] = ''
     merged_env_dict['ROUTING_LLM_API_KEY'] = ''
     merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
+    
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
     pg_timeout = merged_env_dict.get('POSTGRES_READY_TIMEOUT','10')
-
     pg_user = merged_env_dict.get("POSTGRES_USER","postgres")
 
-    creation_command = f"""
-    echo 'Waiting for pg to initialize...'
+    migration_manager = MigrationsManager(
+        env_path=final_env_file,
+        context={
+            'PG_USER': pg_user,
+            'PG_TIMEOUT': pg_timeout
+        }
+    )
 
-    timeout={pg_timeout}
-    while [ -z `pg_isready | grep 'accepting connections'` ] && (( timeout > 0 )); do
-      ((timeout-=1)) && sleep 1;
-    done
+    migration_manager.run_langflow_migrations()
 
-    if psql -U {pg_user} -lqt | cut -d \\| -f 1 | grep -qw langflow; then
-        echo 'Existing Langflow DB found'
-    else
-        echo 'Creating Langflow DB'
-        createdb -U "{pg_user}" -O "{pg_user}" langflow;
-        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE langflow TO {pg_user}";
-    fi
-    """
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
-
-    result = compose_core.service_container_bash_exec(service_name="wxo-server-db",
-                                                      log_message="Preparing Langflow resources...",
-                                                      final_env_file=final_env_file, bash_command=creation_command)
-
-    if result.returncode == 0:
-        logger.info("Langflow resources sucessfully created")
-    else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        logger.error(
-            f"Failed to create Langflow resources\n{error_message}"
-        )
-        sys.exit(1)
+    
 
 def bump_file_iteration(filename: str) -> str:
     regex = re.compile(f"^(?P<name>[^\\(\\s\\.\\)]+)(\\((?P<num>\\d+)\\))?(?P<type>\\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")

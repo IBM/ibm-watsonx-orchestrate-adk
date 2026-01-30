@@ -23,12 +23,12 @@
           "$ref": "#/schemas/DocExtFieldValue"
         },
         "task": "custom_field_extraction",
-        "enable_hw": true,
+        "enable_hw": false,
         "version": "TIP",
         "config": {
           "domain": "other",
           "type": "agreement",
-          "llm": "groq/openai/gpt-oss-120b",
+          "llm": "watsonx/meta-llama/llama-3-2-11b-vision-instruct",
           "fields": [
             {
               "name": "Buyer",
@@ -56,8 +56,27 @@
               "multiple_mentions": false,
               "example_value": "",
               "examples": []
+            },
+            {
+              "name": "Agreement Number",
+              "type": "string",
+              "description": "The identifier of this contract.",
+              "field_name": "agreement_number",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
+            },
+            {
+              "name": "Contract Type",
+              "type": "string",
+              "description": "The type of contract between the buyer and the seller.",
+              "field_name": "contract_type",
+              "multiple_mentions": false,
+              "example_value": "",
+              "examples": []
             }
-          ]
+          ],
+          "field_extraction_method": "classic"
         },
         "min_confidence": 0.0,
         "review_fields": [],
@@ -150,7 +169,9 @@
       "required": [
         "buyer",
         "seller",
-        "agreement_date"
+        "agreement_date",
+        "agreement_number",
+        "contract_type"
       ],
       "properties": {
         "buyer": {
@@ -168,12 +189,22 @@
           "title": "Agreement Date",
           "description": "Extracted value for Agreement Date",
           "format": "date"
+        },
+        "agreement_number": {
+          "type": "string",
+          "title": "Agreement Number",
+          "description": "Extracted value for Agreement Number"
+        },
+        "contract_type": {
+          "type": "string",
+          "title": "Contract Type",
+          "description": "Extracted value for Contract Type"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-10-24T07:59:57.040799+00:00"
+    "compiled_on": "2026-01-15T23:51:15.859150+00:00"
   }
 }

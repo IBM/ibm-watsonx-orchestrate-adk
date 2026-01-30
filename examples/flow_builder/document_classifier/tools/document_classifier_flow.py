@@ -41,7 +41,7 @@ def build_docclassifier_flow(aflow: Flow = None) -> Flow:
         name="document_classifier_node",
         display_name="document_classifier_node",
         description="Classifies documents into one custom class.",
-        llm="groq/openai/gpt-oss-120b",
+        llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
         classes=CustomClasses(),
     )
 
