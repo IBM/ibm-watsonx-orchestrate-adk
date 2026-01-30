@@ -2025,11 +2025,13 @@ class TaskData(NamedTuple):
 class TaskEventType(Enum):
  
     ON_TASK_WAIT = "task:on_task_wait" # the task is waiting for inputs before proceeding
+    ON_TASK_CALLBACK = "tempus:callback"
     ON_TASK_START = "task:on_task_start"
     ON_TASK_END = "task:on_task_end"
     ON_TASK_STREAM = "task:on_task_stream"
     ON_TASK_ERROR = "task:on_task_error"
-    ON_TASK_RESUME= "task:on_task_resume"
+    ON_TASK_RESUME = "task:on_task_resume"
+    ON_TASK_MESSAGE = "task:on_task_message"
 
 class FlowData(BaseModel):
     '''This class represents the data that is passed between tasks in a flow.'''
@@ -2069,7 +2071,9 @@ class FlowEventType(Enum):
     ON_FLOW_START = "flow:on_flow_start"
     ON_FLOW_END = "flow:on_flow_end"
     ON_FLOW_ERROR = "flow:on_flow_error"
+    ON_FLOW_WAIT = "flow:on_flow_wait"
     ON_FLOW_RESUME = "flow:on_flow_resume"
+    ON_FLOW_MESSAGE = "flow:on_flow_message"
 
 @dataclass
 class FlowEvent:
