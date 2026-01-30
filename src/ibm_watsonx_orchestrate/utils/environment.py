@@ -54,6 +54,7 @@ class EnvService:
         "WO_INSTANCE",
         "USE_SAAS_ML_TOOLS_RUNTIME",
         "AUTHORIZATION_URL",
+        "OAUTH_REDIRECT_URL",
         "OPENSOURCE_REGISTRY_PROXY",
         "WDU_RUNTIME_SOURCE",
         "LATEST_ENV_FILE",

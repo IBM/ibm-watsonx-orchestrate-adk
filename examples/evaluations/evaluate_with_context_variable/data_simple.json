@@ -1,0 +1,45 @@
+{
+  "agent": "hr_agent_context",
+  "runtime_context": {
+    "sap_username": "nwaters"
+  },
+  "goals": {
+    "get_assignment_id_hr_context": [
+      "get_timeoff_schedule_hr_context"
+    ],
+    "get_timeoff_schedule_hr_context": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_hr_context",
+      "tool_name": "get_assignment_id_hr_context",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_hr_context",
+      "tool_name": "get_timeoff_schedule_hr_context",
+      "args": {
+        "assignment_id": "15778303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-03-31"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Your scheduled time offs for Q1 2025 are: 2025-01-05 and 2025-02-14",
+      "keywords": [
+        "2025-01-05",
+        "2025-02-14"
+      ]
+    }
+  ],
+  "story": "You want to know your timeoff schedule for Q1 2025.",
+  "starting_sentence": "What are my scheduled time offs for Q1 2025?"
+}

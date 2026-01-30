@@ -1708,7 +1708,8 @@ class DockerComposeCore:
             cmd_result = subprocess.run(command, capture_output=False)
 
             if cmd_result.returncode != 0:
-                error_message = cmd_result.stderr.decode('utf-8') if cmd_result.stderr else "Error occurred."
+                stderr_decoded = cmd_result.stderr.decode('utf-8') if isinstance(cmd_result.stderr, bytes) else cmd_result.stderr
+                error_message = stderr_decoded if stderr_decoded else "Error occurred."
                 logger.error(error_message)
                 raise Exception("Error rendering docker compose config to file")
 

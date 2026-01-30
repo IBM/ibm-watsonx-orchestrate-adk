@@ -1,0 +1,84 @@
+{
+  "agent": "hr_agent_context",
+  "runtime_context": {
+    "sap_username": "nken"
+  },
+  "goals": {
+    "get_direct_reports_hr_context": [
+      "get_assignment_id_1",
+      "get_assignment_id_2"
+    ],
+    "get_assignment_id_1": [
+      "get_timeoff_schedule_1"
+    ],
+    "get_assignment_id_2": [
+      "get_timeoff_schedule_2"
+    ],
+    "get_timeoff_schedule_1": [
+      "summarize"
+    ],
+    "get_timeoff_schedule_2": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_direct_reports_hr_context",
+      "tool_name": "get_direct_reports_hr_context",
+      "args": {
+        "username": "nken"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_1",
+      "tool_name": "get_assignment_id_hr_context",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_2",
+      "tool_name": "get_assignment_id_hr_context",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_1",
+      "tool_name": "get_timeoff_schedule_hr_context",
+      "args": {
+        "assignment_id": "15778303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_2",
+      "tool_name": "get_timeoff_schedule_hr_context",
+      "args": {
+        "assignment_id": "15338303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "The time off schedule for your reports from 2025-01-01 to 2025-05-05 is as follows:\n\n- nwaters: 2025-01-05, 2025-02-14\n- johndoe: 2025-01-01, 2025-03-11, 2025-04-11",
+      "keywords": [
+        "2025-01-01",
+        "2025-03-11",
+        "2025-04-11",
+        "2025-01-05",
+        "2025-02-14"
+      ]
+    }
+  ],
+  "story": "You are a manager and want to find out timeoff schedule for your direct reports from: 2025-01-01 to: 2025-05-05.",
+  "starting_sentence": "I want to know the timeoff schedule for my reports for the period from January to May 2025."
+}

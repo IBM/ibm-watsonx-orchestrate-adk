@@ -3,6 +3,7 @@ import json
 import pytest
 
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
+from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 from ibm_watsonx_orchestrate.agent_builder.tools.types import (
     ToolRequestBody,
     ToolResponseBody,
@@ -181,7 +182,8 @@ def test_tool_with_agent_run_context():
     
     # The tool should be callable
     result = my_context_tool(param="test", context=AgentRun())
-    assert result == "param: test"
+    assert isinstance(result,ToolResponse)
+    assert result.content == "param: test"
     
     # Check that context parameter is in the spec
     spec = json.loads(my_context_tool.dumps_spec())

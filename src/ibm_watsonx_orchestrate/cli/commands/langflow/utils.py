@@ -11,8 +11,9 @@ def requires_langflow(command):
       return command(*args,**kwargs)
     else:
       logger.error(f"Langflow container is not running, to start langflow with orchestrate use 'orchestrate server start --with-langflow'")
+      sys.exit(1)
 
-  return  confirm_langflow_running
+  return confirm_langflow_running
 
 def is_langflow_container_running():
-  return DockerUtils.is_docker_container_running("docker-langflow-1")
+  return DockerUtils.is_docker_container_running("dev-edition-langflow-1")

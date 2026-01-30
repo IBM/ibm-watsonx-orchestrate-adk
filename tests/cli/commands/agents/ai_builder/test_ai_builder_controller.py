@@ -444,25 +444,51 @@ class TestRefineAgentWithChat:
     def test_refine_agent_with_chats(self):
         with (patch(
                 "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.persist_record") as mock_persist_record, \
-                patch("builtins.input") as mock_input, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
-                patch(
-                    "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
-                patch(
-                    "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client):
+            patch("builtins.input") as mock_input, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
+            patch(
+                "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
+            patch(
+                "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller._handle_agent_builder_server_errors") as mock_handle_errors, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_knowledge_bases_client") as mock_get_kb_client, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_collaborators") as mock_reference_collaborators):
+            mock_input.side_effect = ["1"]
 
-            mock_input.side_effect = ['1']
-            mock_get_agent.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
-            mock_get_agent.return_value.instructions ="dummy instructions"
-            mock_get_all_agents.return_value = {'test_agent': 123}
+            mock_get_agent = Agent(
+                name="dummy",
+                description="dummy description",
+                kind=AgentKind.NATIVE,
+            )
+            mock_reference_collaborators.return_value = mock_get_agent
+            mock_get_agent.instructions = "dummy instructions"
+            mock_get_agent.tools = []
+            mock_get_agent.knowledge_base = []
+            mock_get_agent.collaborators = []
+
+            mock_get_all_agents.return_value = {"test_agent": 123}
             mock_get_all_threads.return_value = self.mock_get_all_threads_response
-            mock_get_cpe_client.return_value = MockCPEClient(refine_with_chat_response=self.refine_with_chat_response)
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
+
+            mock_get_cpe_client.return_value = MockCPEClient(
+                refine_with_chat_response=self.refine_with_chat_response
+            )
+
+            mock_handle_errors.return_value = self.refine_with_chat_response
+
+            mock_get_tool_client.return_value = MagicMock()
+            mock_get_kb_client.return_value = MagicMock()
+
             submit_refine_agent_with_chats(
                 chat_llm=None,
                 output_file="test.yaml",
@@ -474,35 +500,54 @@ class TestRefineAgentWithChat:
             mock_get_all_threads.assert_called()
             mock_persist_record.assert_called()
 
-
     def test_refine_agent_with_chats_dry_run(self):
-        with patch(
-                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.persist_record") as mock_persist_record, \
-                patch("builtins.input") as mock_input, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
-                patch(
-                    "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
-                patch(
-                    "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
-                patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client:
+        with (patch(
+            "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.persist_record") as mock_persist_record, \
+            patch("builtins.input") as mock_input, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_all_agents") as mock_get_all_agents, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.get_agent_by_id") as mock_get_agent, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_collaborators") as mock_reference_collaborators, \
+            patch(
+                "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_all_threads") as mock_get_all_threads, \
+            patch(
+                "ibm_watsonx_orchestrate.client.threads.threads_client.ThreadsClient.get_threads_messages") as mock_get_threads_messages, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_cpe_client") as mock_get_cpe_client, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller._handle_agent_builder_server_errors") as mock_handle_errors, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client, \
+            patch(
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_knowledge_bases_client") as mock_get_kb_client):
 
-            mock_input.side_effect = ['1']
-            mock_get_agent.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
-            mock_reference_agent_dependencies.return_value = Agent(name="dummy", description="dummy description", kind=AgentKind.NATIVE)
-            mock_get_agent.return_value.instructions = "dummy instructions"
-            mock_get_all_agents.return_value = {'test_agent': 123}
+            mock_input.side_effect = ["1"]
 
+            mock_get_agent = Agent(
+                name="dummy",
+                description="dummy description",
+                kind=AgentKind.NATIVE,
+            )
+            mock_get_agent.instructions = "dummy instructions"
+            mock_get_agent.tools = []
+            mock_get_agent.knowledge_base = []
+            mock_get_agent.collaborators = []
+
+            mock_reference_collaborators.return_value = mock_get_agent
+            mock_get_all_agents.return_value = {"test_agent": 123}
             mock_get_all_threads.return_value = self.mock_get_all_threads_response
-            mock_get_cpe_client.return_value = MockCPEClient(refine_with_chat_response=self.refine_with_chat_response)
-            
             mock_get_threads_messages.return_value = self.mock_get_threads_messages_response
-            
+
+            mock_get_cpe_client.return_value = MockCPEClient(
+                refine_with_chat_response=self.refine_with_chat_response
+            )
+            mock_handle_errors.return_value = self.refine_with_chat_response
+
+            mock_get_tool_client.return_value = MagicMock()
+            mock_get_kb_client.return_value = MagicMock()
+
             submit_refine_agent_with_chats(
                 chat_llm=None,
                 agent_name="test_agent",

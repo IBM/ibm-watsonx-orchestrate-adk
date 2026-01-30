@@ -5,23 +5,25 @@ from unittest.mock import patch
 class TestAgentImport:
     def test_agent_import(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.import_agent") as import_mock, \
-             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock:
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock, \
+             patch("os.path.exists", return_value=True):
             agents_command.agent_import(file="test.yaml")
             import_mock.assert_called_once_with(
                 file="test.yaml",
-                app_id=None
+                app_id=None,
+                custom_agent_file_path=None,
+                custom_agent_config_file=None
             )
             publish_mock.assert_called_once()
     
     def test_agent_import_no_file(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.import_agent") as import_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_or_update_agents") as publish_mock:
-            agents_command.agent_import(file=None)
-            import_mock.assert_called_once_with(
-                file=None,
-                app_id=None
-            )
-            publish_mock.assert_called_once()
+            try:
+                agents_command.agent_import(file=None)
+                assert False, "Expected ValueError to be raised"
+            except ValueError as e:
+                assert "Either --file or --experimental-package-root is required" in str(e)
 
 class TestAgentCreate:
     def test_create_native_agent(self):
@@ -70,14 +72,16 @@ class TestAgentCreate:
                 collaborators=[],
                 tools=[],
                 knowledge_base=[],
-                tags=None, 
-                chat_params={}, 
-                config={}, 
-                nickname=None, 
+                tags=None,
+                chat_params={},
+                config={},
+                nickname=None,
                 app_id=None,
                 output_file="test.yaml",
                 context_access_enabled=True,
                 context_variables=None,
+                custom_agent_file_path=None,
+                custom_agent_config_file=None,
             )
             publish_mock.assert_called_once()
 
@@ -127,14 +131,16 @@ class TestAgentCreate:
                 collaborators=[],
                 tools=[],
                 knowledge_base=[],
-                tags=None, 
-                chat_params={}, 
-                config={}, 
-                nickname=None, 
+                tags=None,
+                chat_params={},
+                config={},
+                nickname=None,
                 app_id=None,
                 output_file="test.yaml",
                 context_access_enabled=True,
                 context_variables=None,
+                custom_agent_file_path=None,
+                custom_agent_config_file=None,
             )
             publish_mock.assert_called_once()
 

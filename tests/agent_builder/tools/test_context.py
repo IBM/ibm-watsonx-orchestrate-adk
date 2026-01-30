@@ -1,42 +1,79 @@
 import pytest
 from types import MappingProxyType
 
-from ibm_watsonx_orchestrate.run.context import AgentRun
+from ibm_watsonx_orchestrate.run.context import AgentRun, RequestContext
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 
 def test_agent_run_basic_creation():
     """Test basic AgentRun creation"""
     agent_run = AgentRun()
-    assert agent_run.request_context is None
+    assert agent_run.request_context.context == {}
     assert agent_run.dynamic_input_schema is None
     assert agent_run.dynamic_output_schema is None
 
 
-def test_agent_run_with_request_context():
-    """Test AgentRun with request context"""
+def test_agent_run_with_request_context_from_dict():
+    """Test AgentRun with request context created from a dict"""
     context_data = {'user_id': '123', 'session_id': 'abc'}
     agent_run = AgentRun(request_context=context_data)
     
-    # Should be converted to MappingProxyType (immutable)
-    assert isinstance(agent_run.request_context, MappingProxyType)
+    assert isinstance(agent_run.request_context, RequestContext)
     assert agent_run.request_context['user_id'] == '123'
     assert agent_run.request_context['session_id'] == 'abc'
 
-
-def test_agent_run_request_context_immutability():
-    """Test that request_context is immutable after creation"""
-    context_data = {'key': 'value'}
+def test_agent_run_with_passed_request_context():
+    """Test AgentRun with request context passed during init"""
+    context_data = RequestContext({'user_id': '123', 'session_id': 'abc'})
     agent_run = AgentRun(request_context=context_data)
     
-    assert agent_run.request_context
+    assert isinstance(agent_run.request_context, RequestContext)
+    assert agent_run.request_context['user_id'] == '123'
+    assert agent_run.request_context['session_id'] == 'abc'
 
-    # Should not be able to modify the context
-    with pytest.raises(TypeError):
-        agent_run.request_context['key'] = 'new_value'
-    
-    with pytest.raises(TypeError):
-        agent_run.request_context['new_key'] = 'new_value'
+def test_agent_run_mutability():
+    """Test that AgentRun data can be modified"""
+    context_data = RequestContext({'user_id': '123', 'session_id': 'abc'})
+    agent_run = AgentRun(request_context=context_data)
+    agent_run.request_context['user_id'] = '456'
+    agent_run.request_context['session_id'] = 'defg'
+
+    assert isinstance(agent_run.request_context, RequestContext)
+    assert agent_run.request_context['user_id'] == '456'
+    assert agent_run.request_context['session_id'] == 'defg'
+
+    del agent_run.request_context['user_id']
+    del agent_run.request_context['session_id']
+
+    assert agent_run.request_context['user_id'] == '123'
+    assert agent_run.request_context['session_id'] == 'abc'
+
+def test_agent_run_get_updates():
+    """Test that AgentRun data can fetch context updates"""
+    context_data = RequestContext({'user_id': '123', 'session_id': 'abc'})
+    agent_run = AgentRun(request_context=context_data)
+    agent_run.request_context['user_id'] = '456'
+    agent_run.request_context['user_id'] = '789'
+    agent_run.request_context['user_id'] = 'abc'
+
+    assert isinstance(agent_run.request_context, RequestContext)
+    updates = agent_run.get_context_updates()
+    assert len(updates) == 1
+    assert updates['user_id'] == 'abc'
+
+def test_agent_run_clear_updates():
+    """Test that AgentRun data can clear context updates"""
+    initial_data = {'user_id': '123', 'session_id': 'abc'}
+    context_data = RequestContext(initial_data)
+    agent_run = AgentRun(request_context=context_data)
+    agent_run.request_context['user_id'] = '456'
+
+    assert isinstance(agent_run.request_context, RequestContext)
+
+    assert len(agent_run.get_context_updates()) == 1
+    agent_run.clear_context_updates()
+    assert len(agent_run.get_context_updates()) == 0
+    assert agent_run.request_context.context == initial_data
 
 
 def test_agent_run_with_dynamic_input_schema_dict():
@@ -92,7 +129,7 @@ def test_agent_run_with_all_fields():
         dynamic_output_schema=output_schema
     )
     
-    assert isinstance(agent_run.request_context, MappingProxyType)
+    assert isinstance(agent_run.request_context, RequestContext)
     assert agent_run.request_context['user'] == 'test_user'
     assert isinstance(agent_run.dynamic_input_schema, JsonSchemaObject)
     assert isinstance(agent_run.dynamic_output_schema, JsonSchemaObject)
@@ -113,7 +150,7 @@ def test_agent_run_nested_context():
     }
     agent_run = AgentRun(request_context=context_data)
     
-    assert isinstance(agent_run.request_context, MappingProxyType)
+    assert isinstance(agent_run.request_context, RequestContext)
     assert agent_run.request_context['user']['id'] == '123'
     assert 'admin' in agent_run.request_context['user']['roles']
     assert agent_run.request_context['session']['id'] == 'session_123'

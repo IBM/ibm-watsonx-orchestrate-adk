@@ -160,8 +160,7 @@ def tool_export(
 
 @tools_app.command(
     name="auto-discover",
-    help="Annotate and generate docstring for a python tool",
-    hidden=True)
+    help="Annotate and generate docstring for a python tool")
 def tool_auto_discover(
     env_file: Annotated[
         str,
