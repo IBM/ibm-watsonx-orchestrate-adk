@@ -238,7 +238,7 @@ def validate_agent_fields(values: dict) -> dict:
 
     # Validate CUSTOMER_CARE style restrictions
     validate_customer_care_fields(values)
-    
+
     context_variables = values.get("context_variables")
     if context_variables is not None:
         if not isinstance(context_variables, list):
@@ -257,13 +257,13 @@ def validate_customer_care_fields(values: dict):
             logger.warning(f"'{llm} is unsupported for {AgentStyle.CUSTOMER_CARE.value} style agents. Please use 'groq/openai/gpt-oss-120b'")
 
         unsupported_fields = []
-        
+
         if values.get("tools"):
             unsupported_fields.append("tools")
 
         if values.get("knowledge_base"):
             unsupported_fields.append("knowledge_base")
-        
+
         plugins = values.get("plugins")
         if plugins:
             if isinstance(plugins, dict) and any(plugins.values()):
@@ -272,7 +272,7 @@ def validate_customer_care_fields(values: dict):
                 plugin_dict = plugins.model_dump(exclude_none=True)
                 if plugin_dict:
                     unsupported_fields.append("plugins")
-        
+
         if values.get("guidelines"):
             unsupported_fields.append("guidelines")
         if values.get("collaborators"):
@@ -281,14 +281,14 @@ def validate_customer_care_fields(values: dict):
             unsupported_fields.append("welcome_content")
         if values.get("custom_join_tool"):
             unsupported_fields.append("custom_join_tool")
-        
+
         chat_with_docs = values.get("chat_with_docs")
         if chat_with_docs:
             if isinstance(chat_with_docs, dict) and chat_with_docs.get("enabled") is True:
                 unsupported_fields.append("chat_with_docs.enabled")
             elif isinstance(chat_with_docs, ChatWithDocsConfig) and chat_with_docs.enabled is True:
                 unsupported_fields.append("chat_with_docs.enabled")
-        
+
         if unsupported_fields:
             raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
     else:

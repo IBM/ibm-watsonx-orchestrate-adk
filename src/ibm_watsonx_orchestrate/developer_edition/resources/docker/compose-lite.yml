@@ -115,19 +115,19 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/mcpgateway
       JWT_SECRET_KEY: ${JWT_SECRET}
       MCPGATEWAY_UI_ENABLED: true
-      MCPGATEWAY_ADMIN_API_ENABLED: true 
-      HOST: 0.0.0.0 
-      BASIC_AUTH_USER: ${MCP_GATEWAY_BASIC_USER} 
-      BASIC_AUTH_PASSWORD: ${MCP_GATEWAY_BASIC_PASSWORD} 
-      AUTH_REQUIRED: true 
+      MCPGATEWAY_ADMIN_API_ENABLED: true
+      HOST: 0.0.0.0
+      BASIC_AUTH_USER: ${MCP_GATEWAY_BASIC_USER}
+      BASIC_AUTH_PASSWORD: ${MCP_GATEWAY_BASIC_PASSWORD}
+      AUTH_REQUIRED: true
       PLATFORM_ADMIN_EMAIL: ${MCP_GATEWAY_ADMIN_EMAIL}
-      PLATFORM_ADMIN_PASSWORD: ${MCP_GATEWAY_ADMIN_PASSWORD} 
-      PLATFORM_ADMIN_FULL_NAME: "Platform Administrator" 
+      PLATFORM_ADMIN_PASSWORD: ${MCP_GATEWAY_ADMIN_PASSWORD}
+      PLATFORM_ADMIN_FULL_NAME: "Platform Administrator"
       SECURE_COOKIES: false
       PLUGINS_ENABLED: true
       JWT_AUDIENCE_VERIFICATION: false
       LOG_LEVEL: DEBUG
-      
+
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
     platform: linux/amd64
@@ -726,7 +726,6 @@ services:
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
-
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
@@ -819,7 +818,7 @@ services:
       TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
-    
+
   agent-runtime:
     image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}
     platform: linux/amd64
@@ -834,7 +833,7 @@ services:
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey}
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
 
