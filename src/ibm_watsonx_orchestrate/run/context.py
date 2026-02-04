@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -91,9 +90,14 @@ class RequestContext(Mapping):
 
 class AgentRun(BaseModel):
   model_config = ConfigDict(arbitrary_types_allowed=True)
-  request_context: Optional[RequestContext | dict] = RequestContext()
+  request_context: Optional[RequestContext | dict] = None
   dynamic_input_schema: Optional[JsonSchemaObject | dict] = None
   dynamic_output_schema: Optional[JsonSchemaObject | dict] = None
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args,**kwargs)
+    if not self.request_context:
+      self.request_context = RequestContext()
 
 
   @field_validator('request_context', mode="before")
