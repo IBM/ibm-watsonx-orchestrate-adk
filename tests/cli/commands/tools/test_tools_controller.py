@@ -399,7 +399,7 @@ def test_python_with_package_root_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
@@ -413,7 +413,7 @@ def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
     assert (tools[0]).__tool_spec__.binding.python.function == "testtool2_single_file.testtool2:my_tool"
     assert tools[0].__tool_spec__.name == "testtool2_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2"]
 
 def test_python_with_package_root_binding_function_is_set2():
     drop_module('testtool1')
@@ -427,7 +427,7 @@ def test_python_with_package_root_binding_function_is_set2():
     assert tools[0].__tool_spec__.binding.python.function == "python_multi_file_samples.testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_tests():
     drop_module('testtool1')
@@ -441,7 +441,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_t
     assert tools[0].__tool_spec__.binding.python.function == "cli.resources.python_multi_file_samples.testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_dir_of_tool():
     drop_module('testtool1')
@@ -455,7 +455,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_d
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_without_package_root_binding_function_is_set():
     drop_module('testtool1')
@@ -469,7 +469,7 @@ def test_python_without_package_root_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_as_empty_string_binding_function_is_set():
     drop_module('testtool1')
@@ -483,7 +483,7 @@ def test_python_with_package_root_as_empty_string_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_as_whitespace_string_binding_function_is_set():
     drop_module('testtool1')
@@ -497,7 +497,7 @@ def test_python_with_package_root_as_whitespace_string_binding_function_is_set()
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_wrapped_in_whitespace():
     drop_module('testtool1')
@@ -511,7 +511,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_w
     assert tools[0].__tool_spec__.binding.python.function == "testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_no_package_root_fails_when_file_name_has_unsupported_characters():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
@@ -545,7 +545,7 @@ def test_python_with_no_package_root_and_unsupported_path_to_tool():
     assert tools[0].__tool_spec__.binding.python.function == "testtool_4:my_tool"
     assert tools[0].__tool_spec__.name == "testtool4_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2"]
 
 def test_python_with_package_root_and_unsupported_path_to_tool():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
@@ -591,7 +591,7 @@ def test_python_with_tool_in_subfolder_with_relative_imports():
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool6:my_tool"
     assert tools[0].__tool_spec__.name == "testtool6_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_tool_in_subfolder_with_package_level():
     drop_module('testtool7')
@@ -605,7 +605,7 @@ def test_python_with_tool_in_subfolder_with_package_level():
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool7:my_tool"
     assert tools[0].__tool_spec__.name == "testtool7_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_publish_openapi():
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
