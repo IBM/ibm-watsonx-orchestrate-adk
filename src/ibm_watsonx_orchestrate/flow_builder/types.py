@@ -2030,6 +2030,7 @@ class TaskEventType(Enum):
     ON_TASK_STREAM = "task:on_task_stream"
     ON_TASK_ERROR = "task:on_task_error"
     ON_TASK_RESUME= "task:on_task_resume"
+    ON_TASK_MESSAGE = "task:on_task_message"
 
 class FlowData(BaseModel):
     '''This class represents the data that is passed between tasks in a flow.'''
