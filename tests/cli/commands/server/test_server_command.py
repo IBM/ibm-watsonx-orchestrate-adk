@@ -494,6 +494,7 @@ def test_cli_start_success_simple(tmp_path, caplog): # Add caplog here
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_db_migration"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.wait_for_wxo_server_health_check", return_value=True),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.refresh_local_credentials"),
+        patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.cleanup_orchestrate_cache"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerLoginService"),
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.copy_files_to_cache"),
         patch("sys.exit", side_effect=lambda code: None if code == 0 else sys.exit(code)),
