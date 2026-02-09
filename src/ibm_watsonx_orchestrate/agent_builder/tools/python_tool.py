@@ -9,7 +9,6 @@ import logging
 
 from pydantic import TypeAdapter, BaseModel
 
-from ibm_watsonx_orchestrate.run.context import AgentRun
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
@@ -125,6 +124,7 @@ class PythonTool(BaseTool):
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
+                from ibm_watsonx_orchestrate.run.context import AgentRun
                 context_object = context_param_value if isinstance(context_param_value,AgentRun) \
                     else AgentRun(request_context=context_param_value)
                 kwargs[run_context_param] = context_object
