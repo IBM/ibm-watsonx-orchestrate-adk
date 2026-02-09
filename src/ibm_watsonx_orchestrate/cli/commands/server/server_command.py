@@ -539,7 +539,7 @@ def server_start(
     ),
     cert_bundle_path: str = typer.Option(
         None,
-        "--cert-bundle-path", '-c',
+        "--cert-bundle-path",
         help="Path to a custom certificate bundle file."
     ),
 ):
