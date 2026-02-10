@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError, Field, AliasChoices, model_vali
 
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate_clients.common.utils import is_cpd_env, is_local_dev
-from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, ConnectionResource
+from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, ConnectionAuthType, ConnectionResource
 
 import logging
 logger = logging.getLogger(__name__)
