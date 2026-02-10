@@ -750,6 +750,10 @@ class ToolsController:
             os.unlink(self.file)
 
     @staticmethod
+    def format_display_name(tool: any) -> str:
+        return f"{tool.name} ({tool.display_name})" if tool.display_name and tool.name != tool.display_name else tool.name
+
+    @staticmethod
     def import_tool(kind: ToolKind, **args) -> Iterable[BaseTool]:
         # Ensure app_id is a list
         if args.get("app_id") and isinstance(args.get("app_id"), str):
@@ -884,9 +888,10 @@ class ToolsController:
                         toolkit_name = toolkit["name"]
                     elif toolkit:
                         toolkit_name = str(toolkit)
-                
+
+                tool_name = self.format_display_name(tool.__tool_spec__)
                 entry = ToolListEntry(
-                    name=tool.__tool_spec__.name,
+                    name=tool_name,
                     description=tool.__tool_spec__.description,
                     type=tool_type,
                     toolkit=toolkit_name,
