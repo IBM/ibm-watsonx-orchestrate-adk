@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ibm-watsonx-orchestrate-core"
+dynamic = ["version"]
+description = "Core Shared Dependecies of the IBM watsonx Orchestrate ADK"
+authors = [
+    { name = "IBM", email = "support@ibm.com" }
+]
+#readme = { file = "README.md", content-type = 'text/markdown'}
+license = {text = "MIT License"}
+license-files = ["LICENSE"]
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "pydantic>=2.10.3,<3.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+package-data = true
+
+[tool.hatch.build]
+include = [
+    "./*"
+]
+directory="../../dist"
+
+[tool.hatch.version]
+path = "../../src/ibm_watsonx_orchestrate/__init__.py"
+validate-bump=false
