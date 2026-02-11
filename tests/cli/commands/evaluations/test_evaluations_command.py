@@ -91,7 +91,8 @@ class TestEvaluate:
             mock_evaluate.assert_called_once_with(
                 config_file=config_file,
                 test_paths=None,
-                output_dir=None
+                output_dir=None,
+                langfuse_enabled=False
             )
 
     def test_evaluate_with_command_line_args(self, user_env_file):
@@ -102,7 +103,8 @@ class TestEvaluate:
             mock_evaluate.assert_called_once_with(
                 config_file=None,
                 test_paths=test_paths,
-                output_dir=output_dir
+                output_dir=output_dir,
+                langfuse_enabled=False
             )
 
     def test_evaluate_with_empty_test_paths(self, user_env_file):
