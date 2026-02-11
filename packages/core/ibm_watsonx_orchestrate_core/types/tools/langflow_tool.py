@@ -1,15 +1,12 @@
 from enum import Enum
-import json
 import re
 
-from pydantic import BaseModel
 import rich
 
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionSecurityScheme
-from ibm_watsonx_orchestrate.langflow.langflow_utils import parse_langflow_model
+from ibm_watsonx_orchestrate_core.utils.langflow import parse_langflow_model
 from .base_tool import BaseTool
 from .types import LangflowToolBinding, ToolBinding, ToolPermission, ToolRequestBody, ToolResponseBody, ToolSpec
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
 
 MIN_LANGFLOW_VERSION = [1,5,0]
 LANGFLOW_CHAT_INPUT_LABEL = "ChatInput"
