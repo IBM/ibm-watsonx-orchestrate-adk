@@ -4,8 +4,8 @@ import yaml
 
 from .types import ToolSpec
 
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
-from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate_core.utils.file_manager import safe_open
 
 class BaseTool:
     __tool_spec__: ToolSpec
