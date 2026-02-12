@@ -79,7 +79,6 @@ def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynam
             # JsonSchemaObject has extra='allow'
             setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
         base_schema.properties.update(dynamic_schema.properties)
-        setattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
 
 
 class PythonTool(BaseTool):
@@ -242,6 +241,7 @@ class PythonTool(BaseTool):
         # Merge dynamic input schema if provided
         if self.enable_dynamic_input_schema:
             _merge_dynamic_schema(spec.input_schema, self.dynamic_input_schema)
+            setattr(spec.input_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
         
         _validate_input_schema(spec.input_schema, self.enable_dynamic_input_schema)
 
@@ -267,6 +267,7 @@ class PythonTool(BaseTool):
 
         if self.enable_dynamic_output_schema:
             _merge_dynamic_schema(spec.output_schema, self.dynamic_output_schema)
+            setattr(spec.output_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
         
          # Validate the generated schema still conforms to the requirement for a join tool
         if self.kind == PythonToolKind.JOIN_TOOL:
