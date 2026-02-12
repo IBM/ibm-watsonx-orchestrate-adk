@@ -142,6 +142,7 @@ class AgentStyle(str, Enum):
     REACT = "react"
     PLANNER = "planner"
     CUSTOM = "custom"
+    CUSTOMER_CARE = "experimental_customer_care"
 
     def __str__(self):
         return self.value 
@@ -176,6 +177,7 @@ class AgentSpec(BaseAgentSpec):
     guidelines: Optional[List[AgentGuideline]] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+    toolkits: Optional[List[str]] = []
     plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
@@ -234,6 +236,9 @@ def validate_agent_fields(values: dict) -> dict:
         if values.get("custom_join_tool") and values.get("structured_output"):
             raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
 
+    # Validate CUSTOMER_CARE style restrictions
+    validate_customer_care_fields(values)
+
     context_variables = values.get("context_variables")
     if context_variables is not None:
         if not isinstance(context_variables, list):
@@ -243,6 +248,53 @@ def validate_agent_fields(values: dict) -> dict:
                 raise ValueError("All context_variables must be non-empty strings")
 
     return values
+
+def validate_customer_care_fields(values: dict):
+    if values.get("style") == AgentStyle.CUSTOMER_CARE:
+        # Warn if LLM doesn't end with the recommended model
+        llm = values.get("llm")
+        if llm and not "gpt-oss-120b" in llm:
+            logger.warning(f"'{llm} is unsupported for {AgentStyle.CUSTOMER_CARE.value} style agents. Please use 'groq/openai/gpt-oss-120b'")
+
+        unsupported_fields = []
+
+        if values.get("tools"):
+            unsupported_fields.append("tools")
+
+        if values.get("knowledge_base"):
+            unsupported_fields.append("knowledge_base")
+
+        plugins = values.get("plugins")
+        if plugins:
+            if isinstance(plugins, dict) and any(plugins.values()):
+                unsupported_fields.append("plugins")
+            elif isinstance(plugins, Plugins):
+                plugin_dict = plugins.model_dump(exclude_none=True)
+                if plugin_dict:
+                    unsupported_fields.append("plugins")
+
+        if values.get("guidelines"):
+            unsupported_fields.append("guidelines")
+        if values.get("collaborators"):
+            unsupported_fields.append("collaborators")
+        if values.get("welcome_content"):
+            unsupported_fields.append("welcome_content")
+        if values.get("custom_join_tool"):
+            unsupported_fields.append("custom_join_tool")
+
+        chat_with_docs = values.get("chat_with_docs")
+        if chat_with_docs:
+            if isinstance(chat_with_docs, dict) and chat_with_docs.get("enabled") is True:
+                unsupported_fields.append("chat_with_docs.enabled")
+            elif isinstance(chat_with_docs, ChatWithDocsConfig) and chat_with_docs.enabled is True:
+                unsupported_fields.append("chat_with_docs.enabled")
+
+        if unsupported_fields:
+            raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
+    else:
+        # For non-CUSTOMER_CARE styles, toolkits are not supported
+        if values.get("toolkits"):
+            raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
 
 # ===============================
 #      EXTERNAL AGENT TYPES

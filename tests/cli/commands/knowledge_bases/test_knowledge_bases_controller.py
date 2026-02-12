@@ -1,6 +1,7 @@
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file, get_relative_file_path
 from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
+from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 import json
 from unittest.mock import patch, mock_open, Mock
 import pytest
@@ -229,7 +230,8 @@ class TestImportKnowledgeBase:
     def test_import_built_in_knowledge_base(self, caplog, built_in_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
@@ -242,21 +244,26 @@ class TestImportKnowledgeBase:
 
             knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json), "file_urls": "{}" }
 
-            client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
+            mock_client = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
+            client_mock.return_value = mock_client
+            
+            # Mock the create_built_in response to return a knowledge_base ID
+            mock_client.create_built_in = Mock(return_value={'knowledge_base': 'test-kb-id'})
 
             mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
             mock_file.assert_has_calls([ mock.call(Path("my_dir/document_1.pdf"), "rb"), mock.call(Path("my_dir/document_2.pdf"), "rb") ])
-
-            captured = caplog.text
-            assert f"Successfully imported knowledge base 'test_built_in_knowledge_base'" in captured
+            
+            # Verify polling was called
+            poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test_built_in_knowledge_base', False)
 
     def test_import_built_in_knowledge_base_with_url(self, caplog, built_in_knowledge_base_content_with_url):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
@@ -269,21 +276,26 @@ class TestImportKnowledgeBase:
 
             knowledge_base_payload = { "knowledge_base": json.dumps(knowledge_base_json), "file_urls": '{"document_1.pdf": "http://www.document1.com"}' }
 
-            client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
+            mock_client = MockClient(expected_payload=knowledge_base_payload, expected_files=expected_files)
+            client_mock.return_value = mock_client
+            
+            # Mock the create_built_in response to return a knowledge_base ID
+            mock_client.create_built_in = Mock(return_value={'knowledge_base': 'test-kb-id'})
 
             mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
 
             knowledge_base_controller.import_knowledge_base("my_dir/test.json", None)
 
             mock_file.assert_has_calls([ mock.call(Path("my_dir/document_1.pdf"), "rb"), mock.call(Path("my_dir/document_2.pdf"), "rb") ])
-
-            captured = caplog.text
-            assert f"Successfully imported knowledge base 'test_built_in_knowledge_base'" in captured
+            
+            # Verify polling was called
+            poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test_built_in_knowledge_base', False)
 
     def test_update_built_in_knowledge_base(self, caplog, existing_built_in_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock,  \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
-             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file:
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.safe_open", mock_open()) as mock_file, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
 
             expected_files =  [('files', ('document_1.pdf', 'pdf-data-1')), ('files', ('document_2.pdf', 'pdf-data-2'))]
                         
@@ -298,9 +310,11 @@ class TestImportKnowledgeBase:
 
             fakeStatus = {
                 "documents": [{ "metadata" : { 'original_file_name': "document_1.pdf" } }, { "metadata" : { 'original_file_name': "document_3.pdf" } } ]
-            } 
+            }
 
-            client_mock.return_value = MockClient(expected_payload=knowledge_base_payload, fake_status=fakeStatus, expected_files=expected_files, expected_id=uuid.uuid4())
+            expected_id = uuid.uuid4()
+            mock_client = MockClient(expected_payload=knowledge_base_payload, fake_status=fakeStatus, expected_files=expected_files, expected_id=expected_id)
+            client_mock.return_value = mock_client
 
             mock_file.side_effect = [ "pdf-data-1", "pdf-data-2" ]
 
@@ -311,7 +325,9 @@ class TestImportKnowledgeBase:
             captured = caplog.text
             assert f"Document \"document_1.pdf\" already exists in knowledge base. Updating..." in captured
             assert f"Document \"document_3.pdf\" removed from knowledge base." in captured
-            assert f"Knowledge base 'existing-knowledge-base' updated successfully" in captured
+            
+            # Verify polling was called for update
+            poll_mock.assert_called_once_with(mock_client, expected_id, 'existing-knowledge-base', True)
 
 
     def test_import_external_knowledge_base(self, caplog, external_knowledge_base_content):
@@ -470,11 +486,194 @@ class TestKnowledgeBaseControllerKnowledgeBaseStatus:
             mock_instance.add_column.assert_has_calls([ mock.call('Name', {}) ]) 
             mock_instance.add_row.assert_called_once_with("Knowledge Base Name")
 
-
 class TestRelativeFilePath:
 
     def test_relative_file_path(self):
         assert get_relative_file_path("./more/my_file.pdf", "current/dir") == Path("current/dir/more/my_file.pdf")
         assert get_relative_file_path("more/my_file.pdf", "current/dir") == Path("current/dir/more/my_file.pdf")
         assert get_relative_file_path("/more/my_file.pdf", "current/dir") == Path("/more/my_file.pdf")
+
+
+class TestPollKnowledgeBaseStatus:
+    """Tests for the _poll_knowledge_base_status method"""
+    
+    def test_poll_status_ready_immediately(self, caplog):
+        """Test polling when status is ready on first check"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'built_in_index_status': 'ready',
+                'built_in_index_status_msg': 'Import completed successfully'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False)
+            
+            # Should call status at least once
+            assert mock_client.status.call_count >= 1
+            mock_client.status.assert_called_with('test-kb-id')
+    
+    def test_poll_status_ready_after_rebuilding(self, caplog):
+        """Test polling when status transitions from rebuilding to ready"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            # First call returns rebuilding, second call returns ready
+            mock_client.status.side_effect = [
+                {'built_in_index_status': 'rebuilding', 'built_in_index_status_msg': ''},
+                {'built_in_index_status': 'ready', 'built_in_index_status_msg': 'Import completed'}
+            ]
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, poll_interval=1)
+            
+            # Should call status twice
+            assert mock_client.status.call_count == 2
+            # Should sleep at least once (for animation)
+            assert sleep_mock.call_count >= 1
+    
+    def test_poll_status_error(self, caplog):
+        """Test polling when status returns error"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'built_in_index_status': 'error',
+                'built_in_index_status_msg': 'Import failed due to invalid document'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False)
+            
+            # Should call status at least once
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_not_ready(self, caplog):
+        """Test polling when status returns not_ready"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'built_in_index_status': 'not_ready',
+                'built_in_index_status_msg': 'Knowledge base is not ready'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False)
+            
+            # Should call status at least once
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_timeout(self, caplog):
+        """Test polling timeout after max_wait_time"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.time") as time_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'built_in_index_status': 'rebuilding',
+                'built_in_index_status_msg': ''
+            }
+            
+            # Mock time to simulate timeout
+            # The polling loop checks: start_time, current_time (elapsed check), then repeats
+            # We need to provide enough time values to allow at least one status check before timeout
+            time_values = [
+                0,    # start_time
+                0,    # first current_time (elapsed = 0, continue)
+                2,    # after first poll_interval check
+                5,    # next current_time (elapsed = 5, continue)
+                7,    # after animation sleep
+                11,   # next current_time (elapsed = 11, timeout!)
+            ]
+            # Add more values in case logging or other code calls time.time()
+            time_values.extend([11] * 20)
+            time_mock.side_effect = time_values
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(
+                mock_client,
+                'test-kb-id',
+                'test-kb',
+                False,
+                poll_interval=2,
+                max_wait_time=10
+            )
+            
+            # Should have attempted to check status at least once before timeout
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_update_mode(self, caplog):
+        """Test polling in update mode (is_update=True)"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'built_in_index_status': 'ready',
+                'built_in_index_status_msg': 'Update completed'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', True)
+            
+            # Should call status at least once
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_client_api_exception(self, caplog):
+        """Test polling when client raises ClientAPIException"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_response = Mock()
+            mock_response.text = "API Error"
+            mock_client.status.side_effect = ClientAPIException(response=mock_response)
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False)
+            
+            # Should call status once before exception
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_unexpected_exception(self, caplog):
+        """Test polling when an unexpected exception occurs"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.side_effect = Exception("Unexpected error")
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False)
+            
+            # Should call status once before exception
+            assert mock_client.status.call_count >= 1
+    
+    def test_poll_status_multiple_transitions(self, caplog):
+        """Test polling through multiple status transitions"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            # Simulate multiple status transitions
+            mock_client.status.side_effect = [
+                {'built_in_index_status': 'update_pending', 'built_in_index_status_msg': ''},
+                {'built_in_index_status': 'rebuilding', 'built_in_index_status_msg': ''},
+                {'built_in_index_status': 'rebuilding', 'built_in_index_status_msg': ''},
+                {'built_in_index_status': 'ready', 'built_in_index_status_msg': 'Completed'}
+            ]
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, poll_interval=1)
+            
+            # Should call status multiple times
+            assert mock_client.status.call_count == 4
+        
         

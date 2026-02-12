@@ -133,10 +133,6 @@ class PythonTool(BaseTool):
         result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
-        # Temporarily needed to address a backend limitation with nesting bytes
-        if type(result) == bytes:
-            return result
-
         return ToolResponse(content=result,context_updates=context_updates)
 
     

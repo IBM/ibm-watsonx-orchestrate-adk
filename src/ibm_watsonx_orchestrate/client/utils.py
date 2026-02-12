@@ -292,3 +292,12 @@ def concat_bin_files(target_bin_file: str, source_files: list[str], read_chunk_s
 
 def command_to_list(command: str | List[str]):
     return command.split() if isinstance(command,str) else command
+
+
+def handle_error(message: str, exc: Exception):
+    if "--debug" in sys.argv:
+        logger.exception(message)
+        raise exc
+
+    logger.error(f"{message} {exc}. Use '--debug' flag for full stack trace.")
+    sys.exit(1)

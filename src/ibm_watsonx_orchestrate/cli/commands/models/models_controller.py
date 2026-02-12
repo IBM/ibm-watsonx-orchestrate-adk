@@ -183,7 +183,7 @@ class ModelsController:
         LLM_HAS_WATSONX_APIKEY = merged_env_dict.get('LLM_HAS_WATSONX_APIKEY', False)
         LLM_HAS_WO_INSTANCE = merged_env_dict.get('LLM_HAS_WO_INSTANCE', False)
         LLM_HAS_GROQ_API_KEY = merged_env_dict.get('LLM_HAS_GROQ_API_KEY', False)
-
+        LLM_HAS_AWS_CREDS = merged_env_dict.get('LLM_HAS_AWS_CREDS', False)
 
         if 'WATSONX_URL' in merged_env_dict and merged_env_dict.get('WATSONX_URL', None):
             WATSONX_URL = merged_env_dict['WATSONX_URL']
@@ -225,8 +225,14 @@ class ModelsController:
                 "short_description": "openai/gpt-oss-120b is an OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases."
              }
         ] if is_saas or (is_local and (LLM_HAS_GROQ_API_KEY or LLM_HAS_WO_INSTANCE)) else []
+        bedrock_models = [
+            {
+                "model_id": "bedrock/openai.gpt-oss-120b-1:0",
+                "short_description": "openai/gpt-oss-120b is an OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases."
+             }
+        ] if is_saas or (is_local and (LLM_HAS_AWS_CREDS or LLM_HAS_WO_INSTANCE)) else []
 
-        for model in wxai_models + groq_models:
+        for model in wxai_models + groq_models + bedrock_models:
             model_id = model.get("model_id", "")
             short_desc = model.get("short_description", "")
             if any(incomp in model_id.lower() for incomp in incompatible_list):
