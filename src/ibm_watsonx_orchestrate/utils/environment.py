@@ -243,6 +243,7 @@ class EnvService:
 
         persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
         persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
+        persistable_env["LLM_HAS_AWS_CREDS"] = 'BEDROCK_AWS_SECRET_ACCESS_KEY' in env and 'BEDROCK_AWS_ACCESS_KEY_ID' in env
         persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
                                                  (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
 
@@ -402,27 +403,37 @@ class EnvService:
         # configure default/preferred model properly based on availability of apikeys
         wo_instance = env_dict.get("WO_INSTANCE")
         groq_key = env_dict.get("GROQ_API_KEY")
+        aws_creds = env_dict.get("BEDROCK_AWS_ACCESS_KEY_ID") and env_dict.get("BEDROCK_AWS_SECRET_ACCESS_KEY")
         use_saas_ml_tools_runtime = bool(wo_instance)
         env_dict.setdefault("USE_SAAS_ML_TOOLS_RUNTIME", str(use_saas_ml_tools_runtime).lower())
-        
+
         if wo_instance:
             # both wx.ai and groq supported
             pass
-        elif llm_value and not groq_key:
-            # wx.ai only
-            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct", env_dict, user_dict)
-        elif not llm_value and groq_key:
-            # groq only
-            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-        elif llm_value and groq_key:
-            # wx.ai and groq
-            pass
+        elif any([llm_value, groq_key, aws_creds]):
+            PREFERRED_MODELS = []
+            DEFAULT_LLM_MODEL = ""
+            DEFAULT_FLOW_LLM_MODEL = ""
+            if llm_value:
+                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+                                         "watsonx/meta-llama/llama-3-405b-instruct"])
+                DEFAULT_LLM_MODEL = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+                DEFAULT_FLOW_LLM_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
+            if aws_creds:
+                PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
+                DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"
+            if groq_key:
+                PREFERRED_MODELS.append("groq/openai/gpt-oss-120b")
+                DEFAULT_LLM_MODEL = "groq/openai/gpt-oss-120b"
+                DEFAULT_FLOW_LLM_MODEL = "groq/openai/gpt-oss-120b"
+            if DEFAULT_FLOW_LLM_MODEL == "":
+                # TODO: For flows team to confirm
+                RuntimeError("Flow not supporting bedrock gpt oss as default yet")
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", ",".join(PREFERRED_MODELS), env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", DEFAULT_LLM_MODEL, env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", DEFAULT_FLOW_LLM_MODEL, env_dict, user_dict)
         else:
-            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")
     
     @staticmethod
     def _check_dev_edition_server_health(username: str, password: str) -> bool:

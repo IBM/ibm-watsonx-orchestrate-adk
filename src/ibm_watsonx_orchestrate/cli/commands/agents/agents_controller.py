@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Iterable, List, Optional, TypeVar
+from typing import Any, Iterable, List, Optional, TypeVar
 
 import requests
 import rich
@@ -50,6 +50,7 @@ from ibm_watsonx_orchestrate.client.agents.external_agent_client import External
 from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
+from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
@@ -80,7 +81,7 @@ class CustomAgentConfig(BaseModel):
     agent_description: str
     requirements: List[str] = []
     file_count: int
-    
+
     @field_validator('requirements', mode='before')
     @classmethod
     def parse_requirements(cls, v):
@@ -264,6 +265,7 @@ class AgentsController:
         self.assistant_client = None
         self.tool_client = None
         self.knowledge_base_client = None
+        self.toolkit_client = None
         self.voice_configuration_client = None
 
     def get_native_client(self):
@@ -290,7 +292,12 @@ class AgentsController:
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
-    
+
+    def get_toolkit_client(self):
+        if not self.toolkit_client:
+            self.toolkit_client = instantiate_client(ToolKitClient)
+        return self.toolkit_client
+
     def get_voice_configuration_client(self):
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
@@ -310,7 +317,7 @@ class AgentsController:
                 custom_agent_file_path,
                 custom_agent_config_file
             )
-            
+
             # Create a CustomAgent instance
             # Note: extracted_agent_name is guaranteed to be non-None because _create_agent_zip
             # will exit with an error if no agent name is found
@@ -321,17 +328,17 @@ class AgentsController:
                 style=AgentStyle.CUSTOM
             )
             agent.custom_agent_file_path = zip_path
-            
+
             return [agent]
-        
+
         if not file:
             raise ValueError("File must be provided for native agents")
-        
+
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
-        
+
         return agents
 
 
@@ -349,7 +356,7 @@ class AgentsController:
                     agent = CustomAgent.model_validate(agent_details)
                     custom_agent_file_path = kwargs.get('custom_agent_file_path')
                     custom_agent_config_file = kwargs.get('custom_agent_config_file')
-                    
+
                     # If package_root is a directory, zip it and extract agent name
                     if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
                         zip_path, extracted_agent_name = AgentsController._create_agent_zip(
@@ -651,7 +658,47 @@ class AgentsController:
             ref_knowledge_bases.append(name)
         ref_agent.knowledge_base = ref_knowledge_bases
         return ref_agent
-    
+
+    def dereference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        deref_agent = deepcopy(agent)
+        matching_toolkits: Any = client.get_drafts_by_names(deref_agent.toolkits)
+
+        name_id_lookup = {}
+        for tk in matching_toolkits:
+            if tk.get("name") in name_id_lookup:
+                logger.error(f"Duplicate draft entries for toolkit '{tk.get('name')}'")
+                sys.exit(1)
+            name_id_lookup[tk.get("name")] = tk.get("id")
+
+        deref_toolkits: list[Any] = []
+        for name in agent.toolkits:
+            id = name_id_lookup.get(name)
+            if not id:
+                logger.error(f"Failed to find toolkit. No toolkit found with the name '{name}'")
+                sys.exit(1)
+            deref_toolkits.append(id)
+        deref_agent.toolkits = deref_toolkits
+
+        return deref_agent
+
+    def reference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        ref_agent = deepcopy(agent)
+
+        ref_toolkits = []
+        for id in agent.toolkits:
+            matching_toolkit = client.get_draft_by_id(id)
+            name = matching_toolkit.get("name")
+            if not name:
+                logger.error(f"Failed to find knowledge base. No knowledge base found with the id '{id}'")
+                sys.exit(1)
+            ref_toolkits.append(name)
+        ref_agent.toolkits = ref_toolkits
+        return ref_agent
+
     def dereference_guidelines(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
         
@@ -800,6 +847,8 @@ class AgentsController:
             agent = self.dereference_knowledge_bases(agent)
         if agent.guidelines and len(agent.guidelines) > 0:
             agent = self.dereference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits) > 0:
+            agent = self.dereference_toolkits(agent)
 
         return agent
     
@@ -812,6 +861,8 @@ class AgentsController:
             agent = self.reference_knowledge_bases(agent)
         if agent.guidelines and len(agent.guidelines):
             agent = self.reference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits):
+            agent = self.reference_toolkits(agent)
 
         return agent
     
@@ -868,7 +919,7 @@ class AgentsController:
             existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
 
             all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
-            
+
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
@@ -906,20 +957,20 @@ class AgentsController:
     def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
         """
         Create a temporary zip file from a directory for custom agent upload.
-        
+
         Args:
             package_root: Path to the directory to zip
             config_file: Optional path to a config.yaml file to include in the zip
-            
+
         Returns:
             Tuple of (path to the created temporary zip file, agent name from config or None)
         """
         # Create a temporary file that won't be automatically deleted
         temp_fd, temp_path = tempfile.mkstemp(suffix='.zip', prefix='agent_package_')
         os.close(temp_fd)
-        
+
         agent_name = None
-        
+
         try:
             with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                 # Add all files from package_root
@@ -928,7 +979,7 @@ class AgentsController:
                         full_path = os.path.join(root, file)
                         relative_path = os.path.relpath(full_path, start=package_root)
                         zip_file.write(full_path, arcname=relative_path)
-                        
+
                         # Try to extract agent name from agent.yaml
                         if agent_name is None and file.lower() in ['agent.yaml', 'agent.yml']:
                             try:
@@ -937,7 +988,7 @@ class AgentsController:
                                     agent_name = config_data.get('name')
                             except Exception as e:
                                 logger.warning(f"Failed to parse config file for agent name: {e}")
-                
+
                 # Add config file if provided and not already in package_root
                 if config_file:
                     config_filename = os.path.basename(config_file)
@@ -955,12 +1006,12 @@ class AgentsController:
                                 logger.warning(f"Failed to parse config file for agent name: {e}")
                     else:
                         logger.warning(f"Config file '{config_filename}' already exists in package root, using the one from package root")
-            
+
             logger.info(f"Created temporary zip file from directory: {package_root}")
             if agent_name:
                 logger.info(f"Detected agent name from config: {agent_name}")
                 return temp_path, agent_name
-            
+
             # Clean up temp file if no agent name found
             if os.path.exists(temp_path):
                 os.remove(temp_path)
@@ -983,18 +1034,18 @@ class AgentsController:
     ) -> tuple[dict | None, bool]:
         """
         Upload a custom agent artifact and return the response and temp file flag.
-        
+
         Args:
             native_client: The agent client instance
             agent_id: The agent ID to upload to
             custom_agent_file_path: Path to the zip file
-            
+
         Returns:
             Tuple of (upload_response, is_temp_file)
         """
         upload_response = None
         is_temp_file = False
-        
+
         if custom_agent_file_path:
             logger.info(f"Uploading custom agent package...")
             upload_response = native_client.upload_agent_artifact(
@@ -1002,13 +1053,13 @@ class AgentsController:
                 file_path=custom_agent_file_path
             )
             logger.info(f"Custom agent package uploaded successfully")
-            
+
             # Check if this is a temporary file
             if custom_agent_file_path.startswith(tempfile.gettempdir()):
                 is_temp_file = True
-        
+
         return upload_response, is_temp_file
-    
+
     @staticmethod
     def _display_custom_agent_config(
         config: CustomAgentConfig,
@@ -1018,7 +1069,7 @@ class AgentsController:
     ) -> None:
         """
         Display custom agent configuration details in a formatted table.
-        
+
         Args:
             config: The configuration from upload response
             agent_id: The agent ID
@@ -1026,11 +1077,11 @@ class AgentsController:
             is_update: Whether this is an update operation
         """
         console = Console()
-        
+
         # Display operation type
         operation = "Updated" if is_update else "Created"
         logger.info(f"Agent '{agent_name}' {operation.lower()} successfully")
-        
+
         # Create a panel with agent info
         info_panel = Panel(
             f"[bold cyan]Agent ID:[/bold cyan] {agent_id}\n"
@@ -1040,7 +1091,7 @@ class AgentsController:
             border_style="green"
         )
         console.print(info_panel)
-        
+
         # Create a table for the custom agent configuration
         config_table = Table(
             title="Configuration Details",
@@ -1050,7 +1101,7 @@ class AgentsController:
         )
         config_table.add_column("Property", style="cyan", no_wrap=True)
         config_table.add_column("Value", style="green")
-        
+
         config_table.add_row("Language", config.language)
         config_table.add_row("Framework", config.framework)
         config_table.add_row("Entrypoint", config.entrypoint)
@@ -1058,14 +1109,14 @@ class AgentsController:
         config_table.add_row("Agent Description", config.agent_description)
         config_table.add_row("Requirements", '\n'.join(config.requirements) if config.requirements else "None")
         config_table.add_row("Files in Package", str(config.file_count))
-        
+
         console.print(config_table)
-    
+
     @staticmethod
     def _cleanup_temp_file(file_path: str, is_temp: bool) -> None:
         """
         Clean up a temporary file if needed.
-        
+
         Args:
             file_path: Path to the file
             is_temp: Whether the file is temporary
@@ -1087,11 +1138,11 @@ class AgentsController:
             )
             response = AgentUpsertResponse.model_validate(response_data)
             _raise_guidelines_warning(response)
-            
+
             # Check if this is a custom agent - always upload if file path provided
             if agent.style == AgentStyle.CUSTOM and isinstance(response_data, dict):
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
-                
+
                 if custom_agent_file_path:
                     if response.id:
                         # Upload artifact using helper
@@ -1100,7 +1151,7 @@ class AgentsController:
                             response.id,
                             custom_agent_file_path
                         )
-                        
+
                         # Display configuration if available
                         if upload_response:
                             try:
@@ -1115,14 +1166,14 @@ class AgentsController:
                                 logger.info(f"Agent '{agent.name}' imported successfully")
                         else:
                             logger.info(f"Agent '{agent.name}' imported successfully")
-                        
+
                         # Clean up temporary file
                         self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
                 else:
                     logger.info(f"Agent '{agent.name}' imported successfully")
             else:
                 logger.info(f"Agent '{agent.name}' imported successfully")
-                
+
         if isinstance(agent, ExternalAgent):
             self.get_external_client().create(agent.model_dump(exclude_none=True))
             logger.info(f"External Agent '{agent.name}' imported successfully")
@@ -1138,11 +1189,11 @@ class AgentsController:
             exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
             response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields))
             _raise_guidelines_warning(response)
-            
+
             # Handle custom agent artifact upload for updates
             if agent.style == AgentStyle.CUSTOM:
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
-                
+
                 if custom_agent_file_path:
                     # Upload artifact using helper
                     upload_response, is_temp_file = self._upload_custom_agent_artifact(
@@ -1150,7 +1201,7 @@ class AgentsController:
                         agent_id,
                         custom_agent_file_path
                     )
-                    
+
                     # Display configuration if available
                     if upload_response and 'config' in upload_response:
                         config_dict = upload_response.get('config', {})
@@ -1163,14 +1214,14 @@ class AgentsController:
                             logger.info(f"Agent '{agent.name}' updated successfully")
                     else:
                         logger.info(f"Agent '{agent.name}' updated successfully")
-                    
+
                     # Clean up temporary file
                     self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
                 else:
                     logger.info(f"Agent '{agent.name}' updated successfully")
             else:
                 logger.info(f"Agent '{agent.name}' updated successfully")
-                
+
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
             self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True))
@@ -1785,7 +1836,7 @@ class AgentsController:
             return ExternalAgent.model_validate(external_result)
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
-        
+
     def get_agent_by_names(self, names: List[str]) -> List[dict]:
         native_client = self.get_native_client()
         external_client = self.get_external_client()
@@ -1801,21 +1852,21 @@ class AgentsController:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
-        
+
         # Get the agent first to check if it's a custom agent
         agent = self.get_agent(name, kind)
         is_custom_agent = isinstance(agent, Agent) and agent.style == AgentStyle.CUSTOM
-        
+
         # For custom agents, handle differently
         if is_custom_agent:
             if output_file_extension != ".zip":
                 logger.error(f"Output file must end with the extension '.zip' for custom agents. Provided file '{output_path}' ends with '{output_file_extension}'")
                 sys.exit(1)
-            
+
             # Download the custom agent package directly
             self.download_agent_artifact(agent_name=name, output_path=output_path)
             return
-        
+
         # For non-custom agents, proceed with regular export logic
         if not agent_only_flag and output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
@@ -2109,30 +2160,30 @@ class AgentsController:
     def connect_connections_to_agent(self, agent_name: str, connection_ids: List[str]) -> None:
         """
         Connect connections to an agent using the PATCH endpoint.
-        
+
         Args:
             agent_name: Name of the agent to connect connections to
             connection_ids: List of connection IDs (app_ids) to connect
         """
         native_client = self.get_native_client()
         connections_client = get_connections_client()
-        
+
         existing_agents = native_client.get_draft_by_name(agent_name)
-        
+
         if len(existing_agents) == 0:
             logger.error(f"No agent found with name '{agent_name}'")
             sys.exit(1)
         if len(existing_agents) > 1:
             logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to connect connections")
             sys.exit(1)
-        
+
         agent = existing_agents[0]
         agent_id = agent.get("id")
 
         if agent.get("style") != AgentStyle.CUSTOM:
             logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
             sys.exit(1)
-            
+
         connection_uuids = []
         for app_id in connection_ids:
             connection = connections_client.get_draft_by_app_id(app_id=app_id)
@@ -2143,7 +2194,7 @@ class AgentsController:
                 logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
                 sys.exit(1)
             connection_uuids.append(connection.connection_id)
-        
+
         # Connect the connections to the agent
         logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
         native_client.connect_connections(agent_id, connection_uuids)
@@ -2158,7 +2209,7 @@ class AgentsController:
     ) -> None:
         """
         Send a message to an agent, optionally capturing and displaying logs.
-        
+
         Args:
             message: The message to send to the agent
             agent_name: Optional agent name to send the message to (will be resolved to agent_id)
@@ -2169,13 +2220,13 @@ class AgentsController:
         from ibm_watsonx_orchestrate.client.threads.threads_client import ThreadsClient
         from ibm_watsonx_orchestrate.client.utils import instantiate_client
         from datetime import datetime
-        
+
         console = Console()
-        
+
         # Initialize clients
         run_client = instantiate_client(RunClient)
         threads_client = instantiate_client(ThreadsClient)
-        
+
         # Resolve agent name to agent ID if provided
         agent_id = None
         if agent_name:
@@ -2183,30 +2234,30 @@ class AgentsController:
                 native_client = self.get_native_client()
                 external_client = self.get_external_client()
                 assistant_client = self.get_assistant_client()
-                
+
                 # Try to find the agent by name
                 native_agents = native_client.get_draft_by_name(agent_name)
                 external_agents = external_client.get_draft_by_name(agent_name)
                 assistant_agents = assistant_client.get_draft_by_name(agent_name)
-                
+
                 all_agents = native_agents + external_agents + assistant_agents
-                
+
                 if len(all_agents) == 0:
                     console.print(f"[red]✗[/red] No agent found with name '{agent_name}'")
                     sys.exit(1)
                 elif len(all_agents) > 1:
                     console.print(f"[red]✗[/red] Multiple agents found with name '{agent_name}'. Please use a unique agent name.")
                     sys.exit(1)
-                
+
                 agent_details = all_agents[0]
                 agent_style = agent_details.get("style")
-                
+
                 # Verify this is a custom agent only if capture_logs is enabled
                 if capture_logs and agent_style != AgentStyle.CUSTOM:
                     console.print(f"[red]✗[/red] Agent '{agent_name}' is not a custom agent (style: {agent_style}).")
                     console.print("[red]The --capture-logs flag only works with custom style agents.[/red]")
                     sys.exit(1)
-                
+
                 agent_id = agent_details.get("id")
                 if agent_style == AgentStyle.CUSTOM:
                     console.print(f"[dim]Using custom agent: {agent_name} (ID: {agent_id})[/dim]")
@@ -2215,7 +2266,7 @@ class AgentsController:
             except Exception as e:
                 console.print(f"[red]✗[/red] Error resolving agent name: {e}")
                 sys.exit(1)
-        
+
         try:
             # Step 1: Send message with optional log capture
             console.print("\n[cyan]Sending message to agent...[/cyan]")
@@ -2225,19 +2276,19 @@ class AgentsController:
                 thread_id=thread_id,
                 capture_logs=capture_logs
             )
-            
+
             returned_thread_id = run_response.get("thread_id")
             run_id = run_response.get("run_id")
-            
+
             if not run_id:
                 console.print("[red]✗[/red] Failed to get run ID from response")
                 return
-            
+
             console.print(f"[green]✓[/green] Message sent (Thread: {returned_thread_id}, Run: {run_id})")
-            
+
             # Step 2: Wait for run completion
             console.print("\n[cyan]Waiting for response...[/cyan]")
-            
+
             with Progress(
                 SpinnerColumn(spinner_name="dots"),
                 TextColumn("[progress.description]{task.description}"),
@@ -2246,9 +2297,9 @@ class AgentsController:
             ) as progress:
                 progress.add_task(description="Processing...", total=None)
                 final_status = run_client.wait_for_run_completion(run_id)
-            
+
             run_state = final_status.get("status", "").lower()
-            
+
             if run_state == "failed":
                 console.print("[red]✗[/red] Run failed")
                 error_msg = final_status.get("error", "Unknown error")
@@ -2257,12 +2308,12 @@ class AgentsController:
             elif run_state == "cancelled":
                 console.print("[yellow]✗[/yellow] Run was cancelled")
                 return
-            
+
             console.print("[green]✓[/green] Response received")
-            
+
             # Step 3: Get the assistant's response message
             thread_messages_response = threads_client.get_thread_messages(returned_thread_id)
-            
+
             # Handle both list and dict responses
             match thread_messages_response:
                 case list():
@@ -2271,23 +2322,23 @@ class AgentsController:
                     messages = msgs
                 case _:
                     messages = []
-            
+
             # Find the assistant's response (last message with role 'assistant')
             assistant_message = None
             for msg in reversed(messages):
                 if isinstance(msg, dict) and msg.get("role") == "assistant":
                     assistant_message = msg
                     break
-            
+
             if not assistant_message:
                 console.print("[yellow]⚠[/yellow] No assistant response found")
                 return
-            
+
             # Display agent response
             console.print("\n[bold cyan]Agent Response:[/bold cyan]")
             console.print("─" * 60)
             content = assistant_message.get("content", [])
-            
+
             # Handle different content structures
             match content:
                 case list() if content:
@@ -2312,17 +2363,17 @@ class AgentsController:
                 case _:
                     console.print(str(content))
             console.print("─" * 60)
-            
+
             # Step 4: Retrieve and display logs only if capture_logs is enabled
             if capture_logs:
                 log_id = assistant_message.get("log_id")
-                
+
                 # Check in assistant message metadata
                 if not log_id:
                     metadata = assistant_message.get("additional_properties", {})
                     if isinstance(metadata, dict):
                         log_id = metadata.get("log_id")
-                
+
                 # Check in the run response (nested in result.data.message)
                 if not log_id:
                     result = final_status.get("result", {})
@@ -2332,21 +2383,21 @@ class AgentsController:
                             message = data.get("message", {})
                             if isinstance(message, dict):
                                 log_id = message.get("log_id")
-                
+
                 # Check if log_id is valid
                 if not log_id or (isinstance(log_id, str) and log_id.strip() == ""):
                     console.print("\n[yellow]✗ No logs captured for this run[/yellow]")
                     return
-                
+
                 # Step 5: Retrieve captured logs
                 try:
                     console.print(f"\n[bold cyan]Captured Logs (Log ID: {log_id}):[/bold cyan]")
                     console.print("─" * 60)
-                    
+
                     logs_response = threads_client.get_logs_by_log_id(log_id)
                     captured_logs = logs_response.get("captured_logs", {})
                     entries = captured_logs.get("logs", [])
-                    
+
                     if not entries:
                         console.print("[yellow]No log entries found[/yellow]")
                     else:
@@ -2354,7 +2405,7 @@ class AgentsController:
                             timestamp = entry.get("timestamp", "")
                             level = entry.get("level", "INFO")
                             log_message = entry.get("message", "")
-                            
+
                             # Format timestamp if present
                             if timestamp:
                                 try:
@@ -2364,18 +2415,18 @@ class AgentsController:
                                     formatted_time = timestamp
                             else:
                                 formatted_time = "Unknown"
-                            
+
                             # Color code by level
                             level_color = LOG_LEVEL_COLORS.get(level.upper(), "white")
-                            
+
                             console.print(f"[dim]{formatted_time}[/dim] [{level_color}]{level}[/{level_color}]: {log_message}")
-                    
+
                     console.print("─" * 60)
                     console.print(f"[cyan]Total log entries: {len(entries)}[/cyan]")
-                    
+
                 except Exception as e:
                     console.print(f"\n[red]✗ Error retrieving logs: {e}[/red]")
-        
+
         except TimeoutError as e:
             console.print(f"\n[red]✗ Error: {e}[/red]")
             sys.exit(1)
@@ -2387,31 +2438,31 @@ class AgentsController:
     def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:
         """
         Upload a custom file artifact for an agent.
-        
+
         Args:
             agent_name: Name of the agent to upload the file for
             file_path: Path to the file to upload
-            
+
         Returns:
             Response dictionary from the upload operation
         """
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
             sys.exit(1)
-        
+
         native_client = self.get_native_client()
         existing_agents = native_client.get_draft_by_name(agent_name)
-        
+
         if len(existing_agents) == 0:
             logger.error(f"No agent found with name '{agent_name}'")
             sys.exit(1)
         if len(existing_agents) > 1:
             logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to upload file")
             sys.exit(1)
-        
+
         agent = existing_agents[0]
         agent_id = agent.get("id")
-        
+
         try:
             logger.info(f"Uploading file '{file_path}' for agent '{agent_name}'...")
             response = native_client.upload_agent_artifact(
@@ -2428,36 +2479,36 @@ class AgentsController:
         """
         Download a custom agent package (zip file).
         Only works for custom agents.
-        
+
         Args:
             agent_name: Name of the custom agent to download
             output_path: Path where the zip file should be saved
         """
         native_client = self.get_native_client()
         existing_agents = native_client.get_draft_by_name(agent_name)
-        
+
         if len(existing_agents) == 0:
             logger.error(f"No agent found with name '{agent_name}'")
             sys.exit(1)
         if len(existing_agents) > 1:
             logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to download")
             sys.exit(1)
-        
+
         agent = existing_agents[0]
         agent_id = agent.get("id")
         agent_style = agent.get("style")
-        
+
         if agent_style != AgentStyle.CUSTOM:
             logger.error(f"Agent '{agent_name}' is not a custom agent (style: {agent_style}). Only custom agents can be downloaded.")
             sys.exit(1)
-        
+
         try:
             logger.info(f"Downloading custom agent package for '{agent_name}'...")
             zip_content = native_client.download_agent_artifact(agent_id=agent_id)
-            
+
             with open(output_path, 'wb') as f:
                 f.write(zip_content)
-            
+
             logger.info(f"Successfully downloaded custom agent package to '{output_path}'")
         except Exception as e:
             logger.error(f"Failed to download agent package: {e}")
