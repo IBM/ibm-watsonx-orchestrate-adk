@@ -63,8 +63,6 @@ def test_merge_dynamic_output_schema():
     assert 'base_field' in base_schema.properties
     assert 'dynamic_field' in base_schema.properties
     assert hasattr(base_schema.properties['dynamic_field'], TOOLS_DYNAMIC_PARAM_FLAG)
-    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
-    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
 
 
 def test_merge_dynamic_schema_with_none():
@@ -86,7 +84,6 @@ def test_merge_dynamic_schema_with_none():
     
     assert base_schema.properties == original_props
     assert base_schema.required == original_required
-    assert not hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
 
 
 def test_merge_dynamic_schema_initializes_none_fields():
@@ -111,8 +108,6 @@ def test_merge_dynamic_schema_initializes_none_fields():
     assert base_schema.required is not None
     assert 'dynamic_field' in base_schema.properties
     assert 'dynamic_field' in base_schema.required
-    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
-    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
 
 
 def test_tool_with_dynamic_schema_enabled():
@@ -159,6 +154,56 @@ def test_tool_with_dynamic_schema_enabled():
     assert 'dynamic_param' in spec['input_schema']['properties']
     assert 'base_param' in spec['input_schema']['required']
     assert 'dynamic_param' in spec['input_schema']['required']
+    assert spec['input_schema'].get(TOOLS_DYNAMIC_SCHEMA_FLAG) == True
+    assert spec['output_schema'].get(TOOLS_DYNAMIC_SCHEMA_FLAG) == True
+    
+    # Check output schema
+    assert 'dynamic_result' in spec['output_schema']['properties']
+
+
+def test_tool_with_dynamic_schema_enabled_and_no_inital_dynamic_params():
+    """Test tool decorator with enable_dynamic_input_schema and enable_dynamic_output_schema flags but with no initial dynamic params"""
+    dynamic_input = ToolRequestBody(
+        type='object',
+        properties={
+        },
+        required=[]
+    )
+    
+    dynamic_output = ToolResponseBody(
+        type='object',
+        properties={
+            'dynamic_result': JsonSchemaObject(type='string', description='Dynamic result')
+        }
+    )
+    
+    @tool(
+        name='test_dynamic_tool',
+        description='A tool with dynamic schema',
+        enable_dynamic_input_schema=True,
+        enable_dynamic_output_schema=True,
+        dynamic_input_schema=dynamic_input,
+        dynamic_output_schema=dynamic_output
+    )
+    def my_dynamic_tool(base_param: str) -> dict:
+        """
+        A tool with both base and dynamic parameters
+        
+        Args:
+            base_param: A base parameter
+            
+        Returns:
+            A dictionary result
+        """
+        return {'base_result': base_param}
+    
+    spec = json.loads(my_dynamic_tool.dumps_spec())
+    
+    # Check that both base and dynamic fields are present
+    assert 'base_param' in spec['input_schema']['properties']
+    assert 'base_param' in spec['input_schema']['required']
+    assert spec['input_schema'].get(TOOLS_DYNAMIC_SCHEMA_FLAG) == True
+    assert spec['output_schema'].get(TOOLS_DYNAMIC_SCHEMA_FLAG) == True
     
     # Check output schema
     assert 'dynamic_result' in spec['output_schema']['properties']
@@ -341,8 +386,7 @@ def test_merge_dynamic_schema_no_duplicates_succeeds():
     assert 'dynamic_field1' in base_schema.properties
     assert 'dynamic_field2' in base_schema.properties
     assert len(base_schema.properties) == 4
-    assert hasattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG)
-    assert getattr(base_schema, TOOLS_DYNAMIC_SCHEMA_FLAG) == True
+    
 
 
 def test_merge_dynamic_output_schema_with_duplicates(caplog):
