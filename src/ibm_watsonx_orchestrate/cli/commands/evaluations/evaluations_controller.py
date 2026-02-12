@@ -92,7 +92,7 @@ class EvaluationsController:
 
         return url, tenant_name, token
 
-    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None, tools_path: str = None, mode: str = EvaluateMode.default) -> None:
+    def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None, tools_path: str = None, mode: str = EvaluateMode.default, langfuse_enabled: Optional[bool] = False) -> None:
         url, tenant_name, token = self._get_env_config()
 
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
@@ -114,6 +114,7 @@ class EvaluationsController:
                 model_id="meta-llama/llama-3-405b-instruct",
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
+            "langfuse_enabled": langfuse_enabled
         }
 
         if config_file:

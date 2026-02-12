@@ -1,0 +1,55 @@
+{
+    "agent": "hr_agent_file_upload",
+    "goals": {
+        "upload_employee_id_card-1": [
+            "get_assignment_id_hr_file_upload-1"
+        ],
+        "get_assignment_id_hr_file_upload-1": [
+            "get_timeoff_schedule_hr_file_upload-1"
+        ],
+        "get_timeoff_schedule_hr_file_upload-1": [
+            "summarize"
+        ]
+    },
+    "goal_details": [
+        {
+            "type": "tool_call",
+            "name": "upload_employee_id_card-1",
+            "tool_name": "upload_employee_id_card",
+            "args": {}
+        },
+        {
+            "type": "tool_call",
+            "name": "get_assignment_id_hr_file_upload-1",
+            "tool_name": "get_assignment_id_hr_file_upload",
+            "args": {
+                "username": "johndoe"
+            }
+        },
+        {
+            "type": "tool_call",
+            "name": "get_timeoff_schedule_hr_file_upload-1",
+            "tool_name": "get_timeoff_schedule_hr_file_upload",
+            "args": {
+                "assignment_id": "15338303",
+                "end_date": "2025-01-30",
+                "start_date": "2025-01-01"
+            }
+        },
+        {
+            "name": "summarize",
+            "type": "text",
+            "response": "Here are the dates within the requested range when you have scheduled time off:\n\n- **2025\u201101\u201101**  \n\nIf you need more details or want to adjust the range, just let me know!",
+            "keywords": [
+                "2025-01-01"
+            ]
+        }
+    ],
+    "story": "You want to know your time off schedule. Say ok when you're asked to upload your employee ID card. You are looking for the schedule from 2025-01-01 to 2025-01-30.",
+    "starting_sentence": "i want to know my time off schedule",
+    "file_upload": {
+        "file_path": "examples/evaluations/evaluate_with_file_upload/sample-id.jpg",
+        "file_id": "001",
+        "content_type": "image/jpeg"
+    }
+}

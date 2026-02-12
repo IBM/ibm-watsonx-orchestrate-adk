@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.jest-cache/
+
+# Environment variables
+.env
+.env*.local
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+#.vscode/
+.idea/
+
+.working/
