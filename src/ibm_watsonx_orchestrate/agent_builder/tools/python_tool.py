@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
-    PythonToolBinding
+    PythonToolBinding, ToolResponseFormat
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 
@@ -97,6 +97,7 @@ class PythonTool(BaseTool):
                 enable_dynamic_output_schema: bool = False,
                 dynamic_input_schema: Optional[ToolRequestBody] = None,
                 dynamic_output_schema: Optional[ToolResponseBody] = None,
+                response_format: Optional[ToolResponseFormat] = None,
                 ):
         self.fn = fn
         self.name = name
@@ -114,6 +115,7 @@ class PythonTool(BaseTool):
         self.enable_dynamic_output_schema = enable_dynamic_output_schema
         self.dynamic_input_schema = dynamic_input_schema
         self.dynamic_output_schema = dynamic_output_schema
+        self.response_format = response_format
 
     def __call__(self, *args, **kwargs):
 
@@ -163,7 +165,8 @@ class PythonTool(BaseTool):
             name=self.name or self.fn.__name__,
             display_name=self.display_name,
             description=_desc,
-            permission=self.permission
+            permission=self.permission,
+            response_format=self.response_format if self.response_format else ToolResponseFormat.CONTENT
         )
 
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))
@@ -430,6 +433,7 @@ def tool(
     enable_dynamic_output_schema: bool = False,
     dynamic_input_schema: Optional[ToolRequestBody | dict] = None,
     dynamic_output_schema: Optional[ToolResponseBody | dict] = None,
+    response_format: Optional[ToolResponseFormat] = None,
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -443,9 +447,10 @@ def tool(
     :param enable_dynamic_output_schema: if dynamic output schema is enabled
     :param dynamic_input_schema: the dynamic input schema for the tool - used to validate params passed under **kwargs
     :param dynamic_output_schema: the dynamic output schema for the tool - used to validate dynamic return values
+    :param response_format: the response format for the tool - either 'content' or 'content_and_artifact'
     :return:
     """
-    # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py    
+    # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
     if dynamic_input_schema and not isinstance(dynamic_input_schema, ToolRequestBody):
         dynamic_input_schema = ToolRequestBody(**dynamic_input_schema)
 
@@ -467,7 +472,8 @@ def tool(
             enable_dynamic_input_schema=enable_dynamic_input_schema,
             enable_dynamic_output_schema=enable_dynamic_output_schema,
             dynamic_input_schema=dynamic_input_schema,
-            dynamic_output_schema=dynamic_output_schema
+            dynamic_output_schema=dynamic_output_schema,
+            response_format=response_format
         )
             
         _all_tools.append(t)
