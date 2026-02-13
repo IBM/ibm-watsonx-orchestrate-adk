@@ -13,6 +13,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import
 from ibm_watsonx_orchestrate.cli.commands.partners.partners_command import partners_app
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_command import channel_app
 from ibm_watsonx_orchestrate.cli.commands.phone.phone_command import phone_app
+from ibm_watsonx_orchestrate.cli.commands.customer_care.customer_care_command import customer_care_app
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_command import knowledge_bases_app
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import evaluation_app
@@ -42,6 +43,7 @@ app.add_typer(chat_app, name="chat", help='Launch the chat ui and CLI chat inter
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
 app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)")
 app.add_typer(phone_app, name="phone", help="Manage phone configurations (global resources that can be attached to multiple agents)")
+app.add_typer(customer_care_app, name="customer-care", help='Manage contact center configurations for customer care', hidden=True)
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
 app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
