@@ -16,7 +16,7 @@ from agentops import quick_eval
 from agentops.tool_planner import build_snapshot
 from agentops.analyze_run import run as run_analyze
 from agentops.batch_annotate import generate_test_cases_from_stories
-from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
+from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode, CompareRunsConfig
 from agentops.record_chat import record_chats
 from agentops.external_agent.external_validate import ExternalAgentValidation
 from agentops.external_agent.performance_test import ExternalAgentPerformanceTest
@@ -28,6 +28,8 @@ from agentops.automatic_eval_generation.data_generator import AutomaticEvalDataG
 from agentops.service_provider import get_provider
 from agentops.wxo_client import get_wxo_client
 from agentops.runtime_adapter.wxo_runtime_adapter import WXORuntimeAdapter
+from agentops.compare_runs.compare_2_runs import main as compare_benchmarks
+from agentops.compare_runs.compare_failure_analysis_runs import return_all_comparison_data
 
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.config import (
@@ -604,7 +606,7 @@ class EvaluationsController:
         parts = tool_name.split('_')
         return ' '.join(part.capitalize() for part in parts)
 
-    def analyze(self, data_path: str, tool_definition_path: str, mode: AnalyzeMode) -> None:
+    def analyze(self, data_path: str, tool_definition_path: str, mode: AnalyzeMode, generate_report:bool) -> None:
         if mode not in AnalyzeMode.__members__:
             logger.error(
                 f"Invalid mode '{mode}' passed. `mode` must be either `enhanced` or `default`."
@@ -614,9 +616,38 @@ class EvaluationsController:
         config = AnalyzeConfig(
             data_path=data_path,
             tool_definition_path=tool_definition_path,
-            mode=mode
+            mode=mode,
+            generate_report=generate_report
         )
         run_analyze(config)
+
+    def compare(self, config: str) -> None:
+        """Run the comparison function in agentops based on config
+
+        Args:
+            config (str): Path to config
+        """
+        try:
+            with safe_open(config, 'r') as f:
+                compare_config = yaml_safe_load(f)
+            if all(x in compare_config for x in ["reference_benchmark_location", "experiment_benchmark_location"]):
+                reference_benchmark_location = compare_config.pop("reference_benchmark_location")
+                experiment_benchmark_location = compare_config.pop("experiment_benchmark_location")
+                args = CompareRunsConfig(
+                    reference_benchmark_location = reference_benchmark_location,
+                    experiment_benchmark_location = experiment_benchmark_location
+                )
+                if "generate_failure_report" in compare_config:
+                    args.generate_failure_report = compare_config.pop("generate_failure_report")
+                if "csv_output_dir" in compare_config:
+                    args.csv_output_dir = compare_config.pop("csv_output_dir")
+            else:
+                logger.error("Reference and Experiment benchmark paths are mandatory in config")
+                sys.exit(1)
+            compare_benchmarks(config = args)
+        except Exception as e:
+            logger.error(f"Encountered issue with comparison : {e}")
+            sys.exit(1)
 
     def summarize(self) -> None:
         pass
