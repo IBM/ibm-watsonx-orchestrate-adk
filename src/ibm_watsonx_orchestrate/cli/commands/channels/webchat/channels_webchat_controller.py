@@ -260,11 +260,15 @@ class ChannelsWebchatController:
         if environment == "ibmcloud":
             config_lines.append(f'crn: "{crn}"')
             config_lines.append(f'deploymentPlatform: "ibmcloud"')
-
-        config_lines.append(f"""chatOptions: {{
-            agentId: "{agent_id}",
-            agentEnvironmentId: "{agent_env_id}"
-        }}""")
+        if is_local_dev():
+            config_lines.append(f"""chatOptions: {{
+                agentId: "{agent_id}"
+            }}""")
+        else:
+            config_lines.append(f"""chatOptions: {{
+                agentId: "{agent_id}",
+                agentEnvironmentId: "{agent_env_id}"
+            }}""")
 
         config_body = ",\n                    ".join(config_lines)
 
