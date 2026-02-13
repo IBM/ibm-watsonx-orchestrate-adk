@@ -185,7 +185,7 @@ def export_trace(
         bool,
         typer.Option(
             "--pretty/--no-pretty",
-            help="Pretty-print JSON for saving in output files with --output/-o flag",
+            help="Pretty-print JSON output with indentation",
             show_default=True
         )
     ] = True
