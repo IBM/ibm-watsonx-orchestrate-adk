@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 import zipfile
 import sys
 import re
@@ -119,19 +119,56 @@ class WSLConfigLinesManager:
             config_lines: List of configuration lines from .wslconfig file
         """
         self.config_lines = config_lines.copy()  # Make a copy to avoid mutating original
+        self.__create_config_dict_from_config_lines__()
 
-    def set_or_replace(self, key: str, value: str):
+    def __create_config_dict_from_config_lines__(self):
+        self.config_dict = {"wsl2": {}}
+
+        header_pattern = re.compile("^\[([^\]]+)\]$")
+        key_value_pattern = re.compile("^([^=]+)=(.+)$")
+
+        # if no header at top of config, assume keys are for wsl2 header
+        current_header = "wsl2"
+
+        for line in self.config_lines:
+            header = header_pattern.match(line)
+            if header:
+                current_header = header.group()
+                continue
+
+            key_value = key_value_pattern.match(line)
+            if key_value:
+                k,v = key_value.groups()
+                self.config_dict[current_header][k] = v
+            
+    def __create_config_lines_from_config_dict__(self):
+        self.config_lines = []
+        for header in self.config_dict.keys():
+            self.config_lines.append(f"[{header}]")
+            for k,v in self.config_dict[header].items():
+                self.config_lines.append(f"{k}={v}")
+
+    def set_or_replace(self, key: str, value: str, section: Optional[str] = "wsl2"):
         """Set or replace a configuration key, value pair.
         
         Args:
             key: Configuration key (e.g., "memory", "processors")
             value: Configuration value (e.g., "16GB", "8")
         """
-        for i, line in enumerate(self.config_lines):
-            if line.strip().startswith(f"{key}="):
-                self.config_lines[i] = f"{key}={value}"
-                return
-        self.config_lines.append(f"{key}={value}")
+        # ensure section exists
+        self.config_dict.setdefault(section, {})
+        self.config_dict[section][key] = value
+
+    def get_key(self, key: str, section: Optional[str] = "wsl2") -> str | None:
+        """Fetch the configuration value for the passed key
+        
+        Args:
+            key (str): Configuration key (e.g., "memory", "processors")
+
+        Returns:
+            str: Value of key in configuration file, 'None' if not present 
+        """
+        return self.config_dict.get(section,{}).get(key,None)
 
     def get_config_lines(self) -> list[str]:
         """Get the modified configuration lines.
@@ -139,6 +176,7 @@ class WSLConfigLinesManager:
         Returns:
             List of configuration lines
         """
+        self.__create_config_lines_from_config_dict__()
         return self.config_lines
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
@@ -345,7 +383,7 @@ def _extract_ubuntu_appx(appx_path, temp_dir):
 
     return tar_path
 
-def _ensure_wsl_resources():
+def _configure_wsl_config():
     """Ensure the ibm-watsonx-orchestrate distro uses 8 CPUs / 16GB RAM."""
     wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
 
@@ -354,16 +392,12 @@ def _ensure_wsl_resources():
     if wslconfig_path.exists():
         config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
     
-    # Ensure [wsl2] section exists
-    if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
-        config_lines.insert(0, "[wsl2]")
-    
     config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
 
     config_manager.set_or_replace("processors", f"{DEFAULT_CPUS}")
     config_manager.set_or_replace("memory", f"{DEFAULT_MEMORY}GB")
-    config_manager.set_or_replace("idleTimeout", "0")
-
+    config_manager.set_or_replace("networkingMode","mirrored")
+    config_manager.set_or_replace("vmIdleTimeout", 0)
 
     wslconfig_path.write_text("\n".join(config_manager.get_config_lines()), encoding="utf-8")
 
@@ -372,8 +406,7 @@ def _configure_wsl_distro():
     Configure the WSL distro and install Rootful Docker directly.
     """
     logger.info("Configuring the ibm-watsonx-orchestrate distro...")
-    _ensure_wsl_resources()
-    _ensure_wsl_idle_timeout_disabled()
+    _configure_wsl_config()
     base_dir = Path(__file__).resolve().parent.parent
     user_data_path = base_dir / "resources" / "wsl" / "cloud-init" / "ibm-watsonx-orchestrate.user-data"
     if not user_data_path.exists():
@@ -512,37 +545,6 @@ def _configure_wsl_distro():
         logger.error(f"WSL: Stderr: {e.stderr}")
         raise 
 
-def _ensure_wsl_idle_timeout_disabled():
-    """Ensure WSL idleTimeout=0 is set in .wslconfig (prevents auto-shutdown)."""
-    wslconfig_path = Path.home() / ".wslconfig"
-    lines = []
-
-    if wslconfig_path.exists():
-        with open(wslconfig_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-    # Remove old [wsl2] blocks if needed
-    cleaned = []
-    in_wsl2_block = False
-    for line in lines:
-        if line.strip().lower().startswith("[wsl2]"):
-            in_wsl2_block = True
-            continue
-        if in_wsl2_block and line.strip().startswith("["):
-            in_wsl2_block = False
-        if not in_wsl2_block:
-            cleaned.append(line)
-
-    new_block = [
-        "[wsl2]\n",
-        "idleTimeout=0\n",
-        "networkingMode=mirrored\n",
-        "\n"
-    ]
-    cleaned.extend(new_block)
-
-    with open(wslconfig_path, "w", encoding="utf-8") as f:
-        f.writelines(cleaned)
 
 def _ensure_wsl_distro_started():
     """Ensure the WSL distro is started"""
@@ -730,10 +732,6 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
         config_lines = []
         if wslconfig_path.exists():
             config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
-
-        # Ensure [wsl2] section exists
-        if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
-            config_lines.insert(0, "[wsl2]")
         
         config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
         
@@ -1041,23 +1039,22 @@ def _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb: int=24) -> bo
     if wslconfig_path.exists():
         config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
         
-        # Find current memory setting
-        for line in config_lines:
-            if line.strip().startswith("memory="):
-                memory_value = line.split("=", 1)[1].strip()
-                
-                # Parse memory value (supports "16GB", "16384MB", or just "16")
-                if memory_value.upper().endswith("GB"):
-                    current_memory_gb = int(re.sub(r'[^\d]', '', memory_value))
-                elif memory_value.upper().endswith("MB"):
-                    current_memory_gb = int(re.sub(r'[^\d]', '', memory_value)) // 1024
-                elif memory_value.isdigit():
-                    current_memory_gb = int(memory_value)
-                break
+    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
     
+    # get current memory setting
+    memory_value = config_manager.get_key("memory")
+                
+    # Parse memory value (supports "16GB", "16384MB", or just "16")
     # If no memory setting found, assume default (16GB)
-    if current_memory_gb is None:
+    if memory_value is None:
         current_memory_gb = DEFAULT_MEMORY
+    elif memory_value.upper().endswith("GB"):
+        current_memory_gb = int(re.sub(r'[^\d]', '', memory_value))
+    elif memory_value.upper().endswith("MB"):
+        current_memory_gb = int(re.sub(r'[^\d]', '', memory_value)) // 1024
+    elif memory_value.isdigit():
+        current_memory_gb = int(memory_value)
+
     
     # Check if memory is sufficient
     if current_memory_gb >= min_memory_gb:
@@ -1074,11 +1071,8 @@ def _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb: int=24) -> bo
             f"Automatically increasing memory to {min_memory_gb}GB...\n"
             f"{'='*70}\n"
         )
-    # Ensure [wsl2] section exists
-    if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
-        config_lines.insert(0, "[wsl2]")
     
-    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
+
     config_manager.set_or_replace("memory", f"{min_memory_gb}GB")
     
     # Write back all config lines (preserves everything else)
