@@ -32,16 +32,9 @@ import io
 
 logger = logging.getLogger(__name__)
 
-def get_connection_id(app_id: str, is_local_mcp: bool) -> str:
+def get_connection_id(app_id: str) -> str:
     connections_client = get_connections_client()
-    existing_draft_configuration = connections_client.get_config(app_id=app_id, env='draft')
-    existing_live_configuration = connections_client.get_config(app_id=app_id, env='live')
 
-    for config in [existing_draft_configuration, existing_live_configuration]:
-        if is_local_mcp is True:
-            if config and config.security_scheme != 'key_value_creds':
-                logger.error("Only key_value credentials are currently supported for local MCP")
-                exit(1)
     connection_id = None
     if app_id is not None:
         connection = connections_client.get(app_id=app_id)
@@ -145,9 +138,8 @@ class ToolkitController:
             
             mcp_config = spec.mcp
             
-            is_local_mcp = not isinstance(spec.mcp, RemoteMcpModel)
             if isinstance(mcp_config.connections, List):
-                mcp_config.connections = self.__remap_connections(mcp_config.connections, is_local_mcp)
+                mcp_config.connections = self.__remap_connections(mcp_config.connections)
             
             package_root = getattr(mcp_config, "package_root", None)
             if package_root:
@@ -232,7 +224,7 @@ class ToolkitController:
                 zipfile.write(full_path, arcname=relative_path)
         return zipfile
 
-    def __remap_connections(self, app_ids: List[str], is_local_mcp: bool = False) -> Dict[str, str]:
+    def __remap_connections(self, app_ids: List[str]) -> Dict[str, str]:
         app_id_dict = {}
         for app_id in app_ids:        
             split_pattern = re.compile(r"(?<!\\)=")
@@ -250,7 +242,7 @@ class ToolkitController:
                 raise typer.BadParameter(f"The provided app-id '{app_id}' is not valid. app-id cannot be empty or whitespace")
 
             runtime_id = sanitize_app_id(runtime_id)
-            app_id_dict[runtime_id] = get_connection_id(local_id, is_local_mcp)
+            app_id_dict[runtime_id] = get_connection_id(local_id)
 
         return app_id_dict
 
