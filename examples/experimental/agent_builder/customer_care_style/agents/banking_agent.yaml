@@ -10,8 +10,9 @@ starter_prompts:
       subtitle: "Verify my pin"
       prompt: "verify my pin"
 instructions: >
-  When calling to prepare a money transfer only ask for the amount, do not ask the user for the account to transfer from or to, instead pass in null if the user does not provide a value.
-  When an account is mentioned, disambiguate the account id by looking up accounts first.
+  When an account is mentioned, disambiguate the account id by looking up accounts first before invoking a tool.
+
+  When finishing a partially completed transfer make sure to recall the actions__prepare_money_transfer tool.
 toolkits:
   - banking
 # note it's not possible to specify tools or collaborators here, only toolkits
