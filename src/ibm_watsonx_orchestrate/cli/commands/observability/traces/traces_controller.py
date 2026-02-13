@@ -381,13 +381,6 @@ def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = Tr
         if not trace_id or len(trace_id) != 32:
             logger.error("Error: trace_id must be a 32-character hexadecimal string")
             raise typer.Exit(1)
-
-        if output and not output.lower().endswith('.json'): # check json output file
-            logger.warning(f"Output file '{output}' must have .json extension. Displaying output to stdout")
-            output=None
-        
-        if not output and not pretty:
-            logger.warning("--no-pretty can only be used when exporting to a file using --output/-o")
         
         controller = TracesController()
         
