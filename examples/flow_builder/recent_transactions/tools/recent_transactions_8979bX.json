@@ -1,0 +1,686 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "recent_transactions_8979bX",
+    "initiators": [],
+    "description": "No description",
+    "display_name": "recent transactions",
+    "private_schema": {
+      "type": "object",
+      "properties": {
+        "flaggedTransactions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": "",
+          "description": "List of flagged transactions"
+        }
+      }
+    }
+  },
+  "edges": [
+    {
+      "id": "b2b4287d-0a8a-470f-8c5b-31e82618960d",
+      "end": "UserActivity 1",
+      "start": "__start__"
+    },
+    {
+      "id": "09307812-ef74-4a7b-a065-161425f206e5",
+      "end": "__end__",
+      "start": "UserActivity 1"
+    }
+  ],
+  "nodes": {
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "position": {
+          "x": 0,
+          "y": 2040
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    "UserActivity 1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "UserActivity 1",
+        "position": {
+          "x": -77,
+          "y": 175
+        },
+        "dimensions": {
+          "width": 366,
+          "height": 1752
+        },
+        "initiators": [],
+        "display_name": "Recent transaction"
+      },
+      "edges": [
+        {
+          "id": "3d004c6f-ad86-4944-9447-3e4554f9453d",
+          "end": "CodeBlock 1",
+          "start": "UserActivity 1__start__"
+        },
+        {
+          "id": "81c4085c-b6e3-4c51-a711-b701f1142c99",
+          "end": "For each 1",
+          "start": "user_3b9e2d34-a738-4fc9-926e-c9bd71116b73"
+        },
+        {
+          "id": "7f5f0d7f-1fac-4c0a-a350-eab1f10a24f0",
+          "end": "user_b3323367-7c09-4ad4-b803-228fe6d24763",
+          "start": "For each 1"
+        },
+        {
+          "id": "d0d963e3-e892-45e1-b428-3dbba58c528d",
+          "end": "user_3b9e2d34-a738-4fc9-926e-c9bd71116b73",
+          "start": "CodeBlock 1"
+        },
+        {
+          "id": "92cbea68-4ae7-454a-abe0-ddee9ab6717d",
+          "end": "UserActivity 1__end__",
+          "start": "user_ea0735b3-a7fc-4ba5-8ac3-048e367fdbc5"
+        },
+        {
+          "id": "26f0ecb4-b1e4-414c-86b6-d4e7f5656d14",
+          "end": "user_ea0735b3-a7fc-4ba5-8ac3-048e367fdbc5",
+          "start": "user_b3323367-7c09-4ad4-b803-228fe6d24763"
+        }
+      ],
+      "nodes": {
+        "For each 1": {
+          "spec": {
+            "kind": "foreach",
+            "name": "For each 1",
+            "position": {
+              "x": 20,
+              "y": 470
+            },
+            "dimensions": {
+              "width": 326,
+              "height": 862
+            },
+            "initiators": [],
+            "display_name": "Review each transaction",
+            "input_schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {}
+                }
+              },
+              "additionalProperties": false
+            },
+            "foreach_policy": "SEQUENTIAL",
+            "private_schema": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Current index for the iteration"
+                },
+                "current_item": {
+                  "description": "Current item for the iteration"
+                }
+              }
+            }
+          },
+          "edges": [
+            {
+              "id": "f82322a9-9d0f-4d1f-b218-a07fe39ffce6",
+              "end": "UserActivity 2",
+              "start": "For each 1__start__"
+            },
+            {
+              "id": "e605f2b0-d703-4e52-8315-f022af3b2ab9",
+              "end": "CodeBlock 2",
+              "start": "UserActivity 2"
+            },
+            {
+              "id": "85f81321-c669-4db8-a6d5-b70f311142ce",
+              "end": "For each 1__end__",
+              "start": "CodeBlock 2"
+            }
+          ],
+          "nodes": {
+            "CodeBlock 2": {
+              "spec": {
+                "fn": "value = flow[\"Recent transaction\"][\"Review each transaction\"].private.current_item\nif flow[\"Recent transaction\"][\"Review each transaction\"][\"Transaction review\"][\"Is this transaction suspicious ?\"].output.value == \"Yes\":\n    flow.private.flaggedTransactions.append(value)\n",
+                "kind": "script",
+                "name": "CodeBlock 2",
+                "position": {
+                  "x": 40,
+                  "y": 668
+                },
+                "display_name": "Collect flagged txn",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "UserActivity 2": {
+              "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 2",
+                "position": {
+                  "x": 20,
+                  "y": 156
+                },
+                "dimensions": {
+                  "width": 286,
+                  "height": 432
+                },
+                "initiators": [],
+                "display_name": "Transaction review"
+              },
+              "edges": [
+                {
+                  "id": "be25f0f9-ad9c-48bb-a222-6e8b158eb709",
+                  "end": "user_c62b0cc2-6877-4136-818c-b6eec218bec5",
+                  "start": "UserActivity 2__start__"
+                },
+                {
+                  "id": "3c1ae612-ab5a-4089-beea-11fabfcaab69",
+                  "end": "UserActivity 2__end__",
+                  "start": "user_db01678a-4970-4ab1-8017-c3039d51da60"
+                },
+                {
+                  "id": "f9a03398-0aab-4d96-8f09-c82247315e98",
+                  "end": "user_db01678a-4970-4ab1-8017-c3039d51da60",
+                  "start": "user_c62b0cc2-6877-4136-818c-b6eec218bec5"
+                }
+              ],
+              "nodes": {
+                "UserActivity 2__end__": {
+                  "spec": {
+                    "kind": "end",
+                    "name": "UserActivity 2__end__",
+                    "position": {
+                      "x": 20,
+                      "y": 384
+                    }
+                  }
+                },
+                "UserActivity 2__start__": {
+                  "spec": {
+                    "kind": "start",
+                    "name": "UserActivity 2__start__",
+                    "position": {
+                      "x": 20,
+                      "y": 0
+                    }
+                  }
+                },
+                "user_c62b0cc2-6877-4136-818c-b6eec218bec5": {
+                  "spec": {
+                    "kind": "user",
+                    "name": "user_c62b0cc2-6877-4136-818c-b6eec218bec5",
+                    "fields": [
+                      {
+                        "kind": "text",
+                        "name": "text_output_1b878960-f007-4fd9-b324-4ab3243411df",
+                        "text": "Transaction:{flow[\"Recent transaction\"][\"Review each transaction\"].private.current_item}",
+                        "direction": "output",
+                        "input_schema": {
+                          "type": "object",
+                          "required": [
+                            "value"
+                          ],
+                          "properties": {
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      }
+                    ],
+                    "owners": [],
+                    "position": {
+                      "x": 20,
+                      "y": 108
+                    },
+                    "display_name": "Message"
+                  }
+                },
+                "user_db01678a-4970-4ab1-8017-c3039d51da60": {
+                  "spec": {
+                    "kind": "user",
+                    "name": "user_db01678a-4970-4ab1-8017-c3039d51da60",
+                    "fields": [
+                      {
+                        "kind": "any",
+                        "name": "choice_37444179-aa74-4d50-926c-d7e53de6cbfd",
+                        "direction": "input",
+                        "input_map": {
+                          "spec": {
+                            "maps": [
+                              {
+                                "metadata": {
+                                  "assignmentType": "pyExpression"
+                                },
+                                "has-no-value": false,
+                                "target_variable": "self.input.choices",
+                                "value_expression": "[\"Yes\",\"No\"]"
+                              },
+                              {
+                                "metadata": {
+                                  "assignmentType": "variable"
+                                },
+                                "has-no-value": false,
+                                "target_variable": "self.input.display_text",
+                                "value_expression": ""
+                              },
+                              {
+                                "metadata": {
+                                  "assignmentType": "variable"
+                                },
+                                "has-no-value": false,
+                                "target_variable": "self.input.display_items",
+                                "value_expression": "[]"
+                              }
+                            ],
+                            "name": ""
+                          }
+                        },
+                        "input_schema": {
+                          "type": "object",
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "required": [
+                            "choices"
+                          ],
+                          "properties": {
+                            "choices": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "display_text": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "output_schema": {
+                          "type": "object",
+                          "required": [
+                            "value"
+                          ],
+                          "properties": {
+                            "value": {
+                              "type": "object",
+                              "properties": {}
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      }
+                    ],
+                    "owners": [],
+                    "position": {
+                      "x": 20,
+                      "y": 254
+                    },
+                    "display_name": "Is this transaction suspicious ?"
+                  }
+                }
+              },
+              "schemas": {}
+            },
+            "For each 1__end__": {
+              "spec": {
+                "kind": "end",
+                "name": "For each 1__end__",
+                "position": {
+                  "x": 40,
+                  "y": 814
+                }
+              }
+            },
+            "For each 1__start__": {
+              "spec": {
+                "kind": "start",
+                "name": "For each 1__start__",
+                "position": {
+                  "x": 40,
+                  "y": 0
+                }
+              }
+            }
+          },
+          "schemas": {},
+          "input_map": {
+            "spec": {
+              "maps": [
+                {
+                  "metadata": {
+                    "assignmentType": "variable"
+                  },
+                  "has-no-value": false,
+                  "target_variable": "self.input.value",
+                  "value_expression": "flow[\"Recent transaction\"].Transactions.output.transactions"
+                }
+              ],
+              "name": ""
+            }
+          }
+        },
+        "CodeBlock 1": {
+          "spec": {
+            "fn": "self.output.transactions = [\n  \"Amazon - $120 - 22 Dec\",\n  \"Uber - $18 - 23 Dec\",\n  \"Starbucks - $9 - 23 Dec\",\n  \"ATM Withdrawal - $200 - 24 Dec\",\n  \"Netflix - $12 - 1 Jan\"\n]\n",
+            "kind": "script",
+            "name": "CodeBlock 1",
+            "position": {
+              "x": 60,
+              "y": 108
+            },
+            "display_name": "Transactions",
+            "output_schema": {
+              "type": "object",
+              "properties": {
+                "transactions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "self.output.transactions = [\n  \"Amazon - $120 - 12 Sep\",\n  \"Uber - $18 - 13 Sep\",\n  \"Starbucks - $9 - 13 Sep\",\n  \"ATM Withdrawal - $200 - 14 Sep\"\n]\n"
+                }
+              }
+            }
+          }
+        },
+        "UserActivity 1__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "UserActivity 1__end__",
+            "position": {
+              "x": 60,
+              "y": 1704
+            }
+          }
+        },
+        "UserActivity 1__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "UserActivity 1__start__",
+            "position": {
+              "x": 60,
+              "y": 0
+            }
+          }
+        },
+        "user_3b9e2d34-a738-4fc9-926e-c9bd71116b73": {
+          "spec": {
+            "form": {
+              "name": "form_fbdb8f27-ef1b-4f08-8e5b-590a4b718de3",
+              "fields": [
+                {
+                  "kind": "text",
+                  "name": "field_e10ceedf-07bc-4526-b7c0-3933a76fa46a",
+                  "uiSchema": {
+                    "ui:title": "Customer ID ",
+                    "ui:widget": "TextWidget"
+                  },
+                  "direction": "input",
+                  "input_map": {
+                    "spec": {
+                      "maps": [],
+                      "name": ""
+                    }
+                  },
+                  "display_name": "Customer ID ",
+                  "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {},
+                    "additionalProperties": false
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "uiSchemaParkingLot": {}
+                },
+                {
+                  "kind": "any",
+                  "name": "field_4f57123a-2c0f-49f2-996f-520c7929c128",
+                  "uiSchema": {
+                    "ui:title": "Account type",
+                    "ui:widget": "ComboboxWidget",
+                    "ui:placeholder": "Select an option"
+                  },
+                  "direction": "input",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "metadata": {
+                            "assignmentType": "pyExpression"
+                          },
+                          "has-no-value": false,
+                          "target_variable": "self.input.choices",
+                          "value_expression": "[\"Savings\", \"Current\"]"
+                        },
+                        {
+                          "metadata": {
+                            "assignmentType": "variable"
+                          },
+                          "has-no-value": true,
+                          "target_variable": "self.input.display_text",
+                          "value_expression": ""
+                        },
+                        {
+                          "metadata": {
+                            "assignmentType": "variable"
+                          },
+                          "has-no-value": false,
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]"
+                        }
+                      ],
+                      "name": ""
+                    }
+                  },
+                  "display_name": "Account type",
+                  "input_schema": {
+                    "type": "object",
+                    "required": [
+                      "choices"
+                    ],
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "default": {},
+                      "display_text": {
+                        "type": "string"
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "object",
+                        "properties": {}
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "uiSchemaParkingLot": {}
+                }
+              ],
+              "buttons": [
+                {
+                  "kind": "submit",
+                  "name": "submit",
+                  "edge_id": "81c4085c-b6e3-4c51-a711-b701f1142c99",
+                  "visible": true,
+                  "display_name": "Submit"
+                },
+                {
+                  "kind": "cancel",
+                  "name": "cancel",
+                  "visible": true,
+                  "display_name": "Cancel"
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "field_4f57123a-2c0f-49f2-996f-520c7929c128": {
+                    "title": "Account type"
+                  },
+                  "field_e10ceedf-07bc-4526-b7c0-3933a76fa46a": {
+                    "type": "string",
+                    "title": "Customer ID "
+                  }
+                },
+                "additionalProperties": false
+              },
+              "display_name": "Form 1"
+            },
+            "kind": "user",
+            "name": "user_3b9e2d34-a738-4fc9-926e-c9bd71116b73",
+            "fields": [],
+            "owners": [],
+            "position": {
+              "x": 60,
+              "y": 254
+            },
+            "display_name": "Verify Customer"
+          }
+        },
+        "user_b3323367-7c09-4ad4-b803-228fe6d24763": {
+          "spec": {
+            "kind": "user",
+            "name": "user_b3323367-7c09-4ad4-b803-228fe6d24763",
+            "fields": [
+              {
+                "kind": "text",
+                "name": "text_output_d9e364c3-d4be-408f-8540-5d4a9e8bcf42",
+                "text": "List of suspicious transactions",
+                "direction": "output",
+                "input_schema": {
+                  "type": "object",
+                  "required": [
+                    "value"
+                  ],
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            ],
+            "owners": [],
+            "position": {
+              "x": 61,
+              "y": 1407
+            },
+            "display_name": "List of suspicious transactions"
+          }
+        },
+        "user_ea0735b3-a7fc-4ba5-8ac3-048e367fdbc5": {
+          "spec": {
+            "kind": "user",
+            "name": "user_ea0735b3-a7fc-4ba5-8ac3-048e367fdbc5",
+            "fields": [
+              {
+                "kind": "array",
+                "name": "list_output_5ef289c2-3299-4121-849d-fefa25bb623d",
+                "direction": "output",
+                "input_map": {
+                  "spec": {
+                    "maps": [
+                      {
+                        "metadata": {
+                          "assignmentType": "variable"
+                        },
+                        "has-no-value": false,
+                        "target_variable": "self.input.value",
+                        "value_expression": "flow.private.flaggedTransactions"
+                      }
+                    ],
+                    "name": ""
+                  }
+                },
+                "input_schema": {
+                  "type": "object",
+                  "required": [
+                    "value"
+                  ],
+                  "properties": {
+                    "value": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            ],
+            "owners": [],
+            "position": {
+              "x": 58,
+              "y": 1565
+            },
+            "display_name": "List 1"
+          }
+        }
+      },
+      "schemas": {}
+    }
+  },
+  "schemas": {},
+  "metadata": {
+    "llm_model": "groq/openai/gpt-oss-120b",
+    "source_kind": "ui",
+    "is_under_specified": true,
+    "is_system_generated_description": true
+  },
+  "output_map": {
+    "spec": {
+      "maps": [],
+      "name": "",
+      "fallback_strategy": "ask_the_user"
+    }
+  }
+}
