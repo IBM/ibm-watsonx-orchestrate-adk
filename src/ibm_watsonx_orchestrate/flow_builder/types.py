@@ -800,11 +800,12 @@ class UserFormButton(BaseModel):
             model_spec["kind"] = self.kind
         if self.display_name:
             model_spec["display_name"] = self.display_name
-        if self.visible:
-            model_spec["visible"] = self.visible
-        if self.edge_id: 
+        # Always include visible property (it's a boolean, not optional)
+        model_spec["visible"] = self.visible
+        # Include edge_id when button is connected to a node
+        if self.edge_id:
             model_spec["edge_id"] = self.edge_id
-        return model_spec    
+        return model_spec
 
 class UserForm(BaseModel):
 
