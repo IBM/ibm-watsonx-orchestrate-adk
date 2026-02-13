@@ -76,7 +76,8 @@
                       },
                       "display_text": {
                         "type": "string"
-                      }
+                      },
+                      "default": {}
                     },
                     "required": [
                       "choices"
@@ -471,6 +472,13 @@
                           "has_no_value": false,
                           "default_value": null,
                           "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.listOfPreferredFruits",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
                         }
                       ]
                     }
@@ -488,7 +496,8 @@
                       },
                       "display_text": {
                         "type": "string"
-                      }
+                      },
+                      "default": {}
                     },
                     "required": [
                       "choices"
@@ -557,7 +566,8 @@
                       },
                       "display_text": {
                         "type": "string"
-                      }
+                      },
+                      "default": {}
                     },
                     "required": [
                       "choices"
@@ -619,7 +629,8 @@
                       },
                       "display_text": {
                         "type": "string"
-                      }
+                      },
+                      "default": {}
                     },
                     "required": [
                       "choices"
@@ -943,15 +954,55 @@
                   "name": "submit",
                   "kind": "submit",
                   "display_name": "Submit",
-                  "visible": true
+                  "visible": true,
+                  "edge_id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+                },
+                {
+                  "name": "316bb801-dc95-4ef8-ab31-38392d00c84e",
+                  "kind": "submit",
+                  "display_name": "Save Draft",
+                  "visible": true,
+                  "edge_id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+                },
+                {
+                  "name": "de2f2707-f53c-49e1-bf4d-1625693e425e",
+                  "kind": "submit",
+                  "display_name": "Submit for Review",
+                  "visible": true,
+                  "edge_id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
                 },
                 {
                   "name": "cancel",
                   "kind": "cancel",
-                  "display_name": "Cancel"
+                  "display_name": "Cancel",
+                  "visible": true
                 }
               ]
             }
+          }
+        },
+        "process_submit": {
+          "spec": {
+            "kind": "script",
+            "name": "process_submit",
+            "display_name": "process_submit",
+            "fn": "print(\"Processing full submission...\")"
+          }
+        },
+        "process_save_draft": {
+          "spec": {
+            "kind": "script",
+            "name": "process_save_draft",
+            "display_name": "process_save_draft",
+            "fn": "print(\"Saving as draft...\")"
+          }
+        },
+        "process_review": {
+          "spec": {
+            "kind": "script",
+            "name": "process_review",
+            "display_name": "process_review",
+            "fn": "print(\"Submitting for review...\")"
           }
         },
         "__start__": {
@@ -976,6 +1027,29 @@
         },
         {
           "start": "ApplicationForm",
+          "end": "process_submit",
+          "id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+        },
+        {
+          "start": "process_submit",
+          "end": "__end__"
+        },
+        {
+          "start": "ApplicationForm",
+          "end": "process_save_draft",
+          "id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+        },
+        {
+          "start": "process_save_draft",
+          "end": "__end__"
+        },
+        {
+          "start": "ApplicationForm",
+          "end": "process_review",
+          "id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
+        },
+        {
+          "start": "process_review",
           "end": "__end__"
         }
       ],
@@ -1062,8 +1136,8 @@
               "Doe"
             ],
             [
-              "Doe",
-              "Jean"
+              "Jean",
+              "Doe"
             ]
           ]
         }
@@ -1200,6 +1274,18 @@
             "oranges",
             "bananas"
           ]
+        },
+        "listOfPreferredFruits": {
+          "type": "array",
+          "title": "Listofpreferredfruits",
+          "description": "A list of preferred fruits.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "apple",
+            "oranges"
+          ]
         }
       }
     },
@@ -1211,6 +1297,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-26T16:46:32.809596+00:00"
+    "compiled_on": "2026-02-05T06:17:21.411626+00:00"
   }
 }
