@@ -148,5 +148,22 @@ $ orchestrate chat start
 ```
 ![img.png](./_docs/assets/chat-example.png)
 
+## Running tests
+Install dev dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+Run tests:
+```bash
+hatch run test
+```
+
+Run coverage report:
+```bash
+hatch run cov
+```
+
+
 ## Reporting issues
 Customers of watsonx Orchestrate can raise issues with the ADK or the Developer Edition server to [IBM Support](https://www.ibm.com/mysupport/s/topic/0TO3p000000A6YLGA0/watsonx-orchestrate?productId=01t3p00000SsRnhAAF&language=en_US).
