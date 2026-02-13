@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command import configure_langfuse, \
-    get_langfuse
+    get_langfuse, remove_langfuse_config
 from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMConfig, \
     AnalyticsLLMUpsertToolIdentifier
 from mocks.mock_base_api import get_analytics_llm_mock
@@ -262,5 +262,40 @@ class TestObservabilityPrintToConsole:
             snapshot.assert_match(output)
 
 
+class TestObservabilityRemoveConfiguration:
+    def test_remove_configuration(self):
+        with (
+            patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.instantiate_client") as instantiate_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.logger") as logger
+        ):
+            AnalyticsLLMClientMock, update, delete, get = get_analytics_llm_mock()
+            instantiate_client.return_value = AnalyticsLLMClientMock(base_url='')
 
+            remove_langfuse_config()
 
+            delete.assert_called_once()
+            update.assert_not_called()
+            get.assert_not_called()
+
+            logger.info.assert_called_once_with('Successfully removed Langfuse configuration')
+    
+    def test_remove_configuration_error(self):
+        with (
+            patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.instantiate_client") as instantiate_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.logger") as logger,
+            patch("ibm_watsonx_orchestrate.cli.commands.settings.observability.langfuse.langfuse_command.handle_error") as mock_handle_error
+        ):
+            AnalyticsLLMClientMock, update, delete, get = get_analytics_llm_mock()
+            instantiate_client.return_value = AnalyticsLLMClientMock(base_url='')
+
+            mock_exc = Exception("Testing error")
+
+            delete.side_effect = mock_exc
+
+            remove_langfuse_config()
+
+            delete.assert_called_once()
+            update.assert_not_called()
+            get.assert_not_called()
+
+            mock_handle_error.assert_called_once_with("An error occured while attempting to remove the Langfuse configuration.", mock_exc)
