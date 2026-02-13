@@ -1810,3 +1810,50 @@ class DockerComposeCore:
                 logger.error(ex)
                 logger.error(f"Failed to pull CPD docker image {cpd_image['image']}:{cpd_image['tag']}")
                 sys.exit(1)
+
+
+def get_container_env_var(container_name: str, env_var_name: str) -> str | None:
+    """
+    Get an environment variable value from a running Docker container.
+    
+    Args:
+        container_name: Name of the Docker container (e.g., "dev-edition-wxo-builder-1")
+        env_var_name: Name of the environment variable to retrieve (e.g., "INBOUND_API_KEY")
+    
+    Returns:
+        The value of the environment variable, or None if not found or container not running
+    """
+    try:
+        vm = get_vm_manager()
+        
+        # Use docker inspect to get container environment variables
+        docker_command = [
+            "inspect",
+            "--format",
+            "{{json .Config.Env}}",
+            container_name
+        ]
+        
+        result = vm.run_docker_command(docker_command, capture_output=True)
+        
+        if result.returncode != 0:
+            logger.warning(f"Container '{container_name}' not found or not running")
+            return None
+        
+        # Parse the JSON output - handle both string and bytes
+        stdout = result.stdout
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode('utf-8')
+        env_list = json.loads(stdout.strip())
+        
+        # Find the environment variable
+        for env_entry in env_list:
+            if env_entry.startswith(f"{env_var_name}="):
+                return env_entry.split("=", 1)[1]
+        
+        logger.warning(f"Environment variable '{env_var_name}' not found in container '{container_name}'")
+        return None
+        
+    except Exception as e:
+        logger.warning(f"Failed to get environment variable from container: {e}")
+        return None
