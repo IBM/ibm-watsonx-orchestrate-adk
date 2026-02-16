@@ -229,9 +229,11 @@ class TestConfigureGenesys:
             mock_set_creds.assert_called_once_with(
                 app_id=app_id,
                 environment=ConnectionEnvironment.DRAFT,
-                endpoint=connection_credentials['endpoint'],
-                client_id=connection_credentials['client_id'],
-                client_secret=connection_credentials['client_secret']
+                entries=[
+                    f"client_id={connection_credentials['client_id']}",
+                    f"client_secret={connection_credentials['client_secret']}",
+                    f"endpoint={connection_credentials['endpoint']}"
+                ]
             )
 
     def test_configure_genesys_live(self, connection_credentials):
@@ -267,9 +269,11 @@ class TestConfigureGenesys:
             mock_set_creds.assert_called_once_with(
                 app_id=app_id,
                 environment=ConnectionEnvironment.LIVE,
-                endpoint=connection_credentials['endpoint'],
-                client_id=connection_credentials['client_id'],
-                client_secret=connection_credentials['client_secret']
+                entries=[
+                    f"client_id={connection_credentials['client_id']}",
+                    f"client_secret={connection_credentials['client_secret']}",
+                    f"endpoint={connection_credentials['endpoint']}"
+                ]
             )
 
     def test_configure_genesys_existing_connection(self, connection_credentials):
@@ -317,9 +321,11 @@ class TestConfigureGenesys:
             mock_set_creds.assert_called_once_with(
                 app_id=app_id,
                 environment=ConnectionEnvironment.DRAFT,
-                endpoint=connection_credentials['endpoint'],
-                client_id=connection_credentials['client_id'],
-                client_secret=connection_credentials['client_secret']
+                entries=[
+                    f"client_id={connection_credentials['client_id']}",
+                    f"client_secret={connection_credentials['client_secret']}",
+                    f"endpoint={connection_credentials['endpoint']}"
+                ]
             )
 
 class TestListPlatformCustomerCare:
