@@ -18,6 +18,7 @@ from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_comman
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import evaluation_app
 from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_command import voice_configurations_app
+from ibm_watsonx_orchestrate.cli.commands.observability.observability_command import observability_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 
 import urllib3
@@ -47,6 +48,7 @@ app.add_typer(customer_care_app, name="customer-care", help='Manage contact cent
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
 app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
+app.add_typer(observability_app, name="observability", help='Search and export trace data from the observability platform for analysis in third-party tools')
 
 if __name__ == "__main__":
     app()
