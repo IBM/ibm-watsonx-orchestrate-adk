@@ -34,7 +34,7 @@ Your Langfuse username and password will appear in the terminal. Use these crede
 Now, you can run the evaluation command as usual:
 
 ```bash
-orchestrate evaluations evaluate -p examples/evaluations/evaluate/data_no_summary -o <OUTPUTDIR>
+orchestrate evaluations evaluate -p examples/evaluations/evaluate/data_no_summary -o <OUTPUTDIR> -l
 ```
 
 When the evaluation completes, you’ll receive links to your Langfuse sessions containing detailed evaluation results, for example:
