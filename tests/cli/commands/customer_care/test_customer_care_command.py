@@ -1,6 +1,13 @@
 from unittest.mock import patch
-from tests.mocks.mock_typer import get_mock_typer
-from tests.utils.matcher import MatchAny
+try:
+    from mocks.mock_typer import get_mock_typer
+except:
+    from tests.mocks.mock_typer import get_mock_typer
+    
+try:
+    from utils.matcher import MatchAny
+except:
+    from tests.utils.matcher import MatchAny
 
 
 def test_should_register_platform_command():
