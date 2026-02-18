@@ -362,10 +362,14 @@ def main() -> int:
         # Copy/save the JSON file to output directory
         if not args.validate_only:
             if original_json_file:
-                # Copy from original location
-                shutil.copy2(original_json_file, json_output)
-                if args.verbose:
-                    print(f"Copied JSON file to: {json_output}")
+                # Copy from original location only if source and destination are different
+                if os.path.abspath(original_json_file) != os.path.abspath(json_output):
+                    shutil.copy2(original_json_file, json_output)
+                    if args.verbose:
+                        print(f"Copied JSON file to: {json_output}")
+                else:
+                    if args.verbose:
+                        print(f"JSON file already at destination: {json_output}")
             else:
                 # Copy from temp file (interactive mode)
                 shutil.copy2(json_file, json_output)

@@ -29,6 +29,26 @@ from ibm_watsonx_orchestrate.flow_builder.types import (
     NodeIdCondition, EdgeIdCondition, Conditions, Expression
 )
 
+def normalize_identifier(name: str) -> str:
+    """
+    Normalize a name to be a valid Python identifier.
+    Converts hyphens and other invalid characters to underscores.
+    
+    Args:
+        name: The name to normalize
+        
+    Returns:
+        A valid Python identifier
+    """
+    import re
+    # Replace hyphens and other non-alphanumeric characters with underscores
+    normalized = re.sub(r'[^0-9a-zA-Z_]', '_', name)
+    # Ensure it doesn't start with a digit
+    if normalized and normalized[0].isdigit():
+        normalized = f"_{normalized}"
+    return normalized
+
+
 def get_valid_variable_name(node_id: Any, append_node: bool = False) -> str:
     """Generate a valid Python variable name from a node ID."""
     # Convert to string if not already
@@ -40,12 +60,8 @@ def get_valid_variable_name(node_id: Any, append_node: bool = False) -> str:
     elif node_id == "__end__":
         return "END"
     else:
-        # Replace non-alphanumeric characters with underscores
-        import re
-        name = re.sub(r'[^0-9a-zA-Z_]', '_', node_id)
-        # Ensure it doesn't start with a digit
-        if name and name[0].isdigit():
-            name = f"_{name}"
+        # Use normalize_identifier for consistency
+        name = normalize_identifier(node_id)
         if append_node:
             return name + "_node"
         else:
@@ -184,6 +200,9 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
     
     if properties and isinstance(properties, dict):
         for prop_name, prop_schema in properties.items():
+            # Normalize the property name to be a valid Python identifier
+            normalized_prop_name = normalize_identifier(prop_name)
+            
             field_type = "str"  # Default type
             
             if (hasattr(prop_schema, "ref") and prop_schema.ref) or isinstance(prop_schema, SchemaRef):
@@ -267,8 +286,8 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             required_fields = safe_get(schema, "required", [])
             is_required = prop_name in required_fields if required_fields else False
             
-            # Generate field definition
-            field_def = f"    {prop_name}: "
+            # Generate field definition using normalized name
+            field_def = f"    {normalized_prop_name}: "
             # Check if field_type is already a Union containing None
             is_union_with_none = isinstance(field_type, str) and field_type.startswith("Union[") and "None" in field_type
             
@@ -279,6 +298,10 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             
             # Add Field constructor if needed
             field_params = []
+            
+            # If the normalized name differs from original, add alias to preserve JSON compatibility
+            if normalized_prop_name != prop_name:
+                field_params.append(f'alias={repr(prop_name)}')
             
             # Get description
             description = f"{prop_name} field"
@@ -347,7 +370,7 @@ class NodePyGenerator:
     @staticmethod
     def _generate_common_node_attributes(node: Node, var_name: str, flow_var: str,
                                         schema_class_map: Dict[str, str], out: TextIO,
-                                        include_creation: bool = True, 
+                                        include_creation: bool = True,
                                         func_name: Optional[str] = None,
                                         mandatory_fields: list[str] = []) -> None:
         """
@@ -362,6 +385,7 @@ class NodePyGenerator:
             use_helpers: Whether to use helper functions for node creation
             node_type: Optional node type to use instead of node.spec.kind
         """
+        from enum import Enum
         # Determine the node type to use
         kind = func_name if func_name else node.spec.kind
         
@@ -422,6 +446,9 @@ class NodePyGenerator:
                             else:
                                 param += (f"{field_key}={field_value}, ")
                     param += (")")
+                elif isinstance(field, Enum):
+                    # For enums, use the class name and value
+                    param += f"{field.__class__.__name__}.{field.name}"
                 else:
                     param += (f"{field}")
                 params.append(param)
@@ -477,6 +504,8 @@ class NodePyGenerator:
             NodePyGenerator._generate_user_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         elif isinstance(node, ScriptNode):
             NodePyGenerator._generate_script_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+        elif isinstance(node, DocProcNode):
+            NodePyGenerator._generate_docproc_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         else:
             # Generic fallback for other node types
             NodePyGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, buffer)
@@ -998,6 +1027,7 @@ class NodePyGenerator:
     @staticmethod
     def _generate_node_field(node: Node, var_name: str, fields: list[str],
                             schema_class_map: Dict[str, str], out: TextIO, declare_spec: bool = True) -> None:
+        from enum import Enum
         spec_class = node.spec.__class__
         node_class = node.__class__
 
@@ -1040,6 +1070,9 @@ class NodePyGenerator:
                                     out.write(f"{field_key} = {field_value}, ")
                         out.write(")")
                         '''
+                    elif isinstance(field, Enum):
+                        # For enums, use the class name and value
+                        out.write(f"{field.__class__.__name__}.{field.name}")
                     else:
                         out.write(f"{field}")
 
@@ -1058,6 +1091,93 @@ class NodePyGenerator:
         NodePyGenerator._generate_node_field(node = node, var_name = var_name, fields = ["fn", "position"],
                     schema_class_map = schema_class_map, out = out)
 
+    @staticmethod
+    def _generate_docproc_node(node: DocProcNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
+                              out: TextIO, use_helpers: bool = True) -> None:
+        """Generate Python code for a DocProc node in the original ADK style."""
+        from ibm_watsonx_orchestrate.flow_builder.types import DocProcField, DocProcKVPSchema, DocProcOutputFormat
+        
+        # Generate the node creation with minimal parameters
+        out.write(f"    {var_name}: DocProcNode = {flow_var}.docproc(\n")
+        out.write(f"        name={repr(node.spec.name)}")
+        
+        # Add task parameter as a string
+        if hasattr(node.spec, 'task') and node.spec.task:
+            task_value = node.spec.task
+            if hasattr(task_value, 'value'):
+                task_value = task_value.value
+            out.write(f",\n        task={repr(task_value)}")
+        
+        # Add document_structure if True
+        if hasattr(node.spec, 'document_structure') and node.spec.document_structure:
+            out.write(f",\n        document_structure={node.spec.document_structure}")
+        
+        # Add enable_hw if True
+        if hasattr(node.spec, 'enable_hw') and node.spec.enable_hw:
+            out.write(f",\n        enable_hw={node.spec.enable_hw}")
+        
+        # Add output_format as enum reference
+        if hasattr(node.spec, 'output_format') and node.spec.output_format:
+            output_format = node.spec.output_format
+            if hasattr(output_format, 'value'):
+                # It's an enum, use the enum reference
+                out.write(f",\n        output_format=DocProcOutputFormat.{output_format.name}")
+            else:
+                out.write(f",\n        output_format={repr(output_format)}")
+        
+        # Add kvp_schemas - generate as a constant reference
+        if hasattr(node.spec, 'kvp_schemas') and node.spec.kvp_schemas:
+            kvp_schemas = node.spec.kvp_schemas
+            if isinstance(kvp_schemas, list) and len(kvp_schemas) > 0:
+                # Generate a constant name based on the node name
+                schema_const_name = f"{var_name.upper()}_KVP_SCHEMA"
+                
+                # We'll generate the constant before the flow function
+                # Store it for later generation
+                if not hasattr(NodePyGenerator, "_kvp_schema_constants"):
+                    NodePyGenerator._kvp_schema_constants = []
+                
+                schema_def = f"\n# Define KVP Schema for {node.spec.name}\n"
+                schema_def += f"{schema_const_name} = DocProcKVPSchema(\n"
+                
+                kvp_schema = kvp_schemas[0]
+                if hasattr(kvp_schema, 'document_type'):
+                    schema_def += f'    document_type={repr(kvp_schema.document_type)},\n'
+                if hasattr(kvp_schema, 'document_description'):
+                    schema_def += f'    document_description={repr(kvp_schema.document_description)},\n'
+                if hasattr(kvp_schema, 'additional_prompt_instructions'):
+                    schema_def += f'    additional_prompt_instructions={repr(kvp_schema.additional_prompt_instructions)},\n'
+                
+                # Add fields
+                if hasattr(kvp_schema, 'fields') and kvp_schema.fields:
+                    schema_def += '    fields={\n'
+                    for field_name, field_value in kvp_schema.fields.items():
+                        schema_def += f'        {repr(field_name)}: DocProcField(\n'
+                        if hasattr(field_value, 'description'):
+                            schema_def += f'            description={repr(field_value.description)},\n'
+                        if hasattr(field_value, 'default'):
+                            schema_def += f'            default={repr(field_value.default)},\n'
+                        if hasattr(field_value, 'example'):
+                            schema_def += f'            example={repr(field_value.example)},\n'
+                        schema_def += '        ),\n'
+                    schema_def += '    }\n'
+                
+                schema_def += ')\n'
+                
+                NodePyGenerator._kvp_schema_constants.append(schema_def)
+                
+                out.write(f",\n        kvp_schemas=[{schema_const_name}]")
+        
+        # Add kvp_force_schema_name if present
+        if hasattr(node.spec, 'kvp_force_schema_name') and node.spec.kvp_force_schema_name:
+            out.write(f",\n        kvp_force_schema_name={repr(node.spec.kvp_force_schema_name)}")
+        
+        out.write("\n    )\n")
+        
+        # Generate input mappings using map_input
+        NodePyGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
+        
+        out.write("\n    \n")
 
     @staticmethod
     def _generate_any_node(node: Node, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
@@ -1104,6 +1224,18 @@ class NodePyGenerator:
             case "AgentNode":
                 func_name = "agent"
                 mandatory_fields = ["agent"]
+                optional_fields = ['position']
+            case "DocProcNode":
+                func_name = "docproc"
+                mandatory_fields = []
+                optional_fields = ['position']
+            case "DocExtNode":
+                func_name = "docext"
+                mandatory_fields = ["config"]
+                optional_fields = ['position']
+            case "DocClassifierNode":
+                func_name = "docclassifier"
+                mandatory_fields = ["config"]
                 optional_fields = ['position']
             case _:
                 raise ValueError(f"TODO: python conversion not available for node type: {node.__class__.__name__}")
@@ -1182,13 +1314,17 @@ def generate_flow_decorator(flow_spec: Any, schema_class_map: Dict[str, str], ou
     if flow_spec.description:
         out.write(f'    description={repr(flow_spec.description)},\n')
     
-    # Handle input schema
+    # Handle input schema - use DocProcInput for docproc flows
     if hasattr(flow_spec, "input_schema") and flow_spec.input_schema:
         if hasattr(flow_spec.input_schema, "ref"):
             schema_ref = flow_spec.input_schema.ref
             if schema_ref.startswith("#/schemas/"):
                 schema_name = schema_ref[len("#/schemas/"):]
-                if schema_name in schema_class_map:
+                # Check if this is a DocProc input schema
+                if "docproc" in schema_name.lower() or schema_name.endswith("_input"):
+                    # Use DocProcInput for docproc flows
+                    out.write(f"    input_schema=DocProcInput,\n")
+                elif schema_name in schema_class_map:
                     out.write(f"    input_schema={schema_class_map[schema_name]},\n")
     
     # Handle output schema
@@ -1242,21 +1378,32 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
         use_helpers: Whether to use helper functions for node creation
     """
 
-    # Generate the function signature
-    generate_flow_decorator(flow.spec, schema_class_map, out)
-    generate_function_signature(flow.spec, out)
+    # Reset the KVP schema constants list
+    if hasattr(NodePyGenerator, "_kvp_schema_constants"):
+        delattr(NodePyGenerator, "_kvp_schema_constants")
+    NodePyGenerator._kvp_schema_constants = []
     
     # Reset the user flow functions list
     if hasattr(NodePyGenerator, "_user_flow_functions"):
         delattr(NodePyGenerator, "_user_flow_functions")
     NodePyGenerator._user_flow_functions = []
     
-    # First pass: Generate all nodes to collect user flow functions
+    # First pass: Generate all nodes to collect user flow functions and KVP constants
     for node_id, node in flow.nodes.items():
         NodePyGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
         #if node_id not in ["__start__", "__end__"]:
         #    # This will populate NodePyGenerator._user_flow_functions
         #    NodePyGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
+    
+    # Write KVP schema constants before the flow decorator
+    if hasattr(NodePyGenerator, "_kvp_schema_constants") and NodePyGenerator._kvp_schema_constants:
+        for const_def in NodePyGenerator._kvp_schema_constants:
+            out.write(const_def)
+        out.write("\n")
+    
+    # Generate the function signature
+    generate_flow_decorator(flow.spec, schema_class_map, out)
+    generate_function_signature(flow.spec, out)
     
     # Create a buffer for the main flow content
     main_flow_buffer = StringIO()
