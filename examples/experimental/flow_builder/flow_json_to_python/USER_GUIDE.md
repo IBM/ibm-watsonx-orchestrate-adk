@@ -6,10 +6,22 @@ A tool to convert IBM watsonx Orchestrate flow definitions (JSON) into Python co
 
 ### Prerequisites
 
-1. Python 3.11 or higher
-2. IBM watsonx Orchestrate SDK installed:
+1. Python 3.8 or higher
+
+2. Clone the repository with the flow-converter branch:
    ```bash
-   pip install ibm-watsonx-orchestrate
+   git clone -b flow-converter https://github.ibm.com/WatsonOrchestrate/wxo-clients.git
+   cd wxo-clients
+   ```
+
+3. Install the SDK from the cloned repository:
+   ```bash
+   pip install -e .
+   ```
+
+4. Navigate to the converter tool:
+   ```bash
+   cd examples/experimental/flow_builder/flow_json_to_python
    ```
 
 ### Running the Tool
