@@ -27,7 +27,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows import Branch
 from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowEdge
 
 from flow_to_python import (
-    NodePyGenerator, generate_flow_py_code, generate_schema_classes, 
+    FlowPythonGenerator, generate_flow_py_code, generate_schema_classes, 
     get_meaningful_classname
 )
 
