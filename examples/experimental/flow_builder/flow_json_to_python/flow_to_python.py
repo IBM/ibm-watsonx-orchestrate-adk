@@ -931,10 +931,6 @@ class NodePyGenerator:
                 out.write(f"    {var_name}: {node.__class__.__name__} = {flow_var}.field(\n")
                 params.append(f'        name={repr(field_name)}')
                 
-                # Handle display name
-                if node.spec.display_name:
-                    params.append(f'        display_name={repr(node.spec.display_name)}')
-
                 # Handle field kind
                 kind_value = UserFieldKind.str_to_code(field.kind)
                 params.append(f"        kind={kind_value}")
@@ -943,7 +939,7 @@ class NodePyGenerator:
                 if field.direction is not None:
                     params.append(f'        direction={repr(field.direction)}')
                 
-                # Handle display name
+                # Handle field display name (not node display name)
                 if field.display_name is not None:
                     params.append(f'        display_name={repr(field.display_name)}')
 
@@ -1024,7 +1020,12 @@ class NodePyGenerator:
                 if field:
                     out.write(f"\n    {spec_var_name}.{field_name} = ")
                     if isinstance(field, str):
-                        out.write(f'{repr(field)}')
+                        # Use multi-line string format for strings with newlines
+                        if '\n' in field:
+                            # Use triple-quoted string for multi-line content
+                            out.write(f'"""{field}"""')
+                        else:
+                            out.write(f'{repr(field)}')
                     elif isinstance(field, BaseModel):
                         out.write(f'{repr(field)}')
                         '''
