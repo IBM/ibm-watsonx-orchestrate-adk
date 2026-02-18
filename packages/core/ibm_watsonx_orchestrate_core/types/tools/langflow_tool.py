@@ -1,17 +1,31 @@
 from enum import Enum
 import re
 
-import rich
 
 from ibm_watsonx_orchestrate_core.utils.langflow import parse_langflow_model
 from .base_tool import BaseTool
 from .types import LangflowToolBinding, ToolBinding, ToolPermission, ToolRequestBody, ToolResponseBody, ToolSpec
 from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
 
+try:
+  import rich
+except ImportError:
+  rich = None
+
 MIN_LANGFLOW_VERSION = [1,5,0]
 LANGFLOW_CHAT_INPUT_LABEL = "ChatInput"
 LANGFLOW_CHAT_OUTPUT_LABEL = "ChatOutput"
 VALID_NAME_PATTERN = re.compile("^[a-zA-Z](\\w|_)+$")
+
+# Matches any properly closed rich formatting instructions 
+# Examples:
+#
+# [key]content[/key]
+# [key other_key]content[/key other_key]
+#
+# Rich formatting also supports other patterns, eg. unclosed instructions, closing with '[/]'
+# This regex only matches the simple form as required for our use case
+RICH_FORMAT_CONTENT_REGEX = rf"\[((([\w\d]+)\s?)*)\](.*)\[\/\1\]"
 
 class LangflowToolSource(str,Enum):
   ORCHESTRATE = 'orchestrate'
@@ -116,57 +130,17 @@ def create_langflow_tool(
   if langflow_spec:
 
     if show_details:
-      rich.print(f"[bold white]Langflow version used: {langflow_version}[/bold white]")
-      rich.print("Please ensure this flow is compatible with the Langflow version bundled in ADK.")
-      rich.print("\nLangflow components:")
+      rich_print(f"[bold white]Langflow version used: {langflow_version}[/bold white]")
+      rich_print("Please ensure this flow is compatible with the Langflow version bundled in ADK.")
 
-    table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
-    column_args = {
-      "ID": {},
-      "Name": {},
-      "Credentials": {},
-      "Requirements": {}
-    }
-    for column in column_args:
-        table.add_column(column,**column_args[column])
+      components = get_langflow_component_details(langflow_spec)
+      requirements = [ x for item in components for x in item.get("requirements") ]
 
-    requirements = set()
-    api_key_not_set = False
-    for component in langflow_spec.components:
-      if component.credentials and len(component.credentials) > 0:
-        # create a command separated list with newline
-        component_creds = None
-        for k, v in component.credentials.items():
-          if v is None or v == "":
-            v = 'NOT SET'
-            api_key_not_set = True
-          if component_creds is None:
-            component_creds = f"{k} {v}"
-          else:
-            component_creds += "\n" + f"{k} {v}"
-      else:
-        component_creds = "N/A"
 
-      if component.requirements and len(component.requirements) > 0:
-        # create a command separated list with newline
-        component_req = "\n".join([f"{k}" for k in component.requirements])
-        for r in component.requirements:
-          requirements.add(r)
-      else:
-        component_req = "N/A"
-      table.add_row(component.id,component.name,component_creds,component_req)
-      
-    if show_details:
-      rich.print(table)
-
-      rich.print("[bold yellow]Tip:[/bold yellow] Langflow tool might require additional python modules.  Identified requirements will be added.")
-      rich.print("[bold yellow]Tip:[/bold yellow] Avoid hardcoding sensitive values. Use Orchestrate connections to manage secrets securely.")
-      if api_key_not_set:
-        rich.print("[bold yellow]Warning:[/bold yellow] Some required api key(s) were not set in the flow. Please adjust the flow to include them.")
-      rich.print("Ensure each credential follows the <app-id>_<variable> naming convention within the Langflow model.")
-
+      show_langflow_tool_component_details(components)
+        
       for connection in connections:
-          rich.print(f"* Connection: {connection} → Suggested naming: {connection}_<variable>")
+        rich_print(f"* Connection: {connection} → Suggested naming: {connection}_<variable>")
 
   spec = ToolSpec(
     name=name,
@@ -189,3 +163,76 @@ def create_langflow_tool(
   tool = LangflowTool(spec=spec)
   tool.requirements = requirements
   return tool
+
+def rich_print(*objects, **kwargs):
+  if not rich:
+    print(*strip_rich_formatting(objects),**kwargs)
+  else:
+    rich.print(*objects,**kwargs)
+
+def strip_rich_formatting(objects):
+  processed = []
+  for obj in objects:
+    if not isinstance(obj,str):
+      processed.append(obj)
+    else:
+      processed.append(
+        re.sub(
+            string = obj,
+            pattern = RICH_FORMAT_CONTENT_REGEX,
+            repl = lambda m: m.group(4)
+          )
+      )  
+  return processed
+
+
+def get_langflow_component_details(tool_spec):
+  components = []
+  for component in tool_spec.components:
+    components.append(
+      { 
+        "id": component.id,
+        "name": component.name,
+        "credentials": component.credentials,
+        "requirements": component.requirements
+      }
+    )
+  
+  return components
+
+def show_langflow_tool_component_details(components):
+  if not rich:
+    return
+  
+  table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
+  column_args = {
+    "ID": {},
+    "Name": {},
+    "Credentials": {},
+    "Requirements": {}
+  }
+  api_key_not_set = False
+  for column in column_args:
+    table.add_column(column,**column_args[column])
+
+  for component in components:
+    comp_id = component.get("id", None)
+    comp_name = component.get("name", None)
+    comp_creds = "\n".join([f"{k} {(api_key_not_set := True) and 'NOT SET' if not v else v}" for k, v in component.get("credentials",{}).items()])
+    comp_reqs = "\n".join([f"{r}" for r in component.get("requirements",[])])
+    table.add_row(
+      comp_id or "N/A",
+      comp_name or "N/A",
+      comp_creds or "N/A",
+      comp_reqs or "N/A"
+    )
+
+
+  rich.print("\nLangflow components:")
+  rich.print(table)
+
+  rich.print("[bold yellow]Tip:[/bold yellow] Langflow tool might require additional python modules.  Identified requirements will be added.")
+  rich.print("[bold yellow]Tip:[/bold yellow] Avoid hardcoding sensitive values. Use Orchestrate connections to manage secrets securely.")
+  if api_key_not_set:
+    rich.print("[bold yellow]Warning:[/bold yellow] Some required api key(s) were not set in the flow. Please adjust the flow to include them.")
+  rich.print("Ensure each credential follows the <app-id>_<variable> naming convention within the Langflow model.")
