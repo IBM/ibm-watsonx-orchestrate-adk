@@ -312,6 +312,9 @@ def build_flow_from_json(
     # Process nodes
     if "nodes" in json_data:
         flow.nodes = {}
+        # Track branch nodes and their cases to populate after all nodes are created
+        branch_cases_to_populate = []
+        
         for node_id, node_data in json_data["nodes"].items():
             if "spec" in node_data and "kind" in node_data["spec"]:
                 kind = node_data["spec"]["kind"]
@@ -351,6 +354,22 @@ def build_flow_from_json(
                         elif match_policy_str == "ANY_MATCH":
                             match_policy = MatchPolicy.ANY_MATCH
                     
+                    # Normalize cases format - convert object format to string format
+                    if "cases" in node_data["spec"]:
+                        cases = node_data["spec"]["cases"]
+                        normalized_cases = {}
+                        for key, value in cases.items():
+                            if isinstance(value, dict) and "node" in value:
+                                # Object format: {"node": "nodeId", "display_name": "..."}
+                                normalized_cases[key] = value["node"]
+                            elif isinstance(value, str):
+                                # Already in string format
+                                normalized_cases[key] = value
+                            else:
+                                # Unknown format, keep as is
+                                normalized_cases[key] = value
+                        node_data["spec"]["cases"] = normalized_cases
+                    
                     node_data["spec"]["evaluator"] = evaluator
                     node_data["spec"]["match_policy"] = match_policy
                     node_spec = BranchNodeSpec.model_validate(node_data["spec"])
@@ -358,11 +377,9 @@ def build_flow_from_json(
                     flow.nodes[node_id] = branch
                     branch.policy(match_policy)
                     
-                    # Populate cases
+                    # Store branch and cases for later population (after all nodes are created)
                     if "cases" in node_data["spec"]:
-                        cases = node_data["spec"]["cases"]
-                        for key, value in cases.items():
-                            branch.case(key, value)
+                        branch_cases_to_populate.append((branch, node_data["spec"]["cases"]))
                 
                 elif kind == "user_flow" or kind == "userflow":
                     user_nested_flow: Flow = build_flow_from_json(node_data, parent=flow, remove_tool_uuid=remove_tool_uuid)
@@ -442,6 +459,11 @@ def build_flow_from_json(
             # Handle input_map
             if "input_map" in node_data:
                 flow.nodes[node_id].input_map = DataMapSpec.model_validate(node_data["input_map"])
+        
+        # Now populate branch cases after all nodes have been created
+        for branch, cases in branch_cases_to_populate:
+            for key, value in cases.items():
+                branch.case(key, value)
     
     # Set metadata if present
     if "metadata" in json_data:
@@ -452,7 +474,7 @@ def build_flow_from_json(
 
 def generate_imports(spec: Any, out: TextIO) -> None:
     """Generate import statements based on the flow specification."""
-    out.write("from typing import List, Optional, Dict, Any\n")
+    out.write("from typing import List, Optional, Dict, Any, Union\n")
     out.write("from pydantic import BaseModel, Field\n")
     out.write("from ibm_watsonx_orchestrate.flow_builder.flows import (\n")
     out.write("    Flow, flow, START, END")
