@@ -76,7 +76,11 @@ def safe_get(obj, key, default=None, value_kind: str = "str") -> Any:
             elif value_kind == "bool":
                 return bool(value)
             else:
-                return json.loads(value)
+                # Try to parse as JSON, but return the string if it fails
+                try:
+                    return json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    return value
         else:
             return value
 
@@ -185,25 +189,27 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             if (hasattr(prop_schema, "ref") and prop_schema.ref) or isinstance(prop_schema, SchemaRef):
                 field_type = get_schema_class_from_ref(prop_schema, schema_class_map)
             else:
-                # Determine field type
-                prop_type = safe_get(prop_schema, "type")
-                if prop_type:
-                    if prop_type == "string":
-                        field_type = "str"
-                    elif prop_type == "number":
-                        field_type = "float"
-                    elif prop_type == "integer":
-                        field_type = "int"
-                    elif prop_type == "boolean":
-                        field_type = "bool"
-                    elif prop_type == "array":
-                        # Handle array items
-                        items = safe_get(prop_schema, "items")
-                        if items:
-                            item_type = "Any"
-                            items_type = safe_get(items, "type")
-                            
-                            if items_type:
+                # Check for anyOf (union types)
+                any_of = safe_get(prop_schema, "anyOf")
+                if any_of and isinstance(any_of, list):
+                    # Handle union types
+                    union_types = []
+                    for union_schema in any_of:
+                        union_type = safe_get(union_schema, "type")
+                        if union_type == "string":
+                            union_types.append("str")
+                        elif union_type == "number":
+                            union_types.append("float")
+                        elif union_type == "integer":
+                            union_types.append("int")
+                        elif union_type == "boolean":
+                            union_types.append("bool")
+                        elif union_type == "array":
+                            # Handle array items in union
+                            items = safe_get(union_schema, "items")
+                            if items:
+                                item_type = "Any"
+                                items_type = safe_get(items, "type")
                                 if items_type == "string":
                                     item_type = "str"
                                 elif items_type == "number":
@@ -212,12 +218,50 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
                                     item_type = "int"
                                 elif items_type == "boolean":
                                     item_type = "bool"
-                                    
-                            field_type = f"List[{item_type}]"
-                        else:
-                            field_type = "List[Any]"
-                    elif prop_type == "object":
-                        field_type = "Dict[str, Any]"
+                                union_types.append(f"List[{item_type}]")
+                            else:
+                                union_types.append("List[Any]")
+                        elif union_type == "object":
+                            union_types.append("Dict[str, Any]")
+                        elif union_type == "null":
+                            union_types.append("None")
+                    
+                    if union_types:
+                        field_type = f"Union[{', '.join(union_types)}]"
+                else:
+                    # Determine field type
+                    prop_type = safe_get(prop_schema, "type")
+                    if prop_type:
+                        if prop_type == "string":
+                            field_type = "str"
+                        elif prop_type == "number":
+                            field_type = "float"
+                        elif prop_type == "integer":
+                            field_type = "int"
+                        elif prop_type == "boolean":
+                            field_type = "bool"
+                        elif prop_type == "array":
+                            # Handle array items
+                            items = safe_get(prop_schema, "items")
+                            if items:
+                                item_type = "Any"
+                                items_type = safe_get(items, "type")
+                                
+                                if items_type:
+                                    if items_type == "string":
+                                        item_type = "str"
+                                    elif items_type == "number":
+                                        item_type = "float"
+                                    elif items_type == "integer":
+                                        item_type = "int"
+                                    elif items_type == "boolean":
+                                        item_type = "bool"
+                                        
+                                field_type = f"List[{item_type}]"
+                            else:
+                                field_type = "List[Any]"
+                        elif prop_type == "object":
+                            field_type = "Dict[str, Any]"
             
             # Check if field is required
             required_fields = safe_get(schema, "required", [])
@@ -225,7 +269,10 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             
             # Generate field definition
             field_def = f"    {prop_name}: "
-            if not is_required:
+            # Check if field_type is already a Union containing None
+            is_union_with_none = isinstance(field_type, str) and field_type.startswith("Union[") and "None" in field_type
+            
+            if not is_required and not is_union_with_none:
                 field_def += f"Optional[{field_type}]"
             else:
                 field_def += str(field_type)
@@ -437,9 +484,9 @@ class NodePyGenerator:
         return buffer.getvalue()
     
     @staticmethod
-    def _generate_branch_node(node: Branch, var_name: str, flow_var: str, schema_class_map: Dict[str, str], 
+    def _generate_branch_node(node: Branch, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
                              out: TextIO, use_helpers: bool = True) -> None:
-        """Generate Python code for a branch node."""
+        """Generate Python code for a branch node (without cases - those are added later)."""
 
         NodePyGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
 
@@ -448,8 +495,8 @@ class NodePyGenerator:
         if evaluator:
             expression = safe_getattr(evaluator, "expression")
             if expression:
-                # this is a simple expression
-                NodePyGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out)
+                # this is a simple expression - spec already declared by _generate_any_node
+                NodePyGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out, declare_spec=False)
             else:
                 # this is a complex expression with conditions
                 conditions = safe_getattr(evaluator, "conditions")
@@ -504,6 +551,11 @@ class NodePyGenerator:
                     out.write(f"    ])\n")
                     out.write(f"    {var_name}_spec.evaluator = {var_name}_conditions\n\n")
 
+        # Note: Cases are now generated separately after all nodes are defined
+    
+    @staticmethod
+    def _generate_branch_cases(node: Branch, var_name: str, out: TextIO) -> None:
+        """Generate Python code for branch cases after all nodes are defined."""
         # Process cases if we found any
         cases = safe_getattr(node.spec, "cases", {}) or {}
             
@@ -578,11 +630,22 @@ class NodePyGenerator:
                 var_name = get_valid_variable_name(node_id)
                 node_vars[node_id] = var_name
         
-        # Generate nodes
+        # Store branch nodes to process their cases later
+        branch_nodes = []
+        
+        # Generate nodes (but defer branch cases)
         for node_id, node in flow.nodes.items():
             # if node_id not in ["__start__", "__end__"]:
+            if isinstance(node, Branch):
+                # Store branch node for later case processing
+                branch_nodes.append((node_id, node))
             node_code = NodePyGenerator.to_py(node, flow_var, schema_class_map, use_helpers)
             out.write(node_code)
+        
+        # Now generate branch cases after all nodes are defined
+        for node_id, branch_node in branch_nodes:
+            var_name = get_valid_variable_name(node_id)
+            NodePyGenerator._generate_branch_cases(branch_node, var_name, out)
         
         # Generate edges
         if hasattr(flow, "edges") and flow.edges:
@@ -938,7 +1001,7 @@ class NodePyGenerator:
 
     @staticmethod
     def _generate_node_field(node: Node, var_name: str, fields: list[str],
-                            schema_class_map: Dict[str, str], out: TextIO) -> None:
+                            schema_class_map: Dict[str, str], out: TextIO, declare_spec: bool = True) -> None:
         spec_class = node.spec.__class__
         node_class = node.__class__
 
@@ -951,7 +1014,10 @@ class NodePyGenerator:
                 return
 
             spec_var_name = f"{var_name}_spec"
-            out.write(f"\n    {spec_var_name}: {spec_class.__name__} = {var_name}.get_spec()")
+            
+            # Only declare the spec variable if requested
+            if declare_spec:
+                out.write(f"\n    {spec_var_name}: {spec_class.__name__} = {var_name}.get_spec()")
 
             for field_name in fields:
                 field = safe_getattr(node.spec, field_name)
