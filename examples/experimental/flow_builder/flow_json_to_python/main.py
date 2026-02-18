@@ -169,9 +169,9 @@ def select_flow_tool_interactive() -> tuple[str, str, dict]:
             
             print(f"Successfully exported flow definition to temporary file")
             
-            # Show current configuration
+            # Show conversion options
             print("\n" + "="*60)
-            print("Current Configuration")
+            print("Conversion Options")
             print("="*60)
             print(f"Flow name:        {tool_name}")
             print(f"Display name:     {tool_display_name if tool_display_name else '(none)'}")
@@ -187,7 +187,7 @@ def select_flow_tool_interactive() -> tuple[str, str, dict]:
             
             if update_settings in ['y', 'yes']:
                 print("\n" + "="*60)
-                print("Update Configuration")
+                print("Update Conversion Options")
                 print("="*60)
                 
                 # Get flow name
@@ -371,6 +371,15 @@ def main() -> int:
                 shutil.copy2(json_file, json_output)
                 if args.verbose:
                     print(f"Saved JSON file to: {json_output}")
+            
+            # Print summary of generated files
+            if result == 0:
+                print("\n" + "="*60)
+                print("Conversion completed successfully!")
+                print("="*60)
+                print(f"Flow model (JSON):     {json_output}")
+                print(f"Generated code (Python): {python_output}")
+                print("="*60)
         
         return result
     finally:
