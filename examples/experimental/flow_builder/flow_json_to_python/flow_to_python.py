@@ -364,7 +364,7 @@ def generate_schema_classes(schemas: Dict[str, Any], out: TextIO) -> Dict[str, s
     
     return schema_class_map
 
-class NodePyGenerator:
+class FlowPythonGenerator:
     """Base class for generating Python code for nodes."""
 
     @staticmethod
@@ -458,7 +458,7 @@ class NodePyGenerator:
         if include_creation:
             out.write("\n    )\n")
 
-        NodePyGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
+        FlowPythonGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
 
     @staticmethod
     def to_py(node: Node, flow_var: str, schema_class_map: Dict[str, str], use_helpers: bool = True) -> str:
@@ -474,7 +474,7 @@ class NodePyGenerator:
         Returns:
             String containing the Python code for the node
         """
-        NodePyGenerator._new_schema_map = {} # initialize
+        FlowPythonGenerator._new_schema_map = {} # initialize
 
         # Use a StringIO buffer to capture the output
         buffer = StringIO()
@@ -491,24 +491,24 @@ class NodePyGenerator:
         buffer.write(f"\n    # Node type: {type(node).__name__}, name: {node_name}\n")
         # Dispatch based on node type
         #if isinstance(node, ToolNode):
-        #    NodePyGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+        #    FlowPythonGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         if isinstance(node, Branch):
-            NodePyGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         elif isinstance(node, Loop):
-            NodePyGenerator._generate_loop_flow_node(node, var_name, flow_var, schema_class_map, buffer)
+            FlowPythonGenerator._generate_loop_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, Foreach):
-            NodePyGenerator._generate_foreach_flow_node(node, var_name, flow_var, schema_class_map, buffer)
+            FlowPythonGenerator._generate_foreach_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, UserFlow):
-            NodePyGenerator._generate_user_flow_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_user_flow_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         elif isinstance(node, UserNode):
-            NodePyGenerator._generate_user_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_user_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         elif isinstance(node, ScriptNode):
-            NodePyGenerator._generate_script_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_script_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         elif isinstance(node, DocProcNode):
-            NodePyGenerator._generate_docproc_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_docproc_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
         else:
             # Generic fallback for other node types
-            NodePyGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, buffer)
+            FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, buffer)
 
         return buffer.getvalue()
     
@@ -517,7 +517,7 @@ class NodePyGenerator:
                              out: TextIO, use_helpers: bool = True) -> None:
         """Generate Python code for a branch node (without cases - those are added later)."""
 
-        NodePyGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
+        FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
 
         # Try to get the evaluator expression
         evaluator = safe_getattr(node.spec, "evaluator")
@@ -525,7 +525,7 @@ class NodePyGenerator:
             expression = safe_getattr(evaluator, "expression")
             if expression:
                 # this is a simple expression - spec already declared by _generate_any_node
-                NodePyGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out, declare_spec=False)
+                FlowPythonGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out, declare_spec=False)
             else:
                 # this is a complex expression with conditions
                 conditions = safe_getattr(evaluator, "conditions")
@@ -668,17 +668,17 @@ class NodePyGenerator:
             if isinstance(node, Branch):
                 # Store branch node for later case processing
                 branch_nodes.append((node_id, node))
-            node_code = NodePyGenerator.to_py(node, flow_var, schema_class_map, use_helpers)
+            node_code = FlowPythonGenerator.to_py(node, flow_var, schema_class_map, use_helpers)
             out.write(node_code)
         
         # Now generate branch cases after all nodes are defined
         for node_id, branch_node in branch_nodes:
             var_name = get_valid_variable_name(node_id)
-            NodePyGenerator._generate_branch_cases(branch_node, var_name, out)
+            FlowPythonGenerator._generate_branch_cases(branch_node, var_name, out)
         
         # Generate edges
         if hasattr(flow, "edges") and flow.edges:
-            NodePyGenerator._generate_edges(flow.edges, node_vars, flow_var, out, flow.nodes)
+            FlowPythonGenerator._generate_edges(flow.edges, node_vars, flow_var, out, flow.nodes)
     
     @staticmethod
     def _generate_datamap_assignment(node: Node, var_name: str, schema_class_map: Dict[str, str], out: TextIO) -> None:
@@ -737,7 +737,7 @@ class NodePyGenerator:
         foreach_flow_func_name = f"build_{var_name[:-5]}_flow"
         
         # Create the foreach flow node using common attributes
-        NodePyGenerator._generate_common_node_attributes(
+        FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, True, "foreach", mandatory_fields=["item_schema"]
         )
         
@@ -752,17 +752,17 @@ class NodePyGenerator:
             function_buffer = StringIO()
             
             # Generate the function to build the foreach flow
-            NodePyGenerator._generate_foreach_flow_function(node, foreach_flow_func_name, schema_class_map, function_buffer)
+            FlowPythonGenerator._generate_foreach_flow_function(node, foreach_flow_func_name, schema_class_map, function_buffer)
             
             # Add the function definition to the global scope
             # We'll prepend this to the output in the main generate_flow_py_code function
-            if not hasattr(NodePyGenerator, "_user_flow_functions"):
-                NodePyGenerator._user_flow_functions = []
+            if not hasattr(FlowPythonGenerator, "_user_flow_functions"):
+                FlowPythonGenerator._user_flow_functions = []
             
             # Check if this function is already in the list to avoid duplicates
             function_content = function_buffer.getvalue()
-            if function_content not in NodePyGenerator._user_flow_functions:
-                NodePyGenerator._user_flow_functions.append(function_content)
+            if function_content not in FlowPythonGenerator._user_flow_functions:
+                FlowPythonGenerator._user_flow_functions.append(function_content)
     
     @staticmethod
     def _generate_user_flow_node(node: UserFlow, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
@@ -772,10 +772,10 @@ class NodePyGenerator:
         user_flow_func_name = f"build_{var_name[:-5]}_flow"
         
         # Create the user flow node using common attributes
-        NodePyGenerator._generate_common_node_attributes(
+        FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, use_helpers, "userflow"
         )
-        NodePyGenerator._generate_node_field(node, var_name, fields=["position", "dimensions"], schema_class_map=schema_class_map, out= out)
+        FlowPythonGenerator._generate_node_field(node, var_name, fields=["position", "dimensions"], schema_class_map=schema_class_map, out= out)
 
         # Call the function to build the user flow
         out.write(f"\n    # Build the {node.spec.name} user flow\n")
@@ -788,17 +788,17 @@ class NodePyGenerator:
             function_buffer = StringIO()
             
             # Generate the function to build the user flow
-            NodePyGenerator._generate_user_flow_function(node, user_flow_func_name, schema_class_map, function_buffer, use_helpers)
+            FlowPythonGenerator._generate_user_flow_function(node, user_flow_func_name, schema_class_map, function_buffer, use_helpers)
             
             # Add the function definition to the global scope
             # We'll prepend this to the output in the main generate_flow_py_code function
-            if not hasattr(NodePyGenerator, "_user_flow_functions"):
-                NodePyGenerator._user_flow_functions = []
+            if not hasattr(FlowPythonGenerator, "_user_flow_functions"):
+                FlowPythonGenerator._user_flow_functions = []
             
             # Check if this function is already in the list to avoid duplicates
             function_content = function_buffer.getvalue()
-            if function_content not in NodePyGenerator._user_flow_functions:
-                NodePyGenerator._user_flow_functions.append(function_content)
+            if function_content not in FlowPythonGenerator._user_flow_functions:
+                FlowPythonGenerator._user_flow_functions.append(function_content)
     
     @staticmethod
     def _generate_loop_flow_node(node: Loop, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
@@ -808,7 +808,7 @@ class NodePyGenerator:
         loop_flow_func_name = f"build_{var_name[:-5]}_flow"
         
         # Create the loop flow node using common attributes
-        NodePyGenerator._generate_common_node_attributes(
+        FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, True, "loop", mandatory_fields=["evaluator"]
         )
         
@@ -823,17 +823,17 @@ class NodePyGenerator:
             function_buffer = StringIO()
             
             # Generate the function to build the loop flow
-            NodePyGenerator._generate_loop_flow_function(node, loop_flow_func_name, schema_class_map, function_buffer)
+            FlowPythonGenerator._generate_loop_flow_function(node, loop_flow_func_name, schema_class_map, function_buffer)
             
             # Add the function definition to the global scope
             # We'll prepend this to the output in the main generate_flow_py_code function
-            if not hasattr(NodePyGenerator, "_user_flow_functions"):
-                NodePyGenerator._user_flow_functions = []
+            if not hasattr(FlowPythonGenerator, "_user_flow_functions"):
+                FlowPythonGenerator._user_flow_functions = []
             
             # Check if this function is already in the list to avoid duplicates
             function_content = function_buffer.getvalue()
-            if function_content not in NodePyGenerator._user_flow_functions:
-                NodePyGenerator._user_flow_functions.append(function_content)
+            if function_content not in FlowPythonGenerator._user_flow_functions:
+                FlowPythonGenerator._user_flow_functions.append(function_content)
     
     @staticmethod
     def _generate_loop_flow_function(node: Loop, function_name: str, schema_class_map: Dict[str, str],
@@ -846,7 +846,7 @@ class NodePyGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        NodePyGenerator._generate_flow_attributes(node, "loop_flow", schema_class_map, out, True)
+        FlowPythonGenerator._generate_flow_attributes(node, "loop_flow", schema_class_map, out, True)
         
         # Return the loop flow
         out.write("\n    return loop_flow\n")
@@ -862,7 +862,7 @@ class NodePyGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        NodePyGenerator._generate_flow_attributes(node, "foreach_flow", schema_class_map, out, True)
+        FlowPythonGenerator._generate_flow_attributes(node, "foreach_flow", schema_class_map, out, True)
         
         # Return the foreach flow
         out.write("\n    return foreach_flow\n")
@@ -878,7 +878,7 @@ class NodePyGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        NodePyGenerator._generate_flow_attributes(node, "user_flow", schema_class_map, out, use_helpers)
+        FlowPythonGenerator._generate_flow_attributes(node, "user_flow", schema_class_map, out, use_helpers)
         
         # Return the user flow
         out.write("\n    return user_flow\n")
@@ -905,7 +905,7 @@ class NodePyGenerator:
                            out: TextIO, use_helpers: bool = True) -> None:
         """Generate Python code for a user node."""
         # First generate the common node attributes
-        # NodePyGenerator._generate_common_node_attributes(
+        # FlowPythonGenerator._generate_common_node_attributes(
         #     node, var_name, flow_var, schema_class_map, out, use_helpers, "field"
         # )
 
@@ -936,7 +936,7 @@ class NodePyGenerator:
                 field_name = field.name
                 field_var = get_valid_variable_name(f"{var_name}_{field_name}", append_node=False)
                 out.write(f"    {field_var}: {field.__class__.__name__} = UserField(\n")
-                params = NodePyGenerator._gather_field_parameters(field)
+                params = FlowPythonGenerator._gather_field_parameters(field)
 
                 # Write all parameters
                 if params:
@@ -1021,7 +1021,7 @@ class NodePyGenerator:
                 out.write(")\n")
         
         # generate optional properties
-        NodePyGenerator._generate_node_field(node, var_name, fields = ["position"], schema_class_map=schema_class_map, out=out)
+        FlowPythonGenerator._generate_node_field(node, var_name, fields = ["position"], schema_class_map=schema_class_map, out=out)
 
 
     @staticmethod
@@ -1084,11 +1084,11 @@ class NodePyGenerator:
                            out: TextIO, use_helpers: bool = True) -> None:
         """Generate Python code for a script node."""
         # First generate the common node attributes
-        NodePyGenerator._generate_common_node_attributes(
+        FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, use_helpers, func_name="script"
         )
 
-        NodePyGenerator._generate_node_field(node = node, var_name = var_name, fields = ["fn", "position"],
+        FlowPythonGenerator._generate_node_field(node = node, var_name = var_name, fields = ["fn", "position"],
                     schema_class_map = schema_class_map, out = out)
 
     @staticmethod
@@ -1134,8 +1134,8 @@ class NodePyGenerator:
                 
                 # We'll generate the constant before the flow function
                 # Store it for later generation
-                if not hasattr(NodePyGenerator, "_kvp_schema_constants"):
-                    NodePyGenerator._kvp_schema_constants = []
+                if not hasattr(FlowPythonGenerator, "_kvp_schema_constants"):
+                    FlowPythonGenerator._kvp_schema_constants = []
                 
                 schema_def = f"\n# Define KVP Schema for {node.spec.name}\n"
                 schema_def += f"{schema_const_name} = DocProcKVPSchema(\n"
@@ -1164,7 +1164,7 @@ class NodePyGenerator:
                 
                 schema_def += ')\n'
                 
-                NodePyGenerator._kvp_schema_constants.append(schema_def)
+                FlowPythonGenerator._kvp_schema_constants.append(schema_def)
                 
                 out.write(f",\n        kvp_schemas=[{schema_const_name}]")
         
@@ -1175,7 +1175,7 @@ class NodePyGenerator:
         out.write("\n    )\n")
         
         # Generate input mappings using map_input
-        NodePyGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
+        FlowPythonGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
         
         out.write("\n    \n")
 
@@ -1242,12 +1242,12 @@ class NodePyGenerator:
 
 
         # First generate the common node attributes
-        NodePyGenerator._generate_common_node_attributes(
+        FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, include_creation=True, func_name=func_name,
             mandatory_fields=mandatory_fields
         )
 
-        NodePyGenerator._generate_node_field(node = node, var_name = var_name, fields = optional_fields,
+        FlowPythonGenerator._generate_node_field(node = node, var_name = var_name, fields = optional_fields,
                     schema_class_map = schema_class_map, out = out)
         out.write("\n    \n")
 
@@ -1379,25 +1379,25 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     """
 
     # Reset the KVP schema constants list
-    if hasattr(NodePyGenerator, "_kvp_schema_constants"):
-        delattr(NodePyGenerator, "_kvp_schema_constants")
-    NodePyGenerator._kvp_schema_constants = []
+    if hasattr(FlowPythonGenerator, "_kvp_schema_constants"):
+        delattr(FlowPythonGenerator, "_kvp_schema_constants")
+    FlowPythonGenerator._kvp_schema_constants = []
     
     # Reset the user flow functions list
-    if hasattr(NodePyGenerator, "_user_flow_functions"):
-        delattr(NodePyGenerator, "_user_flow_functions")
-    NodePyGenerator._user_flow_functions = []
+    if hasattr(FlowPythonGenerator, "_user_flow_functions"):
+        delattr(FlowPythonGenerator, "_user_flow_functions")
+    FlowPythonGenerator._user_flow_functions = []
     
     # First pass: Generate all nodes to collect user flow functions and KVP constants
     for node_id, node in flow.nodes.items():
-        NodePyGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
+        FlowPythonGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
         #if node_id not in ["__start__", "__end__"]:
-        #    # This will populate NodePyGenerator._user_flow_functions
-        #    NodePyGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
+        #    # This will populate FlowPythonGenerator._user_flow_functions
+        #    FlowPythonGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
     
     # Write KVP schema constants before the flow decorator
-    if hasattr(NodePyGenerator, "_kvp_schema_constants") and NodePyGenerator._kvp_schema_constants:
-        for const_def in NodePyGenerator._kvp_schema_constants:
+    if hasattr(FlowPythonGenerator, "_kvp_schema_constants") and FlowPythonGenerator._kvp_schema_constants:
+        for const_def in FlowPythonGenerator._kvp_schema_constants:
             out.write(const_def)
         out.write("\n")
     
@@ -1409,7 +1409,7 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     main_flow_buffer = StringIO()
     
     # Use the common flow attributes generator to handle nodes and edges
-    NodePyGenerator._generate_flow_attributes(flow, "aflow", schema_class_map, main_flow_buffer, use_helpers)
+    FlowPythonGenerator._generate_flow_attributes(flow, "aflow", schema_class_map, main_flow_buffer, use_helpers)
         
     # Then write the main flow function content
     out.write(main_flow_buffer.getvalue())
@@ -1418,8 +1418,8 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     out.write("    return aflow\n")
 
     # Write user flow function definitions at the top level after the main flow definition
-    if hasattr(NodePyGenerator, "_user_flow_functions") and NodePyGenerator._user_flow_functions:
-        for func_def in NodePyGenerator._user_flow_functions:
+    if hasattr(FlowPythonGenerator, "_user_flow_functions") and FlowPythonGenerator._user_flow_functions:
+        for func_def in FlowPythonGenerator._user_flow_functions:
             out.write(func_def)
             out.write("\n")
 
