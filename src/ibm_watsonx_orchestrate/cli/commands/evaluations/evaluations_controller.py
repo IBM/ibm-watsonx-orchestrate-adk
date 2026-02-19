@@ -29,6 +29,7 @@ from agentops.service_provider import get_provider
 from agentops.wxo_client import get_wxo_client
 from agentops.runtime_adapter.wxo_runtime_adapter import WXORuntimeAdapter
 
+
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
