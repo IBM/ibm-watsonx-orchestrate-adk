@@ -60,7 +60,7 @@ def configure_genesys(config: GenesysPlatformConnection) -> None:
         add_connection(app_id=config.app_id)
 
     configure_connection(app_id=config.app_id, environment=config.environment, type=ConnectionPreference.TEAM, kind=ConnectionKind.key_value)
-    set_credentials_connection(app_id=config.app_id, environment=config.environment, endpoint=config.endpoint, client_id=config.client_id, client_secret=config.client_secret)
+    set_credentials_connection(app_id=config.app_id, environment=config.environment, entries=config.get_entries())
 
 def list_platform_customer_care(type: Optional[PlatformType]) -> ConnectionsListResponse | None:
     client = get_connections_client()
