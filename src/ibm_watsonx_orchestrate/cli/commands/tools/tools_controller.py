@@ -56,7 +56,7 @@ from  ibm_watsonx_orchestrate import __version__
 
 logger = logging.getLogger(__name__)
 
-__supported_characters_pattern = re.compile("^(\\w|_)+$")
+__supported_characters_pattern = re.compile(r"^(\w|_)+$")
 
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [

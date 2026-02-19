@@ -124,8 +124,8 @@ class WSLConfigLinesManager:
     def __create_config_dict_from_config_lines__(self):
         self.config_dict = {"wsl2": {}}
 
-        header_pattern = re.compile("^\[([^\]]+)\]$")
-        key_value_pattern = re.compile("^([^=]+)=(.+)$")
+        header_pattern = re.compile(r"^\[([^\]]+)\]$")
+        key_value_pattern = re.compile(r"^([^=]+)=(.+)$")
 
         # if no header at top of config, assume keys are for wsl2 header
         current_header = "wsl2"
