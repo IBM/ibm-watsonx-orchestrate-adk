@@ -284,7 +284,7 @@ class TestAnalyze:
             mock_analyze.return_value = {"metrics": {"accuracy": 0.95}}
             data_path = "test_data"
             evaluations_command.analyze(data_path=data_path, user_env_file=user_env_file)
-            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None, mode="default", generate_report=False)
+            mock_analyze.assert_called_once_with(data_path=data_path, tool_definition_path=None, mode="default")
 
     def test_analyze_with_empty_data_path(self, user_env_file):
         with pytest.raises(ValueError):
@@ -295,13 +295,7 @@ class TestAnalyze:
     def test_analyze_with_invalid_mode(self, user_env_file):
         with pytest.raises(SystemExit):
             evaluations_command.analyze(data_path="", user_env_file=user_env_file, mode="wrong_mode")
-
-class TestCompare:
-    def test_compare_success(self):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.compare") as mock_compare:
-            mock_compare.return_value = {}
-            evaluations_command.compare(config_path="config_path")
-            mock_compare.assert_called_once_with(config="config_path")
+        
 
 class TestValidateExternal:
     @pytest.fixture

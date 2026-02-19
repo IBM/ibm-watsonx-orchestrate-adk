@@ -294,14 +294,7 @@ def analyze(data_path: Annotated[
             Either `default` or `enhanced`. `enhanced` mode optionally provides doc string enrichments for tools.
             """
         ),
-    ] = "default",
-    generate_report: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--generate-report", "-r",
-            help="Generate a Failure Analysis report of a single evaluation run. Only accessible in `default` mode for single runs (No multi-run support)"
-        ),
-    ] = False,
+    ] = "default"
 ):
 
     _check_import_error()
@@ -311,28 +304,8 @@ def analyze(data_path: Annotated[
     controller.analyze(
         data_path=data_path,
         tool_definition_path=tool_definition_path,
-        mode=mode,
-        generate_report=generate_report,
+        mode=mode
     )
-
-
-@evaluation_app.command(name="compare", help="Compare the results of two evaluations.")
-def compare(
-    config_path: Annotated[
-        str,
-        typer.Option(
-            "--config", "-c",
-            help="Path to comparison config file"
-        )
-    ],
-):
-
-    _check_import_error()
-    controller: EvaluationsController = EvaluationsController()
-    controller.compare(
-        config=config_path
-    )
-
 
 @evaluation_app.command(name="validate-external", help="Validate an external agent against a set of inputs")
 def validate_external(
