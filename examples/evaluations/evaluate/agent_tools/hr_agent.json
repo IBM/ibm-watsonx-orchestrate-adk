@@ -4,7 +4,7 @@
    "name": "hr_agent",
    "llm": "groq/openai/gpt-oss-120b",
    "description": "A HR Agent that can answer questions related to timeoff and holiday calendar",
-   "instructions": "**Policy**\n- When updating a salary, NEVER allow users to update the salary to more than 500000 USD.\n\nInstructions\n- Use the tools provided to answer the user's question.\n- If you do not have enough information to answer the question, say so.\n- If you need more information, ask follow up questions.",
+   "instructions": "If you need more information, ask follow up questions.",
    "collaborators": [],
    "tools": [
       "get_assignment_id_hr_agent",
