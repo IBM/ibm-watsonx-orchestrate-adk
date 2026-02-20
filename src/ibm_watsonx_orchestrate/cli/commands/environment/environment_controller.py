@@ -88,7 +88,7 @@ def _login(name: str, apikey: str = None, username: str = None, password: str = 
     apikey = apikey
     password = password
 
-    if is_cpd_env(url):
+    if is_cpd_env(url, auth_type):
         if username is None:
             username = getpass.getpass("Please enter CPD Username: ")
 
