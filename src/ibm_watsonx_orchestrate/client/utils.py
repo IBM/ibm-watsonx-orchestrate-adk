@@ -14,6 +14,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     CONTEXT_ACTIVE_ENV_OPT,
     ENVIRONMENTS_SECTION_HEADER,
     ENV_WXO_URL_OPT,
+    ENV_AUTH_TYPE,
     BYPASS_SSL,
     VERIFY
 )
@@ -21,6 +22,7 @@ from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
+from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 import logging
 from typing import List, TypeVar
 import os
@@ -36,6 +38,14 @@ def get_current_env_url() -> str:
     cfg = Config()
     active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
     return cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
+
+def get_env_auth_type() -> EnvironmentAuthType | None:
+    cfg = Config()
+    active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+    try:
+        return cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_AUTH_TYPE)
+    except KeyError:
+        return None
 
 def is_local_dev(url: str | None = None) -> bool:
     if url is None:
@@ -74,7 +84,13 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
         return True
     return False
 
-def is_cpd_env(url: str | None = None) -> bool:
+def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None = None) -> bool:
+    if env_auth_type is None:
+        env_auth_type = get_env_auth_type()
+
+    if env_auth_type == EnvironmentAuthType.CPD:
+        return True
+
     if url is None:
         url = get_current_env_url()
 
