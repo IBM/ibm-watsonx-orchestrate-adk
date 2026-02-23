@@ -464,6 +464,9 @@ class Flow(Node):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
                     node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    # if name is specifed, override the name in the tool spec
+                    if name is not None:
+                        node.spec.name = name
                 else:
                     raise ValueError("Only functions with @tool decorator can be added.")
         else:
@@ -525,8 +528,20 @@ class Flow(Node):
     def _add_node(self, node: Node) -> Node:
         self._check_compiled()
 
-        if node.spec.name in self.nodes:
-            raise ValueError(f"Node `{id}` already present.")
+        # If node name already exists, generate a unique name
+        original_name = node.spec.name
+        if original_name in self.nodes:
+            # Generate unique name: original_name + '_' + 4-character UUID
+            unique_suffix = str(uuid.uuid4())[:4]
+            unique_name = f"{original_name}_{unique_suffix}"
+            
+            # Ensure the generated name is also unique (unlikely collision, but safe)
+            while unique_name in self.nodes:
+                unique_suffix = str(uuid.uuid4())[:4]
+                unique_name = f"{original_name}_{unique_suffix}"
+            
+            # Update the node spec with the unique name
+            node.spec.name = unique_name
 
         # make a copy
         new_node = copy.copy(node)
