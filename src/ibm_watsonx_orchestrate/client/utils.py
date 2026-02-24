@@ -16,7 +16,9 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENV_WXO_URL_OPT,
     ENV_AUTH_TYPE,
     BYPASS_SSL,
-    VERIFY
+    VERIFY,
+    USE_NATIVE_DOCKER,
+    SETTINGS_HEADER
 )
 from threading import Lock
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
@@ -248,9 +250,11 @@ def get_os_type () -> str:
 
 
 def path_for_vm(path: str | Path) -> str:
+    cfg = Config()
+    use_native = cfg.read(SETTINGS_HEADER, USE_NATIVE_DOCKER)
     system = get_os_type()
 
-    if system == "windows":
+    if system == "windows" and not use_native:
         # On Windows, we need to be careful with paths that look like WSL paths
         # but might be resolved to a Windows format by Path.resolve().
         # First, ensure forward slashes for consistency.
@@ -280,7 +284,7 @@ def path_for_vm(path: str | Path) -> str:
             logger.warning(f"Could not convert recognized Windows path to WSL path. Returning as-is: {resolved_path_str}")
             return resolved_path_str
     else:
-        # If not on a Windows system, assume the path is already correct or requires no conversion
+        # If not on a Windows system or using user managed docker, assume the path is already correct or requires no conversion
         # Just resolve and normalize slashes
         resolved_path_str = str(Path(path).expanduser().resolve()).replace("\\", "/")
         return resolved_path_str
