@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 MIN_LANGFLOW_VERSION = [1,5,0]
 LANGFLOW_CHAT_INPUT_LABEL = "ChatInput"
 LANGFLOW_CHAT_OUTPUT_LABEL = "ChatOutput"
-VALID_NAME_PATTERN = re.compile("^[a-zA-Z](\\w|_)+$")
+VALID_NAME_PATTERN = re.compile(r"^[a-zA-Z](\w|_)+$")
 
 class LangflowToolSource(str,Enum):
   ORCHESTRATE = 'orchestrate'

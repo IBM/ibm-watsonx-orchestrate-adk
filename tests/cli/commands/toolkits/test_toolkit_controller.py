@@ -79,32 +79,18 @@ class MockToolkitsClient(MagicMock):
 class TestGetConnectionId:
     mock_app_id = "test_app_id"
     mock_conn_id = "123456789abc"
-
-    def test_get_connection_id_local(self):
-        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connections_client") as mock_get_connections_client:
-            mock_config_response = MockConnectionConfig(security_scheme=ConnectionSecurityScheme.KEY_VALUE)
-            mock_get_conn_response = MockConnectionGetReponse(connection_id=self.mock_conn_id)
-            mock_connections_client = MockConnectionClient(
-                get_config_draft_res=mock_config_response,
-                get_config_live_res=mock_config_response,
-                get_res=mock_get_conn_response
-            )
-            mock_get_connections_client.return_value = mock_connections_client
-
-            result = get_connection_id(self.mock_app_id, is_local_mcp=True)
-        
-        assert result == self.mock_conn_id
     
     @pytest.mark.parametrize(
             "security_scheme",
             [
+                ConnectionSecurityScheme.KEY_VALUE,
                 ConnectionSecurityScheme.BASIC_AUTH,
                 ConnectionSecurityScheme.API_KEY_AUTH,
                 ConnectionSecurityScheme.BEARER_TOKEN,
                 ConnectionSecurityScheme.OAUTH2,
             ]
     )
-    def test_get_connection_id_local_bad_security_scheme(self, security_scheme):
+    def test_get_connection_id(self, security_scheme):
         with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connections_client") as mock_get_connections_client:
             mock_config_response = MockConnectionConfig(security_scheme=security_scheme)
             mock_get_conn_response = MockConnectionGetReponse(connection_id=self.mock_conn_id)
@@ -115,10 +101,11 @@ class TestGetConnectionId:
             )
             mock_get_connections_client.return_value = mock_connections_client
 
-            with pytest.raises(SystemExit):
-                get_connection_id(self.mock_app_id, is_local_mcp=True)
+            result = get_connection_id(self.mock_app_id)
+        
+        assert result == self.mock_conn_id
 
-    def test_get_connection_id_local_no_connection(self):
+    def test_get_connection_id_no_connection(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connections_client") as mock_get_connections_client:
             mock_config_response = MockConnectionConfig(security_scheme=ConnectionSecurityScheme.KEY_VALUE)
             mock_get_conn_response = None
@@ -130,46 +117,8 @@ class TestGetConnectionId:
             mock_get_connections_client.return_value = mock_connections_client
 
             with pytest.raises(SystemExit):
-                get_connection_id(self.mock_app_id, is_local_mcp=True)
+                get_connection_id(self.mock_app_id)
     
-    @pytest.mark.parametrize(
-            "security_scheme",
-            [
-                ConnectionSecurityScheme.BASIC_AUTH,
-                ConnectionSecurityScheme.API_KEY_AUTH,
-                ConnectionSecurityScheme.BEARER_TOKEN,
-                ConnectionSecurityScheme.OAUTH2,
-                ConnectionSecurityScheme.KEY_VALUE
-            ]
-    )
-    def test_get_connection_id_remote(self, security_scheme):
-        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connections_client") as mock_get_connections_client:
-            mock_config_response = MockConnectionConfig(security_scheme=security_scheme)
-            mock_get_conn_response = MockConnectionGetReponse(connection_id=self.mock_conn_id)
-            mock_connections_client = MockConnectionClient(
-                get_config_draft_res=mock_config_response,
-                get_config_live_res=mock_config_response,
-                get_res=mock_get_conn_response
-            )
-            mock_get_connections_client.return_value = mock_connections_client
-
-            result = get_connection_id(self.mock_app_id, is_local_mcp=False)
-        
-        assert result == self.mock_conn_id
-
-    def test_get_connection_id_remote_no_connection(self):
-        with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connections_client") as mock_get_connections_client:
-            mock_config_response = MockConnectionConfig(security_scheme=ConnectionSecurityScheme.KEY_VALUE)
-            mock_get_conn_response = None
-            mock_connections_client = MockConnectionClient(
-                get_config_draft_res=mock_config_response,
-                get_config_live_res=mock_config_response,
-                get_res=mock_get_conn_response
-            )
-            mock_get_connections_client.return_value = mock_connections_client
-
-            with pytest.raises(SystemExit):
-                get_connection_id(self.mock_app_id, is_local_mcp=False)
 
 class TestToolkitControllerGetClient:
     def test_get_client_single(self):
