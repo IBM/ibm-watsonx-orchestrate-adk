@@ -13,7 +13,7 @@ from ibm_watsonx_orchestrate.flow_builder.types import BranchNodeSpec, BranchNod
 from ibm_watsonx_orchestrate.flow_builder.node import Node, TimerNode
 import inspect
 from typing import (
-    Any, AsyncIterator, Callable, Literal, Optional, cast, List, Sequence, Union, Tuple
+    Any, AsyncIterator, Callable, Literal, Optional, cast, List, Sequence, Union, Tuple, overload
 )
 import json
 import logging
@@ -36,7 +36,8 @@ from ..types import (
     NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
-    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat
+    DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
+    UserFormButton
 )
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
@@ -1789,7 +1790,7 @@ class FlowValidator(BaseModel):
 
 class UserFlow(Flow):
     '''
-    A flow that represents a series of user nodes. 
+    A flow that represents a series of user nodes.
     A user flow can include other nodes, but not another User Flows.
     '''
 
@@ -1803,8 +1804,141 @@ class UserFlow(Flow):
         my_dict = super().to_json()
 
         return my_dict
+    
+    def add_button(self, button_label: str) -> 'UserFormButton':
+        """
+        Add a submit button to the most recently created form in this UserFlow.
+        Returns the Button object that can be used with edge() method.
+        
+        Note: You can add a maximum of 3 additional buttons (beyond the default Submit button).
+        
+        Args:
+            button_label: The label text for the submit button
+            
+        Returns:
+            UserFormButton: The created button object
+            
+        Raises:
+            ValueError: If no form exists or if maximum button limit is exceeded
+        """
+        # Find the most recent UserNode with a form
+        user_node = None
+        for node_id in reversed(list(self.nodes.keys())):
+            node = self.nodes[node_id]
+            if isinstance(node, UserNode) and node.get_spec().form is not None:
+                user_node = node
+                break
+        
+        if user_node is None:
+            raise ValueError("No form found in UserFlow. Create a form first using form() method.")
+        
+        form = user_node.get_spec().form
+        
+        # Count existing submit buttons (excluding cancel)
+        submit_button_count = sum(1 for btn in form.buttons if btn.kind == "submit")
+        
+        # Validate maximum of 4 submit buttons total (1 default + 3 additional)
+        if submit_button_count >= 4:
+            raise ValueError("Maximum of 3 additional buttons allowed (4 total submit buttons including default Submit button)")
+        
+        # Create new button with unique name
+        button = UserFormButton(
+            name=str(uuid.uuid4()),
+            kind="submit",
+            display_name=button_label,
+            visible=True
+        )
+        
+        # Insert before the cancel button (which should be last)
+        cancel_index = next((i for i, btn in enumerate(form.buttons) if btn.kind == "cancel"), len(form.buttons))
+        form.buttons.insert(cancel_index, button)
+        
+        return button
+    
+    @overload
+    def edge(self,
+             start_task: Union[str, Node],
+             end_task: Union[str, Node],
+             id: str | None = None,
+             button_label: str | None = None) -> Self:
+        ...
+    
+    @overload
+    def edge(self,
+             start_task: UserFormButton,
+             end_task: Union[str, Node]) -> Self:
+        ...
+    
+    def edge(self,
+             start_task: Union[str, Node, UserFormButton],
+             end_task: Union[str, Node],
+             id: str | None = None,
+             button_label: str | None = None) -> Self:
+        """
+        Create an edge between two nodes in the UserFlow.
+        
+        This method supports three usage patterns:
+        1. Standard edge: edge(fromNode, toNode)
+        2. Edge with button label: edge(fromNode, toNode, button_label="Submit")
+        3. Edge from button: edge(button, toNode) where button is from add_button()
+        
+        Args:
+            start_task: Source node, node name, or UserFormButton
+            end_task: Destination node or node name
+            id: Optional edge ID (auto-generated if not provided)
+            button_label: Optional button label to connect this edge to a specific button
+            
+        Returns:
+            Self: The UserFlow instance for method chaining
+        """
+        # Handle case where start_task is a UserFormButton
+        if isinstance(start_task, UserFormButton):
+            # Find the form node that contains this button
+            form_node = None
+            for node_id in self.nodes.keys():
+                node = self.nodes[node_id]
+                if isinstance(node, UserNode) and node.get_spec().form is not None:
+                    form = node.get_spec().form
+                    if start_task in form.buttons:
+                        form_node = node
+                        break
+            
+            if form_node is None:
+                raise ValueError("Button not found in any form in this UserFlow")
+            
+            # Generate edge ID and store it internally
+            edge_id = str(uuid.uuid4())
+            start_task.edge_id = edge_id
+            
+            # Create edge from form node to end node with the button's edge_id
+            return super().edge(form_node, end_task, id=edge_id)
+        
+        # Handle case with button_label parameter
+        if button_label is not None:
+            # Find the button with this label in the start_task node
+            start_node_id = self._get_node_id(start_task)
+            start_node = self.nodes.get(start_node_id)
+            
+            if not isinstance(start_node, UserNode) or start_node.get_spec().form is None:
+                raise ValueError(f"Node {start_node_id} is not a form node")
+            
+            form = start_node.get_spec().form
+            button = next((btn for btn in form.buttons if btn.display_name == button_label), None)
+            
+            if button is None:
+                raise ValueError(f"Button with label '{button_label}' not found in form")
+            
+            # Generate edge ID and store it on the button
+            edge_id = str(uuid.uuid4())
+            button.edge_id = edge_id
+            
+            # Create edge with the button's edge_id
+            return super().edge(start_task, end_task, id=edge_id)
+        
+        # Standard edge without button
+        return super().edge(start_task, end_task, id=id)
 
-    def field(self, 
+    def field(self,
               name: str, 
               kind: UserFieldKind = UserFieldKind.Text,
               display_name: str | None = None,
@@ -1856,13 +1990,25 @@ class UserFlow(Flow):
         node = self._add_node(node)
         return cast(UserNode, node)
     
-    def form(self, 
-              name: str, 
+    def form(self,
+              name: str,
               display_name: str | None = None,
               instructions: str | None = None,
               submit_button_label: str | None = "Submit",
               cancel_button_label: str | None = None) -> UserNode:
-        '''create a node in the flow with a form'''
+        '''create a node in the flow with a form
+        
+        Args:
+            name: The internal name of the form.
+            display_name: Optional display name for the form.
+            instructions: Optional instructions text for the form.
+            submit_button_label: Label for the submit button. Defaults to "Submit".
+            cancel_button_label: Optional label for the cancel button. If None, the cancel button is hidden.
+            
+        Returns:
+            UserNode: The created user node with form.
+        '''
+        
         # create a json schema object based on the single field
         if not name:
             raise AssertionError("name cannot be empty")

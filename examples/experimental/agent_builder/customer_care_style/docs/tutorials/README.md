@@ -76,6 +76,16 @@ Learn how to:
 
 ---
 
+### 6. [Setting Up BYO Knowledge](SettingUpBYOKnowledge.md)
+**Set up BYO Knowledge to use in the banking agent**
+
+Learn how to:
+- Setup the banking agent demo to work with BYO Knowledge
+
+**Time:** 15-20 minutes
+
+---
+
 ## Quick Reference
 
 ### For Beginners

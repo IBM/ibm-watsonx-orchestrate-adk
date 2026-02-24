@@ -57,6 +57,7 @@ coverage.*
 *.swp
 *~
 *.sublime-workspace
+.project
 
 # SDK specific
 sdk/python/ibm_watsonx_orchestrate/ibm_watsonx_orchestrate/__pycache__/

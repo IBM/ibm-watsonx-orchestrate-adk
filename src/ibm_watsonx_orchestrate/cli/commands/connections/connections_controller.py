@@ -187,7 +187,6 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"The flag --auth-entries is only supported by type {type}"
         )
     
-
 def _parse_entry(entry: str) -> dict[str,str]:
     split_entry = entry.split('=', 1)
     if len(split_entry) != 2:
@@ -341,6 +340,79 @@ def _check_connection_exists(app_id: str):
     conn = client.get_draft_by_app_id(app_id=app_id)
     if not conn:
         raise BadRequest(f"Connection '{app_id}' not found.")
+
+def _list_connections_formatted(connections: list, environment: ConnectionEnvironment | None = None, format: Optional[ListFormats] = None) -> ConnectionsListResponse | None:
+    is_local = is_local_dev()
+    non_configured_connection_details = []
+    draft_connection_details = []
+    live_connection_details = []
+
+    non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
+    draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
+    live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
+    default_args = {"justify": "center", "no_wrap": True}
+    column_args = {
+        "App ID": {"overflow": "fold"},
+        "Auth Type": {},
+        "Type": {},
+        "Credentials Set/ Connected": {}
+    }
+    for column in column_args:
+        draft_table.add_column(column,**default_args, **column_args[column])
+        live_table.add_column(column,**default_args, **column_args[column])
+        non_configured_table.add_column(column,**default_args, **column_args[column])
+
+    for conn in connections:
+        if conn.environment is None:
+            entry = ConnectionsListEntry(
+                app_id=conn.app_id,
+            )
+
+            non_configured_table.add_row(*entry.get_row_details())
+            non_configured_connection_details.append(entry.model_dump())
+            continue
+
+        try:
+            connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
+        except:
+            connection_type = conn.auth_type
+
+        entry = ConnectionsListEntry(
+                app_id=conn.app_id,
+                auth_type = connection_type,
+                type=conn.preference,
+                credentials_set=conn.credentials_entered
+            )
+
+        if conn.environment == ConnectionEnvironment.DRAFT:
+            draft_table.add_row(*entry.get_row_details())
+            draft_connection_details.append(entry.model_dump())
+        elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
+            live_table.add_row(*entry.get_row_details())
+            live_connection_details.append(entry.model_dump())
+
+    match format:
+        case ListFormats.JSON:
+            return ConnectionsListResponse(
+                non_configured=non_configured_connection_details,
+                draft=draft_connection_details,
+                live=live_connection_details
+            )
+        case ListFormats.Table:
+            return ConnectionsListResponse(
+                non_configured=rich_table_to_markdown(non_configured_table),
+                draft=rich_table_to_markdown(draft_table),
+                live=rich_table_to_markdown(live_table)
+            )
+        case _:
+            if environment is None and len(non_configured_table.rows):
+                rich.print(non_configured_table)
+            if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
+                rich.print(draft_table)
+            if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
+                rich.print(live_table)
+            if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
+                logger.info("No connections found. You can create connections using `orchestrate connections add`")
 
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
@@ -507,76 +579,7 @@ def list_connections(environment: ConnectionEnvironment | None = None, verbose: 
         rich.print_json(json.dumps(connections_list, indent=4))
         return connections_list
     else:
-        non_configured_connection_details = []
-        draft_connection_details = []
-        live_connection_details = []
-
-        non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
-        draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
-        live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
-        default_args = {"justify": "center", "no_wrap": True}
-        column_args = {
-            "App ID": {"overflow": "fold"}, 
-            "Auth Type": {}, 
-            "Type": {}, 
-            "Credentials Set/ Connected": {}
-        }
-        for column in column_args:
-            draft_table.add_column(column,**default_args, **column_args[column])
-            live_table.add_column(column,**default_args, **column_args[column])
-            non_configured_table.add_column(column,**default_args, **column_args[column])
-        
-        for conn in connections:
-            if conn.environment is None:
-                entry = ConnectionsListEntry(
-                    app_id=conn.app_id,
-                )
-
-                non_configured_table.add_row(*entry.get_row_details())
-                non_configured_connection_details.append(entry.model_dump())
-                continue
-            
-            try:
-                connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
-            except:
-                connection_type = conn.auth_type
-            
-            entry = ConnectionsListEntry(
-                    app_id=conn.app_id,
-                    auth_type = connection_type,
-                    type=conn.preference,
-                    credentials_set=conn.credentials_entered
-                )
-
-            if conn.environment == ConnectionEnvironment.DRAFT:
-                draft_table.add_row(*entry.get_row_details())
-                draft_connection_details.append(entry.model_dump())
-            elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
-                live_table.add_row(*entry.get_row_details())
-                live_connection_details.append(entry.model_dump())
-        
-        match format:
-            case ListFormats.JSON:
-                return ConnectionsListResponse(
-                    non_configured=non_configured_connection_details,
-                    draft=draft_connection_details,
-                    live=live_connection_details
-                )
-            case ListFormats.Table:
-                return ConnectionsListResponse(
-                    non_configured=rich_table_to_markdown(non_configured_table),
-                    draft=rich_table_to_markdown(draft_table),
-                    live=rich_table_to_markdown(live_table)
-                )
-            case _:
-                if environment is None and len(non_configured_table.rows):
-                    rich.print(non_configured_table)
-                if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
-                    rich.print(draft_table)
-                if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
-                    rich.print(live_table)
-                if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
-                    logger.info("No connections found. You can create connections using `orchestrate connections add`")
+        return _list_connections_formatted(connections=connections, environment=environment, format=format)
 
 def import_connection(file: str) -> None:
     _parse_file(file=file)

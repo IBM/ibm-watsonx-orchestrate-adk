@@ -201,7 +201,7 @@ class UserNode(Node):
 
             if (cancel_button_label) :
                 user_form.buttons[1].display_name = cancel_button_label
-            else: 
+            else:
                 user_form.buttons[1].visible = False
 
         return user_form
