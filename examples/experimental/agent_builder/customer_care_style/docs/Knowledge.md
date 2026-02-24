@@ -32,7 +32,7 @@ Below we walk through the knowledge implementation that demonstrates this patter
 
 To setup an OpenSearch vector store, user can use the docker compose file like the following, set the administrator's password by using the environment variable `OPENSEARCH_INITIAL_ADMIN_PASSWORD`, and run a command such as `docker compose up`.
 
-**File:** [`knowledge/docker-compose.yaml`](../knowledge/docker-compose.yaml)
+**File:** [`knowledge/docker-compose.yaml`](../toolkits/banking_mcp_server/knowledge/docker-compose.yaml)
 
 This creates a single node OpenSearch cluster locally.
 
@@ -40,7 +40,7 @@ After the OpenSearch cluster is created, user will need to configure the vector 
 
 User can run the following python program to configure the OpenSearch vector. 
 
-**File:** [`knowledge/register_model_and_create_pipelines.py`](../knowledge/register_model_and_create_pipelines.py)
+**File:** [`knowledge/register_model_and_create_pipelines.py`](../toolkits/banking_mcp_server/knowledge/register_model_and_create_pipelines.py)
  
 By default, this program configures the local OpenSearch instance. User can customize the OpenSearch instance that needs to be configured for knowledge by using the following environment variables:
 
@@ -124,7 +124,7 @@ After the vector store is setup and configured, users can create vector indices 
 
 The following python program creates a vector index in the OpenSearch vector store. 
 
-**File:** [`knowledge/create_vector_index.py`](../knowledge/create_vector_index.py)
+**File:** [`knowledge/create_vector_index.py`](../toolkits/banking_mcp_server/knowledge/create_vector_index.py)
  
 By default, this program creates a vector index in the local OpenSearch instance. User can customize the OpenSearch instance details by using the following environment variables:
 
@@ -153,7 +153,7 @@ After the vector store is setup and configured, and the vector index is created,
 
 The following python program ingests a document into a vector index. 
 
-**File:** [`knowledge/ingest_document.py`](../knowledge/ingest_document.py)
+**File:** [`knowledge/ingest_document.py`](../toolkits/banking_mcp_server/knowledge/ingest_document.py)
  
 By default, this program ingests a document to a vector index in the local OpenSearch instance. User can customize the OpenSearch instance details by using the following environment variables:
 
@@ -177,9 +177,9 @@ CHUNK_OVERLAP (default: 50)
 ### How the Knowledge Setup Flow Works
 
 1. **Setup The OpenSearch Vector Store**: User runs `docker compose up` to setup a local OpenSearch instance 
-2. **Configure The OpenSearch Vector Store**: User runs the [`knowledge/register_model_and_create_pipelines.py`](../knowledge/register_model_and_create_pipelines.py) program to configure OpenSearch
-3. **Create Vector Index**: User runs the [`knowledge/create_vector_index.py`](../knowledge/create_vector_index.py) program to create a vector index
-4. **Ingest Document**: User runs the [`knowledge/ingest_document.py`](../knowledge/ingest_document.py) program to ingest user content
+2. **Configure The OpenSearch Vector Store**: User runs the [`knowledge/register_model_and_create_pipelines.py`](../toolkits/banking_mcp_server/knowledge/register_model_and_create_pipelines.py) program to configure OpenSearch
+3. **Create Vector Index**: User runs the [`knowledge/create_vector_index.py`](../toolkits/banking_mcp_server/knowledge/create_vector_index.py) program to create a vector index
+4. **Ingest Document**: User runs the [`knowledge/ingest_document.py`](../toolkits/banking_mcp_server/knowledge/ingest_document.py) program to ingest user content
 
 ## Key Takeaways
 

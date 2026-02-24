@@ -104,7 +104,12 @@ def build_user_form(aflow: Flow = None) -> Flow:
     user_flow = aflow.userflow()
     user_flow.spec.display_name= "Application"
 
-    user_node_with_form = user_flow.form(name="ApplicationForm", display_name="Application")
+    # Create form with default submit button and visible cancel button
+    user_node_with_form = user_flow.form(
+        name="ApplicationForm",
+        display_name="Application",
+        cancel_button_label="Cancel"
+    )
     
     data_map = DataMap()
     data_map.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.salutations"))
@@ -187,9 +192,40 @@ def build_user_form(aflow: Flow = None) -> Flow:
     #Output Message: Successful submission
     user_node_with_form.message_output_field(name="success", label="Successful submission", message="Application successfully completed.")
  
-    #Add user flow edges
+    # Add additional buttons using the new API
+    save_draft_btn = user_flow.add_button("Save Draft")
+    review_btn = user_flow.add_button("Submit for Review")
+    
+    # Create different nodes for each button action
+    submit_node = user_flow.script(
+        name="process_submit",
+        script='print("Processing full submission...")'
+    )
+    
+    save_draft_node = user_flow.script(
+        name="process_save_draft",
+        script='print("Saving as draft...")'
+    )
+    
+    review_node = user_flow.script(
+        name="process_review",
+        script='print("Submitting for review...")'
+    )
+
+    # Connect nodes using the new edge API
     user_flow.edge(START, user_node_with_form)
-    user_flow.edge(user_node_with_form, END)
+    
+    # Connect default "Submit" button using button_label parameter
+    user_flow.edge(user_node_with_form, submit_node, button_label="Submit")
+    user_flow.edge(submit_node, END)
+    
+    # Connect "Save Draft" button using Button object
+    user_flow.edge(save_draft_btn, save_draft_node)
+    user_flow.edge(save_draft_node, END)
+    
+    # Connect "Submit for Review" button using Button object
+    user_flow.edge(review_btn, review_node)
+    user_flow.edge(review_node, END)
 
     # Script to initialize friends list
     init_script = """

@@ -11,7 +11,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
     AnalyticsLLMResponse
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, handle_error
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -172,5 +172,12 @@ def configure_langfuse(
         parsed_error = loads(e.response.text)
         logger.error(AnalyticsLLMResponse.model_validate(parsed_error).status)
 
-
+@settings_observability_langfuse_app.command(name="remove", help="Remove the current configuration settings for langfuse")
+def remove_langfuse_config():
+    client: AnalyticsLLMClient = instantiate_client(AnalyticsLLMClient)
+    try:
+        client.delete()
+    except Exception as e:
+        handle_error("An error occured while attempting to remove the Langfuse configuration.", e)
+    logger.info("Successfully removed Langfuse configuration")
 

@@ -25,6 +25,10 @@ class PythonToolKind(str, Enum):
     AGENTPREINVOKE = 'agent_pre_invoke'
     AGENTPOSTINVOKE = 'agent_post_invoke'
 
+class ToolResponseFormat(str, Enum):
+    CONTENT = 'content'
+    CONTENT_AND_ARTIFACT = 'content_and_artifact'
+
 class JsonSchemaTokens(str, Enum):
     NONE = '__null__'
 
@@ -248,6 +252,7 @@ class ToolSpec(BaseModel):
     binding: ToolBinding = None
     toolkit_id: str | None = None
     is_async: bool = False
+    response_format: ToolResponseFormat = ToolResponseFormat.CONTENT
 
     def is_custom_join_tool(self) -> bool:
         if self.binding.python is None:

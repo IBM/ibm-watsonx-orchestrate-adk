@@ -846,7 +846,7 @@ def create_langflow_db() -> None:
     
 
 def bump_file_iteration(filename: str) -> str:
-    regex = re.compile(f"^(?P<name>[^\\(\\s\\.\\)]+)(\\((?P<num>\\d+)\\))?(?P<type>\\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")
+    regex = re.compile(rf"^(?P<name>[^\(\s\.\)]+)(\((?P<num>\d+)\))?(?P<type>\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")
     _m = regex.match(filename)
     iter = int(_m['num']) + 1 if (_m and _m['num']) else 1
     return f"{_m['name']}({iter}){_m['type'] or ''}"
