@@ -46,7 +46,7 @@ def _decode_token(token: str, is_local: bool = False) -> dict:
         raise e
 
 
-def _validate_token_functionality(token: str, url: str) -> None:
+def _validate_token_functionality(token: str, url: str, auth_type: str | None = None) -> None:
     '''
     Validates a token by making a request to GET /agents
 
@@ -54,7 +54,7 @@ def _validate_token_functionality(token: str, url: str) -> None:
         token: A JWT token
         url: WXO instance URL
     '''
-    is_cpd = is_cpd_env(url)
+    is_cpd = is_cpd_env(url, env_auth_type=auth_type)
     if is_cpd is True:
         knowledge_base_client = KnowledgeBaseClient(base_url=url, api_key=token, is_local=is_local_dev(url), verify=False)
     else:
@@ -120,7 +120,7 @@ def _login(name: str, apikey: str = None, username: str = None, password: str = 
         )
         client = Client(creds)
         token = _decode_token(client.token, is_local)
-        _validate_token_functionality(token=token.get(AUTH_MCSP_TOKEN_OPT), url=url)
+        _validate_token_functionality(token=token.get(AUTH_MCSP_TOKEN_OPT), url=url, auth_type=auth_type)
         with lock:
             auth_cfg.save(
                 {
