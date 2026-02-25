@@ -45,7 +45,10 @@ When your application calls the Watson Orchestrate API, include the JWT token in
 
 The tool handler receives the JWT token through `_meta`:
 
-**Tool Definition:** [`src/creditCard.ts`](../src/creditCard.ts)
+**TypeScript:** [`ts_server/src/creditCard.ts`](../toolkits/banking_mcp_server/ts_server/src/creditCard.ts)
+**Python:** [`py_server/src/credit_card.py`](../toolkits/banking_mcp_server/py_server/src/credit_card.py)
+
+**TypeScript Example:**
 
 ```typescript
 export const getCreditCardBalanceTool = {
@@ -101,7 +104,10 @@ export const getCreditCardBalanceTool = {
 
 The service layer uses the JWT token to authenticate with backend APIs:
 
-**Service Implementation:** [`src/creditCardService.ts`](../src/creditCardService.ts)
+**TypeScript:** [`ts_server/src/creditCardService.ts`](../toolkits/banking_mcp_server/ts_server/src/creditCardService.ts)
+**Python:** [`py_server/src/credit_card_service.py`](../toolkits/banking_mcp_server/py_server/src/credit_card_service.py)
+
+**TypeScript Example:**
 
 ```typescript
 export class CreditCardService {
@@ -131,6 +137,55 @@ export class CreditCardService {
   }
 }
 ```
+
+### JWT Pre-Authentication in Welcome Tool
+
+JWT tokens can also be used for pre-authentication in the welcome tool, allowing users to be automatically authenticated when the conversation starts:
+
+**TypeScript:** [`ts_server/src/welcome.ts`](../toolkits/banking_mcp_server/ts_server/src/welcome.ts)
+
+```typescript
+handler: async (args: any, extra: any) => {
+  const _meta = extra?._meta;
+  const threadId = _meta?.['com.ibm.orchestrate/systemcontext']?.thread_id;
+  
+  // Check for pre-authenticated JWT token
+  const jwtToken = _meta?.['com.ibm.orchestrate/context']?.jwtToken;
+  
+  if (jwtToken && threadId) {
+    const decoded = decodeTestJWT(jwtToken);
+    
+    if (decoded && decoded.customerId) {
+      const customerProfile = getCustomerProfile(decoded.customerId);
+      
+      if (customerProfile) {
+        // Pre-authenticated! Set customerId and skip PIN flow
+        setGlobalVariable(threadId, 'customerId', decoded.customerId);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: `Hello ${customerProfile.firstName}! Welcome back.`,
+            annotations: { audience: ['user'] }
+          }],
+          _meta: {
+            refreshThreadCapabilities: threadId
+          }
+        };
+      }
+    }
+  }
+  
+  // Fall back to PIN authentication if no valid JWT
+  // ... PIN flow code ...
+}
+```
+
+This pattern allows the welcome tool to:
+- Detect JWT tokens passed in context variables
+- Automatically authenticate users without requiring PIN entry
+- Fall back to PIN authentication if no JWT is provided
+- Trigger tool refresh to make authenticated tools available
 
 ### Key Benefits
 
@@ -242,11 +297,17 @@ export const verifyPinTool = {
 
 #### Full Working Example
 
-For a complete production implementation including numeric widgets for PIN entry, error handling with agent handoff fallback, and welcome tool integration, see [`src/welcome.ts`](../src/welcome.ts).
+For a complete production implementation including numeric widgets for PIN entry, error handling with agent handoff fallback, and welcome tool integration, see:
+- TypeScript: [`ts_server/src/welcome.ts`](../toolkits/banking_mcp_server/ts_server/src/welcome.ts)
+- Python: [`py_server/src/welcome.py`](../toolkits/banking_mcp_server/py_server/src/welcome.py)
 
 #### MCP Server Returns Conditional Tools
 
-When the client refreshes tools after authentication, your MCP server checks the global store to retrieve the customer id which can then be used to determine which tools to register. This example shows the actual implementation from [`src/index.ts`](../src/index.ts):
+When the client refreshes tools after authentication, your MCP server checks the global store to retrieve the customer id which can then be used to determine which tools to register. This example shows the actual implementation:
+- TypeScript: [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)
+- Python: [`py_server/src/server.py`](../toolkits/banking_mcp_server/py_server/src/server.py)
+
+**TypeScript Example:**
 
 ```typescript
 // Extract thread_id from request
@@ -329,8 +390,13 @@ function createCustomerServer(customerId: string | undefined): McpServer {
 
 For a complete working example of agent authentication with PIN verification, see:
 
-- **Authentication Tools**: [`src/welcome.ts`](../src/welcome.ts) - PIN verification and authentication flow
-- **Global Storage**: [`src/globalStore.ts`](../src/globalStore.ts) - Storing authentication state
+**TypeScript:**
+- Authentication Tools: [`ts_server/src/welcome.ts`](../toolkits/banking_mcp_server/ts_server/src/welcome.ts)
+- Global Storage: [`ts_server/src/globalStore.ts`](../toolkits/banking_mcp_server/ts_server/src/globalStore.ts)
+
+**Python:**
+- Authentication Tools: [`py_server/src/welcome.py`](../toolkits/banking_mcp_server/py_server/src/welcome.py)
+- Global Storage: [`py_server/src/global_store.py`](../toolkits/banking_mcp_server/py_server/src/global_store.py)
 
 ## Choosing the Right Approach
 

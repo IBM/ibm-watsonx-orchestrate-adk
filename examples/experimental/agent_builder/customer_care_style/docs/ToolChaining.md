@@ -44,10 +44,15 @@ When a customer attempts to transfer money from a locked account, the system sho
 3. Automatically initiate agent handoff
 4. Pass context about the locked account to the agent
 
-**Files:**
+**Implementation Files:**
 
-- [`src/personalBankingService.ts`](../src/personalBankingService.ts) - Account data model
-- [`src/personalBanking.ts`](../src/personalBanking.ts) - Transfer tool with handoff logic
+**TypeScript:**
+- [`ts_server/src/personalBankingService.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBankingService.ts) - Account data model
+- [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts) - Transfer tool with handoff logic
+
+**Python:**
+- [`py_server/src/personal_banking_service.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking_service.py) - Account data model
+- [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py) - Transfer tool with handoff logic
 
 ### Step 1: Account Data Model
 
@@ -143,7 +148,7 @@ export const prepareTransferTool = {
         ],
         _meta: {
           nextTool: {
-            name: 'request_agent_handoff',
+            tool: 'request_agent_handoff',
             arguments: {
               reason: `Customer attempted to transfer from locked account: ${fromAccount.accountName} (${fromAccount.accountId})`,
             },
@@ -175,7 +180,7 @@ The complete flow when a locked account is detected:
 ```typescript
 _meta: {
   nextTool: {
-    name: 'request_agent_handoff',           // Tool to call next
+    tool: 'request_agent_handoff',           // Tool to call next
     arguments: {                              // Structured arguments
       reason: `Customer attempted to transfer from locked account: ${fromAccount.accountName} (${fromAccount.accountId})`
     }
