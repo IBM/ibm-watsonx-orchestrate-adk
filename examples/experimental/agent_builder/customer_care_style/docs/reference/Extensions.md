@@ -15,8 +15,8 @@ The `_meta` section of a tool result contains extension configuration using the 
 ```typescript
 interface Extensions {
   'com.ibm.orchestrate/extensions': {
-    channel_transfer?: ChannelTransferExtension;
-    connect_to_agent?: ConnectToAgentExtension;
+    transfer_to_channel?: TransferToChannelExtension;
+    transfer_to_live_agent?: TransferToLiveAgentExtension;
     end_interaction?: EndInteractionExtension;
     speech_to_text?: SpeechToTextExtension;
     text_to_speech?: TextToSpeechExtension;
@@ -26,7 +26,7 @@ interface Extensions {
 
 ---
 
-## ChannelTransferExtension
+## TransferToChannelExtension
 
 Transfers the conversation from one channel to another (e.g., from WhatsApp to web chat).
 
@@ -41,7 +41,7 @@ NOTE: This extension is currently only supported by the phone channel but may ev
 ### Interface
 
 ```typescript
-interface ChannelTransferExtension {
+interface TransferToChannelExtension {
   message_to_user: string;
   transfer_info: {
     target: {
@@ -75,7 +75,7 @@ return {
   ],
   _meta: {
     'com.ibm.orchestrate/extensions': {
-      channel_transfer: {
+      transfer_to_channel: {
         message_to_user: 'Let me transfer you to web chat for a better experience.',
         transfer_info: {
           target: {
@@ -97,7 +97,7 @@ return {
 
 ---
 
-## ConnectToAgentExtension
+## TransferToLiveAgentExtension
 
 Initiates a transfer to a human agent with conditional fields based on channel type including messaging based on agent availability, SIP endpoints, etc..
 
@@ -111,24 +111,23 @@ Initiates a transfer to a human agent with conditional fields based on channel t
 ### Interface
 
 ```typescript
-interface ConnectToAgentExtension {
+interface TransferToLiveAgentExtension {
   message_to_human_agent: string;
   agent_available: string;
   agent_unavailable: string;
-  transfer_info?: {
-    target?: {
-      service_desk?: {
-        sip?: {
-          uri: string;
-          transfer_method?: 'refer' | 'hangup';
-          transfer_target_header?: string;
-          transfer_headers?: Array<{
-            name: string;
-            value: string;
-          }>;
-          transfer_headers_send_method?: 'custom_header' | 'contact_header' | 'refer_to_header';
-        };
-      };
+  transfer_metadata?: {
+    [key: string]: string;
+  };
+  service_desk_info?: {
+    sip?: {
+      uri: string;
+      transfer_method?: 'refer' | 'hangup';
+      transfer_target_header?: string;
+      transfer_headers?: Array<{
+        name: string;
+        value: string;
+      }>;
+      transfer_headers_send_method?: 'custom_header' | 'contact_header' | 'refer_to_header';
     };
   };
 }
@@ -141,7 +140,8 @@ interface ConnectToAgentExtension {
 | `message_to_human_agent`    | Context message passed to the human agent about the user's request |
 | `agent_available`   | Message displayed to user while connecting to an available agent   |
 | `agent_unavailable` | Message displayed to user when no agents are online                |
-| `transfer_info`             | (Optional) Information that is used by the channel for routing the transfer.                    |
+| `transfer_metadata` | Optional metadata that can be passed to the live agent during the transfer |
+| `service_desk_info` | Information that is used by the channel for transfer routing.                    |
 
 ### Example
 
@@ -156,10 +156,13 @@ return {
   ],
   _meta: {
     'com.ibm.orchestrate/extensions': {
-      connect_to_agent: {
+      transfer_to_live_agent: {
         message_to_human_agent: "User asked to speak to an agent.",
         agent_available: "Please wait while I connect you to an agent.",
-        agent_unavailable: "I'm sorry, but no agents are online at the moment. Please try again later."
+        agent_unavailable: "I'm sorry, but no agents are online at the moment. Please try again later.",
+        transfer_metadata: {
+          caller_id: "1234567890",
+        }
       }
     }
   }
@@ -168,19 +171,19 @@ return {
 
 ### Channel Adaptation
 
-`transfer_info` will be different for each channel. This section includes examples for each channel.
+`service_desk_info` will be different for each channel. This section includes examples for each channel. The supported values under service_desk_info are `sip`, `zendesk` and `salesforce`. 
 
 #### SIP Phone
 
-For SIP Phone integrations, the `transfer_info` object should contain the target service desk configuration with SIP-specific parameters.
+For SIP Phone integrations, the `service_desk_info` object should contain the target service desk configuration with SIP-specific parameters. When `transfer_metadata` is defined, the values are converted into a single SIP `User-to-User` header which is HEX encoded. `transfer_headers` can be used to override this behavior and define exactly how to send the metadata in the SIP REFER message.
 
 | Field | Description |
 | ----- | ----------- |
-| `transfer_info.target.service_desk.sip.uri` | The SIP or telephone URI to transfer the call to, such as `sip:12345556789\\@myhost.com` or `tel:+18005551234` |
-| `transfer_info.target.service_desk.sip.transfer_method` | (Optional) Determines how to transfer the call: `refer`: The call is transferred by sending a SIP REFER request (default). `hangup`: The call is transferred by sending a SIP BYE request. |
-| `transfer_info.target.service_desk.sip.transfer_target_header` | (Optional) The SIP header that contains the transfer target when a BYE request is used for transferring the call. Defaults to `Transfer-Target`. This option is supported only in the `hangup` method. |
-| `transfer_info.target.service_desk.sip.transfer_headers` | (Optional) A list of custom header field name-value pairs to be added to a transfer request. |
-| `service_desk.sip.transfer_headers_send_method` | (Optional) The method by which the SIP transfer headers are sent. `custom_header`: Sends the transfer headers as part of the SIP message (default). `contact_header`: Sends the transfer headers in the Contact header. This option is not supported in the hangup method. `refer_to_header`: Sends the transfer headers in the Refer-To header. This option is not supported in the hangup method. |
+| `service_desk_info.sip.uri` | The SIP or telephone URI to transfer the call to, such as `sip:12345556789\\@myhost.com` or `tel:+18005551234` |
+| `service_desk_info.sip.transfer_method` | Determines how to transfer the call: `refer`: The call is transferred by sending a SIP REFER request (default). `hangup`: The call is transferred by sending a SIP BYE request. |
+| `service_desk_info.sip.transfer_target_header` | The SIP header that contains the transfer target when a BYE request is used for transferring the call. Defaults to `Transfer-Target`. This option is supported only in the `hangup` method. |
+|`service_desk_info.sip.transfer_headers` | A list of custom header field name-value pairs to be added to a transfer request. When defined this overrides transfer_metadata. In other words, transfer_metadata is not used when this is defined.|
+| `service_desk_info.sip.transfer_headers_send_method` | The method by which the SIP transfer headers are sent. `custom_header`: Sends the transfer headers as part of the SIP message (default). `contact_header`: Sends the transfer headers in the Contact header. This option is not supported in the hangup method. `refer_to_header`: Sends the transfer headers in the Refer-To header. This option is not supported in the hangup method. |
 
 ##### Example
 
@@ -195,23 +198,13 @@ return {
   ],
   _meta: {
     'com.ibm.orchestrate/extensions': {
-      connect_to_agent: {
+      transfer_to_live_agent: {
         message_to_human_agent: "User asked to speak to an agent.",
         agent_available: "Please wait while I connect you to an agent.",
         agent_unavailable: "I'm sorry, but no agents are online at the moment. Please try again later.",
-        transfer_info: {
-          target: {
-            service_desk: {
-              sip: {
-                uri: "sip:+18005551234@myhost.com",
-                transfer_headers: [
-                  {
-                    name: "Customer-Header1",
-                    value: "Some-Custom-Info"
-                  }
-                ]
-              }
-            }
+        service_desk_info: {
+          sip: {
+            uri: "sip:+18005551234@myhost.com"
           }
         }
       }
@@ -220,20 +213,21 @@ return {
 };
 ```
 
-#### Genesys Audio Connector
-TBD
-
-#### Genesys BOT Connector
-TBD
-
-#### WhatsApp
-TBD
-
 #### Zendesk
-TBD
+For Zendesk integrations, the `service_desk_info` object should contain the target service desk configuration with Zendesk-specific parameters. 
+
+| Field | Description |
+| ----- | ----------- |
+| `zendesk.department` | A valid department from your Zendesk account. Not required |
+
 
 #### Salesforce
-TBD
+For Salesforce integrations, the `service_desk_info` object should contain the target service desk configuration with Salesforce-specific parameters. 
+
+| Field | Description |
+| ----- | ----------- |
+| `salesforce.button_id` | A valid button ID from your Salesforce deployment. Not required |
+
 
 ---
 
@@ -315,7 +309,7 @@ interface SpeechToTextExtension {
 |------- | ---- |
 | `command_info`            | Object containing speech-to-text configuration                                       |
 | `command_info.type`       | Command type (e.g., `"configure"`)                                                   |
-| `command_info.parameters` | (Optional) Configuration parameters for speech recognition                                      |
+| `command_info.parameters` | Configuration parameters for speech recognition                                      |
 
 ### Example
 
@@ -383,7 +377,7 @@ interface TextToSpeechExtension {
 | ------------------------- | ------------------------------------------------------------------------------------ |
 | `command_info`            | Object containing text-to-speech configuration                                       |
 | `command_info.type`       | Command type (e.g., `"configure"`, `"disable_barge_in"`, `"enable_barge_in"`)       |
-| `command_info.parameters` | (Optional) Configuration parameters for text-to-speech                                          |
+| `command_info.parameters` | Configuration parameters for text-to-speech                                          |
 
 ### Example
 

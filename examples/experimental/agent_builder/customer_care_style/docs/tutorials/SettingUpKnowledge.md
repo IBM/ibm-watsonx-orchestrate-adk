@@ -7,7 +7,7 @@ This guide will help you set up Knowledge to work with the banking agent demonst
 
 ### 1. Setup a local OpenSearch instance
 
-In a terminal window, navigate to the [knowledge](../../toolkits/banking_mcp_server/knowledge/) directory. 
+In a terminal window, from the root directory of the CustomerCare repository, navigate to the knowledge directory. 
 
 Create a `.env` file with the following entry:
 
@@ -24,8 +24,6 @@ docker compose up
 If your system has podman installed, you can also do `podman compose up`.
 
 If your system has rancher installed, you need to select the `dockerd(moby)` container engine in order to use `docker compose up`.
-
-Note: Please ensure you are not using Orchestrate Developer Edtition docker context for this step. You can check your current context by running `docker context ls`. If you are using Orchestrate Developer Edition docker context, switch to the default context by running `docker context use default`.
 
 ### 2. Verify the local OpenSearch instance
 
@@ -59,7 +57,9 @@ A response like below should show up:
 
 ### 3. Install Knowledge Dependencies
 
-In a new terminal window, navigate to the [knowledge](../../toolkits/banking_mcp_server/knowledge/) directory:
+Assuming you have installed the tools and cloned the `CustomerCare` repository in the Installation tutorial. 
+
+In a new terminal window, navigate to the knowledge directory:
 
 ```bash
 cd knowledge
@@ -109,19 +109,27 @@ The `ingest_document.py` script will automatically retry to remediate it. If the
 
 ### 7. Restart the MCP Server
 
-If the MCP server was started, stop it. 
+If the MCP server was started, stop it.
 
 In the same terminal window, from the root directory of the repository:
 
+**TypeScript:**
 ```bash
 export OPENSEARCH_PASSWORD=<your OpenSearch admin password>
-# Start the MCP server in development mode
+cd ts_server
 npm run dev
+```
+
+**Python:**
+```bash
+export OPENSEARCH_PASSWORD=<your OpenSearch admin password>
+cd py_server
+uv run customercare-server
 ```
 
 The server will start on `http://localhost:3004` by default. You should see:
 ```
-Banking MCP server listening on port 3004
+CustomerCare Banking MCP server listening on port 3004
 ```
 
 Then in the agent chat window, you can ask questions such as `What's the fee if I exceed my monthly transfer limit?`, the answer will be grounded on the example knowledge content in the vector store (OpenSearch).

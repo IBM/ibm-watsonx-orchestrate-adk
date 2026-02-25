@@ -176,7 +176,7 @@ CHUNK_OVERLAP (default: 50)
 
 ### How the Knowledge Setup Flow Works
 
-1. **Setup The OpenSearch Vector Store**: User runs `docker compose up` to setup a local OpenSearch instance 
+1. **Setup The OpenSearch Vector Store**: User runs `docker compose up` to setup a local OpenSearch instance
 2. **Configure The OpenSearch Vector Store**: User runs the [`knowledge/register_model_and_create_pipelines.py`](../toolkits/banking_mcp_server/knowledge/register_model_and_create_pipelines.py) program to configure OpenSearch
 3. **Create Vector Index**: User runs the [`knowledge/create_vector_index.py`](../toolkits/banking_mcp_server/knowledge/create_vector_index.py) program to create a vector index
 4. **Ingest Document**: User runs the [`knowledge/ingest_document.py`](../toolkits/banking_mcp_server/knowledge/ingest_document.py) program to ingest user content

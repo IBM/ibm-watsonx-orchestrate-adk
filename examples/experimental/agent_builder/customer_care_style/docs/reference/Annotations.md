@@ -103,10 +103,10 @@ interface SpeechAnnotation {
 
 | Field                      | Description                                                                                      |
 | -------------------------- | ------------------------------------------------------------------------------------------------ |
-| `disable_speech_barge_in`  | (Optional) While this content block is being played back, disable speech barge-in                |
-| `disable_dtmf_barge_in`    | (Optional) While this content block is being played back, disable DTMF barge-in                  |
-| `disable_speech_to_text`   | (Optional) While this content block is being played back, disable speech-to-text                 |
-| `text_to_speech_config`    | (Optional) Configuration parameters for text-to-speech based on the configured speech model      |
+| `disable_speech_barge_in`  | While this content block is being played back, disable speech barge-in                |
+| `disable_dtmf_barge_in`    | While this content block is being played back, disable DTMF barge-in                  |
+| `disable_speech_to_text`   | While this content block is being played back, disable speech-to-text                 |
+| `text_to_speech_config`    | Configuration parameters for text-to-speech based on the configured speech model      |
 
 ### Example
 

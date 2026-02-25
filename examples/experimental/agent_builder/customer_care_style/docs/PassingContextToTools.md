@@ -14,8 +14,9 @@ Context variables are passed by the caller of the Orchestrate API as part of the
 
 **How to Access:**
 
-Tool handlers receive context variables through the `extra._meta` parameter:
+Tool handlers receive context variables through the `extra._meta` parameter (TypeScript) or `_meta` parameter (Python):
 
+**TypeScript:**
 ```typescript
 handler: async (args: any, extra: any) => {
   // Access customer-provided context variables
@@ -28,6 +29,20 @@ handler: async (args: any, extra: any) => {
   // Use the values directly
   const balance = await CreditCardService.getBalance(jwtToken);
 }
+```
+
+**Python:**
+```python
+async def handler(args: dict, _meta: dict | None = None) -> dict:
+    # Access customer-provided context variables
+    jwt_token = _meta.get('com.ibm.orchestrate/context', {}).get('jwtToken') if _meta else None
+    
+    # Access system-provided context (e.g., thread_id, locale)
+    thread_id = _meta.get('com.ibm.orchestrate/systemcontext', {}).get('thread_id') if _meta else None
+    locale = _meta.get('com.ibm.orchestrate/systemcontext', {}).get('locale') if _meta else None
+    
+    # Use the values directly
+    balance = CreditCardService.get_credit_card_balance(jwt_token)
 ```
 
 **Key Point:** Context variables are automatically available in every tool handler via `extra._meta`. No additional setup required.
@@ -51,6 +66,7 @@ The **global store** is a key-value store keyed by `thread_id` that can be acces
 1. **Extract `thread_id` from system context** (available in every tool handler)
 2. **Look up variables in your global store** using the `thread_id` as the key
 
+**TypeScript:**
 ```typescript
 handler: async (args: any, extra: any) => {
   // Step 1: Get thread_id from system context
@@ -64,7 +80,22 @@ handler: async (args: any, extra: any) => {
 }
 ```
 
-**Storage Requirement:** You must implement your own key-value store keyed by `thread_id`. Watson Orchestrate does not provide a global store implementation. See [`src/globalStore.ts`](../src/globalStore.ts) for a reference implementation.
+**Python:**
+```python
+async def handler(args: dict, _meta: dict | None = None) -> dict:
+    # Step 1: Get thread_id from system context
+    thread_id = _meta.get('com.ibm.orchestrate/systemcontext', {}).get('thread_id') if _meta else None
+    
+    # Step 2: Look up variables in your global store
+    customer_id = get_global_variable(thread_id, 'customerId')
+    
+    # Use the values
+    accounts = BankingService.get_accounts(customer_id)
+```
+
+**Storage Requirement:** You must implement your own key-value store keyed by `thread_id`. Watson Orchestrate does not provide a global store implementation. See reference implementations:
+- TypeScript: [`ts_server/src/globalStore.ts`](../toolkits/banking_mcp_server/ts_server/src/globalStore.ts)
+- Python: [`py_server/src/global_store.py`](../toolkits/banking_mcp_server/py_server/src/global_store.py)
 
 **Typical Pattern:** Store data in the global store during authentication or initialization, then retrieve it in subsequent tool calls within the same conversation.
 
@@ -83,6 +114,7 @@ The **local store** is a key-value store that provides isolation for data specif
 1. **Extract `thread_id` from system context** (available in every tool handler)
 2. **Look up variables in your local store** using the `thread_id` as the key
 
+**TypeScript:**
 ```typescript
 handler: async (args: any, extra: any) => {
   // Step 1: Get thread_id from system context
@@ -101,7 +133,26 @@ handler: async (args: any, extra: any) => {
 }
 ```
 
-**Storage Requirement:** You must implement your own key-value store keyed by `thread_id`. Watson Orchestrate does not provide a local store implementation. See [`src/localStore.ts`](../src/localStore.ts) for a reference implementation.
+**Python:**
+```python
+async def handler(args: dict, _meta: dict | None = None) -> dict:
+    # Step 1: Get thread_id from system context
+    thread_id = _meta.get('com.ibm.orchestrate/systemcontext', {}).get('thread_id') if _meta else None
+    
+    # Step 2: Look up variables in your local store
+    transaction = get_local_variable(thread_id, f'transaction_{transaction_id}')
+    
+    # Use the values
+    if action == 'confirm':
+        BankingService.process_transaction(transaction)
+    
+    # Clean up
+    delete_local_variable(thread_id, f'transaction_{transaction_id}')
+```
+
+**Storage Requirement:** You must implement your own key-value store keyed by `thread_id`. Watson Orchestrate does not provide a local store implementation. See reference implementations:
+- TypeScript: [`ts_server/src/localStore.ts`](../toolkits/banking_mcp_server/ts_server/src/localStore.ts)
+- Python: [`py_server/src/local_store.py`](../toolkits/banking_mcp_server/py_server/src/local_store.py)
 
 **Best Practice:** For optimal encapsulation and isolation, prefer local store variables for most transient data. Only use global store variables when data truly needs to be shared across multiple MCP servers.
 
@@ -133,7 +184,8 @@ This example demonstrates all three layers working together in a banking applica
 
 Credit card tools use JWT tokens passed via context variable on each request:
 
-**Tool Definition:** [`src/creditCard.ts`](../src/creditCard.ts)
+**TypeScript:** [`ts_server/src/creditCard.ts`](../toolkits/banking_mcp_server/ts_server/src/creditCard.ts)
+**Python:** [`py_server/src/credit_card.py`](../toolkits/banking_mcp_server/py_server/src/credit_card.py)
 
 ```typescript
 export const getCreditCardBalanceTool = {
@@ -160,7 +212,9 @@ export const getCreditCardBalanceTool = {
 };
 ```
 
-**Server Setup:** [`src/index.ts`](../src/index.ts)
+**Server Setup:**
+- TypeScript: [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)
+- Python: [`py_server/src/server.py`](../toolkits/banking_mcp_server/py_server/src/server.py)
 
 ```typescript
 // Credit card tools use JWT from context - no injection needed
@@ -173,7 +227,9 @@ for (const tool of creditCardTools) {
 
 Personal banking and mortgage tools use customer ID stored in the global store:
 
-**Server Setup:** [`src/index.ts`](../src/index.ts)
+**Server Setup:**
+- TypeScript: [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)
+- Python: [`py_server/src/server.py`](../toolkits/banking_mcp_server/py_server/src/server.py)
 
 ```typescript
 // Extract thread_id from system context
@@ -287,7 +343,9 @@ This pattern uses the local store (Layer 3) instead of the global store (Layer 2
 
 If we used the global store instead, all MCP servers in the conversation could potentially access and modify the transaction data, creating security and data integrity risks.
 
-See the complete implementation in [`src/personalBanking.ts`](../src/personalBanking.ts) and [`src/mortgage.ts`](../src/mortgage.ts).
+See the complete implementation:
+- TypeScript: [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts) and [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts)
+- Python: [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py) and [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py)
 
 ## Security Considerations
 
