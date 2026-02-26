@@ -1,12 +1,10 @@
 # Installation Guide
 
-This guide will help you set up the CustomerCare repository and run the banking agent demonstration.
+This guide will help you set up and run the banking agent demonstration using watsonx orchestrate developer edition.
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed on your system:
-
-### For TypeScript Server
 
 1. **Node.js** (v20 or higher)
    - Download from [nodejs.org](https://nodejs.org/)
@@ -15,36 +13,62 @@ Before you begin, ensure you have the following installed on your system:
 2. **npm** (comes with Node.js)
    - Verify installation: `npm --version`
 
-### For Python Server
+3. **watsonx orchestrate CLI**
+   - Install the watsonx orchestrate CLI following the official documentation
+   - Verify installation: `orchestrate --version`
 
-1. **Python** (v3.11 or higher)
-   - Download from [python.org](https://python.org/)
-   - Verify installation: `python3 --version`
-
-2. **UV** (Python package installer)
-   - Install UV by following the instructions at [docs.astral.sh/uv/getting-started/installation](https://docs.astral.sh/uv/getting-started/installation/)
-   - For macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-   - For Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
-   - Verify installation: `uv --version`
+4. **Docker** (for watsonx orchestrate developer edition)
+   - Download from [docker.com](https://www.docker.com/)
+   - Verify installation: `docker --version`
 
 ## Installation Steps
 
-### 1. Clone the Repository
+### 1. Navigate to the Example
+
+Navigate to the example directory:
 
 ```bash
-git clone <repository-url>
-cd CustomerCare
+cd examples/experimental/agent_builder/customer_care_style
 ```
 
-### 2. Install the MCP Server Dependencies
+### 2. Set Up watsonx orchestrate Developer Edition
 
-The MCP servers are available in both TypeScript (`toolkits/banking_mcp_server/ts_server/`) and Python (`toolkits/banking_mcp_server/py_server/`). Both implementations provide identical functionality - choose the one that best fits your technology stack.
-
-#### TypeScript Server
+Initialize and start the watsonx orchestrate developer edition server:
 
 ```bash
-# Navigate to TypeScript server directory
-cd ts_server
+# Start the developer edition server
+orchestrate server start
+```
+
+This will start a local instance of watsonx orchestrate that you can use for development and testing. The server will initialize and start all necessary containers on `http://localhost:4321`.
+
+**Note**: If you need additional features like Langfuse observability, you can enable them with flags:
+```bash
+# Start with Langfuse support
+orchestrate server start --langfuse
+
+# Start with custom .env file
+orchestrate server start -e /path/to/.env
+```
+
+### 3. Start the Developer Edition Chat UI
+
+After the server is running, start the chat UI:
+
+```bash
+# Start the chat UI
+orchestrate chat start
+```
+
+This will start the watsonx orchestrate UI on `http://localhost:3000`. The UI will automatically open in your browser.
+
+### 4. Install the MCP Server Dependencies
+
+The MCP server is a Node.js/TypeScript application located in the `toolkits/banking_mcp_server/` directory.
+
+```bash
+# Navigate to the MCP server directory
+cd toolkits/banking_mcp_server
 
 # Install Node.js dependencies
 npm install
@@ -53,128 +77,102 @@ npm install
 npm run build
 ```
 
-#### Python Server
+### 5. Verify Installation
+
+Test that the components are installed correctly:
 
 ```bash
-# Navigate to Python server directory
-cd py_server
-
-# Install dependencies using uv
-uv sync --extra dev
-```
-
-### 3. Install the Customer Care Agent Runtime
-
-The agent runtime is a Python-based text UI (TUI) that allows you to interact with the MCP server.
-
-```bash
-# Navigate to the agent runtime directory
-cd agent_runtime
-
-# Install the CCA tool using UV
-uv tool install cca-0.5.5-py3-none-any.whl --python 3.13
-```
-
-### 4. Verify Installation
-
-Test that all components are installed correctly:
-
-```bash
-# Test the TypeScript MCP server (from ts_server directory)
-cd ts_server
+# Test the MCP server (from the toolkits/banking_mcp_server directory)
 npm run dev
 
-# Or test the Python MCP server (from py_server directory)
-cd py_server
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-customercare-server
-# Or alternatively: uvicorn src.main:app --host 0.0.0.0 --port 3004
-
-# In another terminal, test the CCA tool
-uvx cca --help
+# In another terminal, verify orchestrate CLI
+orchestrate --version
 ```
 
 ## Running the Banking Agent Demo
 
-The repository includes a complete banking agent example that demonstrates the customer care agent style.
+This example includes a complete banking agent that demonstrates the customer care agent style.
 
 ### 1. Start the MCP Server
 
-Choose either the TypeScript or Python server:
-
-**TypeScript:**
+From the `toolkits/banking_mcp_server/` directory:
 
 ```bash
-cd ts_server
+# Start the MCP server in development mode
 npm run dev
 ```
 
-**Python:**
+The server will start on `http://localhost:3004` by default. You should see:
+```
+Banking MCP server listening on port 3004
+```
+
+### 2. Start the Chat UI (if not already running)
+
+If you haven't already started the chat UI, run:
 
 ```bash
-cd py_server
-
-# Run using the CLI entry point
-uv run customercare-server
-
-# Or run directly with uvicorn
-uv run uvicorn src.main:app --host 0.0.0.0 --port 3004
+orchestrate chat start
 ```
 
-The Python server starts on `http://localhost:3004` by default. You should see:
+The UI will be available at `http://localhost:3000`.
 
-```
-CustomerCare Banking MCP server listening on 0.0.0.0:3004
-```
+### 3. Import the Agent into Developer Edition
 
-### 2. Run the Banking Agent
-
-In a new terminal window, navigate to the banking agent example:
+From the example directory, run the import script:
 
 ```bash
-cd agent_runtime/examples/banking_agent
+# Make sure you're in the example directory
+cd examples/experimental/agent_builder/customer_care_style
+
+# Run the import script
+./import-all.sh
 ```
 
-Copy the .env.example file to .env and update your WO_INSTANCE and WO_API_KEY to point to a watsonx Orchestrate
-SaaS service instance url and api key (can be a trail).
+This script will:
+- Activate the local developer edition environment
+- Import the banking toolkit
+- Import the banking agent
+
+### 4. Get the Web Chat Embed Code
+
+The easiest way to get the correct configuration for your web chat is to use the CLI:
 
 ```bash
-LANGFUSE_ORG_ID=orchestrate
-LANGFUSE_ORG_NAME=WatsonOrchestrate
-LANGFUSE_PROJECT_ID=orchestrate
-LANGFUSE_PROJECT_NAME=WatsonOrchestrateDCA
-
-LANGFUSE_HOST=http://localhost:3010
-LANGFUSE_PUBLIC_KEY=pk-lf-7417757e-d6df-421b-957e-683b76acb5df
-LANGFUSE_PRIVATE_KEY=sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2
-LANGFUSE_SECRET_KEY=sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2
-
-LANGFUSE_EMAIL=orchestrate@ibm.com
-LANGFUSE_USERNAME=orchestrate
-LANGFUSE_PASSWORD=
-
-WO_INSTANCE=https://api.dl.watson-orchestrate.ibm.com/instances/<my-service-instance-id>
-WO_API_KEY=<my api key>
+# Get the embed code for the banking agent
+orchestrate channels webchat embed -a banking_agent
 ```
 
-# Run the agent with the provided start script
-```bash
-./start.sh
-```
+This command will output the complete embed code with all the correct IDs pre-filled. Copy the configuration values from the output.
 
-Alternatively, you can run it manually with:
+Alternatively, you can retrieve the IDs manually:
+- Use `orchestrate agents list` to get the `agentId` and `agentEnvironmentId`
+- The `orchestrationID` is your instance ID (available in the developer edition)
 
-```bash
-uvx cca chat \
-  -a agents/banking_agent.yaml \
-  -t toolkits/banking_mcp_server.yaml \
-  -c sample_context/CUST001.yaml \
-  -e ../../.env
-```
+### 5. Configure the Web Chat Interface
 
-### 3. Interact with the Agent
+Open `sample_webchat.html` in a text editor and update the configuration:
 
-Once the agent starts, you'll see a text-based interface. Try these example interactions:
+1. **Update the customer context** (lines 25-26):
+   ```javascript
+   telephoneNumber: "+15551234567", // Use a phone number from customerDatabase.ts
+   jwtToken: "<token>" // Any non-blank value works for the demo
+   ```
+
+2. **Update the IDs** (lines 42, 50-51) using the values from the embed code:
+   ```javascript
+   orchestrationID: "<instance id>",  // Replace with your orchestrationID
+   agentId: "<agent-id>",             // Replace with your agentId
+   agentEnvironmentId: "<env id>",    // Replace with your agentEnvironmentId
+   ```
+
+### 6. Open the Web Chat
+
+Open `sample_webchat.html` in your web browser. The chat interface will connect to your local developer edition instance.
+
+### 7. Interact with the Agent
+
+Try these example interactions in the web chat:
 
 - **Check balance**: "What's my checking account balance?"
 - **Transfer money**: "I want to transfer $100 from checking to savings"
@@ -183,36 +181,23 @@ Once the agent starts, you'll see a text-based interface. Try these example inte
 
 ### Using Different Customer Profiles
 
-The example includes multiple customer profiles with different product combinations:
+To test with different customer profiles, update the `telephoneNumber` in `sample_webchat.html`:
 
-```bash
-# Customer with personal banking only
-uvx cca chat -a agents/banking_agent.yaml \
-  -t toolkits/banking_mcp_server.yaml \
-  -c sample_context/CUST001.yaml
+- **CUST001** (+15551234567): Personal banking + Credit card
+- **CUST002** (+15559876543): Personal banking + Mortgage
+- **CUST003** (+15555555555): All products (personal banking, mortgage, credit card)
+- **CUST004** (+15551111111): Personal banking only
 
-# Customer with personal banking and mortgage
-uvx cca chat -a agents/banking_agent.yaml \
-  -t toolkits/banking_mcp_server.yaml \
-  -c sample_context/CUST002.yaml
-
-# Customer with all products
-uvx cca chat -a agents/banking_agent.yaml \
-  -t toolkits/banking_mcp_server.yaml \
-  -c sample_context/CUST003.yaml
-```
-
-Each customer profile demonstrates how the agent personalizes available tools based on the customer's products.
+Each customer profile demonstrates how the agent personalizes available tools based on the customer's products. You can find these profiles in `toolkits/banking_mcp_server/src/customerDatabase.ts`.
 
 ## Development Workflow
 
 ### Running in Development Mode
 
-**TypeScript Server:**
+For active development, use these commands:
 
 ```bash
-cd ts_server
-
+# From toolkits/banking_mcp_server/
 # Run MCP server with auto-reload
 npm run dev
 
@@ -226,50 +211,26 @@ npm run lint:fix
 npm run prettier:fix
 ```
 
-**Python Server:**
+### Making Changes to the Agent
+
+After modifying agent configurations or tools:
 
 ```bash
-cd py_server
+# Re-import the agent from the example directory
+cd examples/experimental/agent_builder/customer_care_style
+./import-all.sh
 
-# Run with auto-reload
-uv run uvicorn src.main:app --host 0.0.0.0 --port 3004 --reload
-
-# Run tests
-uv run pytest
-
-# Run linting
-uv run ruff check src/
-
-# Fix linting issues
-uv run ruff check --fix src/
-
-# Format code
-uv run ruff format src/
-
-# Type checking
-uv run mypy src/
+# Refresh the web chat in your browser
 ```
 
 ### Building for Production
 
-**TypeScript:**
-
 ```bash
-cd ts_server
+# Build the TypeScript project
 npm run build
+
+# Run the built version
 npm start
-```
-
-**Python:**
-
-```bash
-cd py_server
-
-# Run the server
-uv run customercare-server
-
-# Or with uvicorn directly
-uv run uvicorn src.main:app --host 0.0.0.0 --port 3004
 ```
 
 ## Configuration
@@ -279,37 +240,57 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 3004
 The MCP server can be configured via environment variables:
 
 - `PORT`: Server port (default: 3004)
-- Additional configuration can be added to `toolkits/banking_mcp_server/ts_server/src/index.ts` (TypeScript) or `toolkits/banking_mcp_server/py_server/src/main.py` (Python)
+- Additional configuration can be added to `toolkits/banking_mcp_server/src/index.ts`
 
 ### Agent Configuration
 
 Agent configuration is defined in YAML files:
 
-- **Agent definition**: `agent_runtime/examples/banking_agent/agents/banking_agent.yaml`
-- **Toolkit definition**: `agent_runtime/examples/banking_agent/toolkits/banking_mcp_server.yaml`
-- **Context/credentials**: `agent_runtime/examples/banking_agent/sample_context/*.yaml`
+- **Agent definition**: `agents/banking_agent.yaml`
+- **Toolkit definition**: `toolkits/banking_mcp_server.yaml`
+
+### Web Chat Configuration
+
+The web chat interface is configured in `sample_webchat.html`:
+
+- **Customer context**: Phone number and JWT token (lines 25-26)
+- **Instance IDs**: orchestrationID, agentId, agentEnvironmentId (lines 42, 50-51)
+- **Host URL**: Points to local developer edition (line 43)
 
 ## Troubleshooting
 
 ### MCP Server Won't Start
 
 - Ensure port 3004 is not in use: `lsof -i :3004` (macOS/Linux) or `netstat -ano | findstr :3004` (Windows)
-- For TypeScript: Check Node.js version: `node --version` (should be v20+)
-- For TypeScript: Reinstall dependencies: `cd ts_server && rm -rf node_modules package-lock.json && npm install`
-- For Python: Check Python version: `python3 --version` (should be v3.11+)
-- For Python: Reinstall dependencies: `cd py_server && uv sync --extra dev`
+- Check Node.js version: `node --version` (should be v20+)
+- Reinstall dependencies: `rm -rf node_modules package-lock.json && npm install`
 
-### CCA Tool Not Found
+### Developer Edition Not Running
 
-- Ensure UV is installed: `uv --version`
-- Reinstall the CCA tool: `uv tool install --force agent_runtime/cca-0.5.5-py3-none-any.whl`
-- Check UV tool path is in your PATH
+- Check if Docker is running: `docker ps`
+- Check server status: `orchestrate server status`
+- Restart developer edition: `orchestrate server stop` then `orchestrate server start`
+- Check logs: `orchestrate server logs`
 
-### Connection Errors
+### Import Script Fails
+
+- Ensure developer edition is running: `orchestrate server status`
+- Verify you're in the correct directory when running `./import-all.sh`
+- Check that the MCP server is running before importing
+
+### Web Chat Won't Connect
+
+- Verify developer edition is running on port 3000
+- Check the `orchestrationID`, `agentId`, and `agentEnvironmentId` in `sample_webchat.html`
+- Open browser console (F12) to see connection errors
+- Ensure the MCP server is running and accessible
+
+### Agent Not Responding
 
 - Verify the MCP server is running on the correct port
 - Check the URL in `toolkits/banking_mcp_server.yaml` matches your server configuration
 - Ensure no firewall is blocking localhost connections
+- Check browser console for errors
 
 ## Next Steps
 
@@ -322,4 +303,3 @@ Agent configuration is defined in YAML files:
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [Watson Orchestrate Documentation](https://www.ibm.com/docs/en/watsonx/watson-orchestrate)
-- [Repository Documentation](../docs/)

@@ -78,14 +78,9 @@ export const greetUserTool = {
 
 ### Full Working Example
 
-For a complete implementation including authentication, PIN verification, and tool refresh, see:
-- **TypeScript**: [`ts_server/src/welcome.ts`](../toolkits/banking_mcp_server/ts_server/src/welcome.ts)
-- **Python**: [`py_server/src/welcome.py`](../toolkits/banking_mcp_server/py_server/src/welcome.py)
-
-This production example demonstrates:
+For a complete implementation including authentication, PIN verification, and tool refresh, see [`src/welcome.ts`](../src/welcome.ts). This production example demonstrates:
 - Customer identification from context
-- JWT token pre-authentication (when token is provided)
-- PIN-based authentication flow (fallback when no JWT)
+- PIN-based authentication flow
 - Error handling with agent handoff
 - Using `refreshThreadCapabilities` to update tool availability after authentication
 
