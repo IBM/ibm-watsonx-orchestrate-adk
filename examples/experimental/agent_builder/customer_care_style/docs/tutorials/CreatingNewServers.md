@@ -13,18 +13,14 @@ Creating a new MCP server involves:
 5. Configuring the agent runtime
 6. Testing and iterating
 
-This guide provides examples for both **TypeScript (Node.js)** and **Python** implementations. Choose the language that best fits your team's expertise and existing infrastructure.
-
 ## Project Setup
 
-### Option 1: TypeScript (Node.js) Project
-
-#### 1. Create a New Node.js Project
+### 1. Create a New Node.js Project
 
 ```bash
 # Create project directory
-mkdir my-customer-care-server
-cd my-customer-care-server
+mkdir my-mcp-server
+cd my-mcp-server
 
 # Initialize npm project
 npm init -y
@@ -36,7 +32,7 @@ npm install @modelcontextprotocol/sdk express pino pino-pretty
 npm install --save-dev typescript @types/node @types/express ts-node
 ```
 
-#### 2. Configure TypeScript
+### 2. Configure TypeScript
 
 Create `tsconfig.json`:
 
@@ -63,7 +59,7 @@ Create `tsconfig.json`:
 }
 ```
 
-#### 3. Set Up Package Scripts
+### 3. Set Up Package Scripts
 
 Update `package.json`:
 
@@ -80,71 +76,9 @@ Update `package.json`:
 }
 ```
 
-### Option 2: Python Project
-
-#### 1. Create a New Python Project
-
-```bash
-# Create project directory
-mkdir my-customer-care-server
-cd my-customer-care-server
-
-# Create project structure
-mkdir -p src/myserver
-touch src/myserver/__init__.py
-```
-
-#### 2. Configure Project
-
-Create `pyproject.toml`:
-
-```toml
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[project]
-name = "my-customer-care-server"
-version = "1.0.0"
-description = "My Customer Care MCP Server"
-requires-python = ">=3.11"
-dependencies = [
-    "mcp>=1.0.0",
-    "pydantic>=2.0",
-    "httpx>=0.27.0",
-    "python-dotenv>=1.0.0",
-    "structlog>=24.0.0",
-    "starlette>=0.40.0",
-    "uvicorn>=0.30.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "ruff>=0.3",
-    "mypy>=1.8",
-]
-
-[project.scripts]
-myserver = "myserver.main:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/myserver"]
-```
-
-#### 3. Install Dependencies
-
-```bash
-# Install dependencies using uv
-uv sync --extra dev
-```
-
 ## Implementing the MCP Server
 
-### TypeScript Implementation
-
-#### 1. Create the Server Entry Point
+### 1. Create the Server Entry Point
 
 **File: `src/index.ts`**
 
@@ -167,100 +101,6 @@ const logger = pino({
     },
   },
 });
-
-### Python Implementation
-
-#### 1. Create the Server Entry Point
-
-**File: `src/myserver/main.py`**
-
-```python
-#!/usr/bin/env python3
-"""Main entry point for the MCP server."""
-
-import asyncio
-import os
-from typing import Any
-
-import structlog
-import uvicorn
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
-from starlette.routing import Route
-
-# Create logger
-logger = structlog.get_logger(__name__)
-
-def create_server() -> Server:
-    """Create MCP server instance."""
-    server = Server("my-customer-care-server")
-    
-    # Register your tools here
-    # We'll add tools in the next section
-    
-    return server
-
-async def handle_mcp(request: Request) -> Response:
-    """Handle MCP requests."""
-    try:
-        body = await request.json()
-        logger.info("Received MCP request", method=body.get("method"))
-        
-        # Create server instance
-        server = create_server()
-        
-        # Handle the request
-        # Implementation depends on your MCP SDK version
-        # This is a simplified example
-        
-        return JSONResponse({"status": "ok"})
-        
-    except Exception as error:
-        logger.error("Error handling MCP request", error=str(error))
-        return JSONResponse(
-            {
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32603,
-                    "message": "Internal server error",
-                },
-                "id": None,
-            },
-            status_code=500,
-        )
-
-async def health_check(request: Request) -> Response:
-    """Health check endpoint."""
-    return JSONResponse({"status": "ok", "service": "my-customer-care-server"})
-
-# Create Starlette app
-app = Starlette(
-    routes=[
-        Route("/mcp", handle_mcp, methods=["POST"]),
-        Route("/health", health_check, methods=["GET"]),
-    ]
-)
-
-def main() -> None:
-    """Start the server."""
-    port = int(os.getenv("PORT", "3004"))
-    logger.info(f"MCP server listening on port {port}")
-    
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level=os.getenv("LOG_LEVEL", "info").lower(),
-    )
-
-if __name__ == "__main__":
-    main()
-```
-
 
 // Create Express app with MCP support
 const app = createMcpExpressApp();
@@ -743,6 +583,7 @@ name: insurance
 description: An MCP server for insurance customer care
 transport: streamable_http
 url: http://localhost:3004/mcp
+tools: []
 ```
 
 ### 3. Create Customer Context
@@ -1011,7 +852,7 @@ export const customerPoliciesResource = {
 ## Next Steps
 
 - Study the [pattern documentation](../) for advanced techniques
-- Review the [banking example](../../toolkits/banking_mcp_server/) for more complex implementations
+- Review the [banking example](../../src/) for more complex implementations
 - Experiment with different widget types
 - Add localization support
 - Implement proper authentication
@@ -1021,5 +862,5 @@ export const customerPoliciesResource = {
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [MCP SDK Documentation](https://github.com/modelcontextprotocol/typescript-sdk)
-- [CustomerCare Pattern Documentation](../)
+- [Pattern Documentation](../)
 - [Banking Example Implementation](../../toolkits/banking_mcp_server/)

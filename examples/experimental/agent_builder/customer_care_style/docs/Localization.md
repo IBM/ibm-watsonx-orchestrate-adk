@@ -89,9 +89,7 @@ The recommended approach is to use message templates with placeholders that get 
 
 ### Example: Credit Card Balance Tool
 
-See the complete implementation in:
-- **TypeScript**: [`ts_server/src/creditCard.ts`](../toolkits/banking_mcp_server/ts_server/src/creditCard.ts)
-- **Python**: [`py_server/src/credit_card.py`](../toolkits/banking_mcp_server/py_server/src/credit_card.py)
+See [`src/creditCard.ts`](../src/creditCard.ts) for a complete implementation.
 
 **Step 1: Define Message Templates**
 
