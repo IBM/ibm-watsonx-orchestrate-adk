@@ -1,1 +1,1 @@
-from .channels_types import RuntimeEnvironmentType, ChannelType, EnvironmentType
+from .types import RuntimeEnvironmentType, ChannelType, EnvironmentType
