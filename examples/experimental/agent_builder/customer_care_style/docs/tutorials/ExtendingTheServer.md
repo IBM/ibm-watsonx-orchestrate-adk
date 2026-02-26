@@ -4,19 +4,12 @@ This guide shows you how to extend the existing banking MCP server with new tool
 
 ## Overview
 
-The banking MCP server is organized into modular components. Both TypeScript and Python implementations follow the same architectural patterns:
+The banking MCP server is organized into modular components:
 
-**TypeScript Implementation (`toolkits/banking_mcp_server/ts_server/`):**
 - **Tool Modules**: `src/personalBanking.ts`, `src/mortgage.ts`, `src/creditCard.ts`
 - **Service Modules**: `src/personalBankingService.ts`, `src/mortgageService.ts`, `src/creditCardService.ts`
 - **Context Management**: `src/globalStore.ts`, `src/localStore.ts`
 - **Server Entry Point**: `src/index.ts`
-
-**Python Implementation (`toolkits/banking_mcp_server/py_server/`):**
-- **Tool Modules**: `src/customercare/personal_banking.py`, `src/customercare/mortgage.py`, `src/customercare/credit_card.py`
-- **Service Modules**: `src/customercare/personal_banking_service.py`, `src/customercare/mortgage_service.py`, `src/customercare/credit_card_service.py`
-- **Context Management**: `src/customercare/global_store.py`, `src/customercare/local_store.py`
-- **Server Entry Point**: `src/customercare/main.py`
 
 This modular structure makes it easy to add new features without disrupting existing functionality.
 
@@ -26,9 +19,9 @@ Let's add a "get recent transactions" tool to personal banking.
 
 ### Step 1: Add Business Logic to the Service
 
-First, implement the business logic in the service layer.
+First, implement the business logic in the service layer:
 
-**TypeScript: `toolkits/banking_mcp_server/ts_server/src/personalBankingService.ts`**
+**File: `src/personalBankingService.ts`**
 
 ```typescript
 export class PersonalBankingService {
@@ -80,64 +73,11 @@ interface Transaction {
 }
 ```
 
-**Python: `toolkits/banking_mcp_server/py_server/src/personal_banking_service.py`**
-
-```python
-from typing import List
-from dataclasses import dataclass
-
-@dataclass
-class Transaction:
-    transaction_id: str
-    date: str
-    description: str
-    amount: float
-    balance: float
-
-class PersonalBankingService:
-    # ... existing methods ...
-    
-    @staticmethod
-    def get_recent_transactions(
-        customer_id: str,
-        account_id: str,
-        limit: int = 10
-    ) -> List[Transaction]:
-        """Get recent transactions for an account."""
-        accounts = PersonalBankingService.get_accounts(customer_id)
-        account = next((acc for acc in accounts if acc.account_id == account_id), None)
-        
-        if not account:
-            raise ValueError(f"Account {account_id} not found")
-        
-        # In a real implementation, this would query a database
-        # For demo purposes, return mock data
-        transactions = [
-            Transaction(
-                transaction_id="TXN001",
-                date="2026-01-14",
-                description="Coffee Shop",
-                amount=-4.50,
-                balance=1245.50,
-            ),
-            Transaction(
-                transaction_id="TXN002",
-                date="2026-01-13",
-                description="Salary Deposit",
-                amount=3000.00,
-                balance=1250.00,
-            ),
-            # ... more transactions
-        ]
-        
-        return transactions[:limit]
-```
-
 ### Step 2: Create the Tool Definition
 
-Add the tool definition to the appropriate module.
+Add the tool definition to the appropriate module:
 
-**TypeScript: `toolkits/banking_mcp_server/ts_server/src/personalBanking.ts`**
+**File: `src/personalBanking.ts`**
 
 ```typescript
 import { PersonalBankingService } from './personalBankingService';
@@ -234,102 +174,12 @@ export const personalBankingTools = [
 ];
 ```
 
-**Python: `toolkits/banking_mcp_server/py_server/src/personal_banking.py`**
-
-```python
-from mcp.types import Tool, TextContent
-from .personal_banking_service import PersonalBankingService
-
-def get_recent_transactions_tool():
-    """Tool: Get Recent Transactions
-    Returns recent transactions for a specific account.
-    """
-    return Tool(
-        name="get_recent_transactions",
-        description="Get recent transactions for a customer account",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "customer_id": {
-                    "type": "string",
-                    "description": "Customer identifier (injected from global store)",
-                },
-                "account_id": {
-                    "type": "string",
-                    "description": "The account ID to get transactions for",
-                },
-                "limit": {
-                    "type": "number",
-                    "description": "Maximum number of transactions to return (default: 10)",
-                    "default": 10,
-                },
-            },
-            "required": ["customer_id", "account_id"],
-        },
-    )
-
-async def handle_get_recent_transactions(arguments: dict) -> list[TextContent]:
-    """Handler for get_recent_transactions tool."""
-    try:
-        transactions = PersonalBankingService.get_recent_transactions(
-            arguments["customer_id"],
-            arguments["account_id"],
-            arguments.get("limit", 10)
-        )
-        
-        # Format as a table for display
-        table_rows = "\n".join([
-            f"| {txn.date} | {txn.description} | ${txn.amount:.2f} | ${txn.balance:.2f} |"
-            for txn in transactions
-        ])
-        
-        response = f"""## Recent Transactions
-
-| Date | Description | Amount | Balance |
-|------|-------------|--------|---------|
-{table_rows}
-
-Showing {len(transactions)} most recent transactions."""
-        
-        return [
-            TextContent(
-                type="text",
-                text=response,
-                annotations={"audience": ["user"]},
-            )
-        ]
-        
-    except Exception as error:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error retrieving transactions: {str(error)}",
-            )
-        ]
-
-# Export the tool in the tools list
-personal_banking_tools = [
-    get_account_balance_tool(),
-    get_account_statement_tool(),
-    get_recent_transactions_tool(),  # Add new tool here
-    prepare_transfer_tool(),
-    confirm_or_cancel_transfer_tool(),
-]
-```
-
 ### Step 3: Test the New Tool
 
 The tool is automatically registered when the server starts. Test it:
 
-**TypeScript:**
-1. Restart the MCP server: `cd ts_server && npm run dev`
+1. Restart the MCP server: `npm run dev`
 2. Start the agent: `cd agent_runtime/examples/banking_agent && ./start.sh`
-
-**Python:**
-1. Restart the MCP server: `cd py_server && uv run customercare-server`
-2. Start the agent: `cd agent_runtime/examples/banking_agent && ./start.sh`
-
-**Test Query:**
 3. Try: "Show me recent transactions for my checking account"
 
 ## Adding a New Product Line

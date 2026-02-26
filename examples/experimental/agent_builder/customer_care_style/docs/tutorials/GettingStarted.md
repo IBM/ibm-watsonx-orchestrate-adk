@@ -4,12 +4,10 @@
 
 CustomerCare is a technology demonstrator repository that showcases a new **Customer Care Agent (CCA)** style planned for Watson Orchestrate. This repository provides:
 
-1. **Working MCP servers** - Multi-step banking applications demonstrating customer care patterns
-   - TypeScript version: `toolkits/banking_mcp_server/ts_server/src/`
-   - Python version: `toolkits/banking_mcp_server/py_server/src/`
-2. **A text-based UI (TUI)** (`agent_runtime/`) - A simulator that lets you interact with the agent
-3. **Comprehensive documentation** (`docs/`) - Patterns and best practices for building customer care agents
-4. **Working examples** (`agent_runtime/examples/`) - Complete configurations you can run and modify
+1. **A working MCP server** (`toolkits/banking_mcp_server/`) - A multi-step banking application demonstrating customer care patterns
+2. **Comprehensive documentation** (`docs/`) - Patterns and best practices for building customer care agents
+3. **Working examples** (`agents/`) - Complete agent configurations you can import and test
+4. **Sample web chat interface** (`sample_webchat.html`) - A ready-to-use chat interface for testing your agent
 
 ## Purpose of This Repository
 
@@ -28,28 +26,29 @@ The CCA style is an experimental approach to building customer care agents that 
 
 ### 2. Demonstrate MCP Server Patterns
 
-The banking MCP servers in `toolkits/banking_mcp_server/ts_server/src/` (TypeScript) and `toolkits/banking_mcp_server/py_server/src/` (Python) demonstrate real-world patterns you'll need:
+The banking MCP server in `toolkits/banking_mcp_server/` demonstrates real-world patterns you'll need:
 
-- **[Unique Tools Per User](UniqueToolsPerUser.md)** - Different customers see different tools based on their products
-- **[Tool Responses to Users](ToolResponsesToUsers.md)** - Bypass the LLM for exact responses
-- **[Hybrid Responses](HybridResponses.md)** - Combine LLM flexibility with data accuracy
-- **[Transactions](Transactions.md)** - Two-step confirmation for sensitive operations
-- **[Widgets](Widgets.md)** - Rich, channel-adapted interactions with zero LLM latency
-- **[Authentication](Authentication.md)** - Secure customer identification and access control
-- **[Welcome Tool](WelcomeTool.md)** - Automatic conversation initialization
-- **[Tool Chaining](ToolChaining.md)** - Deterministic tool sequences for business logic
-- **[Passing Context to Tools](PassingContextToTools.md)** - Three layers of context management
-- **[Agent Handoff](Handoff.md)** - Seamless escalation to human agents
-- **[Localization](Localization.md)** - Multi-language support
+- **[Unique Tools Per User](../UniqueToolsPerUser.md)** - Different customers see different tools based on their products
+- **[Tool Responses to Users](../ToolResponsesToUsers.md)** - Bypass the LLM for exact responses
+- **[Hybrid Responses](../HybridResponses.md)** - Combine LLM flexibility with data accuracy
+- **[Transactions](../Transactions.md)** - Two-step confirmation for sensitive operations
+- **[Widgets](../Widgets.md)** - Rich, channel-adapted interactions with zero LLM latency
+- **[Authentication](../Authentication.md)** - Secure customer identification and access control
+- **[Welcome Tool](../WelcomeTool.md)** - Automatic conversation initialization
+- **[Tool Chaining](../ToolChaining.md)** - Deterministic tool sequences for business logic
+- **[Passing Context to Tools](../PassingContextToTools.md)** - Three layers of context management
+- **[Agent Handoff](../Handoff.md)** - Seamless escalation to human agents
+- **[Localization](../Localization.md)** - Multi-language support
 
 ### 3. Provide a Development Environment
 
-The text-based UI (TUI) allows you to:
+The watsonx orchestrate developer edition with the sample web chat interface allows you to:
 
-- Test your MCP servers locally without deploying to production
+- Test your MCP servers locally using watsonx orchestrate developer edition
+- Import agents and toolkits using the CLI
 - Simulate different customer profiles and contexts
 - Iterate quickly on tool implementations
-- Validate widget behaviors across different scenarios
+- Validate widget behaviors in a real chat interface
 - Debug authentication and context flows
 
 ## Architecture Overview
@@ -57,48 +56,51 @@ The text-based UI (TUI) allows you to:
 ```mermaid
 graph TB
     subgraph "Your Development Environment"
-        TUI[Text-Based UI<br/>agent_runtime/]
-        MCP_TS[TypeScript MCP Server<br/>toolkits/banking_mcp_server/ts_server/src/]
-        MCP_PY[Python MCP Server<br/>toolkits/banking_mcp_server/py_server/src/]
-        Config[Configuration<br/>examples/]
+        WebChat[Sample Web Chat<br/>sample_webchat.html]
+        DevEdition[watsonx orchestrate<br/>developer edition]
+        MCP[MCP Server<br/>toolkits/banking_mcp_server/]
+        Config[Configuration<br/>agents/]
     end
-
-    subgraph "MCP Server Components (both languages)"
-        Tools[Tools<br/>personalBanking, mortgage, creditCard]
-        Services[Business Logic<br/>*Service modules]
-        Context[Context Management<br/>globalStore, localStore]
+    
+    subgraph "MCP Server Components"
+        Tools[Tools<br/>personalBanking.ts<br/>mortgage.ts<br/>creditCard.ts]
+        Services[Business Logic<br/>*Service.ts]
+        Context[Context Management<br/>globalStore.ts<br/>localStore.ts]
     end
-
-    TUI -->|HTTP/MCP Protocol| MCP_TS
-    TUI -->|HTTP/MCP Protocol| MCP_PY
-    Config -->|Agent Config| TUI
-    Config -->|Toolkit Config| TUI
-    Config -->|Customer Context| TUI
-    MCP_TS --> Tools
-    MCP_PY --> Tools
+    
+    WebChat -->|Chat Messages| DevEdition
+    DevEdition -->|HTTP/MCP Protocol| MCP
+    Config -->|Agent Config| DevEdition
+    Config -->|Toolkit Config| DevEdition
+    WebChat -->|Customer Context| DevEdition
+    MCP --> Tools
     Tools --> Services
     Tools --> Context
 ```
 
 ### Components Explained
 
-**Text-Based UI (TUI)**
-- Python-based chat interface
-- Simulates the Watson Orchestrate runtime
-- Configurable via YAML files
-- Passes context variables to MCP servers
+**Sample Web Chat Interface**
+- HTML-based chat interface
+- Connects to watsonx orchestrate developer edition
+- Configurable customer context (phone number, JWT token)
+- Provides a realistic chat experience for testing
 
-**MCP Server** (available in TypeScript and Python)
-- TypeScript: Node.js application in `toolkits/banking_mcp_server/ts_server/`
-- Python: Python application in `toolkits/banking_mcp_server/py_server/`
-- Both implement the Model Context Protocol identically
+**watsonx orchestrate Developer Edition**
+- Local instance of watsonx orchestrate
+- Runs agents and manages MCP server connections
+- Handles agent orchestration and tool execution
+- Provides the runtime environment for testing
+
+**MCP Server**
+- Node.js/TypeScript application
+- Implements the Model Context Protocol
 - Provides tools (functions) the agent can call
 - Manages customer context and state
 
 **Configuration Files**
 - **Agent YAML**: Defines agent behavior and instructions
-- **Toolkit YAML**: Connects agent to MCP servers
-- **Context YAML**: Provides customer credentials and context
+- **Toolkit YAML**: Connects agent to MCP servers and defines tools
 
 ## Key Concepts
 
@@ -146,11 +148,11 @@ See [Passing Context to Tools](PassingContextToTools.md) for complete details.
 
 ## Understanding the Banking Example
 
-The banking example (`toolkits/banking_mcp_server/ts_server/src/` or `toolkits/banking_mcp_server/py_server/src/`) demonstrates a realistic customer care scenario:
+The banking example (`toolkits/banking_mcp_server/`) demonstrates a realistic customer care scenario:
 
 ### Customer Profiles
 
-Both the TypeScript and Python implementations include four customer profiles with different product combinations:
+The example includes four customer profiles with different product combinations:
 
 - **CUST001**: Personal banking + Credit card
 - **CUST002**: Personal banking + Mortgage
@@ -161,7 +163,7 @@ Both the TypeScript and Python implementations include four customer profiles wi
 
 Each customer sees only tools relevant to their products:
 
-```
+```typescript
 // CUST001 sees:
 - Personal banking tools (balance, transfer, statement)
 - Credit card tools (balance)
@@ -204,30 +206,31 @@ The welcome tool demonstrates automatic authentication:
 
 Start by reading the documentation in `docs/`:
 
-- Begin with [Unique Tools Per User](UniqueToolsPerUser.md) to understand personalization
-- Read [Widgets](Widgets.md) to learn about rich interactions
-- Study [Transactions](Transactions.md) for secure confirmation flows
+- Begin with [Unique Tools Per User](../UniqueToolsPerUser.md) to understand personalization
+- Read [Widgets](../Widgets.md) to learn about rich interactions
+- Study [Transactions](../Transactions.md) for secure confirmation flows
 - Explore other patterns as needed for your use case
 
 ### 2. Run the Example
 
 Follow the [Installation Guide](Installation.md) to:
 
-1. Install prerequisites (Node.js, UV)
-2. Set up the MCP server
-3. Install the agent runtime
-4. Run the banking agent demo
+1. Install prerequisites (Node.js, watsonx orchestrate CLI)
+2. Set up watsonx orchestrate developer edition
+3. Set up and start the MCP server
+4. Import the agent using `import-all.sh`
+5. Open `sample_webchat.html` in your browser to test the agent
 
 ### 3. Experiment with Modifications
 
 Try making changes to understand how things work:
 
-- **TypeScript**: Modify tool descriptions in [`ts_server/src/personalBanking.ts`](../../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts)
-- **Python**: Modify tool descriptions in [`py_server/src/personal_banking.py`](../../toolkits/banking_mcp_server/py_server/src/personal_banking.py)
-- Add new tools following existing patterns in either implementation
+- Modify tool descriptions in `toolkits/banking_mcp_server/src/personalBanking.ts`
+- Add new tools following existing patterns
 - Change widget configurations
-- Test with different customer profiles
+- Test with different customer profiles in `sample_webchat.html`
 - Adjust agent instructions in `agents/banking_agent.yaml`
+- Re-import the agent using `import-all.sh` after making changes
 
 ### 4. Build Your Own
 
@@ -273,10 +276,20 @@ If you're familiar with Watson Assistant:
 
 The CCA style is more agentic and flexible while maintaining the control and reliability needed for customer care.
 
+## Quick Start
+
+To get started quickly:
+
+1. **Install watsonx orchestrate developer edition** - Follow the [Installation Guide](Installation.md)
+2. **Start the MCP server** - Run the banking MCP server locally
+3. **Import the agent** - Run `./import-all.sh` from the repository root
+4. **Open the web chat** - Open `sample_webchat.html` in your browser
+5. **Start chatting** - Test the banking agent with different customer scenarios
+
 ## Next Steps
 
 1. **Install and run the demo** - [Installation Guide](Installation.md)
-2. **Explore the code** - Start with `toolkits/banking_mcp_server/ts_server/src/index.ts` (TypeScript) or `toolkits/banking_mcp_server/py_server/src/main.py` (Python)
+2. **Explore the code** - Start with `toolkits/banking_mcp_server/src/index.ts` and `toolkits/banking_mcp_server/src/personalBanking.ts`
 3. **Read pattern documentation** - Focus on patterns relevant to your use case
 4. **Experiment** - Modify the example to understand how it works
 5. **Build your own** - Use this as a template for your domain
@@ -284,8 +297,8 @@ The CCA style is more agentic and flexible while maintaining the control and rel
 ## Getting Help
 
 - **Documentation**: Comprehensive guides in `docs/` and `docs/tutorials/`
-- **Code Examples**: Working implementations in `toolkits/banking_mcp_server/ts_server/src/` (TypeScript) and `toolkits/banking_mcp_server/py_server/src/` (Python)
-- **Configuration Examples**: Sample setups in `agent_runtime/examples/`
+- **Code Examples**: Working implementations in `toolkits/banking_mcp_server/src/`
+- **Configuration Examples**: Sample agent and toolkit configs in `agents/` and `toolkits/`
 - **Comments**: Detailed inline comments throughout the codebase
 
 ## Contributing Feedback

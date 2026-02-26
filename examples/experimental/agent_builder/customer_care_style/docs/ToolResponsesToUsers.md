@@ -30,9 +30,7 @@ This is particularly valuable for voice channels where every millisecond of late
 
 Below we walk through a sample banking application that demonstrates this pattern. The sample shows how mortgage tools return user-targeted responses that bypass the LLM, while banking tools demonstrate a hybrid approach.
 
-**Note:** The business logic for mortgage operations is separated from the MCP interface:
-- **TypeScript**: Service in [`ts_server/src/mortgageService.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgageService.ts), tools in [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts)
-- **Python**: Service in [`py_server/src/mortgage_service.py`](../toolkits/banking_mcp_server/py_server/src/mortgage_service.py), tools in [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py)
+**Note:** The business logic for mortgage operations is in [`src/mortgageService.ts`](../src/mortgageService.ts). The tool definitions in [`src/mortgage.ts`](../src/mortgage.ts) focus on the MCP interface while delegating business logic to the service layer.
 
 ### Tool Response Structure with Audience Targeting
 
@@ -40,15 +38,8 @@ MCP tools can return responses with an `audience` field within the `annotations`
 
 **User-Only Responses** - Content that bypasses the LLM and goes directly to users:
 
-**TypeScript:**
-- Tool Definition: [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts)
-- Business Logic: [`ts_server/src/mortgageService.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgageService.ts)
-
-**Python:**
-- Tool Definition: [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py)
-- Business Logic: [`py_server/src/mortgage_service.py`](../toolkits/banking_mcp_server/py_server/src/mortgage_service.py)
-
-**TypeScript Example:**
+**Tool Definition:** [`src/mortgage.ts`](../src/mortgage.ts)
+**Business Logic:** [`src/mortgageService.ts`](../src/mortgageService.ts)
 
 ```typescript
 // In the tool handler (src/mortgage.ts)

@@ -90,23 +90,14 @@ This provides the best of both worlds:
 
 Below we walk through the money transfer implementation that demonstrates this pattern across multiple steps, showing both the rich interaction design and performance optimization.
 
-**Note:** The business logic for personal banking operations is separated from the MCP interface:
-- **TypeScript**: Service layer in [`ts_server/src/personalBankingService.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBankingService.ts), tools in [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts)
-- **Python**: Service layer in [`py_server/src/personal_banking_service.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking_service.py), tools in [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py)
-
-The examples below show TypeScript code, but the Python implementation follows the same patterns.
+**Note:** The business logic for personal banking operations is in [`src/personalBankingService.ts`](../src/personalBankingService.ts). The tool definitions in [`src/personalBanking.ts`](../src/personalBanking.ts) focus on the MCP interface while delegating business logic to the service layer.
 
 ### Widget Definition Structure
 
 Widgets are returned in the tool response's `_meta` field:
 
-**TypeScript:**
-- Tool Definition: [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts)
-- Business Logic: [`ts_server/src/personalBankingService.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBankingService.ts)
-
-**Python:**
-- Tool Definition: [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py)
-- Business Logic: [`py_server/src/personal_banking_service.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking_service.py)
+**Tool Definition:** [`src/personalBanking.ts`](../src/personalBanking.ts)
+**Business Logic:** [`src/personalBankingService.ts`](../src/personalBankingService.ts)
 
 ```typescript
 // In the tool handler (src/personalBanking.ts)

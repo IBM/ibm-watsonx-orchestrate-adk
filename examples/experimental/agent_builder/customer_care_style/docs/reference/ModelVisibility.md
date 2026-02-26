@@ -45,9 +45,7 @@ return {
 - Information that helps the model formulate contextual responses
 - Data that the model needs to reason about or reference in follow-up interactions
 
-**Example from codebase:**
-- **TypeScript**: [`ts_server/src/personalBanking.ts`](../../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts) - `getAccountBalanceTool`
-- **Python**: [`py_server/src/personal_banking.py`](../../toolkits/banking_mcp_server/py_server/src/personal_banking.py) - `get_account_balance_tool`
+**Example from codebase:** [`src/personalBanking.ts`](../src/personalBanking.ts) - `getAccountBalanceTool` (lines 42-51)
 
 ### 2. Content Array - User-Only Audience
 
@@ -79,9 +77,7 @@ return {
 - **Regulatory compliance**: Ensures exact formatting and content
 - **Liability protection**: No possibility of model transcription errors
 
-**Example from codebase:**
-- **TypeScript**: [`ts_server/src/mortgage.ts`](../../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - `getMortgageBalanceTool`
-- **Python**: [`py_server/src/mortgage.py`](../../toolkits/banking_mcp_server/py_server/src/mortgage.py) - `get_mortgage_balance_tool`
+**Example from codebase:** [`src/mortgage.ts`](../src/mortgage.ts) - `getMortgageBalanceTool` (lines 38-46)
 
 **Important limitation:** When content is marked `annotations: { audience: ['user'] }`, the model cannot see it for cross-tool reasoning. For example, if one tool returns a balance with `annotations: { audience: ['user'] }` and another returns transactions, the model cannot compare them. This is actually a feature—it prevents the model from making potentially incorrect calculations or inferences. See [Trade-offs](#trade-offs) section below.
 
@@ -120,9 +116,7 @@ return {
 - **Performance optimization**: Model only processes minimal context, not full datasets
 - **Safe calculation handling**: Model can acknowledge data without performing risky calculations
 
-**Example from codebase:**
-- **TypeScript**: [`ts_server/src/mortgage.ts`](../../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - `getMortgagePaymentsTool`
-- **Python**: [`py_server/src/mortgage.py`](../../toolkits/banking_mcp_server/py_server/src/mortgage.py) - `get_mortgage_payments_tool`
+**Example from codebase:** [`src/mortgage.ts`](../src/mortgage.ts) - `getMortgagePaymentsTool` (lines 108-123)
 
 This is the foundation of the **Hybrid Response Pattern** documented in [HybridResponses.md](./HybridResponses.md).
 
@@ -153,9 +147,7 @@ return {
 
 **Important:** Widget definitions should NOT go in `structuredContent`. They belong in `_meta` (see next section).
 
-**Example from codebase:**
-- **TypeScript**: [`ts_server/src/mortgage.ts`](../../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - `getMortgagePaymentsTool`
-- **Python**: [`py_server/src/mortgage.py`](../../toolkits/banking_mcp_server/py_server/src/mortgage.py) - `get_mortgage_payments_tool`
+**Example from codebase:** [`src/mortgage.ts`](../src/mortgage.ts) - `getMortgagePaymentsTool` (line 121)
 
 ### 5. \_meta Field in Tool Responses
 
@@ -216,8 +208,7 @@ Use reverse DNS notation with a slash for `_meta` keys:
 
 **Examples in codebase:**
 
-- **TypeScript**: [`ts_server/src/mortgage.ts`](../../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - `prepareMortgagePaymentTool`
-- **Python**: [`py_server/src/mortgage.py`](../../toolkits/banking_mcp_server/py_server/src/mortgage.py) - `prepare_mortgage_payment_tool`
+- Confirmation widget: [`src/mortgage.ts`](../src/mortgage.ts) - `prepareMortgagePaymentTool`
 
 ## Tool Visibility Rules
 
@@ -301,9 +292,7 @@ export const confirmPaymentTool = {
 - **Regulatory compliance**: Ensures audit trail of explicit user approval
 - **Liability protection**: Eliminates risk of model taking actions without permission
 
-**Example from codebase:**
-- **TypeScript**: [`ts_server/src/mortgage.ts`](../../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - `confirmOrCancelMortgagePaymentTool`
-- **Python**: [`py_server/src/mortgage.py`](../../toolkits/banking_mcp_server/py_server/src/mortgage.py) - `confirm_or_cancel_mortgage_payment_tool`
+**Example from codebase:** [`src/mortgage.ts`](../src/mortgage.ts) - `confirmOrCancelMortgagePaymentTool` (lines 281-285)
 
 ### Two-Step Transaction Pattern
 

@@ -1,6 +1,6 @@
 # CustomerCare Tutorials
 
-This folder contains step-by-step tutorials for getting started with the CustomerCare repository and building your own customer care agents using MCP (Model Context Protocol).
+This folder contains step-by-step tutorials for getting started with the project and building your own customer care agents using MCP (Model Context Protocol).
 
 ## Tutorial Path
 
@@ -10,9 +10,8 @@ Follow these tutorials in order for the best learning experience:
 **Start here if you're new to the repository**
 
 Learn how to:
-- Install prerequisites (Node.js/Python, npm/pip, UV)
-- Set up the MCP server (TypeScript or Python)
-- Install the Customer Care Agent runtime
+- Install prerequisites (Node.js, npm, UV)
+- Set up the MCP server
 - Run the banking agent demo
 - Test with different customer profiles
 
@@ -125,9 +124,7 @@ After completing these tutorials, explore:
 
 ## Getting Help
 
-- **Code Examples**: Working implementations in both languages
-  - TypeScript: `../../toolkits/banking_mcp_server/ts_server/src/`
-  - Python: `../../toolkits/banking_mcp_server/py_server/src/`
+- **Code Examples**: Working implementations in `../../src/`
 - **Configuration Examples**: Sample setups in `../../agent_runtime/examples/`
 - **Inline Comments**: Detailed explanations throughout the codebase
 
