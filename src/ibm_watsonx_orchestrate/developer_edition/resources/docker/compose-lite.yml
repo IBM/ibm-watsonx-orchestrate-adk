@@ -1191,11 +1191,14 @@ services:
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
+      REDIS_URL: redis://wxo-server-redis:6379/0
     profiles:
       - docproc
     depends_on:
       wxo-doc-processing-cache:
         condition: service_healthy
+      wxo-server-redis:
+        condition: service_started
     ports:
       - "18081:8080"
     healthcheck:
