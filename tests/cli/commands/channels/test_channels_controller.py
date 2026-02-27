@@ -6,9 +6,9 @@ class TestChannelController:
     @mock.patch("builtins.input", return_value="crn:v1:bluemix:public:resource-controller:us-south:a/mock-account-id:some-resource")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config.read", return_value='local')
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config.get", return_value='some-resource')
-    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_host_url")
-    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_agent_id")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_environment_id")
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_agent_id")
+    @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.ChannelsWebchatController.get_host_url")
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_local_dev", return_value=False)
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.is_ibm_cloud_platform", return_value=True)
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.get_environment", return_value='ibmcloud')
@@ -36,7 +36,7 @@ class TestChannelController:
 
         assert "mock-account-id_some-resource" in script
         assert "mocked-agent-id" in script
-        assert "mocked-env-id" in script
+        assert "mocked-env-id" not in script
         assert "http://localhost:3000" in script
 
     @mock.patch("ibm_watsonx_orchestrate.cli.commands.channels.webchat.channels_webchat_controller.Config")
