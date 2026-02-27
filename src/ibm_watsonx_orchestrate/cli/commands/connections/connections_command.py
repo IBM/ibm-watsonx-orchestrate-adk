@@ -1,6 +1,6 @@
 import typer
 from typing_extensions import Annotated, List
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia, ConnectionResource
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import (
     add_connection,
     remove_connection,
@@ -23,9 +23,30 @@ def add_connection_command(
             '--app-id', '-a',
             help='The app id of the connection you wish to create. This value will be used to uniquely reference this connection when associating the connection with tools or agents'
         )
-    ]
+    ],
+    component: Annotated[
+        str, typer.Option(
+            '--component',
+            help='Optional component this connection is associated with (e.g., "knowledge", "registry")'
+        )
+    ] = None,
+    category: Annotated[
+        str, typer.Option(
+            '--category',
+            help='Optional category for the component (e.g., "milvus" for knowledge component)'
+        )
+    ] = None
 ):
-    add_connection(app_id=app_id)
+    # Build ConnectionResource object if component or category is provided
+    resource = None
+    if component or category:
+        try:
+            resource = ConnectionResource(component=component, category=category)
+        except Exception as e:
+            typer.echo(f"Error: Invalid resource configuration - {e}", err=True)
+            raise typer.Exit(1)
+    
+    add_connection(app_id=app_id, resource=resource)
 
 @connections_app.command(name="remove")
 def remove_connection_command(

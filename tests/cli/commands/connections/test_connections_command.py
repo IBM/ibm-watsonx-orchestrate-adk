@@ -10,7 +10,7 @@ class TestConnectionsAdd:
     def test_add_connection_command(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_command.add_connection") as mock:
             connections_command.add_connection_command(**self.base_params)
-            mock.assert_called_once_with(**self.base_params)
+            mock.assert_called_once_with(app_id=self.base_params["app_id"], resource=None)
     
     @pytest.mark.parametrize(
         "missing_param",

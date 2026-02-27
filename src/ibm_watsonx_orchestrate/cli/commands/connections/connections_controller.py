@@ -18,6 +18,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionConfiguration,
     ConnectionSecurityScheme,
     ConnectionType,
+    ConnectionResource,
     IdpConfigData,
     IdpConfigDataBody,
     AppConfigData,
@@ -83,7 +84,17 @@ def _create_connection_from_spec(content: dict) -> None:
     app_id = content.get("app_id")
     existing_app = client.get(app_id=app_id)
     if not existing_app:
-        add_connection(app_id=app_id)
+        # Extract resource information if present and validate using ConnectionResource model
+        resource_dict = content.get("resource")
+        resource = None
+        if resource_dict:
+            try:
+                # Validate using ConnectionResource model
+                resource = ConnectionResource(**resource_dict)
+            except Exception as e:
+                logger.error(f"Invalid resource configuration in spec file: {e}")
+                sys.exit(1)
+        add_connection(app_id=app_id, resource=resource)
 
     environments = content.get("environments")
     for environment in environments:
@@ -294,13 +305,17 @@ def _connection_credentials_parse_entry(text: str, default_location: ConnectionC
     
     return ConnectionCredentialsEntry(key=key, value=value, location=location)
     
-def _combine_connection_configs(app_id: str, configs: List[ConnectionConfiguration], include_catalog: bool = False) -> dict:
+def _combine_connection_configs(app_id: str, configs: List[ConnectionConfiguration], include_catalog: bool = False, resource: Optional[ConnectionResource] = None) -> dict:
     combined_configuration = {
         'app_id': app_id,
         'spec_version': SpecVersion.V1.value,
         'kind': 'connection',
         'environments': {}
     }
+
+    # Add resource field if provided
+    if resource:
+        combined_configuration['resource'] = resource.model_dump(exclude_none=True)
 
     if include_catalog:
         combined_configuration['catalog'] = {
@@ -509,12 +524,17 @@ def add_identity_provider(app_id: str, environment: ConnectionEnvironment, idp: 
         logger.error(response_text)
         exit(1)
 
-def add_connection(app_id: str) -> None:
+def add_connection(app_id: str, resource: Optional[ConnectionResource] = None) -> None:
     client = get_connections_client()
 
     try:
         logger.info(f"Creating connection '{app_id}'")
         request = {"app_id": app_id}
+        
+        # Add resource field if provided
+        if resource:
+            request["resource"] = resource.model_dump(exclude_none=True)
+        
         client.create(payload=request)
         logger.info(f"Successfully created connection '{app_id}'")
     except requests.HTTPError as e:
@@ -526,12 +546,12 @@ def add_connection(app_id: str) -> None:
                 response_text = f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a different App ID or delete the existing resource."
             else:
                 resp = json.loads(response_text)
-                response_text = resp.get('detail')
+                response_text = resp.get('detail') or resp.get('message') or response_text
         except:
             pass
         logger.error(response_text)
         exit(1)
-
+        
 def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
     client = get_connections_client()
     connection_configs = []
@@ -613,7 +633,13 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
 
     # get connection data
     connections = get_connection_configs(app_id=app_id)
-    combined_connections = _combine_connection_configs(app_id, connections, include_catalog=include_catalog)
+
+    # Get resource information from the connection if it exists
+    client = get_connections_client()
+    connection_info = client.get(app_id=app_id)
+    resource = connection_info.resource if connection_info else None
+
+    combined_connections = _combine_connection_configs(app_id, connections, include_catalog=include_catalog, resource=resource)
 
     # write to folder
     match(output_type):

@@ -6,6 +6,16 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+class ConnectionResource(BaseModel):
+    """Resource information for a connection, indicating which component it's associated with."""
+    component: str = Field(description="The component this connection is associated with (e.g., 'knowledge', 'registry')")
+    category: Optional[str] = Field(None, description="Optional category for the component (e.g., 'milvus' for knowledge)")
+
+    def __str__(self):
+        if self.category:
+            return f"{self.component}/{self.category}"
+        return self.component
+
 class ConnectionKind(str, Enum):
     basic = 'basic'
     bearer = 'bearer'
