@@ -23,6 +23,9 @@ from subprocess import CompletedProcess
 def skip_terms_and_conditions():
     return patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.confirm_accepts_license_agreement")
 
+def skip_service_creds():
+    return patch.object(EnvService, "get_service_credentials")
+
 runner = CliRunner()
 
 
@@ -149,6 +152,7 @@ def test_run_compose_lite_success_langfuse_true():
 
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(Path, "unlink") as mock_unlink, \
          patch.object(Path, "exists", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -189,6 +193,7 @@ def test_run_compose_lite_success_langfuse_false():
 
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(Path, "unlink") as mock_unlink, \
          patch.object(Path, "exists", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -226,6 +231,7 @@ def test_run_compose_lite_success_langfuse_true_commands(mock_compose_file):
 
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(EnvService, "get_compose_file") as mock_get_compose_file, \
          patch.object(Path, "unlink") as mock_unlink, \
          patch.object(Path, "exists", return_value=True), \
@@ -278,6 +284,7 @@ def test_run_compose_lite_success_docproc_true():
 
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(Path, "unlink") as mock_unlink, \
          patch.object(Path, "exists", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -326,6 +333,7 @@ def test_run_compose_lite_success_docproc_false():
     mock_env_file = Path("/tmp/test.env")
     with patch("subprocess.run") as mock_run, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(Path, "unlink") as mock_unlink, \
          patch.object(Path, "exists", return_value=True), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -372,6 +380,7 @@ def test_run_compose_lite_success_ai_builder_true():
 
     with patch("subprocess.run") as mock_run, \
         skip_terms_and_conditions(), \
+        skip_service_creds(), \
         patch.object(Path, "unlink") as mock_unlink, \
         patch.object(Path, "exists", return_value=True), \
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -420,6 +429,7 @@ def test_run_compose_lite_success_ai_builder_false():
     mock_env_file = Path("/tmp/test.env")
     with patch("subprocess.run") as mock_run, \
         skip_terms_and_conditions(), \
+        skip_service_creds(), \
         patch.object(Path, "unlink") as mock_unlink, \
         patch.object(Path, "exists", return_value=True), \
         patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.DockerComposeCore") as mock_docker_compose_core, \
@@ -514,7 +524,7 @@ def test_cli_start_success_simple(tmp_path, caplog): # Add caplog here
 
 
 def test_cli_start_missing_credentials(caplog):
-    with skip_terms_and_conditions():
+    with skip_terms_and_conditions(), skip_service_creds():
         result = runner.invoke(
             server_app,
             ["start"],
@@ -532,7 +542,8 @@ def test_cli_stop_command(valid_user_env):
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.run_compose_lite_down") as mock_down, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.stop_virtual_machine") as stop_virtual_machine, \
-         skip_terms_and_conditions():
+         skip_terms_and_conditions(), \
+         skip_service_creds():
         
         dummy_vm = MagicMock()
         dummy_vm.is_server_running.return_value = True
@@ -553,6 +564,7 @@ def test_cli_reset_command(valid_user_env):
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.get_vm_manager") as mock_get_vm, \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.stop_virtual_machine") as stop_virtual_machine, \
          skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch.object(EnvService, "write_merged_env_file") as mock_write_env:
         
         dummy_vm = MagicMock()
@@ -572,7 +584,8 @@ def test_cli_reset_command(valid_user_env):
 
 def test_missing_default_env_file(caplog):
     with patch.object(EnvService, "get_default_env_file") as mock_default, \
-            skip_terms_and_conditions():
+            skip_terms_and_conditions(), \
+            skip_service_creds():
         mock_default.return_value = Path("/non/existent/path")
         result = runner.invoke(server_app, ["start"])
 
@@ -586,7 +599,7 @@ def test_invalid_docker_credentials(invalid_user_env):
     Test that the CLI handles invalid Docker credentials correctly.
     """
     # Patch subprocess.run to simulate Docker login failure
-    with patch("subprocess.run") as mock_run, skip_terms_and_conditions():
+    with patch("subprocess.run") as mock_run, skip_terms_and_conditions(), skip_service_creds():
         mock_run.return_value.returncode = 1
         mock_run.return_value.stderr = b"Invalid credentials"
 
@@ -605,7 +618,8 @@ def test_missing_compose_file(valid_user_env):
     with patch("ibm_watsonx_orchestrate.developer_edition.vm_host.lima._ensure_lima_installed"), \
          patch.object(EnvService, "get_compose_file", return_value=Path("/non/existent/compose.yml")), \
          patch("sys.exit", side_effect=lambda code=None: None), \
-         skip_terms_and_conditions():
+         skip_terms_and_conditions(), \
+         skip_service_creds():
 
         result = runner.invoke(
             server_app,
@@ -617,7 +631,7 @@ def test_missing_compose_file(valid_user_env):
 
 
 def test_cli_command_failure(caplog):
-    with (patch("subprocess.run") as mock_run, skip_terms_and_conditions()):
+    with (patch("subprocess.run") as mock_run, skip_terms_and_conditions(), skip_service_creds()):
         mock_run.return_value.returncode = 1
         result = runner.invoke(server_app, ["start"])
     
@@ -628,6 +642,7 @@ def test_cli_command_failure(caplog):
 
 def test_run_db_migration_success():
     with skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.MigrationsManager") as mock_migration_manager, \
          patch("sys.exit") as mock_exit:
 
@@ -651,6 +666,7 @@ def test_run_db_migration_success():
 
 def test_run_db_migration_with_ai_builder():
     with skip_terms_and_conditions(), \
+         skip_service_creds(), \
          patch("ibm_watsonx_orchestrate.cli.commands.server.server_command.MigrationsManager") as mock_migration_manager,\
          patch("sys.exit") as mock_exit:
 

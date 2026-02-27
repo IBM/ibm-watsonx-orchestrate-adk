@@ -25,12 +25,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - 5432:5432
     healthcheck:
-      test: pg_isready -U $$POSTGRES_USER -d postgres
+      test: pg_isready -U ${POSTGRES_USER:-postgres} -d postgres
       interval: 5s
       timeout: 60s
       retries: 20
@@ -48,13 +48,13 @@ services:
     volumes:
       - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/postgres
-      DB_NAME: ${DB_NAME:-postgres}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASS: ${DB_PASSWORD:-postgres}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_NAME: postgres
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASS: ${POSTGRES_PASSWORD}
       DB_HOST: wxo-server-db
       DB_PORT: ${DB_PORT:-5432}
-      DB_ENCRYPTION_KEY: abc
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
@@ -113,7 +113,7 @@ services:
       APP_NAME: MCP Gateway
       CONNECTION_MANAGER_BASE_URL: http://wxo-server-connection-manager:3001
       PORT: 4444
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/mcpgateway
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/mcpgateway
       JWT_SECRET_KEY: ${JWT_SECRET}
       MCPGATEWAY_UI_ENABLED: true
       MCPGATEWAY_ADMIN_API_ENABLED: true
@@ -294,24 +294,24 @@ services:
       WXO_API_KEY: ${WXO_API_KEY}
       WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
       DEFAULT_AGENT_ENABLED: "true"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       TRM_BASE_URL: http://tools-runtime-manager:8080
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/architect
-      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:6432/postgres
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
+      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       FLOWER_URL: http://wxo-server-flower:5555
-      DB_ENCRYPTION_KEY: thisisthedbencryptionkeyforlocaltestingonly
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
       ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
       ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
@@ -332,8 +332,8 @@ services:
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -343,7 +343,7 @@ services:
       VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "3600"
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-dummy_tavily_api_key}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
       WATSONX_APIKEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
@@ -361,7 +361,7 @@ services:
       WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
       MILVUS_DB_NAME: default
       MILVUS_USERNAME: root
-      MILVUS_PASSWORD: Milvus
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
       WO_API_KEY: ${WO_API_KEY}
       WO_USERNAME: ${WO_USERNAME}
       WO_PASSWORD: ${WO_PASSWORD}
@@ -382,9 +382,9 @@ services:
       WATSONX_SERVER: WXO
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
-      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
-      POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/architect
+      POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
@@ -399,8 +399,8 @@ services:
       timeout: 20s
       retries: 10
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server --console-address ":9001" /data
     volumes:
       - wxo-server-minio-data:/data
@@ -412,7 +412,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-watsonxorchestrate};
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-server-storage-bucket;
       /usr/bin/mc mb wxo-server-minio/langfuse;
       /usr/bin/mc anonymous set download wxo-server-minio/wxo-server-storage-bucket;
@@ -428,8 +428,9 @@ services:
     environment:
       ETCD_ENDPOINTS: wxo-milvus-etcd:2379
       MINIO_ADDRESS: wxo-server-minio:9000
-      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      COMMON_SECURITY_DEFAULTROOTPASSWORD: ${MILVUS_PASSWORD}
     volumes:
       - wxo-milvus-data:/var/lib/milvus
     healthcheck:
@@ -515,24 +516,24 @@ services:
       - jaeger-network
     environment:
       DEFAULT_AGENT_ENABLED: "true"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       TRM_BASE_URL: http://tools-runtime-manager:8080
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/postgres
-      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:6432/postgres
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       FLOWER_URL: http://wxo-server-flower:5555
-      DB_ENCRYPTION_KEY: thisisthedbencryptionkeyforlocaltestingonly
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
       ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
       ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
@@ -553,8 +554,8 @@ services:
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -564,7 +565,7 @@ services:
       VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "3600"
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-dummy_tavily_api_key}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
       WATSONX_APIKEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
@@ -582,7 +583,7 @@ services:
       WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
       MILVUS_DB_NAME: default
       MILVUS_USERNAME: root
-      MILVUS_PASSWORD: Milvus
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
       WO_API_KEY: ${WO_API_KEY}
       WO_USERNAME: ${WO_USERNAME}
       WO_PASSWORD: ${WO_PASSWORD}
@@ -603,7 +604,7 @@ services:
       WATSONX_SERVER: WXO
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
-      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
       AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS}
       SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-true}
@@ -634,7 +635,7 @@ services:
       - default
       - jaeger-network
     environment:
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       AI_GATEWAY_ENABLED : ${AI_GATEWAY_ENABLED}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       IS_WXO_LITE: "TRUE"
@@ -643,7 +644,7 @@ services:
       RECURSION_LIMIT: ${RECURSION_LIMIT}
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
       JWT_SECRET: ${JWT_SECRET}
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/postgres
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
       CELERY_RESULT_BACKEND: redis://wxo-server-redis:6379/0
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket} # name of s3 bucket where you want to store objects
@@ -651,9 +652,9 @@ services:
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
       EVENT_BROKER_URL: redis://wxo-server-redis:6379/0
-      DB_ENCRYPTION_KEY: thisisthedbencryptionkeyforlocaltestingonly
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       ASSISTANT_LLM_MODEL_ID: ${ASSISTANT_LLM_MODEL_ID:-watsonx/ibm/granite-3-8b-instruct}
       ASSISTANT_LLM_API_KEY: ${ASSISTANT_LLM_API_KEY}
       ASSISTANT_LLM_API_BASE: ${ASSISTANT_LLM_API_BASE:-https://us-south.ml.cloud.ibm.com}
@@ -672,8 +673,8 @@ services:
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -684,7 +685,7 @@ services:
       VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-milvus}
       CELERY_RESULTS_TTL: "3600"
       EVENT_BROKER_TTL: "3600"
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-dummy_tavily_api_key}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
       WATSONX_APIKEY: ${WATSONX_APIKEY}
       WATSONX_URL: ${WATSONX_URL}
       WATSONX_SPACE_ID: ${WATSONX_SPACE_ID}
@@ -699,7 +700,7 @@ services:
       WXO_MILVUS_URI: http://wxo-milvus-standalone:19530
       MILVUS_DB_NAME: default
       MILVUS_USERNAME: root
-      MILVUS_PASSWORD: Milvus
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD}
       WO_API_KEY: ${WO_API_KEY}
       WO_USERNAME: ${WO_USERNAME}
       WO_PASSWORD: ${WO_PASSWORD}
@@ -717,7 +718,7 @@ services:
       WATSONX_SERVER: WXO
       EVALUATION_PLATFORM: lite-local
       AGENTOPS_BACKEND_URL: https://frontend-server:443
-      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/wxo_observability
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
       WDU_RUNTIME_URL: ${WDU_RUNTIME_URL:-http://wdu-runtime:8080}
       AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS}
       SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
@@ -741,14 +742,14 @@ services:
       - tools-runtime-data:/shared-data
       - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       KUBECONFIG: /root/.kube/config
       K8S_SERVER: "https://lima-rancher-desktop:6443" # Kubernetes API on host
       DB_HOST: wxo-server-db
       DB_PORT: ${DB_PORT:-5432} # Ensure default port
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
       DB_SSLMODE: ${DB_SSLMODE:-disable} # Disable SSL if not configured
       DB_CONN_LIFE: ${DB_CONN_LIFE}
       DB_MAX_IDLE_CONN: ${DB_MAX_IDLE_CONN}
@@ -766,8 +767,8 @@ services:
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
@@ -797,20 +798,20 @@ services:
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey} 
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       DB_HOST: wxo-server-db
       DB_PORT: ${DB_PORT:-5432} # Ensure default port
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
       DB_SSLMODE: ${DB_SSLMODE:-disable} # Disable SSL if not configured
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-wxo-server-storage-bucket}
       STORAGE_S3_ENDPOINT: http://wxo-server-minio:9000
       STORAGE_S3_FORCE_PATH_STYLE: "true"
       STORAGE_S3_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       TR_SERVICE_NAME: ${TR_SERVICE_NAME:-tools-runtime}
@@ -834,7 +835,7 @@ services:
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
-      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY:-testapikey}
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
 
@@ -850,7 +851,7 @@ services:
       - xpack.security.enabled=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - ELASTIC_USERNAME=elastic
-      - ELASTIC_PASSWORD=changeme
+      - ELASTIC_PASSWORD=${ES_PASSWORD}
       # Turn off disk threshold warnings
       - cluster.routing.allocation.disk.threshold_enabled=false
     ports:
@@ -863,7 +864,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -u elastic:changeme http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'",
+          "curl -s -u \"elastic:$ES_PASSWORD\"  http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'",
         ]
       interval: 10s
       timeout: 10s
@@ -877,7 +878,7 @@ services:
     environment:
       - TENANT_API_KEY=${AGENTOPS_API_KEY}
       - TENANT_CONFIG_URL=http://wxo-server:4321
-      - TENANT_DEFAULT_USERNAME=${ES_USERNAME}
+      - TENANT_DEFAULT_USERNAME=elastic
       - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
       - TENANT_DEFAULT_HOSTNAME=http://elasticsearch:9200
       - DEFAULT_TENANT_ID=${DEFAULT_TENANT_ID}
@@ -887,8 +888,9 @@ services:
     networks:
       - jaeger-network
       - default
-    volumes:
-      - ./proxy-config-single.yaml:/app/config/proxy-config.yaml:ro
+    configs:
+      - source: proxy_config
+        target: /app/config/proxy-config.yaml
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -910,7 +912,7 @@ services:
       - SPAN_STORAGE_TYPE=elasticsearch
       - ES_SERVER_URLS=http://jaeger-proxy:9201
       - ES_USERNAME=elastic
-      - ES_PASSWORD=changeme
+      - ES_PASSWORD=${ES_PASSWORD}
       - JAEGER_SAMPLER_TYPE=const
       - JAEGER_SAMPLER_PARAM=1
     ports:
@@ -959,7 +961,7 @@ services:
     environment:
       - TEST=true
       - ES_USERNAME=elastic
-      - ES_PASSWORD=changeme
+      - ES_PASSWORD=${ES_PASSWORD}
       - ES_HOST=http://elasticsearch:9200
       - JWT_SECRET_KEY=${JWT_SECRET}
       - JAEGER_URL=http://jaeger:16686
@@ -972,7 +974,7 @@ services:
       - CPD_VERIFY=${CPD_VERIFY}      
       - TENANT_API_KEY=${AGENTOPS_API_KEY}
       - TENANT_CONFIG_URL=http://wxo-server:4321
-      - TENANT_DEFAULT_USERNAME=${ES_USERNAME}
+      - TENANT_DEFAULT_USERNAME=elastic
       - TENANT_DEFAULT_PASSWORD=${ES_PASSWORD}
       - API_KEY_AUTH_ENABLED=${AGENTOPS_API_KEY_AUTH_ENABLED}
       - INBOUND_API_KEY=${AGENTOPS_API_KEY}
@@ -1002,28 +1004,28 @@ services:
     ports:
       - "3030:3030"
     environment: &langfuse-worker-env
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/langfuse
-      SHADOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
+      SHADOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       SALT: "mysalt"
       ENCRYPTION_KEY: "4cb5c10dfb35f77a50e871c4607bd199396725244b0f99caee33d329de6862f9" # generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
       CLICKHOUSE_MIGRATION_URL: ${LANGFUSE_CLICKHOUSE_MIGRATION_URL:-clickhouse://langfuse-clickhouse:9000}
       CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://langfuse-clickhouse:8123}
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_CLUSTER_ENABLED: ${CLICKHOUSE_CLUSTER_ENABLED:-false}
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://wxo-server-minio:9000}
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
-      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://wxo-server-minio:9000}
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${STORAGE_S3_FORCE_PATH_STYLE:-true}
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
@@ -1033,11 +1035,11 @@ services:
       LANGFUSE_INIT_ORG_NAME: IBM
       LANGFUSE_INIT_PROJECT_ID: orchestrate-lite
       LANGFUSE_INIT_PROJECT_NAME: Watsonx Orchestrate Lite Project
-      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_EMAIL:-orchestrate@ibm.com}
-      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_USERNAME:-orchestrate}
-      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_PASSWORD:-orchestrate}
-      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_EMAIL}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_USERNAME}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_PASSWORD}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       REDIS_CONNECTION_STRING: redis://wxo-server-redis:6379/1
 
   langfuse-web:
@@ -1062,8 +1064,8 @@ services:
     hostname: clickhouse
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
@@ -1104,8 +1106,8 @@ services:
       PG_HOST: wxo-server-db
       PG_PORT: "5432"
       PG_USER: ${POSTGRES_USER:-postgres}
-      PG_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      PG_DATABASE: ${POSTGRES_USER:-postgres}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DATABASE: postgres
       USER_MGMT_BASE_URL: "" # TODO
       WXO_SERVER_BASE_URL: http://wxo-server:4321
       TRM_SERVER_BASE_URL: http://tools-runtime-manager:8080
@@ -1116,8 +1118,8 @@ services:
       REDIS_TLS: false
       LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-7417757e-d6df-421b-957e-683b76acb5df}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_PRIVATE_KEY:-sk-lf-7bc4da63-7b2b-40c0-b5eb-1e0cf64f9af2}
+      LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       LOG_LEVEL: info
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
@@ -1275,13 +1277,13 @@ services:
       PGHOST: wxo-server-db
       PGPORT: "5432"
       PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: wxo-document-processing-cache
       PG_DB_SCHEMA: dpschema
       # PG_USE_SSL: false
       S3_ENDPOINT_URL: http://wxo-server-minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_REGION: us-east-1
       S3_BUCKET_NAME: wxo-document-processing-cache
       VERIFY_CLIENT_CERT: 1
@@ -1316,12 +1318,12 @@ services:
       PGHOST: wxo-server-db
       PGPORT: "5432"
       PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: wxo-document-processing-dpi
-      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD:-postgres}"
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
       USE_PGBOUNCER: "false"
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-watsonxorchestrate}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_ENDPOINT_URL: http://wxo-server-minio:9000
       BUCKET_NAME_DEFAULT: wxo-document-processing-dpi-common
       S3_FILERESOURCE_BUCKET: ${BUCKET_NAME_DEFAULT:-wxo-document-processing-dpi}
@@ -1384,9 +1386,9 @@ services:
       PGHOST: wxo-server-db
       PGPORT: "5432"
       PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: wxo-document-processing-dpi
-      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD:-postgres}"
+      PGURL: "jdbc:postgresql://localhost:5432/wxo-document-processing-dpi?user=${POSTGRES_USER:-postgres}&password=${POSTGRES_PASSWORD}"
       USE_PGBOUNCER: "false"
     entrypoint: /flyway-init.sh
       - pgbouncer
@@ -1396,7 +1398,7 @@ services:
       wxo-server-db:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD:-postgres}"]
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
       interval: 1s
       timeout: 5s
       retries: 50
@@ -1408,7 +1410,7 @@ services:
       PGHOST: wxo-server-db
       PGPORT: "5432"
       PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: wxo-document-processing-cache
       PG_DB_SCHEMA: dpschema
       # PG_USE_SSL: false
@@ -1418,7 +1420,7 @@ services:
       wxo-server-db:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD:-postgres}"]
+      test: ["CMD-SHELL", "psql -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_PASSWORD}"]
       interval: 1s
       timeout: 5s
       retries: 50
@@ -1433,7 +1435,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-watsonxorchestrate};
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-document-processing-dpi;
       exit 0;
       "
@@ -1448,7 +1450,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-watsonxorchestrate};
+      /usr/bin/mc alias set wxo-server-minio http://wxo-server-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb wxo-server-minio/wxo-document-processing-cache;
       exit 0;
       "
@@ -1473,7 +1475,7 @@ services:
       - 7861:7861
     environment:
       LANGFLOW_PORT: 7861
-      LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@wxo-server-db:5432/langflow
+      LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
       LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
     volumes:
@@ -1521,3 +1523,15 @@ networks:
     name: wxo-server
   jaeger-network:
     driver: bridge
+
+configs:
+  proxy_config:
+    content: |
+      default_tenant: "default"
+      tenants:
+        default:
+          store_type: elasticsearch
+          hostname: "http://elasticsearch:9200"
+          username: "elastic"
+          password: "${ES_PASSWORD}"
+          index_prefix: "default"
