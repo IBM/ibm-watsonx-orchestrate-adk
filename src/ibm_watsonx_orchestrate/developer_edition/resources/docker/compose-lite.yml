@@ -726,6 +726,8 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
   tools-runtime-manager:
