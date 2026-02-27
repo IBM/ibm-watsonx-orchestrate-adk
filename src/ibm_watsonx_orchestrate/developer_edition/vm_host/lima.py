@@ -526,6 +526,7 @@ def _ensure_lima_vm_stopped():
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     default_env_path = EnvService.get_default_env_file()
     merged_env_dict = EnvService.merge_env(default_env_path, None)
+
     was_server_running = EnvService._check_dev_edition_server_health()
 
     """Edit Lima VM config file directly to update resources."""
