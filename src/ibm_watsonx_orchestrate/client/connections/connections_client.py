@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError, Field, AliasChoices
 from typing import Optional, Annotated
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionConfiguration, ConnectionAuthType, ConnectionSecurityScheme, IdpConfigData, AppConfigData, ConnectionType, ConnectionResource
 from ibm_watsonx_orchestrate.client.utils import is_cpd_env, is_local_dev
 
 import logging
@@ -41,6 +41,7 @@ class GetConnectionResponse(BaseModel):
     connection_id: str = None
     app_id: str = None
     tenant_id: Optional[str] = None
+    resource: Optional[ConnectionResource] = None
 
 
 
@@ -56,6 +57,16 @@ class ConnectionsClient(BaseWXOClient):
     """
     # POST api/v1/connections/applications
     def create(self, payload: dict) -> None:
+        """
+        Create a new connection application.
+        
+        Args:
+            payload: Dictionary containing:
+                - app_id (str): Required. The application ID for the connection
+                - resource (dict, optional): Resource information with:
+                    - component (str): Required. The component type (e.g., 'knowledge', 'registry')
+                    - category (str, optional): Optional category (e.g., 'milvus')
+        """
         self._post("/connections/applications", data=payload)
 
     # DELETE api/v1/connections/applications/{app_id}
