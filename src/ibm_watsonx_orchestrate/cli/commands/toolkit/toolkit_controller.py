@@ -10,7 +10,7 @@ import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
 from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_zip
@@ -68,7 +68,7 @@ class ToolkitController:
 
         return str(folder / package_root)
     
-    def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None) -> List[BaseToolkit]:
+    def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None, allowed_context: Optional[List[str]] = None) -> List[BaseToolkit]:
         file = Path(file)
 
         if not file.exists():
@@ -85,6 +85,10 @@ class ToolkitController:
         for toolkit in toolkits:
             if app_id:
                 toolkit.__toolkit_spec__.mcp.connections = app_id
+            if allowed_context and isinstance(toolkit.__toolkit_spec__.mcp, RemoteMcpModel):
+                # Validate allowed_context values for remote mcp server
+                validate_context(allowed_context)
+                toolkit.__toolkit_spec__.mcp.metadata = {"allowed_context": allowed_context}
             if isinstance(toolkit.__toolkit_spec__.mcp, LocalMcpModel) and toolkit.__toolkit_spec__.mcp.package_root:
                 toolkit.__toolkit_spec__.mcp.package_root = self.__resolve_package_root_path(toolkit.__toolkit_spec__.mcp.package_root, file)
         return toolkits
@@ -102,7 +106,8 @@ class ToolkitController:
         command: Optional[str] = None,
         url: Optional[str] = None,
         tools: Optional[str] = None,
-        app_id: Optional[List[str] | str] = None
+        app_id: Optional[List[str] | str] = None,
+        allowed_context: Optional[List[str]] = None
     ) -> BaseToolkit:
 
         if app_id and isinstance(app_id, str):
@@ -119,7 +124,8 @@ class ToolkitController:
             command=command,
             url=url,
             tools=tools,
-            connections=app_id
+            connections=app_id,
+            allowed_context=allowed_context
         )
 
         toolkit_spec = ToolkitSpec.generate_toolkit_spec(toolkit_input)
