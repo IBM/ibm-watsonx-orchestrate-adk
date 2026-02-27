@@ -1,0 +1,998 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "employee_information_8879AD",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Employee information",
+        "input_schema": {},
+        "output_schema": {},
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "employeeProfile": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": ""
+                            },
+                            "skills": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "Employee's skills"
+                            },
+                            "jobInfo": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "type": "string",
+                                        "description": ""
+                                    },
+                                    "salary": {
+                                        "type": "integer",
+                                        "description": ""
+                                    },
+                                    "department": {
+                                        "type": "string",
+                                        "description": ""
+                                    }
+                                },
+                                "description": ""
+                            },
+                            "dependent": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": ""
+                                        },
+                                        "relationship": {
+                                            "type": "string",
+                                            "description": ""
+                                        }
+                                    }
+                                },
+                                "description": "employee's dependent details "
+                            },
+                            "employeeID": {
+                                "type": "string",
+                                "description": ""
+                            },
+                            "dateOfBirth": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "date of birth"
+                            }
+                        }
+                    },
+                    "default": [],
+                    "description": "Employee information"
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "8dc359e6-b98b-42d8-a54f-abfc8259ac17",
+            "end": "prompt_e99a4d95-f1b4-4f6f-802e-09597e413009",
+            "start": "__start__"
+        },
+        {
+            "id": "9aca97b2-76ec-4420-9fde-cd1c00276cc4",
+            "end": "User activity 1",
+            "start": "prompt_e99a4d95-f1b4-4f6f-802e-09597e413009"
+        },
+        {
+            "id": "2f5f22f4-7114-4d65-9ff3-a9e68f51dc99",
+            "end": "__end__",
+            "start": "User activity 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 1409.5
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "CodeBlock 3": {
+            "spec": {
+                "fn": "selected_name = flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"]\n#flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].name\n\nemployee_list = flow.private.employeeProfile\n\nselected_employee = None\n\nfor emp in employee_list:\n    if emp[\"name\"] == selected_name:\n        selected_employee = emp\n        break\n\nself.output.selectedEmployee = selected_employee\n",
+                "kind": "script",
+                "name": "CodeBlock 3",
+                "position": {
+                    "x": 438,
+                    "y": 647.25
+                },
+                "display_name": "Retrieving employee info",
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "selectedEmployee": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "skills": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Employee's skills"
+                                },
+                                "jobInfo": {
+                                    "type": "object",
+                                    "properties": {
+                                        "role": {
+                                            "type": "string",
+                                            "description": ""
+                                        },
+                                        "salary": {
+                                            "type": "integer",
+                                            "description": ""
+                                        },
+                                        "department": {
+                                            "type": "string",
+                                            "description": ""
+                                        }
+                                    },
+                                    "description": ""
+                                },
+                                "dependent": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "description": ""
+                                            },
+                                            "relationship": {
+                                                "type": "string",
+                                                "description": ""
+                                            }
+                                        }
+                                    },
+                                    "description": "employee's dependent details "
+                                },
+                                "employeeID": {
+                                    "type": "string",
+                                    "description": ""
+                                },
+                                "dateOfBirth": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "date of birth"
+                                },
+                                "personalInfo": {
+                                    "type": "object",
+                                    "default": "",
+                                    "properties": {
+                                        "dob": {
+                                            "type": "integer",
+                                            "description": ""
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": ""
+                                        },
+                                        "employeeID": {
+                                            "type": "string",
+                                            "description": ""
+                                        }
+                                    },
+                                    "description": "Employee's personal info"
+                                }
+                            },
+                            "description": "Employee information"
+                        }
+                    }
+                }
+            }
+        },
+        "User activity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "User activity 1",
+                "position": {
+                    "x": -20,
+                    "y": 366
+                },
+                "dimensions": {
+                    "width": 292,
+                    "height": 930
+                },
+                "initiators": [],
+                "display_name": "select employee"
+            },
+            "edges": [
+                {
+                    "id": "6353e33e-ee64-4fd1-b2e9-3e32456717d3",
+                    "end": "CodeBlock 1",
+                    "start": "User activity 1__start__"
+                },
+                {
+                    "id": "8b6cb425-9dd1-4ac4-8b52-36c38dfe8100",
+                    "end": "user_7b7bacff-cb6e-42d7-bfef-6debe4b0eb81",
+                    "start": "CodeBlock 1"
+                },
+                {
+                    "id": "06409d32-c3bd-4309-8afb-46360461a9f5",
+                    "end": "user_b73e030d-db13-46f4-8730-a80d15935822",
+                    "start": "user_7b7bacff-cb6e-42d7-bfef-6debe4b0eb81"
+                },
+                {
+                    "id": "42b89fb8-f2d4-40fb-8a56-7a8dad91c473",
+                    "end": "User activity 1__end__",
+                    "start": "user_b2f1773e-3f3d-4cbf-8159-472d83c149ed"
+                },
+                {
+                    "id": "9afb849a-9a7b-452a-90da-f72f7d9a7781",
+                    "end": "user_b2f1773e-3f3d-4cbf-8159-472d83c149ed",
+                    "start": "user_b73e030d-db13-46f4-8730-a80d15935822"
+                }
+            ],
+            "nodes": {
+                "CodeBlock 1": {
+                    "spec": {
+                        "fn": "flow.private.employeeProfile = [\n    {\n      \"name\": \"James Anderson\",\n      \"employeeID\": \"EMP2001\",\n      \"dateOfBirth\": \"1986-04-12\",\n      \"skills\": [\n        \"Python\",\n        \"Docker\",\n        \"Kubernetes\"\n      ],\n      \"jobInfo\": {\n        \"role\": \"Senior Software Engineer\",\n        \"salary\": 90000,\n        \"department\": \"Engineering\"\n      },\n      \"dependent\": [\n        {\n          \"name\": \"Sophia Anderson\",\n          \"relationship\": \"Spouse\"\n        },\n        {\n          \"name\": \"Liam Anderson\",\n          \"relationship\": \"Son\"\n        }\n      ],\n      \n    },\n    {\n      \"name\": \"Olivia Smith\",\n      \"employeeID\": \"EMP2002\",\n      \"dateOfBirth\": \"1990-09-25\",\n      \"skills\": [\n        \"Product Management\",\n        \"Agile\",\n        \"JIRA\"\n      ],\n      \"jobInfo\": {\n        \"role\": \"Product Manager\",\n        \"salary\": 78000,\n        \"department\": \"Product\"\n      },\n      \"dependent\": [\n        {\n          \"name\": \"Daniel Smith\",\n          \"relationship\": \"Spouse\"\n        }\n      ],\n      \n    },\n    {\n      \"name\": \"Noah Williams\",\n      \"employeeID\": \"EMP2003\",\n      \"dateOfBirth\": \"1995-01-18\",\n      \"skills\": [\n        \"Figma\",\n        \"UX Research\",\n        \"Prototyping\"\n      ],\n      \"jobInfo\": {\n        \"role\": \"UX Designer\",\n        \"salary\": 68000,\n        \"department\": \"Design\"\n      },\n      \"dependent\": [],\n      \n    }\n  ]\n",
+                        "kind": "script",
+                        "name": "CodeBlock 1",
+                        "position": {
+                            "x": 22,
+                            "y": 104
+                        },
+                        "display_name": "Employee details"
+                    }
+                },
+                "User activity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "User activity 1__end__",
+                        "position": {
+                            "x": 23,
+                            "y": 882
+                        }
+                    }
+                },
+                "User activity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "User activity 1__start__",
+                        "position": {
+                            "x": 23,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_7b7bacff-cb6e-42d7-bfef-6debe4b0eb81": {
+                    "spec": {
+                        "form": {
+                            "name": "form_25abfbfe-af73-4797-8d94-15f9f4f21afa",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Select employee",
+                                        "ui:widget": "Table",
+                                        "ui:options": {
+                                            "label": false
+                                        },
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.private.employeeProfile"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": "item.name"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[\"item.name\",\"item.employeeID\",\"item.dateOfBirth\"]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Select employee",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "06409d32-c3bd-4309-8afb-46360461a9f5",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "object",
+                                        "title": "Select employee",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "title": "Name"
+                                            },
+                                            "employeeID": {
+                                                "type": "string",
+                                                "title": "Employee ID"
+                                            },
+                                            "dateOfBirth": {
+                                                "type": "string",
+                                                "title": "DOB"
+                                            }
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_7b7bacff-cb6e-42d7-bfef-6debe4b0eb81",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 22,
+                            "y": 250
+                        },
+                        "display_name": "Employee Info"
+                    }
+                },
+                "user_b2f1773e-3f3d-4cbf-8159-472d83c149ed": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_b2f1773e-3f3d-4cbf-8159-472d83c149ed",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_5dab6bc5-65d3-4ec6-afdb-0e0e42c94712",
+                                "text": "Thanks for confirming details      \n",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 22,
+                            "y": 736
+                        },
+                        "display_name": "Final Summary"
+                    }
+                },
+                "user_b73e030d-db13-46f4-8730-a80d15935822": {
+                    "spec": {
+                        "form": {
+                            "name": "form_5ba4cc13-d8bf-47cb-acb5-418e395abf62",
+                            "fields": [
+                                {
+                                    "kind": "field",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Name",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": true
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].name"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Name",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "number"
+                                                    },
+                                                    {
+                                                        "type": "integer"
+                                                    },
+                                                    {
+                                                        "type": "boolean"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "field",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "ui:title": "DOB",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": true
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].dateOfBirth"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "DOB",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "number"
+                                                    },
+                                                    {
+                                                        "type": "integer"
+                                                    },
+                                                    {
+                                                        "type": "boolean"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "field",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "ID",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": true
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].employeeID"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "ID",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "number"
+                                                    },
+                                                    {
+                                                        "type": "integer"
+                                                    },
+                                                    {
+                                                        "type": "boolean"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "field",
+                                    "name": "field_4",
+                                    "uiSchema": {
+                                        "ui:title": "Department",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": true
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].jobInfo.department"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Department",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "number"
+                                                    },
+                                                    {
+                                                        "type": "integer"
+                                                    },
+                                                    {
+                                                        "type": "boolean"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "field",
+                                    "name": "field_5",
+                                    "uiSchema": {
+                                        "ui:title": "Role",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": true
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].jobInfo.role"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Role",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "number"
+                                                    },
+                                                    {
+                                                        "type": "integer"
+                                                    },
+                                                    {
+                                                        "type": "boolean"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "array",
+                                    "name": "field_6",
+                                    "uiSchema": {
+                                        "ui:title": "Skills",
+                                        "ui:widget": "BulletList"
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].skills"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Skills",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "array",
+                                    "name": "field_7",
+                                    "uiSchema": {
+                                        "ui:title": "Dependents",
+                                        "ui:widget": "Table",
+                                        "ui:options": {
+                                            "label": false
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"select employee\"][\"Employee Info\"].output[\"Select employee\"].dependent"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": "[\"item.name\",\"item.relationship\"]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Dependents",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "9afb849a-9a7b-452a-90da-f72f7d9a7781",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "string",
+                                        "title": "Name"
+                                    },
+                                    "field_2": {
+                                        "type": "string",
+                                        "title": "DOB"
+                                    },
+                                    "field_3": {
+                                        "type": "string",
+                                        "title": "ID"
+                                    },
+                                    "field_4": {
+                                        "type": "string",
+                                        "title": "Department"
+                                    },
+                                    "field_5": {
+                                        "type": "string",
+                                        "title": "Role"
+                                    },
+                                    "field_6": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "title": "Skills"
+                                    },
+                                    "field_7": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "title": "Dependents",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "title": "Name"
+                                            },
+                                            "relationship": {
+                                                "type": "string",
+                                                "title": "Relationship"
+                                            }
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_b73e030d-db13-46f4-8730-a80d15935822",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 22,
+                            "y": 493
+                        },
+                        "display_name": "Confirm Details"
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "prompt_e99a4d95-f1b4-4f6f-802e-09597e413009": {
+            "spec": {
+                "llm": "groq/openai/gpt-oss-120b",
+                "kind": "prompt",
+                "name": "prompt_e99a4d95-f1b4-4f6f-802e-09597e413009",
+                "metadata": {
+                    "creativity_slider_position": "5",
+                    "creativity_slider_manual_override": false
+                },
+                "position": {
+                    "x": 0,
+                    "y": 170
+                },
+                "test_data": [],
+                "description": "",
+                "user_prompt": "",
+                "display_name": "Generative prompt",
+                "input_schema": {
+                    "type": "object",
+                    "title": "input_data",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "system_prompt": "",
+                "llm_parameters": {
+                    "top_k": 30,
+                    "top_p": 0.7,
+                    "temperature": 0.4,
+                    "max_new_tokens": 200,
+                    "min_new_tokens": 50,
+                    "stop_sequences": [
+                        "Human",
+                        "AI"
+                    ]
+                },
+                "prompt_examples": [],
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Generative prompt'",
+                    "retry_interval": 1000
+                },
+                "include_agent_context": false
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}
