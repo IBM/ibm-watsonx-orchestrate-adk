@@ -8,11 +8,11 @@ class TestImportToolkit:
             patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command.ToolkitController.publish_or_update_toolkits") as mock_publish_or_update_toolits:
             toolkit_command.import_toolkit(
                 file="test_file.yaml",
-                app_id=["test_app_id"]
+                app_id=["test_app_id"],
             )
             mock_create_toolkit.assert_called_once_with(
                 file="test_file.yaml",
-                app_id=["test_app_id"]
+                app_id=["test_app_id"],
             )
             mock_publish_or_update_toolits.assert_called_once()
 
@@ -25,7 +25,8 @@ class TestAddToolkit:
                 name="mcp-eric101",
                 description="test description",
                 package_root="/some/path",
-                command="node dist/index.js --transport stdio"
+                command="node dist/index.js --transport stdio",
+                allowed_context=None
             )
             mock_create_toolkit.assert_called_once_with(
                 kind=ToolkitKind.MCP,
@@ -38,7 +39,8 @@ class TestAddToolkit:
                 url=None,
                 transport=None,
                 tools=None,
-                app_id=None
+                app_id=None,
+                allowed_context=None
             )
             mock_publish_or_update_toolits.assert_called_once()
 
