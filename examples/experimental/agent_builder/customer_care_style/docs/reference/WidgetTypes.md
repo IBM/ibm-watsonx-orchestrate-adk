@@ -80,20 +80,20 @@ interface ConfirmationWidget {
 | ------------------------- | ------------------------------------------------------------------------------------ |
 | `type`                    | Must be `"confirmation"`                                                             |
 | `title`                   | Title displayed above the options                                                    |
-| `confirmation_text`       | (Optional) Text to display with the confirmation buttons                                        |
+| `confirmation_text`       | Text to display with the confirmation buttons                                        |
 | `on_confirm`              | Action to take when user clicks the Confirm button                                   |
 | `on_confirm.tool`         | Name of the tool to call when confirmation event occurs                              |
 | `on_confirm.parameters`   | Parameters to pass to the confirm tool                                               |
 | `on_cancel`               | Action to take when user clicks the Cancel button                                    |
 | `on_cancel.tool`          | Name of the tool to call when the cancelation event occurs                           |
 | `on_cancel.parameters`    | Parameters to pass to the cancelation tool                                           |
-| `channel_adaptation`      | (Optional) Channel specific information needed to render the widget                             |
+| `channel_adaptation`      | Channel specific information needed to render the widget                             |
 
 Here are the channel adaptation specific properties:
 
 | Field                                       | Description                                                                                 |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `channel_adaptation.voice.show_options`     | (Optional) Certain options such as `yes`/`no` confirmations should not be rendered in voice as a menu. |
+| `channel_adaptation.voice.show_options`     | Certain options such as `yes`/`no` confirmations should not be rendered in voice as a menu. |
 
 
 ### Channel Adaptation
@@ -142,9 +142,9 @@ interface DatetimeWidget {
 | `type`            | Must be `"datetime"`                      |
 | `collection_type` | Must be `"date"`, `"time"`, or `"datetime"` |
 | `title`                   | Title displayed above the widget. If no associated text content block is included this title will be read back to the caller for voice.        |
-| `description`             | (Optional) Additional context or instructions           |
-| `min_datetime`                 | (Optional) Minimum selectable datetime. Format is dependent on the collection_type field. It will be either in YYYY-MM-DD format for `date`, hh:mm format for `time` and YYYY-MM-DDThh:mm for `datetime`. |
-| `max_datetime`                 | (Optional) Maximum selectable datetime. It will be either in YYYY-MM-DD format for `date`, hh:mm format for `time` and YYYY-MM-DDThh:mm for `datetime`. |
+| `description`             | Additional context or instructions           |
+| `min_datetime`                 | Minimum selectable datetime. Format is dependent on the collection_type field. It will be either in YYYY-MM-DD format for `date`, hh:mm format for `time` and YYYY-MM-DDThh:mm for `datetime`. |
+| `max_datetime`                 | Maximum selectable datetime. It will be either in YYYY-MM-DD format for `date`, hh:mm format for `time` and YYYY-MM-DDThh:mm for `datetime`. |
 | `on_event`                | Action to take when user selects a date      |
 | `on_event.tool`       | Name of the tool to call with the selection  |
 | `on_event.parameters`     | Base parameters to pass to the tool          |
@@ -224,12 +224,12 @@ interface NumberWidget {
 | ------------------------- | -------------------------------------------- |
 | `type`            | Must be `"number"`                      |
 | `collection_type` | Must be `integer`, `currency`, `percentage`, `decimal`, `phone` or `zip_code`
-| `title`                   | (Optional) Title displayed above the widget. If no associated text content block is included this title will be read back to the caller for voice.        |
-| `description`             | (Optional) Additional context or instructions           |
-| `min_number`             | (Optional) Minimum number allowed                      |
-| `max_number`             | (Optional) Maximum number allowed                      |
-| `min_digits`             | (Optional) Minimum number of digits allowed                      |
-| `max_digits`             | (Optional) Maximum number of digits allowed                      |
+| `title`                   | Title displayed above the widget. If no associated text content block is included this title will be read back to the caller for voice.        |
+| `description`             | Additional context or instructions           |
+| `min_number`             | Minimum number allowed                      |
+| `max_number`             | Maximum number allowed                      |
+| `min_digits`             | Minimum number of digits allowed                      |
+| `max_digits`             | Maximum number of digits allowed                      |
 | `on_event`                | Action to take when user inputs the number      |
 | `on_event.tool`       | Name of the tool to call with the number  |
 | `on_event.parameters`     | Base parameters to pass to the tool          |
@@ -285,11 +285,7 @@ interface OptionsWidget {
   description?: string;
   is_multi_selection?: boolean;
   options: Option[];
-  on_event: {
-    tool: string;
-    parameters: { [key: string]: unknown };
-    map_input_to: string;
-  };
+  on_event: OnEvent[];
   channel_adaptation?: {
     chat?: {
       preference?: 'button' | 'dropdown' | 'list';
@@ -304,32 +300,61 @@ interface Option {
   label: string;
   value: string;
 }
+
+interface OnEvent {
+  event_type: 'message' | 'tool';
+  option_value: string;
+  tool?: string;
+  message?: string;
+  user_message?: string;
+  parameters?: { [key: string]: unknown };
+  map_input_to?: string;
+}
 ```
 
 ### Fields
 
-| Field                     | Description                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ |
+Here are the parameters for the high-level options widget:
+
+| Field                   | Description                     |
+| ----------------------- |-------------------------------- |
 | `type`                    | Must be `"options"`                                                         |
 | `title`                   | Title displayed above the options                                                    |
-| `description`             | (Optional) Additional context or instructions                                                   |
-| `is_multi_selection`      | (Optional) If `true`, allows multiple selections. Defaults to `false`                           |
+| `description`             | Additional context or instructions                                                   |
+| `is_multi_selection`      | If `true`, allows multiple selections. Defaults to `false`                           |
 | `options`                 | Array of option objects with `label` and `value` properties                          |
-| `on_event`                | Action to take when user selects an option                                           |
-| `on_event.tool`           | Name of the tool to call with the selection                                          |
-| `on_event.parameters`     | Base parameters to pass to the tool                                                  |
-| `on_event.map_input_to`   | Parameter name to map the selected value to. Will contain the option value for the single selection or a comma separated list of values for multi selection |
-| `channel_adaptation`      | (Optional) Channel specific information needed to render the widget                             |
+| `on_event`                | Array of event handling objects. One for each option.    |
+| `channel_adaptation`      | Channel specific information needed to render the widget                             |
+
+
+Here are the parameters for an individual option:
+
+| Field                   | Description                     |
+| ----------------------- |-------------------------------- |
+| `label`                 | Label of the option that is displayed to the user.    |
+| `value`                 | The programtic value passed back if the option is selected.  |
+
+Here are the parameters for an individual on event object:
+
+| Field                 | Description                     |
+| --------------------- |-------------------------------- |
+| `type`          |  The event type dictates what happens when the option is selected. Choices include 'tool' to send the selected option value to a tool or 'message' to send the  message specified in this event object.   |
+| `option_value`        | The option value associated with this event.    |
+| `tool`                | Name of the tool to call when the option is selected.    |
+| `message`             | Message text string to send to the agent when the option is selected  |
+| `user_message`        | Feedback message to user that is rendered on the channel when the option is selected.  |
+| `parameters`          | Base parameters to pass to the tool   |
+| `map_input_to`        | Parameter name to map the selected value to.  |
 
 Here are the channel adaptation specific properties:
 
-| Field                                       | Description                                                                                 |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Field                   | Description                     |
+| ----------------------- |-------------------------------- |
 | `channel_adaptation.type`                   | Type of channel adaptation. Currently only `chat` and `voice` are supported.                |
-| `channel_adaptation.chat`                   | (Optional) Dictionary object for chat related adaptations.                                             |
-| `channel_adaptation.chat.preference`        | (Optional) Display preference: `button`, `dropdown`, or `list`                                         |
-| `channel_adaptation.voice`                  | (Optional) Dictionary object for voice related adaptations.                                            |
-| `channel_adaptation.voice.show_options`     | (Optional) Certain options such as `yes`/`no` confirmations should not be rendered in voice as a menu. |
+| `channel_adaptation.chat`                   | Dictionary object for chat related adaptations.                                             |
+| `channel_adaptation.chat.preference`        | Display preference: `button`, `dropdown`, or `list`                                         |
+| `channel_adaptation.voice`                  | Dictionary object for voice related adaptations.                                            |
+| `channel_adaptation.voice.show_options`     | Certain options such as `yes`/`no` confirmations should not be rendered in voice as a menu. |
 
 
 ### Example
@@ -354,13 +379,35 @@ _meta: {
         value: 'view_transactions'
       }
     ],
-    on_event: {
-      tool: 'handle_user_action',
-      parameters: {
-        user_id: 'user_12345'
+    on_event: [
+      {
+        type: 'tool',
+        option_value: 'check_balance',
+        tool: 'checking_balance_tool',        
+        parameters: {
+          user_id: 'user_12345'
+        },
+        map_input_to: 'selection'
       },
-      map_input_to: 'selection'
-    },
+      {
+        type: 'tool',
+        option_value: 'transfer_money',
+        tool: 'transfer_tool',        
+        parameters: {
+          user_id: 'user_12345'
+        },
+        map_input_to: 'selection'
+      },
+     {
+        type: 'tool',
+        option_value: 'view_transactions',
+        tool: 'transactions_tool',        
+        parameters: {
+          user_id: 'user_12345'
+        },
+        map_input_to: 'selection'
+      }
+    ],
     channel_adaptation: {
       chat: {
         preference: 'button'
@@ -420,7 +467,7 @@ interface TextWidget {
 | `type`            | Must be `"text"`                      |
 | `collection_type` | Must be `"text"` or `"regex"` |
 | `title`                   | If no associated text content block is included this title will be rendered on the channel.        |
-| `regex_expression` | (Optional) Only used if `collection_type` is `"regex"`. Defines the pattern to match |
+| `regex_expression` | Only used if `collection_type` is `"regex"`. Defines the pattern to match |
 | `on_event`                | Action to take when user provides text input      |
 | `on_event.tool`       | Name of the tool to call with the text input  |
 | `on_event.parameters`     | Base parameters to pass to the tool          |
