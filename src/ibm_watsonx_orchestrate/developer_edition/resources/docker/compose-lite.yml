@@ -61,7 +61,7 @@ services:
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
-      WXCO_C_FEATURES: '{"feature-45580":1}'
+      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       ALLOWED_COMPONENT_LIST: '["knowledge"]'
     ports:
