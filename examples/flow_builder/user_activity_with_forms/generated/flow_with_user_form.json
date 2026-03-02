@@ -181,7 +181,9 @@
                     "ui:title": "Last name",
                     "ui:help": "Enter name",
                     "ui:placeholder": "Enter your name here"
-                  }
+                  },
+                  "regex": "^[a-zA-Z0-9\\s]+$",
+                  "regex_error_msg": "No special characters allowed"
                 },
                 {
                   "name": "age",
@@ -302,6 +304,65 @@
                   }
                 },
                 {
+                  "name": "credentials",
+                  "kind": "file",
+                  "direction": "input",
+                  "display_name": "Upload credentials",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.min_num_files",
+                          "value_expression": "1",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_num_files",
+                          "value_expression": "2",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "min_num_files": {
+                        "type": "integer"
+                      },
+                      "max_num_files": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "wxo-file"
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "FileUpload",
+                    "ui:upload_button_label": "",
+                    "ui:title": "Upload credentials"
+                  }
+                },
+                {
                   "name": "endDate",
                   "kind": "date",
                   "direction": "input",
@@ -312,6 +373,20 @@
                         {
                           "target_variable": "self.input.default",
                           "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_date",
+                          "value_expression": "\"2026-01-05\"",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_date",
+                          "value_expression": "\"2026-01-12\"",
                           "has_no_value": false,
                           "default_value": null,
                           "metadata": {}
@@ -326,11 +401,11 @@
                         "type": "string",
                         "format": "date"
                       },
-                      "maximum": {
+                      "max_date": {
                         "type": "string",
                         "format": "date"
                       },
-                      "minimum": {
+                      "min_date": {
                         "type": "string",
                         "format": "date"
                       }
@@ -846,6 +921,13 @@
                     "type": "string",
                     "title": "Projected salary"
                   },
+                  "credentials": {
+                    "type": "array",
+                    "title": "Upload credentials",
+                    "items": {},
+                    "file_max_size": 256,
+                    "multi": true
+                  },
                   "endDate": {
                     "type": "string",
                     "title": "End Date",
@@ -880,7 +962,9 @@
                     "title": "List of Fruits",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
                   },
                   "multi-choice_as_dropdown_1": {
                     "type": "array",
@@ -955,21 +1039,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+                  "edge_id": "b9aef4aa-0fcb-40f8-89a0-d6e1fb061430"
                 },
                 {
-                  "name": "316bb801-dc95-4ef8-ab31-38392d00c84e",
+                  "name": "34f988ca-6a1c-4d54-8513-152e9eb3dd1f",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+                  "edge_id": "6abff21f-6884-45aa-8c8f-15cd740c3dd6"
                 },
                 {
-                  "name": "de2f2707-f53c-49e1-bf4d-1625693e425e",
+                  "name": "00a138d5-6bbe-48e7-8cd7-83e5953de32e",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
+                  "edge_id": "d326c4fb-a8de-4866-b3ea-2c86af53545d"
                 },
                 {
                   "name": "cancel",
@@ -1028,7 +1112,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+          "id": "b9aef4aa-0fcb-40f8-89a0-d6e1fb061430"
         },
         {
           "start": "process_submit",
@@ -1037,7 +1121,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+          "id": "6abff21f-6884-45aa-8c8f-15cd740c3dd6"
         },
         {
           "start": "process_save_draft",
@@ -1046,7 +1130,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
+          "id": "d326c4fb-a8de-4866-b3ea-2c86af53545d"
         },
         {
           "start": "process_review",
@@ -1128,12 +1212,12 @@
           },
           "default": [
             [
-              "John",
-              "Doe"
+              "Doe",
+              "John"
             ],
             [
-              "Jane",
-              "Doe"
+              "Doe",
+              "Jane"
             ],
             [
               "Jean",
@@ -1297,6 +1381,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-02-05T06:17:21.411626+00:00"
+    "compiled_on": "2026-02-27T20:09:20.776689+00:00"
   }
 }
