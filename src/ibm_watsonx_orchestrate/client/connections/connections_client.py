@@ -1,7 +1,7 @@
 from typing import List
 
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
-from pydantic import BaseModel, ValidationError, Field, AliasChoices
+from pydantic import BaseModel, ValidationError, Field, AliasChoices, model_validator
 from typing import Optional, Annotated
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
@@ -42,7 +42,12 @@ class GetConnectionResponse(BaseModel):
     app_id: str = None
     tenant_id: Optional[str] = None
     resource: Optional[ConnectionResource] = None
-
+    
+    @model_validator(mode="before")
+    def strip_resources(values):
+        if values.get("resource") is not None and  len(values.get("resource")) == 0: # resource is empty dictionary
+            values.pop("resource", None)
+        return values
 
 
 class ConnectionsClient(BaseWXOClient):
