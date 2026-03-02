@@ -21,6 +21,13 @@ class WatsonSTTConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   bearer_token: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   model: Annotated[str, Field(min_length=1,max_length=256)]
+  background_audio_suppression: Optional[Annotated[float, Field(ge=0.0, le=1.0)]] = None
+  profanity_filter: Optional[bool] = None
+  smart_formatting: Optional[bool] = None
+  redaction: Optional[bool] = None
+  end_of_phrase_silence_time: Optional[Annotated[float, Field(ge=0.0, le=120.0)]] = None
+  low_latency: Optional[bool] = None
+  learning_opt_out: Optional[bool] = None
 
 class EmotechSTTConfig(BaseModel):
   api_key: Annotated[str,Field(min_length=1,max_length=2048)]
@@ -52,9 +59,10 @@ class WatsonTTSConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   bearer_token: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1,max_length=128)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   rate_percentage: Optional[int] = None
   pitch_percentage: Optional[int] = None
-  language: Optional[str] = None
+  learning_opt_out: Optional[bool] = None
 
 class EmotechTTSConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1,max_length=2048)]
