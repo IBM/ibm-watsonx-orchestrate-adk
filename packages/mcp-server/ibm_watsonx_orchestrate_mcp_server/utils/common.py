@@ -1,6 +1,6 @@
 import io
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Coroutine
 from contextlib import redirect_stdout, redirect_stderr, ExitStack
 
 
@@ -60,6 +60,50 @@ def __reset_all_loggers():
         for handler in state['handlers']:
             root_logger.addHandler(handler)
 
+
+
+async def async_silent_call(fn: Callable[..., Coroutine], *args, suppress_stdout: bool = True,
+                             suppress_stderr: bool = False, suppress_logging: bool = True, **kwargs) -> Any:
+    """
+    Async version of silent_call. Awaits the coroutine returned by fn.
+
+    Args:
+        fn: The async function to call and await
+        *args: Positional arguments to pass to the function
+        suppress_stdout: Whether to suppress stdout (default: True)
+        suppress_stderr: Whether to suppress stderr (default: False)
+        suppress_logging: Whether to suppress logging output (default: True)
+        **kwargs: Keyword arguments to pass to the function
+
+    Returns:
+        The return value of the awaited coroutine
+    """
+    with ExitStack() as stack:
+        null_stream = io.StringIO()
+
+        if suppress_stdout:
+            stack.enter_context(redirect_stdout(null_stream))
+        if suppress_stderr:
+            stack.enter_context(redirect_stderr(null_stream))
+
+        if suppress_logging:
+            __save_all_logger_states()
+
+            stream_handler = logging.StreamHandler(null_stream)
+
+            for name, logger in logging.root.manager.loggerDict.items():
+                if isinstance(logger, logging.Logger):
+                    logger.handlers.clear()
+                    logger.addHandler(stream_handler)
+                    logger.propagate = False
+
+        try:
+            return await fn(*args, **kwargs)
+        except SystemExit:
+            raise Exception(f"{null_stream.getvalue()}")
+        finally:
+            if suppress_logging:
+                __reset_all_loggers()
 
 
 def silent_call(fn: Callable, *args, suppress_stdout: bool = True,
