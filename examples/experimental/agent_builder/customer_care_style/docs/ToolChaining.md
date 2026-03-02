@@ -192,7 +192,7 @@ _meta: {
 
 The `nextTool` metadata field has two components:
 
-- **`name`** (required): The exact name of the tool to invoke next
+- **`tool`** (required): The exact name of the tool to invoke next
 - **`arguments`** (optional): A structured object containing the arguments to pass to that tool
 
 **Benefits over natural language instructions:**
