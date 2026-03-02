@@ -222,6 +222,8 @@ class UserNode(Node):
             placeholder_text: str| None = None,
             help_text: str | None = None,
             default: Any| None=None,
+            regex: str | None = None,
+            regex_error_message: str | None = "Input does not match the required pattern",
     ) -> UserField:
         """
         Creates a text input field in the form.
@@ -236,6 +238,8 @@ class UserNode(Node):
             placeholder_text: Optional placeholder text for the field.
             help_text: Optional help text for the field.
             default: Optional default value for the field, passed as DataMap.
+            regex: Optional regular expression pattern for input validation.
+            regex_error_message: Optional custom error message to display when regex validation fails.
 
         Returns:
             UserField: The created text input field.
@@ -254,6 +258,8 @@ class UserNode(Node):
             placeholder_text=placeholder_text,
             help_text=help_text,
             input_map=default,
+            regex=regex,
+            regex_error_message=regex_error_message,
     )
     def boolean_input_field(
             self,
@@ -339,6 +345,8 @@ class UserNode(Node):
             label: str | None = None,
             required: bool = False,
             default: Any| None=None,
+            range_start: str | None = None,
+            range_end: str | None = None,
     ) -> UserField:
          """
          Creates a date input field in the form.
@@ -348,6 +356,8 @@ class UserNode(Node):
              label: Optional display label for the field.
              required: Whether the field is required. Defaults to False.
              default: Optional default value for the field, passed as DataMap.
+             range_start: Optional minimum date value (start of allowed date range).
+             range_end: Optional maximum date value (end of allowed date range).
 
          Returns:
              UserField: The created date input field.
@@ -363,6 +373,8 @@ class UserNode(Node):
                 label = label,
                 required = required,
                 initial_value = default,
+                range_start = range_start,
+                range_end = range_end,
             )
     def number_input_field(
             self,
@@ -417,6 +429,8 @@ class UserNode(Node):
             allow_multiple_files: bool = False,
             file_max_size: int=10,
             supported_file_types : List[str] | None = None,
+            min_num_files: Any | None = None,
+            max_num_files: Any | None = None,
 
     ) -> UserField:
             """
@@ -430,15 +444,21 @@ class UserNode(Node):
                 allow_multiple_files: Whether multiple files can be uploaded. Defaults to False.
                 file_max_size: Maximum file size in MB. Defaults to 10.
                 supported_file_types: Optional list of supported file extensions (e.g., ["pdf", "docx"]).
+                min_num_files: Optional DataMap for the minimum number of files. Only valid when allow_multiple_files=True.
+                max_num_files: Optional DataMap for the maximum number of files. Only valid when allow_multiple_files=True.
 
             Returns:
                 UserField: The created file upload field.
                 
             Raises:
                 ValueError: If the form has not been created. Call form() method first.
+                ValueError: If min_num_files or max_num_files is set when allow_multiple_files=False.
             """
             if self.get_spec().form is None:
                 raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+
+            if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
+                raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
             
             return self.get_spec().form.file_upload_field(
                 name = name,
@@ -448,6 +468,8 @@ class UserNode(Node):
                 allow_multiple_files=allow_multiple_files,
                 file_max_size=file_max_size,
                 supported_file_types = supported_file_types,
+                min_num_files=min_num_files,
+                max_num_files=max_num_files,
             )
     def message_output_field(
             self,
@@ -661,7 +683,9 @@ class UserNode(Node):
             dropdown_item_column: str | None = None,
             placeholder_text: str | None = None,
             default: Any | None = None,
-            columns: dict[str, str]| None = None
+            columns: dict[str, str]| None = None,
+            minItems: Any | None = None,
+            maxItems: Any | None = None
 
     ) -> UserField:
         """
@@ -679,6 +703,8 @@ class UserNode(Node):
             placeholder_text: Optional placeholder text for the dropdown.
             default: Optional default selected values, passed as DataMap.
             columns: Optional mapping of source property names to display labels for complex choice objects.
+            minItems: Optional minimum number of items that must be selected.
+            maxItems: Optional maximum number of items that can be selected.
 
         Returns:
             UserField: The created multi-choice input field.
@@ -699,8 +725,10 @@ class UserNode(Node):
                         placeholder_text = placeholder_text,
                         initial_value = default,
                         columns = columns,
-                        isMultiSelect=True
-                ) 
+                        isMultiSelect=True,
+                        minItems=minItems,
+                        maxItems=maxItems
+                )
 
 class AgentNode(Node):
     def __repr__(self):

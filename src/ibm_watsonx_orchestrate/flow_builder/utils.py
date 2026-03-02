@@ -500,8 +500,8 @@ FORM_SCHEMA_TEMPLATES = {
             type='object',
             properties={
                 "default": {"type": "string", "format": "date"},
-                "maximum": {"type": "string", "format": "date"},
-                "minimum": {"type": "string", "format": "date"}
+                "max_date": {"type": "string", "format": "date"},
+                "min_date": {"type": "string", "format": "date"}
             },
             required=[]
         ),
@@ -525,8 +525,8 @@ FORM_SCHEMA_TEMPLATES = {
                 "value": {
                     "type": "object",
                     "properties": {
-                        "maximum": {"type": "string", "format": "date"},
-                        "minimum": {"type": "string", "format": "date"}
+                        "max_date": {"type": "string", "format": "date"},
+                        "min_date": {"type": "string", "format": "date"}
                     }
                 }
             },
@@ -580,7 +580,10 @@ FORM_SCHEMA_TEMPLATES = {
     "file": {
         "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
-            properties={},
+            properties={
+                "min_num_files": {"type": "integer"},
+                "max_num_files": {"type": "integer"}
+            },
             required=[]
         ),
         "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]

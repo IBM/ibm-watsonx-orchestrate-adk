@@ -717,6 +717,8 @@ class UserField(BaseModel):
     input_schema: ToolRequestBody | SchemaRef | JsonSchemaObject | None = None
     output_schema: ToolResponseBody | SchemaRef | JsonSchemaObject | None = None
     uiSchema: dict[str, Any] | None = None
+    regex: str | None = None
+    regex_error_msg: str | None = None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -779,7 +781,11 @@ class UserField(BaseModel):
             else:
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
         if self.uiSchema:
-            model_spec["uiSchema"] = self.uiSchema   
+            model_spec["uiSchema"] = self.uiSchema
+        if self.regex:
+            model_spec["regex"] = self.regex
+        if self.regex_error_msg:
+            model_spec["regex_error_msg"] = self.regex_error_msg
         return model_spec
 
 class UserFormButton(BaseModel):
@@ -891,6 +897,8 @@ class UserForm(BaseModel):
             placeholder_text: str| None = None,
             help_text: str | None = None,
             input_map: Any| None=None,
+            regex: str | None = None,
+            regex_error_message: str | None = None,
     ) -> UserField:
         # Use the template system from utils
         schemas = clone_form_schema("text", {
@@ -916,13 +924,19 @@ class UserForm(BaseModel):
             output_schema=schemas["output_schema"],
             input_schema=schemas["input_schema"],
             uiSchema=schemas["ui_schema"],
+            regex=regex,
+            regex_error_msg=regex_error_message,
         )
         
         # Add or replace the field
         self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
-        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+        schema_def = {"type": "string", "title": label}
+
+        self.jsonSchema.properties[name] = schema_def
+        
+        self.jsonSchema.properties[name] = schema_def
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
 
@@ -1057,6 +1071,10 @@ class UserForm(BaseModel):
             label: str | None = None,
             required: bool = False,
             initial_value: Any| None=None,
+            range_start: str | None = None,
+            range_end: str | None = None,
+            min_date: str | None = None,
+            max_date: str | None = None
     ) -> UserField:
         # Use the template system from utils
         schemas = clone_form_schema("date", {
@@ -1083,11 +1101,23 @@ class UserForm(BaseModel):
         self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
-        self.jsonSchema.properties[name] = {
+        schema_def = {
             "type": "string",
             "title": label,
             "format": "date"
         }
+        
+        # Add date range constraints if provided
+        if range_start is not None:
+            schema_def["range_start"] = range_start
+        if range_end is not None:
+            schema_def["range_end"] = range_end
+        if min_date is not None:
+            schema_def["minDate"] = min_date
+        if max_date is not None:
+            schema_def["maxDate"] = max_date
+
+        self.jsonSchema.properties[name] = schema_def
         
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
@@ -1106,6 +1136,8 @@ class UserForm(BaseModel):
             initial_value: Any | None = None,
             columns: dict[str, str]| None = None,
             isMultiSelect: bool = False,
+            minItems: int | None = None,
+            maxItems: int | None = None,
     ) -> UserField:
         # Use the template system from utils
         widget = "MultiselectDropdown" if (show_as_dropdown and isMultiSelect) else \
@@ -1186,18 +1218,28 @@ class UserForm(BaseModel):
                     "type": "string",
                     "title": val if val else key  # use value if present, else fallback to key
                 }
-            self.jsonSchema.properties[name] = {
+            schema_def = {
                 "type": "array",
                 "items": {"type": "string"},
                 "properties": properties,
                 "title": label
             }
+            if minItems is not None:
+                schema_def["minItems"] = minItems
+            if maxItems is not None:
+                schema_def["maxItems"] = maxItems
+            self.jsonSchema.properties[name] = schema_def
         elif isMultiSelect:
-            self.jsonSchema.properties[name] = {
+            schema_def = {
                 "type": "array",
                 "items": {"type": "string"},
                 "title": label
             }
+            if minItems is not None:
+                schema_def["minItems"] = minItems
+            if maxItems is not None:
+                schema_def["maxItems"] = maxItems
+            self.jsonSchema.properties[name] = schema_def
         else:
             self.jsonSchema.properties[name] = {"title": label}
 
@@ -1279,7 +1321,17 @@ class UserForm(BaseModel):
             allow_multiple_files: bool = False,
             file_max_size: int=10,
             supported_file_types : List[str] | None = None,
+            min_num_files: Any | None = None,
+            max_num_files: Any | None = None,
     ) -> UserField:
+        # Validate that min/max are DataMap instances (or None)
+        ensure_datamap(min_num_files, "min_num_files")
+        ensure_datamap(max_num_files, "max_num_files")
+
+        # Validate min/max num files constraints require allow_multiple_files=True
+        if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
+            raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
+
         # Use the template system from utils
         schemas = clone_form_schema("file", {
             "ui": {
@@ -1301,6 +1353,15 @@ class UserForm(BaseModel):
             )
         else:
             output_schema = schemas["output_schema"]
+
+        # Build the input_map by merging assignments from min_num_files and max_num_files
+        if min_num_files is not None:
+            add_assignment(min_num_files, max_num_files)
+            file_constraints = min_num_files
+        elif max_num_files is not None:
+            file_constraints = max_num_files
+        else:
+            file_constraints = None
         
         # Create the field
         userfield = UserField(
@@ -1311,7 +1372,7 @@ class UserForm(BaseModel):
             input_schema=schemas["input_schema"],
             output_schema=output_schema,
             uiSchema=schemas["ui_schema"],
-            input_map=None
+            input_map=file_constraints
         )
         
         # Add or replace the field
