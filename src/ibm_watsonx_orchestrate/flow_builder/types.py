@@ -640,6 +640,7 @@ class UserFieldKind(str, Enum):
     Field = "field"
     MultiChoice = "array"
     Array = "array"  # this is a duplicate of List
+    User = "user"  # user field for selecting users
 
     @staticmethod
     def str_to_kind(kind: str) -> "UserFieldKind":
@@ -670,6 +671,8 @@ class UserFieldKind(str, Enum):
             return UserFieldKind.Field
         elif kind == "array":
             return UserFieldKind.List
+        elif kind == "user":
+            return UserFieldKind.User
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -702,6 +705,8 @@ class UserFieldKind(str, Enum):
             return "UserFieldKind.Field"
         elif kind == "array":
             return "UserFieldKind.List"
+        elif kind == "user":
+            return "UserFieldKind.User"
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -1665,6 +1670,115 @@ class UserForm(BaseModel):
         # Update JSON schema - use model_construct to bypass validation for custom "file" type
         # pyright: ignore[reportCallIssue]
         self.jsonSchema.properties[name] = JsonSchemaObject.model_construct(type="file", title=label)
+
+        return userfield
+
+    def user_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            multiple_users: bool = False,
+            min_num_users: Any | None = None,
+            max_num_users: Any | None = None,
+    ) -> UserField:
+        """
+        Add a user selection field to the form.
+        
+        Args:
+            name: The field name
+            label: The display label for the field
+            required: Whether the field is required
+            multiple_users: Whether multiple users can be selected
+            min_num_users: Optional minimum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+            max_num_users: Optional maximum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+            
+        Returns:
+            UserField: The created user field
+
+        Raises:
+            ValueError: If min_num_users or max_num_users are provided when multiple_users=False.
+            ValueError: If min_num_users or max_num_users are not DataMap instances (when provided as DataMap).
+        """
+        # Validate that min/max are only used with multiple_users=True
+        if not multiple_users:
+            if min_num_users is not None:
+                raise ValueError("min_num_users is only applicable when multiple_users=True.")
+            if max_num_users is not None:
+                raise ValueError("max_num_users is only applicable when multiple_users=True.")
+
+        # Validate DataMap inputs
+        ensure_datamap(min_num_users, "min_num_users")
+        ensure_datamap(max_num_users, "max_num_users")
+
+        # Use the user template from utils
+        schemas = clone_form_schema("user", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "UserPickerWidget",
+                "ui:multi": multiple_users
+            }
+        })
+        
+        # Adjust schemas based on multiple_users parameter
+        if not multiple_users:
+            # Single user selection - output is a single string, no input schema needed
+            schemas["output_schema"] = JsonSchemaObject( # pyright: ignore[reportCallIssue]
+                type='object',
+                properties={"value": {"type": "string", "format": "wxo-user"}},
+                required=["value"],
+                additionalProperties=False
+            )
+            # Remove input_schema for single user (min/max don't apply)
+            schemas["input_schema"] = None
+
+        # Build the input_map from min_num_users and max_num_users assignments,
+        # mirroring the pattern used in number_input_field for minimum/maximum values.
+        input_map: Any | None = None
+        if multiple_users:
+            if min_num_users is not None:
+                add_assignment(min_num_users, max_num_users)  # merge max into min's DataMap
+                input_map = min_num_users
+            elif max_num_users is not None:
+                input_map = max_num_users  # only max provided
+
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.User,
+            display_name=label,
+            direction="input",
+            input_map=input_map,
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self.add_or_replace_field(name, userfield)
+        
+        # Update JSON schema based on multiple_users
+        if multiple_users:
+            # Multiple users - array of strings
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "string", "format": "wxo-user"},
+                "title": label
+            }
+        else:
+            # Single user - string
+            self.jsonSchema.properties[name] = {
+                "type": "string",
+                "format": "wxo-user",
+                "title": label
+            }
+        
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
 
         return userfield
 
