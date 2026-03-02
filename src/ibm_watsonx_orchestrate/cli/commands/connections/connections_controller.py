@@ -39,7 +39,8 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionCredentialsEntry,
     ConnectionCredentialsCustomFields,
     ConnectionsListEntry,
-    ConnectionsListResponse
+    ConnectionsListResponse,
+    KeyValueEntry
 )
 
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
@@ -279,8 +280,14 @@ def _get_credentials(type: ConnectionType, **kwargs):
 
         case ConnectionType.KEY_VALUE:
             env = {}
-            for entry in kwargs.get('entries', []):
-                env.update(_parse_entry(entry))
+            for e in kwargs.get("entries", []):
+                if isinstance(e, str):
+                    entry = key_value_parse(e)
+                elif isinstance(e, KeyValueEntry):
+                    entry = e
+                else:
+                    raise BadRequest(f"Cannot parse '{e}' into a valid key value entry")
+                env[entry.key] = entry.value
 
             return KeyValueConnectionCredentials(
                 env
@@ -704,6 +711,9 @@ def configure_connection(**kwargs) -> None:
     kwargs["idp_config_data"] = idp_config_data
     kwargs["app_config_data"] = app_config_data
 
+    if kwargs.get("custom_config_entries_list"):
+        kwargs["custom_config_entries"] = {e.key: e.value for e in kwargs.get("custom_config_entries_list", [])}
+
     config = ConnectionConfiguration.model_validate(kwargs)
 
     add_configuration(config)
@@ -795,3 +805,8 @@ def get_conn_id_from_app_id(app_id: str) -> str:
         logger.error(f"No connection exists with the app-id '{app_id}'")
         exit(1)
     return connection.connection_id
+def key_value_parse(text: str) -> KeyValueEntry:
+    split_entry = text.split('=', 1)
+    if len(split_entry) != 2:
+        raise typer.BadParameter(f"The entry '{text}' is not in the expected form '<key>=<value>'")
+    return KeyValueEntry(key=split_entry[0], value=split_entry[1])

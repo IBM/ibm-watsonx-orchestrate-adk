@@ -1,6 +1,6 @@
 import typer
 from typing_extensions import Annotated, List
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia, ConnectionResource
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia, KeyValueEntry, ConnectionResource
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import (
     add_connection,
     remove_connection,
@@ -11,7 +11,8 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     set_credentials_connection,
     set_identity_provider_connection,
     token_entry_connection_credentials_parse,
-    auth_entry_connection_credentials_parse
+    auth_entry_connection_credentials_parse,
+    key_value_parse
 )
 
 connections_app = typer.Typer(no_args_is_help=True)
@@ -166,6 +167,13 @@ def configure_connection_command(
             help='Header values for the app token request. Defaults to using `content-type: application/x-www-form-urlencoded`.  Multiple can be set using `--app-token-header "content-type: application/x-www-form-urlencoded" --app-token-header "encoding:..."` . Only applicable to OAuth kinds with sso'
         )
     ] = None,
+    custom_config_entries_list: Annotated[
+        List[KeyValueEntry], typer.Option(
+            '--config-entries', '-e',
+            parser=key_value_parse,
+            help="Custom configuration options for the connection. Should be set in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
+        )
+    ] = None,
     
 ):
     configure_connection(
@@ -178,7 +186,8 @@ def configure_connection_command(
         idp_token_use=idp_token_use,
         idp_token_type=idp_token_type,
         idp_token_header=idp_token_header,
-        app_token_header=app_token_header
+        app_token_header=app_token_header,
+        custom_config_entries_list=custom_config_entries_list
     )
 
 @connections_app.command(name="set-credentials")
@@ -279,10 +288,10 @@ def set_credentials_connection_command(
         )
     ] = None,
     entries: Annotated[
-        List[str],
-        typer.Option(
-            '--entries', "-e",
-            help="For key_value, a key value pair in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
+         List[KeyValueEntry], typer.Option(
+            '--entries', '-e',
+            parser=key_value_parse,
+             help="For key_value, a key value pair in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
         )
     ] = None,
     token_entries: Annotated[

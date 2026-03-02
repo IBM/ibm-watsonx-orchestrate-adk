@@ -1,7 +1,7 @@
 import os
 import logging
 from copy import deepcopy
-from typing import List
+from typing import List, Optional
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     BasicAuthCredentials,
     BearerTokenAuthCredentials,
@@ -20,6 +20,7 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 logger = logging.getLogger(__name__)
 
 _PREFIX_TEMPLATE = "WXO_CONNECTION_{app_id}_"
+_CUSTOM_PREFIX_TEMPLATE = "WXO_CONNECTION_CUSTOM_{app_id}_"
 
 connection_type_requirements_mapping = {
     BasicAuthCredentials: ["username", "password"],
@@ -63,12 +64,27 @@ def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -
     if len(missing_requirements) > 0:
         missing_requirements_str = ", ".join(missing_requirements)
         message = f"Missing requirement environment variables '{missing_requirements_str}' for connection '{app_id}'"
-        logger.error(message)
         raise BadRequest(message)
     
     return required_env_vars
 
-def _build_credentials_model(credentials_type: type[CREDENTIALS], vars: dict[str,str], base_prefix: str) -> type[CREDENTIALS]:
+def _create_custom_configuration(
+        prefix: str,
+        vars: dict[str, str]
+) -> dict:
+    config = {}
+    for k,v in vars.items():
+        config[k.removeprefix(prefix)] = v
+    
+    return config
+
+def _build_credentials_model(
+        credentials_type: type[CREDENTIALS],
+        vars: dict[str,str],
+        base_prefix: str,
+        base_custom_prefix: Optional[str] = None,
+        custom_config_vars: Optional[dict[str,str]] = None) -> type[CREDENTIALS]:
+    
     requirements_lut = deepcopy(connection_type_requirements_mapping)
     requirements = requirements_lut[credentials_type]
 
@@ -78,6 +94,9 @@ def _build_credentials_model(credentials_type: type[CREDENTIALS], vars: dict[str
 
         for requirement in requirements:
             model_dict[requirement] = vars[base_prefix+requirement]
+        if custom_config_vars and base_custom_prefix:
+            model_dict["custom_configuration"] = _create_custom_configuration(base_custom_prefix, custom_config_vars)
+
         return credentials_type(
             **model_dict
         )
@@ -87,6 +106,8 @@ def _build_credentials_model(credentials_type: type[CREDENTIALS], vars: dict[str
         for key in vars:
             new_key = key.removeprefix(base_prefix)
             model_dict[new_key] = vars[key]
+        if custom_config_vars and base_custom_prefix:
+            model_dict["custom_configuration"] = _create_custom_configuration(base_custom_prefix, custom_config_vars)
         return credentials_type(
             model_dict
         )
@@ -97,10 +118,15 @@ def _validate_schema_type(requested_type: ConnectionSecurityScheme, expected_typ
 
 def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: str) -> type[CREDENTIALS]:
     base_prefix = _PREFIX_TEMPLATE.format(app_id=app_id)
+    base_custom_prefix = _CUSTOM_PREFIX_TEMPLATE.format(app_id=app_id)
+    
     variables = {}
+    custom_config_vars ={}
     for key, value in os.environ.items():
         if key.startswith(base_prefix):
             variables[key] = value
+        if key.startswith(base_custom_prefix):
+            custom_config_vars[key] = value
     
     credentials_type = CONNECTION_TYPE_CREDENTIAL_MAPPING[connection_type]
 
@@ -109,23 +135,20 @@ def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: st
     if requirements:
         variables = _clean_env_vars(vars=variables, requirements=requirements, app_id=app_id)
 
-    return _build_credentials_model(credentials_type=credentials_type, vars=variables, base_prefix=base_prefix)
+    return _build_credentials_model(credentials_type=credentials_type, vars=variables, base_prefix=base_prefix, base_custom_prefix=base_custom_prefix, custom_config_vars=custom_config_vars)
 
 def get_connection_type(app_id: str) -> ConnectionSecurityScheme:
     sanitized_app_id = sanitize_app_id(app_id=app_id)
     expected_schema_key = f"WXO_SECURITY_SCHEMA_{sanitized_app_id}"
     expected_schema = os.environ.get(expected_schema_key)
-
     if not expected_schema:
         message = f"No credentials found for connections '{app_id}'"
-        logger.error(message)
         raise BadRequest(message)
 
     auth_types = {e.value for e in ConnectionSecurityScheme}
     if expected_schema not in auth_types:
         message = f"The expected type '{expected_schema}' cannot be resolved into a valid connection auth type ({', '.join(list(auth_types))})"
-        logger.error(message)
-        raise ValueError(message)
+        raise BadRequest(message)
 
     return expected_schema
 
@@ -136,7 +159,6 @@ def get_application_connection_credentials(type: ConnectionType, app_id: str) ->
 
     if not _validate_schema_type(requested_type=requested_schema, expected_type=expected_schema):
         message = f"The requested type '{requested_schema}' does not match the type '{expected_schema}' for the connection '{app_id}'"
-        logger.error(message)
         raise BadRequest(message)
 
     return _get_credentials_model(connection_type=requested_schema, app_id=sanitized_app_id)
