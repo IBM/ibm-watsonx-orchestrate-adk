@@ -219,10 +219,10 @@ class TestGetConnectionType:
             ]
     )
     def test_get_connection_type_invalid_credentials_type(self, monkeypatch, connection_type, caplog):
-        with patch.dict(os.environ, clear=True):
+        with patch.dict(os.environ, clear=False):
             monkeypatch.setenv(f"WXO_SECURITY_SCHEMA_{TEST_APP_ID}", connection_type)
 
-            with pytest.raises(ValueError) as e:
+            with pytest.raises(BadRequest) as e:
                 get_connection_type(TEST_APP_ID)
             
         message = f"The expected type '{connection_type}' cannot be resolved into a valid connection auth type"
