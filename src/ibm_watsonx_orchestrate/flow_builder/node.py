@@ -729,6 +729,49 @@ class UserNode(Node):
                         minItems=minItems,
                         maxItems=maxItems
                 )
+    def user_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            multiple_users: bool = False,
+            min_num_users: Any | None = None,
+            max_num_users: Any | None = None,
+    ) -> UserField:
+        """
+        Creates a user selection field in the form.
+        
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            multiple_users: Whether multiple users can be selected. Defaults to False.
+            min_num_users: Optional minimum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+            max_num_users: Optional maximum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+        
+        Returns:
+            UserField: The created user input field.
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
+            ValueError: If min_num_users or max_num_users are provided when multiple_users=False.
+        """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
+        return self.get_spec().form.user_input_field(
+            name=name,
+            label=label,
+            required=required,
+            multiple_users=multiple_users,
+            min_num_users=min_num_users,
+            max_num_users=max_num_users,
+        )
+
 
 class AgentNode(Node):
     def __repr__(self):

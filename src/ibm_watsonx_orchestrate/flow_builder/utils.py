@@ -404,6 +404,24 @@ FIELD_INPUT_SCHEMA_TEMPLATES = {
             required=["value"]
         )
     },
+
+    # User input templates
+    "user": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "min_num_users": {"type": "number"},
+                "max_num_users": {"type": "number"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string"}}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
 }
 
 # Schema templates for standalone fields
@@ -653,6 +671,28 @@ FORM_SCHEMA_TEMPLATES = {
         "ui": {
             "ui:widget": "DataWidget",
             "ui:options": {"label": True}
+        }
+    },
+    
+    # User input templates
+    "user": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "min_num_users": {"type": "number"},
+                "max_num_users": {"type": "number"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
+            required=["value"],
+            additionalProperties=False
+        ),
+        "ui": {
+            "ui:widget": "UserWidget",
+            "ui:title": ""  # Will be filled in
         }
     }
 }
