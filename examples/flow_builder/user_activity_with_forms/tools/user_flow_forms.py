@@ -205,6 +205,16 @@ def build_user_form(aflow: Flow = None) -> Flow:
 
     user_node_with_form.list_input_field(name="Fruits", label="Preferred fruits", default=data_map_list_fruits)
 
+    # User field: Select multiple approvers (min 1, max 5)
+    data_map_min_users = DataMap()
+    data_map_min_users.add(Assignment(target_variable="self.input.min_num_users", value_expression="1"))
+    data_map_max_users = DataMap()
+    data_map_max_users.add(Assignment(target_variable="self.input.max_num_users", value_expression="5"))
+    user_node_with_form.user_input_field(name="approvers", label="Select Approvers", required=True, multiple_users=True,
+                                         min_num_users=data_map_min_users, max_num_users=data_map_max_users)
+
+    # User field: Select a single assignee (min/max not applicable for single user)
+    user_node_with_form.user_input_field(name="assignee", label="Select Assignee", required=True, multiple_users=False)
     #Output Message: Successful submission
     user_node_with_form.message_output_field(name="success", label="Successful submission", message="Application successfully completed.")
  

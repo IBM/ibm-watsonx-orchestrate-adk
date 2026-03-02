@@ -859,6 +859,88 @@
                   }
                 },
                 {
+                  "name": "approvers",
+                  "kind": "user",
+                  "direction": "input",
+                  "display_name": "Select Approvers",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.min_num_users",
+                          "value_expression": "1",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_num_users",
+                          "value_expression": "5",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "min_num_users": {
+                        "type": "number"
+                      },
+                      "max_num_users": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "wxo-user"
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "UserPickerWidget",
+                    "ui:title": "Select Approvers",
+                    "ui:multi": true
+                  }
+                },
+                {
+                  "name": "assignee",
+                  "kind": "user",
+                  "direction": "input",
+                  "display_name": "Select Assignee",
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "wxo-user"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "UserPickerWidget",
+                    "ui:title": "Select Assignee",
+                    "ui:multi": false
+                  }
+                },
+                {
                   "name": "success",
                   "kind": "text",
                   "text": "Application successfully completed.",
@@ -962,9 +1044,7 @@
                     "title": "List of Fruits",
                     "items": {
                       "type": "string"
-                    },
-                    "minItems": 1,
-                    "maxItems": 2
+                    }
                   },
                   "multi-choice_as_dropdown_1": {
                     "type": "array",
@@ -1019,6 +1099,19 @@
                     "isRowAddable": true,
                     "isRowDeletable": true
                   },
+                  "approvers": {
+                    "type": "array",
+                    "title": "Select Approvers",
+                    "items": {
+                      "type": "string",
+                      "format": "wxo-user"
+                    }
+                  },
+                  "assignee": {
+                    "type": "string",
+                    "title": "Select Assignee",
+                    "format": "wxo-user"
+                  },
                   "success": {
                     "type": "string",
                     "title": "Successful submission"
@@ -1030,7 +1123,9 @@
                   "age",
                   "endDate",
                   "books",
-                  "Fruits"
+                  "Fruits",
+                  "approvers",
+                  "assignee"
                 ]
               },
               "buttons": [
@@ -1039,21 +1134,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "b9aef4aa-0fcb-40f8-89a0-d6e1fb061430"
+                  "edge_id": "66ea4ced-b5bf-4ba7-a902-71241ab7cb95"
                 },
                 {
-                  "name": "34f988ca-6a1c-4d54-8513-152e9eb3dd1f",
+                  "name": "5c036f9c-f78a-42ad-bfb7-d22d0c2411eb",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "6abff21f-6884-45aa-8c8f-15cd740c3dd6"
+                  "edge_id": "525033fe-d94a-4212-a6a3-57db70db948d"
                 },
                 {
-                  "name": "00a138d5-6bbe-48e7-8cd7-83e5953de32e",
+                  "name": "1eaa37b7-a648-4193-9f00-d4c90265fc25",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "d326c4fb-a8de-4866-b3ea-2c86af53545d"
+                  "edge_id": "176b4adf-ee90-45e6-81b4-b72914404726"
                 },
                 {
                   "name": "cancel",
@@ -1112,7 +1207,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "b9aef4aa-0fcb-40f8-89a0-d6e1fb061430"
+          "id": "66ea4ced-b5bf-4ba7-a902-71241ab7cb95"
         },
         {
           "start": "process_submit",
@@ -1121,7 +1216,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "6abff21f-6884-45aa-8c8f-15cd740c3dd6"
+          "id": "525033fe-d94a-4212-a6a3-57db70db948d"
         },
         {
           "start": "process_save_draft",
@@ -1130,7 +1225,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "d326c4fb-a8de-4866-b3ea-2c86af53545d"
+          "id": "176b4adf-ee90-45e6-81b4-b72914404726"
         },
         {
           "start": "process_review",
@@ -1216,12 +1311,12 @@
               "John"
             ],
             [
-              "Doe",
-              "Jane"
+              "Jane",
+              "Doe"
             ],
             [
-              "Jean",
-              "Doe"
+              "Doe",
+              "Jean"
             ]
           ]
         }
@@ -1381,6 +1476,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-02-27T20:09:20.776689+00:00"
+    "compiled_on": "2026-03-02T16:34:28.814194+00:00"
   }
 }
