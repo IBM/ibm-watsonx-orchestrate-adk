@@ -133,7 +133,7 @@ class WSLConfigLinesManager:
         for line in self.config_lines:
             header = header_pattern.match(line)
             if header:
-                current_header = header.group()
+                current_header = header.group(1)
                 continue
 
             key_value = key_value_pattern.match(line)
