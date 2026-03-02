@@ -248,7 +248,7 @@ export const prepareTransferTool = {
         ],
         _meta: {
           nextTool: {
-            name: 'request_agent_handoff',
+            tool: 'request_agent_handoff',
             arguments: {
               reason: `Customer attempted to transfer from locked account: ${selectedFromAccount.accountName} (${selectedFromAccount.accountId})`,
             },
