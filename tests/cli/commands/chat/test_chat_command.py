@@ -139,7 +139,8 @@ class TestChatAsk:
             mock_run_client.create_run.assert_called_once_with(
                 message="What is the weather?",
                 agent_id="agent-789",
-                thread_id=None
+                thread_id=None,
+                capture_logs=False
             )
             mock_run_client.wait_for_run_completion.assert_called_once_with("run-123")
             mock_threads_client.get_thread_messages.assert_called_once_with("thread-456")

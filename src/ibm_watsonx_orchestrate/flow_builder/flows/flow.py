@@ -464,6 +464,9 @@ class Flow(Node):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
                     node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    # if name is specifed, override the name in the tool spec
+                    if name is not None:
+                        node.spec.name = name
                 else:
                     raise ValueError("Only functions with @tool decorator can be added.")
         else:
@@ -525,8 +528,20 @@ class Flow(Node):
     def _add_node(self, node: Node) -> Node:
         self._check_compiled()
 
-        if node.spec.name in self.nodes:
-            raise ValueError(f"Node `{id}` already present.")
+        # If node name already exists, generate a unique name
+        original_name = node.spec.name
+        if original_name in self.nodes:
+            # Generate unique name: original_name + '_' + 4-character UUID
+            unique_suffix = str(uuid.uuid4())[:4]
+            unique_name = f"{original_name}_{unique_suffix}"
+            
+            # Ensure the generated name is also unique (unlikely collision, but safe)
+            while unique_name in self.nodes:
+                unique_suffix = str(uuid.uuid4())[:4]
+                unique_name = f"{original_name}_{unique_suffix}"
+            
+            # Update the node spec with the unique name
+            node.spec.name = unique_name
 
         # make a copy
         new_node = copy.copy(node)
@@ -1946,7 +1961,9 @@ class UserFlow(Flow):
               direction: Literal["input", "output"] = "output",
               text: str | None = None, # The text used to ask question to the user, e.g. 'what is your name?'
               input_map: DataMap | DataMapSpec | None= None,
-              default: Any | None = None) -> UserNode:
+              default: Any | None = None,
+              multiple_users: bool = False,
+              required: bool = False) -> UserNode:
         '''create a node in the flow'''
         # create a json schema object based on the single field
         if not name:
@@ -1965,6 +1982,44 @@ class UserFlow(Flow):
 
             if kind == UserFieldKind.Text and text is None:
                 raise ValueError("Text field must be set for Text input.")
+        
+        # Handle multiple_users and required parameters for User field kind
+        if kind == UserFieldKind.User and direction == "input":
+            required_list = ["value"] if required else []
+            if multiple_users:
+                # Create array schema for multiple users with input schema for min/max
+                input_schema_properties = {
+                    "min_num_users": {"type": "integer"},
+                    "max_num_users": {"type": "integer"}
+                }
+                
+                schema_obj = {
+                    "input": JsonSchemaObject(
+                        type='object',
+                        properties=input_schema_properties,
+                        required=[],
+                        additionalProperties=False
+                    ) if input_schema_properties else None,
+                    "output": JsonSchemaObject(
+                        type='object',
+                        properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
+                        required=required_list,
+                        additionalProperties=False
+                    )
+                }
+                # Remove input key if no properties
+                if not input_schema_properties:
+                    del schema_obj["input"]
+            else:
+                # Single user schema - no input schema
+                schema_obj = {
+                    "output": JsonSchemaObject(
+                        type='object',
+                        properties={"value": {"type": "string", "format": "wxo-user"}},
+                        required=required_list,
+                        additionalProperties=False
+                    )
+                }
 
         # A user node will only has 1 field or 1 form.
         user_node_spec = UserNodeSpec(

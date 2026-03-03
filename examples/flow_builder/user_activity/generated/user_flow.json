@@ -24,54 +24,11 @@
         ]
       },
       "nodes": {
-        "Family": {
-          "spec": {
-            "kind": "user",
-            "name": "Family",
-            "display_name": "Family member names",
-            "input_schema": {
-              "$ref": "#/schemas/Family_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/Family"
-            },
-            "owners": [
-              "__current_user__"
-            ],
-            "fields": [
-              {
-                "name": "Family",
-                "kind": "array",
-                "direction": "output",
-                "input_map": {
-                  "spec": {
-                    "maps": [
-                      {
-                        "target_variable": "self.input.value",
-                        "value_expression": "[\"Alice\", \"Bob\", \"Charlie\", \"Diana\", \"Ethan\", \"Fiona\", \"George\"]",
-                        "has_no_value": false,
-                        "default_value": null,
-                        "metadata": {}
-                      }
-                    ]
-                  }
-                },
-                "display_name": "Family member names"
-              }
-            ]
-          }
-        },
         "upload": {
           "spec": {
             "kind": "user",
             "name": "upload",
             "display_name": "File upload 1",
-            "input_schema": {
-              "$ref": "#/schemas/upload_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/upload"
-            },
             "owners": [
               "__current_user__"
             ],
@@ -80,7 +37,19 @@
                 "name": "upload",
                 "kind": "file",
                 "direction": "input",
-                "display_name": "File upload 1"
+                "display_name": "File upload 1",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "format": "wxo-file"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
               }
             ]
           }
@@ -90,12 +59,6 @@
             "kind": "user",
             "name": "download",
             "display_name": "Download file",
-            "input_schema": {
-              "$ref": "#/schemas/download_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/download"
-            },
             "owners": [
               "__current_user__"
             ],
@@ -104,6 +67,7 @@
                 "name": "download",
                 "kind": "file",
                 "direction": "output",
+                "display_name": "Download file",
                 "input_map": {
                   "spec": {
                     "maps": [
@@ -117,7 +81,18 @@
                     ]
                   }
                 },
-                "display_name": "Download file"
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "format": "wxo-file"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
               }
             ]
           }
@@ -127,23 +102,27 @@
             "kind": "user",
             "name": "display_first_name",
             "display_name": "Display first name",
-            "input_schema": {
-              "$ref": "#/schemas/display_first_name_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/display_first_name"
-            },
             "owners": [
               "__current_user__"
             ],
-            "text": "Display of first name is {flow.input.first_name}",
             "fields": [
               {
                 "name": "display_first_name",
                 "kind": "text",
-                "direction": "output",
                 "text": "Display of first name is {flow.input.first_name}",
-                "display_name": "Display first name"
+                "direction": "output",
+                "display_name": "Display first name",
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
               }
             ]
           }
@@ -153,23 +132,27 @@
             "kind": "user",
             "name": "last_name",
             "display_name": "Last name",
-            "input_schema": {
-              "$ref": "#/schemas/last_name_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/last_name"
-            },
             "owners": [
               "__current_user__"
             ],
-            "text": "Enter last name",
             "fields": [
               {
                 "name": "last_name",
                 "kind": "text",
-                "direction": "input",
                 "text": "Enter last name",
-                "display_name": "Last name"
+                "direction": "input",
+                "display_name": "Last name",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
               }
             ]
           }
@@ -179,23 +162,70 @@
             "kind": "user",
             "name": "age",
             "display_name": "Age",
-            "input_schema": {
-              "$ref": "#/schemas/age_input"
-            },
-            "output_schema": {
-              "$ref": "#/schemas/age"
-            },
             "owners": [
               "__current_user__"
             ],
-            "text": "Enter Age",
             "fields": [
               {
                 "name": "age",
                 "kind": "number",
-                "direction": "input",
                 "text": "Enter Age",
-                "display_name": "Age"
+                "direction": "input",
+                "display_name": "Age",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "Friends": {
+          "spec": {
+            "kind": "user",
+            "name": "Friends",
+            "display_name": "List of friends",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "Friends",
+                "kind": "array",
+                "direction": "output",
+                "display_name": "List of friends",
+                "input_map": {
+                  "spec": {
+                    "maps": [
+                      {
+                        "target_variable": "self.input.value",
+                        "value_expression": "[\"Alice\", \"Bob\", \"Charlie\", \"Diana\", \"Ethan\", \"Fiona\", \"George\"]",
+                        "has_no_value": false,
+                        "default_value": null,
+                        "metadata": {}
+                      }
+                    ]
+                  }
+                },
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "choices": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
               }
             ]
           }
@@ -218,10 +248,30 @@
       "edges": [
         {
           "start": "__start__",
-          "end": "Family"
+          "end": "upload"
         },
         {
-          "start": "Family",
+          "start": "upload",
+          "end": "download"
+        },
+        {
+          "start": "download",
+          "end": "display_first_name"
+        },
+        {
+          "start": "display_first_name",
+          "end": "last_name"
+        },
+        {
+          "start": "last_name",
+          "end": "age"
+        },
+        {
+          "start": "age",
+          "end": "Friends"
+        },
+        {
+          "start": "Friends",
           "end": "__end__"
         }
       ],
@@ -266,138 +316,10 @@
           "default": "John Doe"
         }
       }
-    },
-    "Family_input": {
-      "type": "object",
-      "title": "Family_input",
-      "properties": {
-        "Family": {
-          "type": "string",
-          "title": "Family",
-          "format": "array"
-        }
-      }
-    },
-    "Family": {
-      "type": "object",
-      "title": "Family",
-      "properties": {
-        "Family": {
-          "type": "string",
-          "title": "Family",
-          "format": "array"
-        }
-      }
-    },
-    "upload_input": {
-      "type": "object",
-      "title": "upload_input",
-      "properties": {
-        "upload": {
-          "type": "string",
-          "title": "upload",
-          "format": "wxo-file"
-        }
-      }
-    },
-    "upload": {
-      "type": "object",
-      "title": "upload",
-      "properties": {
-        "upload": {
-          "type": "string",
-          "title": "upload",
-          "format": "wxo-file"
-        }
-      }
-    },
-    "download_input": {
-      "type": "object",
-      "title": "download_input",
-      "properties": {
-        "download": {
-          "type": "string",
-          "title": "download",
-          "format": "wxo-file"
-        }
-      }
-    },
-    "download": {
-      "type": "object",
-      "title": "download",
-      "properties": {
-        "download": {
-          "type": "string",
-          "title": "download",
-          "format": "wxo-file"
-        }
-      }
-    },
-    "display_first_name_input": {
-      "type": "object",
-      "title": "display_first_name_input",
-      "properties": {
-        "display_first_name": {
-          "type": "string",
-          "title": "display_first_name"
-        }
-      }
-    },
-    "display_first_name": {
-      "type": "object",
-      "title": "display_first_name",
-      "properties": {
-        "display_first_name": {
-          "type": "string",
-          "title": "display_first_name"
-        }
-      }
-    },
-    "last_name_input": {
-      "type": "object",
-      "title": "last_name_input",
-      "properties": {
-        "last_name": {
-          "type": "string",
-          "title": "last_name"
-        }
-      }
-    },
-    "last_name": {
-      "type": "object",
-      "title": "last_name",
-      "properties": {
-        "last_name": {
-          "type": "string",
-          "title": "last_name"
-        }
-      }
-    },
-    "age_input": {
-      "type": "object",
-      "title": "age_input",
-      "properties": {
-        "age": {
-          "type": "string",
-          "title": "age",
-          "format": "number"
-        }
-      }
-    },
-    "age": {
-      "type": "object",
-      "title": "age",
-      "properties": {
-        "age": {
-          "type": "string",
-          "title": "age",
-          "format": "number"
-        }
-      }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-10-15T14:22:15.412072+00:00"
+    "compiled_on": "2026-02-26T12:25:53.918883+00:00"
   }
 }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This pattern demonstrates how to implement a user-controlled agent handoff flow that gives customers the choice between real-time connection to a human agent or scheduling a callback. The pattern uses a two-step flow with a single-choice widget to gather user preference, then conditionally issues the `connect_to_agent` response type for real-time handoffs.
+This pattern demonstrates how to implement a user-controlled agent handoff flow that gives customers the choice between real-time connection to a human agent or scheduling a callback. The pattern uses a two-step flow with a single-choice widget to gather user preference, then conditionally issues the `transfer_to_live_agent` response type for real-time handoffs.
 
 ## Problems This Pattern Solves
 
@@ -39,7 +39,8 @@ The Agent Handoff Pattern uses a two-step flow with two corresponding tools. One
 1. **Request Step**: Presents options for real-time or callback connection
 2. **Process Step**: Handles the user's choice and initiates the appropriate handoff
 
-**File:** [`src/handoff.ts`](../src/handoff.ts)
+**TypeScript:** [`ts_server/src/handoff.ts`](../toolkits/banking_mcp_server/ts_server/src/handoff.ts)
+**Python:** [`py_server/src/handoff.py`](../toolkits/banking_mcp_server/py_server/src/handoff.py)
 
 ### Step 1: Request Agent Handoff
 
@@ -127,7 +128,7 @@ export const processAgentHandoffChoiceTool = {
         content: [{ type: 'text', text: 'Connecting...', annotations: { audience: ['user'] } }],
         _meta: {
           'com.ibm.orchestrate/extensions': {
-            connect_to_agent: {
+            transfer_to_live_agent: {
               message_to_human_agent: contextMessage,
               agent_available: 'Please wait while I connect you to an agent.',
               agent_unavailable: "I'm sorry, but no agents are online at the moment. Please try again later."
@@ -154,11 +155,13 @@ export const processAgentHandoffChoiceTool = {
 1. **Hidden from Model**: `visibility: ['app']` prevents the model from calling this tool directly
 2. **User Control**: Only the UI widget can invoke this tool based on explicit user selection
 3. **Context Preservation**: The `contextMessage` is passed to the human agent
-4. **connect_to_agent Response**: For real-time handoff, uses the `connect_to_agent` response type
+4. **transfer_to_live_agent Response**: For real-time handoff, uses the `transfer_to_live_agent` extension
 
 #### Full Working Example
 
-For the complete implementation with detailed widget configurations, agent availability handling, and error messages, see [`src/handoff.ts`](../src/handoff.ts).
+For the complete implementation with detailed widget configurations, agent availability handling, and error messages, see:
+- TypeScript: [`ts_server/src/handoff.ts`](../toolkits/banking_mcp_server/ts_server/src/handoff.ts)
+- Python: [`py_server/src/handoff.py`](../toolkits/banking_mcp_server/py_server/src/handoff.py)
 
 ### How the Handoff Flow Works
 
@@ -169,14 +172,14 @@ For the complete implementation with detailed widget configurations, agent avail
 - Only the UI widget can invoke this tool based on explicit user selection
 - This ensures the user's choice is respected and cannot be overridden by the model
 
-### The connect_to_agent Extension
+### The transfer_to_live_agent Extension
 
-When the user selects real-time connection, the tool returns the `connect_to_agent` extension:
+When the user selects real-time connection, the tool returns the `transfer_to_live_agent` extension:
 
 ```typescript
 _meta: {
   'com.ibm.orchestrate/extensions': {
-    connect_to_agent: {
+    transfer_to_live_agent: {
       message_to_human_agent: "User requested agent assistance. Reason: Complex account issue",
       agent_available: "Please wait while I connect you to an agent.",
       agent_unavailable: "I'm sorry, but no agents are online at the moment. Please try again later or request a callback."
@@ -201,7 +204,7 @@ The complete handoff flow:
 4. **User Selects Option**: The user explicitly chooses their preferred connection method
 5. **Widget Calls Process Tool**: The widget directly invokes `process_agent_handoff_choice` with the selection
 6. **Handoff Initiated**:
-   - For real-time: The `connect_to_agent` extension is issued
+   - For real-time: The `transfer_to_live_agent` extension is issued
    - For callback: A confirmation message is returned
 7. **Connection Handled**: The platform handles the actual agent connection or callback scheduling
 

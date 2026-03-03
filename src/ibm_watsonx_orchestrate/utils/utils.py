@@ -2,6 +2,8 @@ import re
 import zipfile
 import yaml
 from typing import BinaryIO, Any, Tuple
+    
+SANITIZE_PATTERN = re.compile(r"[^a-zA-Z0-9]+")
 
 # disables the automatic conversion of date-time objects to datetime objects and leaves them as strings
 yaml.constructor.SafeConstructor.yaml_constructors[u'tag:yaml.org,2002:timestamp'] = \
@@ -11,12 +13,10 @@ def yaml_safe_load(file : BinaryIO) -> dict:
     return yaml.safe_load(file)
 
 def sanitize_app_id(app_id: str) -> str:
-    sanitize_pattern = re.compile(r"[^a-zA-Z0-9]+")
-    return re.sub(sanitize_pattern,'_', app_id)
+    return re.sub(SANITIZE_PATTERN, '_', app_id)
 
 def sanitize_catalog_label(label: str) -> str:
-    sanitize_pattern = re.compile(r"[^a-zA-Z0-9]+")
-    return re.sub(sanitize_pattern,'_', label)
+    return re.sub(SANITIZE_PATTERN, '_', label)
 
 def check_file_in_zip(file_path: str, zip_file: zipfile.ZipFile) -> bool:
     name_list = zip_file.namelist()

@@ -10,6 +10,7 @@ from .types import (
     ConnectionEnvironment,
     ConnectionPreference,
     ConnectionSecurityScheme,
+    ConnectionResource,
     CREDENTIALS,
     BasicAuthCredentials,
     BearerTokenAuthCredentials,

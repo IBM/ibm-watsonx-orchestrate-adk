@@ -220,7 +220,7 @@ def get_inference_client(selected_model: str = None, env_file: str = None) -> Ba
   
 
 def extract_content_from_docstring(docstr):
-  regex = re.compile("[\"']{3}((.|\\n|\\r)*)[\"']{3}", re.MULTILINE)
+  regex = re.compile(r"[\"']{3}((.|\n|\r)*)[\"']{3}", re.MULTILINE)
   match = regex.match(docstr)
   if match:
     return match.group(1)

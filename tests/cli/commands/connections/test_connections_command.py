@@ -10,7 +10,7 @@ class TestConnectionsAdd:
     def test_add_connection_command(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_command.add_connection") as mock:
             connections_command.add_connection_command(**self.base_params)
-            mock.assert_called_once_with(**self.base_params)
+            mock.assert_called_once_with(app_id=self.base_params["app_id"], resource=None)
     
     @pytest.mark.parametrize(
         "missing_param",
@@ -122,7 +122,8 @@ class TestConnectionsConfigure:
         "idp_token_use": "token_use",
         "idp_token_type": "token_type",
         "idp_token_header": "token_header",
-        "app_token_header": "token_header"
+        "app_token_header": "token_header",
+        "custom_config_entries_list": []
     }
 
     def test_configure_connection_command(self):
@@ -138,7 +139,8 @@ class TestConnectionsConfigure:
             ("idp_token_use", None),
             ("idp_token_type", None),
             ("idp_token_header", None),
-            ("app_token_header", None)
+            ("app_token_header", None),
+            ("custom_config_entries_list", None)
         ]
     )
     def test_configure_connection_command_missing_optional_parms(self, missing_param, default_value):
@@ -279,3 +281,14 @@ class TestConnectionsSetIdentityProvider:
             mock.assert_not_called
 
             assert f"set_identity_provider_connection_command() missing 1 required positional argument: '{missing_param}'" in str(e.value)
+
+class TestExportConnection:
+    base_params = {
+        "app_id": "Testing_App_ID",
+        "output_file": "testing.yaml",
+    }
+
+    def test_export_connection_command(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.connections.connections_command.export_connection") as mock:
+            connections_command.export_connection_command(**self.base_params)
+            mock.assert_called_once_with(**self.base_params)

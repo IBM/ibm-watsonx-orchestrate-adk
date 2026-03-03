@@ -404,6 +404,24 @@ FIELD_INPUT_SCHEMA_TEMPLATES = {
             required=["value"]
         )
     },
+
+    # User input templates
+    "user": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "min_num_users": {"type": "number"},
+                "max_num_users": {"type": "number"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string"}}},
+            required=["value"],
+            additionalProperties=False
+        )
+    },
 }
 
 # Schema templates for standalone fields
@@ -500,8 +518,8 @@ FORM_SCHEMA_TEMPLATES = {
             type='object',
             properties={
                 "default": {"type": "string", "format": "date"},
-                "maximum": {"type": "string", "format": "date"},
-                "minimum": {"type": "string", "format": "date"}
+                "max_date": {"type": "string", "format": "date"},
+                "min_date": {"type": "string", "format": "date"}
             },
             required=[]
         ),
@@ -525,8 +543,8 @@ FORM_SCHEMA_TEMPLATES = {
                 "value": {
                     "type": "object",
                     "properties": {
-                        "maximum": {"type": "string", "format": "date"},
-                        "minimum": {"type": "string", "format": "date"}
+                        "max_date": {"type": "string", "format": "date"},
+                        "min_date": {"type": "string", "format": "date"}
                     }
                 }
             },
@@ -580,7 +598,10 @@ FORM_SCHEMA_TEMPLATES = {
     "file": {
         "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
-            properties={},
+            properties={
+                "min_num_files": {"type": "integer"},
+                "max_num_files": {"type": "integer"}
+            },
             required=[]
         ),
         "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
@@ -650,6 +671,28 @@ FORM_SCHEMA_TEMPLATES = {
         "ui": {
             "ui:widget": "DataWidget",
             "ui:options": {"label": True}
+        }
+    },
+    
+    # User input templates
+    "user": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "min_num_users": {"type": "number"},
+                "max_num_users": {"type": "number"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
+            required=["value"],
+            additionalProperties=False
+        ),
+        "ui": {
+            "ui:widget": "UserWidget",
+            "ui:title": ""  # Will be filled in
         }
     }
 }

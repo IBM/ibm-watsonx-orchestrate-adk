@@ -20,13 +20,14 @@ def get_weather_data(city: str) -> WeatherData:
     """
     cities = {
         "New York" : {"latitude" : "40.7128","longitude" : "-74.0060"},
-        "Los Angeles" : {"latitude" : "34.0522","longitude" : "118.2437"},
-        "San Jose" : {"latitude" : "37.7749","longitude" : "122.4194"},
-        "Fremont" : {"latitude" : "37.5485","longitude" : "121.9886"},
+        "Los Angeles" : {"latitude" : "34.0522","longitude" : "-118.2437"},
+        "San Jose" : {"latitude" : "37.7749","longitude" : "-122.4194"},
+        "San Jose Califonia" : {"latitude" : "37.7749","longitude" : "-122.4194"},
+        "Fremont" : {"latitude" : "37.5485","longitude" : "-121.9886"},
     }
     city = city.title()
     if city not in cities.keys():
-        city = "San Jose"
+        city = "San Jose Califonia"
     url = f"https://api.open-meteo.com/v1/forecast?latitude={cities[city]['latitude']}&longitude={cities[city]['longitude']}&current_weather=true"
 
     weather_conditions = {
