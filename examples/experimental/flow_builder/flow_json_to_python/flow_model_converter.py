@@ -227,7 +227,7 @@ def handle_user_fields(fields: list, delete_schema: bool = True) -> list[UserFie
 
 def build_flow_from_json(
     json_data: Dict[str, Any], 
-    parent: Flow | None = None, 
+    parent: Flow | None = None,
     remove_tool_uuid: bool = False
 ) -> Flow:
     """
@@ -236,7 +236,7 @@ def build_flow_from_json(
     Args:
         json_data: The JSON data representing the flow
         parent: Parent flow for nested flows
-        remove_tool_uuid: Whether to remove tool UUIDs
+        remove_tool_uuid: Whether to remove tool UUIDs to make the flow portable across tenants
         
     Returns:
         Flow: The constructed Flow object with specialized node instances
@@ -551,7 +551,7 @@ def convert(
         output_file: Path to output Python file (None for stdout)
         flow_name: Optional new name for the flow
         display_name: Optional new display name for the flow
-        remove_tool_uuid: Whether to remove tool UUIDs
+        remove_tool_uuid: Whether to remove tool UUIDs to make the flow portable across tenants
         verbose: Enable verbose output
         debug: Enable debug output
         validate_only: Only validate without generating code
