@@ -151,7 +151,7 @@ def deepgram_tts_config():
     "text_to_speech": {
       "provider": "deepgram",
       "deepgram_tts_config": {
-        "voice": "aura-asteria-en"
+        "model": "aura-asteria-en"
       }
     }
   }
@@ -249,7 +249,7 @@ class TestVoiceConfigurationInit:
 
     assert config.name == config_data['name']
     assert config.text_to_speech.provider == "deepgram"
-    assert config.text_to_speech.deepgram_tts_config.voice == config_data['text_to_speech']['deepgram_tts_config']['voice']
+    assert config.text_to_speech.deepgram_tts_config.model == config_data['text_to_speech']['deepgram_tts_config']['model']
 
   def test_emotech_tts_config(self,emotech_tts_config):
     config_data = emotech_tts_config
