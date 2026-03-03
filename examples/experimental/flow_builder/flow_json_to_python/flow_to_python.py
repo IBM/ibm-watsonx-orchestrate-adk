@@ -313,10 +313,22 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             # Get default value
             default_value = safe_get(prop_schema, "default", value_kind=field_type if isinstance(field_type, str) else "str")
             if default_value is not None:
-                if isinstance(default_value, str):
-                    field_params.append(f'default={repr(default_value)}')
-                else:
-                    field_params.append(f'default={default_value}')
+                # Validate that default value is appropriate for the field type
+                is_valid_default = True
+                if isinstance(field_type, str):
+                    # For list types, empty string is not a valid default
+                    if field_type.startswith("List[") or field_type.startswith("Optional[List["):
+                        if isinstance(default_value, str) and default_value == '':
+                            is_valid_default = False
+                
+                if is_valid_default:
+                    if isinstance(default_value, str):
+                        field_params.append(f'default={repr(default_value)}')
+                    else:
+                        field_params.append(f'default={default_value}')
+                elif not is_required:
+                    # Invalid default for optional field, use None
+                    field_params.append('default=None')
             elif not is_required:
                 field_params.append('default=None')
             
@@ -382,8 +394,9 @@ class FlowPythonGenerator:
             flow_var: The variable name for the flow
             schema_class_map: Dictionary mapping schema names to class names
             out: Output stream to write the generated code
-            use_helpers: Whether to use helper functions for node creation
-            node_type: Optional node type to use instead of node.spec.kind
+            include_creation: Whether to include node creation code
+            func_name: Optional function name to use instead of node.spec.kind
+            mandatory_fields: List of mandatory field names
         """
         from enum import Enum
         # Determine the node type to use
@@ -461,7 +474,7 @@ class FlowPythonGenerator:
         FlowPythonGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
 
     @staticmethod
-    def to_py(node: Node, flow_var: str, schema_class_map: Dict[str, str], use_helpers: bool = True) -> str:
+    def to_py(node: Node, flow_var: str, schema_class_map: Dict[str, str]) -> str:
         """
         Generate Python code for a node.
         
@@ -469,7 +482,6 @@ class FlowPythonGenerator:
             node: The node to generate code for
             flow_var: The variable name for the flow
             schema_class_map: Dictionary mapping schema names to class names
-            use_helpers: Whether to use helper functions for node creation
             
         Returns:
             String containing the Python code for the node
@@ -491,21 +503,21 @@ class FlowPythonGenerator:
         buffer.write(f"\n    # Node type: {type(node).__name__}, name: {node_name}\n")
         # Dispatch based on node type
         #if isinstance(node, ToolNode):
-        #    FlowPythonGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+        #    FlowPythonGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer)
         if isinstance(node, Branch):
-            FlowPythonGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, Loop):
             FlowPythonGenerator._generate_loop_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, Foreach):
             FlowPythonGenerator._generate_foreach_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, UserFlow):
-            FlowPythonGenerator._generate_user_flow_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_user_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, UserNode):
-            FlowPythonGenerator._generate_user_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_user_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, ScriptNode):
-            FlowPythonGenerator._generate_script_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_script_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, DocProcNode):
-            FlowPythonGenerator._generate_docproc_node(node, var_name, flow_var, schema_class_map, buffer, use_helpers)
+            FlowPythonGenerator._generate_docproc_node(node, var_name, flow_var, schema_class_map, buffer)
         else:
             # Generic fallback for other node types
             FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, buffer)
@@ -514,7 +526,7 @@ class FlowPythonGenerator:
     
     @staticmethod
     def _generate_branch_node(node: Branch, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                             out: TextIO, use_helpers: bool = True) -> None:
+                             out: TextIO) -> None:
         """Generate Python code for a branch node (without cases - those are added later)."""
 
         FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
@@ -637,7 +649,7 @@ class FlowPythonGenerator:
     
     @staticmethod
     def _generate_flow_attributes(flow: Flow, flow_var: str, schema_class_map: Dict[str, str],
-                                 out: TextIO, use_helpers: bool = True) -> None:
+                                 out: TextIO) -> None:
         """
         Generate code for common Flow attributes like nodes and edges.
         
@@ -646,7 +658,6 @@ class FlowPythonGenerator:
             flow_var: The variable name for the flow
             schema_class_map: Dictionary mapping schema names to class names
             out: Output stream to write the generated code
-            use_helpers: Whether to use helper functions for node creation
         """
         # Generate node variables
         node_vars = {}
@@ -668,7 +679,7 @@ class FlowPythonGenerator:
             if isinstance(node, Branch):
                 # Store branch node for later case processing
                 branch_nodes.append((node_id, node))
-            node_code = FlowPythonGenerator.to_py(node, flow_var, schema_class_map, use_helpers)
+            node_code = FlowPythonGenerator.to_py(node, flow_var, schema_class_map)
             out.write(node_code)
         
         # Now generate branch cases after all nodes are defined
@@ -734,7 +745,8 @@ class FlowPythonGenerator:
                                    out: TextIO) -> None:
         """Generate Python code for a foreach flow node."""
         # Create a function name for this foreach flow
-        foreach_flow_func_name = f"build_{var_name[:-5]}_flow"
+        normalized_name = normalize_identifier(node.spec.name)
+        foreach_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the foreach flow node using common attributes
         FlowPythonGenerator._generate_common_node_attributes(
@@ -766,14 +778,15 @@ class FlowPythonGenerator:
     
     @staticmethod
     def _generate_user_flow_node(node: UserFlow, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                                out: TextIO, use_helpers: bool = True) -> None:
+                                out: TextIO) -> None:
         """Generate Python code for a user flow node."""
         # Create a function name for this user flow
-        user_flow_func_name = f"build_{var_name[:-5]}_flow"
+        normalized_name = normalize_identifier(node.spec.name)
+        user_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the user flow node using common attributes
         FlowPythonGenerator._generate_common_node_attributes(
-            node, var_name, flow_var, schema_class_map, out, use_helpers, "userflow"
+            node, var_name, flow_var, schema_class_map, out, func_name="userflow"
         )
         FlowPythonGenerator._generate_node_field(node, var_name, fields=["position", "dimensions"], schema_class_map=schema_class_map, out= out)
 
@@ -788,7 +801,7 @@ class FlowPythonGenerator:
             function_buffer = StringIO()
             
             # Generate the function to build the user flow
-            FlowPythonGenerator._generate_user_flow_function(node, user_flow_func_name, schema_class_map, function_buffer, use_helpers)
+            FlowPythonGenerator._generate_user_flow_function(node, user_flow_func_name, schema_class_map, function_buffer)
             
             # Add the function definition to the global scope
             # We'll prepend this to the output in the main generate_flow_py_code function
@@ -805,7 +818,8 @@ class FlowPythonGenerator:
                                 out: TextIO) -> None:
         """Generate Python code for a loop flow node."""
         # Create a function name for this loop flow
-        loop_flow_func_name = f"build_{var_name[:-5]}_flow"
+        normalized_name = normalize_identifier(node.spec.name)
+        loop_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the loop flow node using common attributes
         FlowPythonGenerator._generate_common_node_attributes(
@@ -846,7 +860,7 @@ class FlowPythonGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        FlowPythonGenerator._generate_flow_attributes(node, "loop_flow", schema_class_map, out, True)
+        FlowPythonGenerator._generate_flow_attributes(node, "loop_flow", schema_class_map, out)
         
         # Return the loop flow
         out.write("\n    return loop_flow\n")
@@ -862,14 +876,14 @@ class FlowPythonGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        FlowPythonGenerator._generate_flow_attributes(node, "foreach_flow", schema_class_map, out, True)
+        FlowPythonGenerator._generate_flow_attributes(node, "foreach_flow", schema_class_map, out)
         
         # Return the foreach flow
         out.write("\n    return foreach_flow\n")
     
     @staticmethod
     def _generate_user_flow_function(node: UserFlow, function_name: str, schema_class_map: Dict[str, str],
-                                    out: TextIO, use_helpers: bool = True) -> None:
+                                    out: TextIO) -> None:
         """Generate a function to build a user flow with all its nodes and edges."""
         # First, generate the function definition
         out.write(f"\n\ndef {function_name}(user_flow: UserFlow):\n")
@@ -878,7 +892,7 @@ class FlowPythonGenerator:
         out.write(f'    """\n')
         
         # Use the common flow attributes generator to handle nodes and edges
-        FlowPythonGenerator._generate_flow_attributes(node, "user_flow", schema_class_map, out, use_helpers)
+        FlowPythonGenerator._generate_flow_attributes(node, "user_flow", schema_class_map, out)
         
         # Return the user flow
         out.write("\n    return user_flow\n")
@@ -902,7 +916,7 @@ class FlowPythonGenerator:
 
     @staticmethod
     def _generate_user_node(node: UserNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                           out: TextIO, use_helpers: bool = True) -> None:
+                           out: TextIO) -> None:
         """Generate Python code for a user node."""
         # First generate the common node attributes
         # FlowPythonGenerator._generate_common_node_attributes(
@@ -1081,11 +1095,11 @@ class FlowPythonGenerator:
 
     @staticmethod
     def _generate_script_node(node: ScriptNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                           out: TextIO, use_helpers: bool = True) -> None:
+                           out: TextIO) -> None:
         """Generate Python code for a script node."""
         # First generate the common node attributes
         FlowPythonGenerator._generate_common_node_attributes(
-            node, var_name, flow_var, schema_class_map, out, use_helpers, func_name="script"
+            node, var_name, flow_var, schema_class_map, out, func_name="script"
         )
 
         FlowPythonGenerator._generate_node_field(node = node, var_name = var_name, fields = ["fn", "position"],
@@ -1093,7 +1107,7 @@ class FlowPythonGenerator:
 
     @staticmethod
     def _generate_docproc_node(node: DocProcNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                              out: TextIO, use_helpers: bool = True) -> None:
+                              out: TextIO) -> None:
         """Generate Python code for a DocProc node in the original ADK style."""
         from ibm_watsonx_orchestrate.flow_builder.types import DocProcField, DocProcKVPSchema, DocProcOutputFormat
         
@@ -1367,7 +1381,7 @@ def generate_function_signature(flow_spec: Any, out: TextIO) -> None:
         out.write(f'    Build the {flow_spec.name} flow\n')
         out.write(f'    """\n')
 
-def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: TextIO, use_helpers: bool = True) -> None:
+def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: TextIO) -> None:
     """
     Generate Python code for a Flow object.
     
@@ -1375,7 +1389,6 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
         flow: The Flow object to generate code for
         schema_class_map: Dictionary mapping schema names to class names
         out: Output stream to write the generated code
-        use_helpers: Whether to use helper functions for node creation
     """
 
     # Reset the KVP schema constants list
@@ -1390,10 +1403,10 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     
     # First pass: Generate all nodes to collect user flow functions and KVP constants
     for node_id, node in flow.nodes.items():
-        FlowPythonGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
+        FlowPythonGenerator.to_py(node, "aflow", schema_class_map)
         #if node_id not in ["__start__", "__end__"]:
         #    # This will populate FlowPythonGenerator._user_flow_functions
-        #    FlowPythonGenerator.to_py(node, "aflow", schema_class_map, use_helpers)
+        #    FlowPythonGenerator.to_py(node, "aflow", schema_class_map)
     
     # Write KVP schema constants before the flow decorator
     if hasattr(FlowPythonGenerator, "_kvp_schema_constants") and FlowPythonGenerator._kvp_schema_constants:
@@ -1409,7 +1422,7 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     main_flow_buffer = StringIO()
     
     # Use the common flow attributes generator to handle nodes and edges
-    FlowPythonGenerator._generate_flow_attributes(flow, "aflow", schema_class_map, main_flow_buffer, use_helpers)
+    FlowPythonGenerator._generate_flow_attributes(flow, "aflow", schema_class_map, main_flow_buffer)
         
     # Then write the main flow function content
     out.write(main_flow_buffer.getvalue())
