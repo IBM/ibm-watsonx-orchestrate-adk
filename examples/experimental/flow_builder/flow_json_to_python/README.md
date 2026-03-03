@@ -2,11 +2,23 @@
 
 A tool to convert IBM watsonx Orchestrate flow definitions (JSON) into Python code.
 
+## Important Note on Code Format
+
+The converted Python code follows a **standardized format** and will likely not match the original hand-crafted Python code if the flow originated from a hand-crafted Python definition. However, since the code is now in plain-text Python, you can use standard diff-merge capabilities in VSCode or other IDEs to spot the differences between the generated code and your original implementation.
+
+**Recommended Workflow:**
+1. Use the generated code as a **new baseline** for your Python code
+2. Compare it with your original hand-crafted version using IDE diff-merge tools
+3. Identify and preserve any customizations or optimizations from your original code
+4. Subsequent conversions will follow the same standardized format, making future diff-merges much easier
+
+This approach ensures consistency across conversions and simplifies maintenance over time.
+
 ## Quick Start
 
 ### Prerequisites
 
-1. Python 3.8 or higher
+1. Python 3.10 or higher
 
 2. Clone the repository with the flow-converter branch:
    ```bash
@@ -26,14 +38,22 @@ A tool to convert IBM watsonx Orchestrate flow definitions (JSON) into Python co
 
 ### Running the Tool
 
-**Interactive Mode (Recommended):**
+**Step 1: Activate your wxO environment**
+
+Before running the tool, you need to activate the wxO environment that contains the flow you want to convert:
+
+```bash
+wxo environment activate <environment-name>
+```
+
+**Step 2: Run the converter in Interactive Mode (Recommended):**
 
 ```bash
 python main.py
 ```
 
 The tool will:
-1. Connect to your wxO environment
+1. Connect to your active wxO environment
 2. Show a list of available flow tools
 3. Let you select which flow to convert
 4. Ask if you want to customize conversion options
@@ -72,6 +92,7 @@ Conversion completed successfully!
 ============================================================
 Flow model (JSON):       output/triage_issue_flow.json
 Generated code (Python): output/triage_issue_flow_generated.py
+Original flow (ZIP):     output/triage_issue_flow_original.zip
 ============================================================
 ```
 
@@ -104,10 +125,13 @@ python main.py -f input.json -v
 
 ## Output Files
 
-The tool generates two files in the `output/` directory:
+The tool generates files in the `output/` directory:
 
 1. **`<flow_name>.json`** - The flow definition in JSON format
 2. **`<flow_name>_generated.py`** - The Python code
+3. **`<flow_name>_original.zip`** - The original flow package (when using interactive mode or when the flow is found in wxO environment)
+
+The ZIP file contains the complete flow package including all dependencies and connections, which can be imported back into wxO if needed.
 
 ## Generated Code Structure
 
@@ -154,5 +178,3 @@ python main.py --help
 # Show version
 python main.py --version
 ```
-
-For more technical details, see `IMPLEMENTATION.md`.
