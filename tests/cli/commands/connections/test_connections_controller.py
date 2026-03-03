@@ -8,8 +8,8 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     _parse_file,
     _format_token_headers,
     _validate_connection_params,
-    _parse_entry,
     _get_credentials,
+    _get_oauth_custom_fields,
     add_configuration,
     add_credentials,
     add_identity_provider,
@@ -19,7 +19,8 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     import_connection,
     configure_connection,
     set_credentials_connection,
-    set_identity_provider_connection
+    set_identity_provider_connection,
+    key_value_parse
 )
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionType,
@@ -39,9 +40,12 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAuth2TokenExchangeCredentials,
     KeyValueConnectionCredentials,
     ConnectionConfiguration,
-    IdentityProviderCredentials
+    IdentityProviderCredentials,
+    ConnectionCredentialsEntry,
+    KeyValueEntry
 )
 from ibm_watsonx_orchestrate.client.connections.connections_client import ListConfigsResponse, GetConfigResponse
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 @pytest.fixture
 def connections_spec_content() -> dict:
@@ -321,8 +325,33 @@ class TestValidateConnectionParams:
                 message = f"Missing flags --{arg.replace('_', '-')} is required for type {conn_type}"
 
             assert message in str(e)
-
-class TestParseEntry:
+    
+    @pytest.mark.parametrize(
+        ("conn_type", "arg_keys", "expected_pass"),
+        [
+            (ConnectionType.BASIC_AUTH, ["username", "password", "auth_entries"], False),
+            (ConnectionType.BEARER_TOKEN, ["token", "auth_entries"], False),
+            (ConnectionType.API_KEY_AUTH, ["api_key", "auth_entries"], False),
+            (ConnectionType.OAUTH2_AUTH_CODE, ["client_id", "client_secret", "token_url", "auth_url", "auth_entries"], True),
+            # (ConnectionType.OAUTH2_IMPLICIT, ["client_id", "auth_url"]),
+            (ConnectionType.OAUTH2_PASSWORD, ["client_id", "client_secret", "token_url", "username", "password", "auth_entries"], False),
+            (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url", "auth_entries"], False),
+            (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type", "auth_entries"], False),
+            (ConnectionType.KEY_VALUE, ["auth_entries"], False),
+        ]
+    )
+    def test_validate_connection_params_auth_entries(self, conn_type, arg_keys, expected_pass):
+        args = {}
+        for arg in arg_keys:
+            args[arg] = "test"
+        
+        if not expected_pass:
+            with pytest.raises(BadParameter) as e:
+                _validate_connection_params(conn_type, **args)
+                assert f"The flag --auth-entries is only supported by type {conn_type}" in str(e)
+        else:
+            _validate_connection_params(conn_type, **args)
+class TestKeyValueParse:
     @pytest.mark.parametrize(
         ("entry_string", "expected"),
         [
@@ -333,9 +362,9 @@ class TestParseEntry:
             ("test=test=test", {"test": "test=test"}),
         ]
     )
-    def test_parse_entry(self, entry_string, expected):
-        result = _parse_entry(entry_string)
-        assert result == expected
+    def test_key_value_parse(self, entry_string, expected):
+        result = key_value_parse(entry_string)
+        assert {result.key: result.value} == expected
     
     @pytest.mark.parametrize(
         "entry_string",
@@ -344,14 +373,13 @@ class TestParseEntry:
             "",
         ]
     )
-    def test_parse_entry_invalid_entries(self, entry_string, caplog):
-        with pytest.raises(SystemExit) as e:
-            _parse_entry(entry_string)
+    def test_key_value_parse_invalid_entries(self, entry_string, caplog):
+        with pytest.raises(BadParameter) as e:
+            key_value_parse(entry_string)
         
-        message = f"The entry '{entry_string}' is not in the expected form '<key>=<value>'"
+            message = f"The entry '{entry_string}' is not in the expected form '<key>=<value>'"
 
-        captured = caplog.text
-        assert message in captured
+            assert message in str(e)
 
 class TestGetCredentials:
     @pytest.mark.parametrize(
@@ -387,6 +415,7 @@ class TestGetCredentials:
     @pytest.mark.parametrize(
         ("entries", "expected"),
         [
+            ([KeyValueEntry(key="foo", value="bar"), KeyValueEntry(key="test1", value="test2")], {"foo": "bar", "test1": "test2"}),
             (["foo=bar", "test1=test2"], {"foo": "bar", "test1": "test2"}),
             ([], {})
         ]
@@ -403,6 +432,22 @@ class TestGetCredentials:
 
         assert type(credentials) == KeyValueConnectionCredentials
         assert credentials == expected_creds
+    
+    @pytest.mark.parametrize(
+        "entries",
+        [
+            [123],
+            [{}],
+            [[]]
+        ]
+    )
+    def test_get_credentials_key_value_invalid_type(self, entries):
+        args = {
+            "entries": entries
+        }
+
+        with pytest.raises(BadRequest) as e:
+            _get_credentials(ConnectionType.KEY_VALUE, **args)
     
     @pytest.mark.parametrize(
         "conn_type",
@@ -1189,3 +1234,55 @@ class TestSetIdentityProviderConnection:
             captured = caplog.text
             
             assert f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`" in captured
+
+class TestGetOAuthCustonFields:
+
+    @pytest.mark.parametrize(
+        ("location", "is_token"),
+        [
+            ("header", True),
+            ("header", False),
+            ("body", True),
+            ("body", False),
+            ("query", True),
+            ("query", False),
+        ]
+    )
+    def test_get_oauth_custom_fields(self, location, is_token):
+        mock_key = "key"
+        mock_value = "value"
+        mock_entries = [ConnectionCredentialsEntry(key=mock_key, value=mock_value, location=location)]
+        args = {"token_entries": None, "auth_entries": None}
+        if is_token:
+            args["token_entries"] = mock_entries
+        else:
+            args["auth_entries"] = mock_entries
+
+        result = _get_oauth_custom_fields(**args)
+
+        match location:
+            case "header":
+                if is_token:
+                    assert "custom_token_header" in result
+                    assert mock_key in result["custom_token_header"]
+                    assert result["custom_token_header"][mock_key] == mock_value
+                else:
+                    assert len(result) == 0
+            case "body":
+                if is_token:
+                    assert "custom_token_body" in result
+                    assert mock_key in result["custom_token_body"]
+                    assert result["custom_token_body"][mock_key] == mock_value
+                else:
+                    assert len(result) == 0
+            case "query":
+                if is_token:
+                    assert "custom_token_query" in result
+                    assert mock_key in result["custom_token_query"]
+                    assert result["custom_token_query"][mock_key] == mock_value
+                else:
+                    assert "custom_auth_query" in result
+                    assert mock_key in result["custom_auth_query"]
+                    assert result["custom_auth_query"][mock_key] == mock_value
+
+

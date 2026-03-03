@@ -12,7 +12,7 @@ Different customers have different products and services. A customer with only a
 
 ## Implementation Walkthrough
 
-Below we walk through a sample banking application that demonstrates this pattern. The sample shows how a financial services company provides different tools to customers based on whether they have personal banking accounts, mortgages, credit cards, or any combination thereof.
+Below we walk through a sample banking application that demonstrates this pattern. The sample is available in both TypeScript ([`ts_server/src/`](../toolkits/banking_mcp_server/ts_server/src/)) and Python ([`py_server/src/`](../toolkits/banking_mcp_server/py_server/src/)) with identical functionality. The examples below show TypeScript code, but the Python implementation follows the same patterns.
 
 ### Step 1: Thread-Based Context Management
 
@@ -20,11 +20,14 @@ The foundation of this pattern is thread-based context management. Each conversa
 
 #### Creating Context for a Thread
 
-When a customer first connects, the system extracts their identity from authentication headers and stores it in the global store. The sample includes a global store implementation in [`src/globalStore.ts`](../src/globalStore.ts) that maps thread IDs to customer data.
+When a customer first connects, the system extracts their identity from authentication headers and stores it in the global store. The sample includes a global store implementation that maps thread IDs to customer data:
+- TypeScript: [`ts_server/src/globalStore.ts`](../toolkits/banking_mcp_server/ts_server/src/globalStore.ts)
+- Python: [`py_server/src/global_store.py`](../toolkits/banking_mcp_server/py_server/src/global_store.py)
 
 The HTTP endpoint handles thread context:
 
-**File:** [`src/index.ts`](../src/index.ts)
+**TypeScript:** [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)
+**Python:** [`py_server/src/main.py`](../toolkits/banking_mcp_server/py_server/src/main.py)
 
 ```typescript
 app.post('/mcp', async (req: Request, res: Response) => {
@@ -77,7 +80,8 @@ Now that we have the customer's identity stored in the thread, we determine whic
 
 The sample uses a customer database module that maps which products each customer has access to:
 
-**File:** [`src/customerDatabase.ts`](../src/customerDatabase.ts)
+**TypeScript:** [`ts_server/src/customerDatabase.ts`](../toolkits/banking_mcp_server/ts_server/src/customerDatabase.ts)
+**Python:** [`py_server/src/customer_database.py`](../toolkits/banking_mcp_server/py_server/src/customer_database.py)
 
 ```typescript
 export interface CustomerProducts {
@@ -101,7 +105,8 @@ export function getCustomerProducts(customerId: string): CustomerProducts {
 
 The sample organizes tools into separate modules for each product line. Personal banking tools handle checking and savings accounts:
 
-**File:** [`src/personalBanking.ts`](../src/personalBanking.ts)
+**TypeScript:** [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts)
+**Python:** [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py)
 
 ```typescript
 export const personalBankingTools = [
@@ -114,7 +119,8 @@ export const personalBankingTools = [
 
 Mortgage tools handle loan information:
 
-**File:** [`src/mortgage.ts`](../src/mortgage.ts)
+**TypeScript:** [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts)
+**Python:** [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py)
 
 ```typescript
 export const mortgageTools = [
@@ -127,7 +133,8 @@ export const mortgageTools = [
 
 Credit card tools handle credit card operations:
 
-**File:** [`src/creditCard.ts`](../src/creditCard.ts)
+**TypeScript:** [`ts_server/src/creditCard.ts`](../toolkits/banking_mcp_server/ts_server/src/creditCard.ts)
+**Python:** [`py_server/src/credit_card.py`](../toolkits/banking_mcp_server/py_server/src/credit_card.py)
 
 ```typescript
 export const creditCardTools = [getCreditCardBalanceTool];
@@ -137,7 +144,8 @@ export const creditCardTools = [getCreditCardBalanceTool];
 
 The core of the pattern is in how the sample creates an MCP server instance for each customer with **only their relevant tools** registered:
 
-**File:** [`src/index.ts`](../src/index.ts)
+**TypeScript:** [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)
+**Python:** [`py_server/src/server.py`](../toolkits/banking_mcp_server/py_server/src/server.py)
 
 ```typescript
 function createCustomerServer(customerId: string | undefined): McpServer {

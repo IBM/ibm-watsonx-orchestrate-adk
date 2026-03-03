@@ -51,7 +51,6 @@ def build_user_flow(aflow: Flow = None) -> Flow:
     data_map = DataMap()
     data_map.add(Assignment(target_variable="self.input.value",value_expression="[\"Alice\", \"Bob\", \"Charlie\", \"Diana\", \"Ethan\", \"Fiona\", \"George\"]"))
     user_node6 = user_flow.field(direction="output",name="Friends", display_name="List of friends", kind=UserFieldKind.List, input_map=data_map)
-
     # A user flow edges
     user_flow.edge(START, user_node1)
     user_flow.edge(user_node1, user_node2)

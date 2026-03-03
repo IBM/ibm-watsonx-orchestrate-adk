@@ -1,0 +1,12 @@
+spec_version: v1
+kind: native
+style: default
+name: employee_information_agent
+llm: groq/openai/gpt-oss-120b
+description: >
+  This agent will help showcase some usecases for agentic workflow
+instructions: >
+  Be precise and crisp. Do not ask for any input parameters.
+collaborators: []
+tools:
+  - employee_information_8879AD

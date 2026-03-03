@@ -7,8 +7,9 @@ import sys
 import tempfile
 import requests
 import time
+import re
 from pathlib import Path
-from typing import Tuple, OrderedDict, Any
+from typing import Tuple, OrderedDict, Any, Optional
 from urllib.parse import urlparse
 from enum import Enum
 
@@ -16,10 +17,11 @@ from dotenv import dotenv_values
 
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
-from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
+from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config, DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT
 from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,9 @@ class EnvService:
         "WDU_RUNTIME_SOURCE",
         "LATEST_ENV_FILE",
     }
+
+    _SERVICE_USERNAME_ENV_VAR="SERVICE_USERNAME"
+    _SERVICE_PASSWORD_ENV_VAR="SERVICE_PASSWORD"
 
     def __init__ (self, config: Config):
         self.__config = config
@@ -310,6 +315,92 @@ class EnvService:
         return env_dict
 
     @staticmethod
+    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$', min_length: int = 0) -> bool:
+        return  (len(cred) >= min_length) and bool(re.match(pattern, cred))
+
+    def __persist_service_credentials(self, service_credentials: dict):
+        
+        persist_creds = {
+            "username": service_credentials.get(self._SERVICE_USERNAME_ENV_VAR),
+            "password": service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR),
+        }
+
+        self.__config.write(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT, persist_creds)
+
+
+
+    def get_service_credentials(self, username: Optional[str] = None, password: Optional[str] = None) -> dict:
+        _DEFAULT_SERVICE_USER = "orchestrate"
+        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$')
+        service_credentials = {}
+        cfg_service_credentials = self.__config.read(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT) or {}
+
+        service_credentials[self._SERVICE_USERNAME_ENV_VAR] = username or os.environ.get(self._SERVICE_USERNAME_ENV_VAR) or cfg_service_credentials.get("username")
+        if not service_credentials.get(self._SERVICE_USERNAME_ENV_VAR):
+            try:
+                import getpass
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = getpass.getuser()
+            except:
+                logger.warning(f"Failed to find logged in os user. Defaulting service username to be '{_DEFAULT_SERVICE_USER}'")
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = _DEFAULT_SERVICE_USER
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_USERNAME_ENV_VAR), valid_service_cred_pattern, 3):
+                logger.warning(f"Invalid username provided. Defaulting service username to be '{_DEFAULT_SERVICE_USER}'")
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = _DEFAULT_SERVICE_USER
+        
+        service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = password or os.environ.get(self._SERVICE_PASSWORD_ENV_VAR) or cfg_service_credentials.get("password")
+        if not service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR):
+            import getpass
+            service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = getpass.getpass("Set Master Password for Local Services: ")
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 8):
+                raise BadRequest(f"Invalid password provided. Password must be a minimum of 8 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
+
+        try:
+            self.__persist_service_credentials(service_credentials)
+        except:
+            pass
+        return service_credentials
+    
+    @staticmethod
+    def __apply_service_credentials(env_dict: dict, service_credentials: dict) -> dict:
+        CONFIGURABLE_USERNAMES = [
+            # "POSTGRES_USER", <- not supported
+            "LANGFUSE_USERNAME",
+            "MINIO_ROOT_USER",
+            "MCP_GATEWAY_BASIC_USER",
+            # "ES_USERNAME",<- not supported
+            # "MILVUS_USERNAME" <- not supported
+            "CLICKHOUSE_USER"
+        ]
+
+        CONFIGURABLE_PASSWORDS = [
+            "POSTGRES_PASSWORD",
+            "LANGFUSE_PASSWORD",
+            "MINIO_ROOT_PASSWORD",
+            "MCP_GATEWAY_BASIC_PASSWORD",
+            "MCP_GATEWAY_ADMIN_PASSWORD",
+            "ES_PASSWORD",
+            "MILVUS_PASSWORD",
+            "CLICKHOUSE_PASSWORD",
+            "TAVILY_API_KEY", #May not be needed
+            "RUNTIME_MANAGER_API_KEY",
+            "DB_ENCRYPTION_KEY",
+            "AGENTOPS_API_KEY"
+        ]
+
+        username = service_credentials.get(EnvService._SERVICE_USERNAME_ENV_VAR)
+        password = service_credentials.get(EnvService._SERVICE_PASSWORD_ENV_VAR)
+
+        if username:
+            for username_var in CONFIGURABLE_USERNAMES:
+                env_dict.setdefault(username_var, username)
+
+        if password:
+            for password_var in CONFIGURABLE_PASSWORDS:
+                env_dict.setdefault(password_var, password)
+
+        return env_dict
+
+    @staticmethod
     def auto_configure_callback_ip (merged_env_dict: dict) -> dict:
         """
         Automatically detect and configure CALLBACK_HOST_URL if it's empty.
@@ -497,10 +588,12 @@ class EnvService:
         return merged_env_dict
 
     @staticmethod
-    def prepare_server_env_vars (user_env: dict = {}, should_drop_auth_routes: bool = False) -> dict:
+    def prepare_server_env_vars (user_env: dict = {}, should_drop_auth_routes: bool = False, service_credentials: dict = {}) -> dict:
         merged_env_dict = EnvService.prepare_server_env_vars_minimal(user_env)
 
         merged_env_dict = EnvService.__apply_server_env_dict_defaults(merged_env_dict)
+ 
+        merged_env_dict = EnvService.__apply_service_credentials(env_dict=merged_env_dict, service_credentials=service_credentials)
 
         if should_drop_auth_routes:
             # NOTE: this is only needed in the case of co-pilot as of now.

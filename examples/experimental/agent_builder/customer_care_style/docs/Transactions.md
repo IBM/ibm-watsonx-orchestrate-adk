@@ -59,7 +59,9 @@ The Transaction Pattern uses a two-step flow and two corresponding tools. One of
 1. **Prepare Step**: Validates the request and returns a confirmation dialog
 2. **Confirm/Cancel Step**: Processes the user's explicit choice
 
-**File:** [`src/mortgage.ts`](../src/mortgage.ts)
+**Implementation Files:**
+- **TypeScript**: [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts)
+- **Python**: [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py)
 
 ### Step 1: Prepare the Transaction
 
@@ -222,8 +224,14 @@ export const confirmOrCancelMortgagePaymentTool = {
 #### Full Working Examples
 
 For complete production implementations with date validation, detailed error handling, and formatted confirmation dialogs, see:
-- **Mortgage Payments**: [`src/mortgage.ts`](../src/mortgage.ts) - Shows payment preparation with date validation and expiration handling
-- **Money Transfers**: [`src/personalBanking.ts`](../src/personalBanking.ts) - Demonstrates multi-step widget flow with account selection before confirmation
+
+**TypeScript:**
+- **Mortgage Payments**: [`ts_server/src/mortgage.ts`](../toolkits/banking_mcp_server/ts_server/src/mortgage.ts) - Shows payment preparation with date validation and expiration handling
+- **Money Transfers**: [`ts_server/src/personalBanking.ts`](../toolkits/banking_mcp_server/ts_server/src/personalBanking.ts) - Demonstrates multi-step widget flow with account selection before confirmation
+
+**Python:**
+- **Mortgage Payments**: [`py_server/src/mortgage.py`](../toolkits/banking_mcp_server/py_server/src/mortgage.py) - Shows payment preparation with date validation and expiration handling
+- **Money Transfers**: [`py_server/src/personal_banking.py`](../toolkits/banking_mcp_server/py_server/src/personal_banking.py) - Demonstrates multi-step widget flow with account selection before confirmation
 
 ### How the Transaction Flow Works
 

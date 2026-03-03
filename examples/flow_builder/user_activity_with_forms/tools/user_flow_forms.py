@@ -120,10 +120,11 @@ def build_user_form(aflow: Flow = None) -> Flow:
    
     #Boolean: Married
     user_node_with_form.boolean_input_field(name="married", label="Married", single_checkbox = True, true_label="Married", false_label="Not married")
-
+    
     #Text: Last Name
-    user_node_with_form.text_input_field(name="lastName", label="Last name", required=True, placeholder_text="Enter your name here", help_text="Enter name")
-
+    user_node_with_form.text_input_field(name="lastName", label="Last name", required=True, placeholder_text="Enter your name here", help_text="Enter name", 
+        regex="^[a-zA-Z0-9\s]+$", regex_error_message="No special characters allowed")
+    
     #Number: Age
     user_node_with_form.number_input_field(name="age", label="Age", required=True, help_text="Enter your age")
 
@@ -139,9 +140,23 @@ def build_user_form(aflow: Flow = None) -> Flow:
      #Field: Projected salary
     user_node_with_form.field_output_field(name="acknowledge", label="Projected salary", value = data_map_desired_salary)
 
+    #FileUpload
+    data_map_min_files = DataMap()
+    data_map_min_files.add(Assignment(target_variable="self.input.min_num_files", value_expression="1"))
+
+    data_map_max_files = DataMap()
+    data_map_max_files.add(Assignment(target_variable="self.input.max_num_files", value_expression="2"))
+
+    user_node_with_form.file_upload_field(name="credentials", label="Upload credentials", allow_multiple_files=True, file_max_size=256,
+                                          min_num_files=data_map_min_files, max_num_files=data_map_max_files)
+
     #Date: End Date
     data_map_end_date = DataMap()
     data_map_end_date.add(Assignment(target_variable="self.input.default",value_expression="flow.input.event_date.dateEnd"))
+
+    data_map_end_date.add(Assignment(target_variable="self.input.min_date",value_expression="\"2026-01-05\""))
+    data_map_end_date.add(Assignment(target_variable="self.input.max_date",value_expression="\"2026-01-12\"")) 
+
     user_node_with_form.date_input_field(name="endDate", label="End Date", default=data_map_end_date,required=True)
   
     data_map_list_source = DataMap()
@@ -163,7 +178,8 @@ def build_user_form(aflow: Flow = None) -> Flow:
     data_map_multi_choice_default.add(Assignment(target_variable="self.input.default", value_expression="flow.input.listOfPreferredFruits"))
 
     user_node_with_form.multi_choice_input_field(name="multi-choice", label="List of Fruits", required=False, choices=data_map_multi_choice, 
-                                                  show_as_dropdown=True, placeholder_text="Please enter your choice", default=data_map_multi_choice_default)
+                                                  show_as_dropdown=True, placeholder_text="Please enter your choice", default=data_map_multi_choice_default,
+                                                  minItems=1, maxItems=2)
     
     #Mult-chocice: Books dowpdown complex
     data_map_list_books = DataMap()
@@ -189,6 +205,16 @@ def build_user_form(aflow: Flow = None) -> Flow:
 
     user_node_with_form.list_input_field(name="Fruits", label="Preferred fruits", default=data_map_list_fruits)
 
+    # User field: Select multiple approvers (min 1, max 5)
+    data_map_min_users = DataMap()
+    data_map_min_users.add(Assignment(target_variable="self.input.min_num_users", value_expression="1"))
+    data_map_max_users = DataMap()
+    data_map_max_users.add(Assignment(target_variable="self.input.max_num_users", value_expression="5"))
+    user_node_with_form.user_input_field(name="approvers", label="Select Approvers", required=True, multiple_users=True,
+                                         min_num_users=data_map_min_users, max_num_users=data_map_max_users)
+
+    # User field: Select a single assignee (min/max not applicable for single user)
+    user_node_with_form.user_input_field(name="assignee", label="Select Assignee", required=True, multiple_users=False)
     #Output Message: Successful submission
     user_node_with_form.message_output_field(name="success", label="Successful submission", message="Application successfully completed.")
  
