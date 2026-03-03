@@ -87,6 +87,13 @@ def add_toolkit(
             "--app-id", "-a", 
             help='The app ids of the connections to associate with this tool. A application connection represents the server authentication credentials needed to connect to this tool. Only type key_value is currently supported for STDIO MCP.'
         )
+    ] = None,
+    allowed_context: Annotated[
+        List[str],
+        typer.Option(
+            "--allowed-context",
+            help='Context keys to forward to remote MCP servers. Only "tenant_id" and "agent_id" are allowed. Only applicable for remote MCP toolkits.'
+        )
     ] = None
 ):
     toolkit_controller = ToolkitController()
@@ -101,7 +108,8 @@ def add_toolkit(
         url=url,
         transport=transport,
         tools=tools,
-        app_id=app_id
+        app_id=app_id,
+        allowed_context=allowed_context
     )
     toolkit_controller.publish_or_update_toolkits([toolkit])
 

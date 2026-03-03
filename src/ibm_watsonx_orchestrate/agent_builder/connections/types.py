@@ -6,6 +6,16 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+class ConnectionResource(BaseModel):
+    """Resource information for a connection, indicating which component it's associated with."""
+    component: str = Field(description="The component this connection is associated with (e.g., 'knowledge', 'registry')")
+    category: Optional[str] = Field(None, description="Optional category for the component (e.g., 'milvus' for knowledge)")
+
+    def __str__(self):
+        if self.category:
+            return f"{self.component}/{self.category}"
+        return self.component
+
 class ConnectionKind(str, Enum):
     basic = 'basic'
     bearer = 'bearer'
@@ -148,6 +158,7 @@ class ConnectionConfiguration(BaseModel):
     app_config_data: Optional[AppConfigData] = Field(None, validation_alias=AliasChoices('app_config_data', 'app_config'), serialization_alias='app_config_data')
     config_id: Optional[str] = None
     tenant_id: Optional[str] = None
+    custom_runtime_creds: Optional[dict] = Field(default=None, validation_alias=AliasChoices('custom_runtime_creds', 'custom_config_entries'), serialization_alias='custom_runtime_creds')
     
     def __get_import_aliases_mapping(self) -> dict:
         return {
@@ -234,6 +245,13 @@ class ConnectionConfiguration(BaseModel):
             raise ValueError("Connection of type 'key_value' cannot be configured at the 'member' level. Key value connections must be of type 'team'")
         return self
 
+class KeyValueEntry(BaseModel):
+    key: str = Field(description="The key of the entry.")
+    value: str = Field(description="The value of the entry.")
+
+    def __str__(self):
+        return f"<KeyValueEntry: {self.key}={self.value}>"
+
 class ConnectionCredentialsEntryLocation(str, Enum):
     BODY = 'body'
     HEADER = 'header',
@@ -281,22 +299,22 @@ class ConnectionCredentialsCustomFields(BaseOAuthCredentials):
             fields = getattr(self, attribute)
         fields[entry.key] = entry.value
 
-class BasicAuthCredentials(BaseModel):
+class BaseRuntimeCredentials(BaseModel):
+    url: Optional[str] = None
+    custom_configuration: Optional[dict] = None
+
+class BasicAuthCredentials(BaseRuntimeCredentials):
     username: str
     password: str
-    url: Optional[str] = None
 
-class BearerTokenAuthCredentials(BaseModel):
+class BearerTokenAuthCredentials(BaseRuntimeCredentials):
     token: str
-    url: Optional[str] = None
 
-class APIKeyAuthCredentials(BaseModel):
+class APIKeyAuthCredentials(BaseRuntimeCredentials):
     api_key: str
-    url: Optional[str] = None
 
-class OAuth2TokenCredentials(BaseModel):
+class OAuth2TokenCredentials(BaseRuntimeCredentials):
     access_token: str
-    url: Optional[str] = None
 
 class OAuth2AuthCodeCredentials(BaseOAuthCredentials):
     client_id: str

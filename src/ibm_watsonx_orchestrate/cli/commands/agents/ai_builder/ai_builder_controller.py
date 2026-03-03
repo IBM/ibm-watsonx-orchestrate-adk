@@ -42,6 +42,7 @@ def __box_print(message_lines: List[str | Dict[Any, Any]], title: str | None = N
         if isinstance(item, dict):
             # Create rich JSON representation for dictionaries
             json_content = JSON.from_data(item)
+            json_content.text.no_wrap = False
             content_parts.append(json_content)
         else:
             # Treat as string (convert if needed)

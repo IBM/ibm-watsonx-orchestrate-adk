@@ -39,3 +39,10 @@ class GenesysPlatformConnection(BaseModel):
             raise ValueError(f"Missing required fields for Genesys platform configuration: {', '.join(missing_fields)}")
 
         return self
+
+    def get_entries(self):
+        return [
+            f"client_id={self.client_id}",
+            f"client_secret={self.client_secret}",
+            f"endpoint={self.endpoint}"
+        ]
