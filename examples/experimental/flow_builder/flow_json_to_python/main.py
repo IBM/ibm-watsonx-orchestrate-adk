@@ -16,7 +16,7 @@ Options:
     -d, --display-name      Set a new display name for the top-level flow
     -v, --verbose           Enable verbose output
     --validate-only         Only validate the JSON model without generating code
-    --remove-tool-uuid      Remove the tool UUID from the generated code
+    --remove-tool-uuid      Remove the tool UUID from the generated code to make the flow portable across tenants
     --debug                 Enable debug output for troubleshooting
     -V, --version           Show version information and exit
 """
@@ -203,13 +203,14 @@ def select_flow_tool_interactive() -> tuple[str, str, dict]:
                 
                 # Get remove tool UUID option
                 print(f"\nCurrent remove tool UUID: No")
-                remove_uuid_input = input("Remove tool UUID from generated code? (y/N): ").strip().lower()
+                remove_uuid_input = input("Remove tool UUID from generated code to make the flow portable across tenants? (y/N): ").strip().lower()
                 remove_tool_uuid = remove_uuid_input in ['y', 'yes']
             
             interactive_options = {
                 'flow_name': new_flow_name,
                 'display_name': new_display_name,
-                'remove_tool_uuid': remove_tool_uuid
+                'remove_tool_uuid': remove_tool_uuid,
+                'tool_name_for_export': tool_name  # Store tool name for zip export
             }
             
             print()
@@ -251,9 +252,9 @@ def main() -> int:
         help="Set a new display name for the top-level flow (can be any string)"
     )
     parser.add_argument(
-        "--remove-tool-uuid", 
-        action="store_true", 
-        help="Remove the tool UUID from the generated code"
+        "--remove-tool-uuid",
+        action="store_true",
+        help="Remove the tool UUID from the generated code to make the flow portable across tenants"
     )
     parser.add_argument(
         "-v", "--verbose", 
@@ -288,6 +289,7 @@ def main() -> int:
     cleanup_temp_file = False
     original_json_file = None
     interactive_options = {}
+    tool_name_for_export = None  # Track tool name for zip export
     
     if not json_file:
         # Interactive mode: select from wxO environment
@@ -298,6 +300,7 @@ def main() -> int:
         try:
             tool_name, json_file, interactive_options = select_flow_tool_interactive()
             cleanup_temp_file = True
+            tool_name_for_export = interactive_options.get('tool_name_for_export')
             
             # Override command-line args with interactive options if provided
             if interactive_options.get('flow_name'):
@@ -316,6 +319,35 @@ def main() -> int:
     else:
         # Store original JSON file path for copying later
         original_json_file = json_file
+        
+        # Try to find the tool name from the JSON file to enable zip export
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+                flow_name_from_json = json_data.get('spec', {}).get('name', None)
+                
+                # Try to find this tool in wxO environment for zip export
+                if flow_name_from_json:
+                    try:
+                        from ibm_watsonx_orchestrate.client.utils import instantiate_client
+                        from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+                        
+                        client = instantiate_client(ToolClient)
+                        all_tools = client.get()
+                        
+                        # Look for a matching flow tool
+                        for tool_spec in all_tools:
+                            if (tool_spec.get("binding", {}).get("flow") is not None and
+                                tool_spec.get("name") == flow_name_from_json):
+                                tool_name_for_export = tool_spec.get("name")
+                                if args.verbose:
+                                    print(f"Found matching flow tool in wxO environment: {tool_name_for_export}")
+                                break
+                    except Exception:
+                        # Silently ignore if we can't connect to wxO
+                        pass
+        except Exception:
+            pass
     
     # Read the JSON to get the flow name
     try:
@@ -369,13 +401,39 @@ def main() -> int:
                 if args.verbose:
                     print(f"Saved JSON file to: {json_output}")
             
+            # Export original flow as zip if from interactive mode
+            if result == 0 and tool_name_for_export:
+                try:
+                    from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
+                    
+                    zip_output = os.path.join(output_dir, f"{flow_name}_original.zip")
+                    if args.verbose:
+                        print(f"\nExporting original flow as zip to: {zip_output}")
+                    
+                    tools_controller = ToolsController()
+                    tools_controller.export_tool(
+                        name=tool_name_for_export,
+                        output_path=zip_output
+                    )
+                    
+                    if args.verbose:
+                        print(f"Successfully exported original flow to: {zip_output}")
+                except Exception as e:
+                    print(f"Warning: Could not export original flow as zip: {e}", file=sys.stderr)
+                    if args.debug:
+                        import traceback
+                        traceback.print_exc()
+            
             # Print summary of generated files
             if result == 0:
                 print("\n" + "="*60)
                 print("Conversion completed successfully!")
                 print("="*60)
-                print(f"Flow model (JSON):     {json_output}")
+                print(f"Flow model (JSON):       {json_output}")
                 print(f"Generated code (Python): {python_output}")
+                if tool_name_for_export:
+                    zip_output = os.path.join(output_dir, f"{flow_name}_original.zip")
+                    print(f"Original flow (ZIP):     {zip_output}")
                 print("="*60)
         
         return result
