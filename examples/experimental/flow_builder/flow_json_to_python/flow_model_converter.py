@@ -504,51 +504,9 @@ def generate_imports(spec: Any, out: TextIO) -> None:
     out.write("\n\n")
 
 
-def generate_helper_functions(out: TextIO) -> None:
-    """Generate helper functions for creating nodes."""
-    out.write("""
-def create_branch_node(aflow, evaluator, name=None, display_name=None):
-    \"\"\"
-    Helper function to create a branch node.
-    
-    Args:
-        aflow: The flow object
-        evaluator: Expression to evaluate for branching
-        name: Name of the branch node (optional)
-        display_name: Display name for the node (optional)
-        
-    Returns:
-        The created branch node
-    \"\"\"
-    return aflow.branch(evaluator=evaluator)
-
-def create_data_map(assignments):
-    \"\"\"
-    Helper function to create a data map for variable assignments.
-    
-    Args:
-        assignments: List of assignment dictionaries with target_variable and value_expression
-        
-    Returns:
-        A DataMapSpec object with the specified assignments
-    \"\"\"
-    data_map = DataMap()
-    for assignment in assignments:
-        data_map.add(Assignment(
-            target_variable=assignment["target_variable"],
-            value_expression=assignment["value_expression"],
-            default_value=assignment.get("default_value")
-        ))
-
-    return DataMapSpec(spec = data_map)
-
-""")
-
-
 def convert_to_python(
     flow: Flow,
-    out: TextIO,
-    include_helpers: bool = True
+    out: TextIO
 ) -> None:
     """
     Convert a Flow model to Python code.
@@ -556,7 +514,6 @@ def convert_to_python(
     Args:
         flow: The validated Flow model
         out: Output stream to write the generated code
-        include_helpers: Whether to include helper functions
     """
     try:
         # Generate imports
@@ -565,12 +522,8 @@ def convert_to_python(
         # Generate schema classes
         schema_class_map = generate_schema_classes(flow.schemas, out)
         
-        # Generate helper functions if requested
-        if include_helpers:
-            generate_helper_functions(out)
-        
         # Generate flow code
-        generate_flow_py_code(flow, schema_class_map, out, use_helpers=include_helpers)
+        generate_flow_py_code(flow, schema_class_map, out)
         
     except Exception as e:
         out.write(f"\n# ERROR: An error occurred during code generation: {str(e)}\n")
@@ -586,7 +539,6 @@ def convert(
     flow_name: Optional[str] = None,
     display_name: Optional[str] = None,
     remove_tool_uuid: bool = False,
-    include_helpers: bool = True,
     verbose: bool = False,
     debug: bool = False,
     validate_only: bool = False
@@ -600,7 +552,6 @@ def convert(
         flow_name: Optional new name for the flow
         display_name: Optional new display name for the flow
         remove_tool_uuid: Whether to remove tool UUIDs
-        include_helpers: Whether to include helper functions
         verbose: Enable verbose output
         debug: Enable debug output
         validate_only: Only validate without generating code
@@ -698,13 +649,13 @@ def convert(
             with open(output_file, 'w', encoding='UTF-8') as f:
                 if verbose:
                     print(f"Generating Python code to {output_file}")
-                convert_to_python(flow, f, include_helpers=include_helpers)
+                convert_to_python(flow, f)
                 if verbose:
                     print(f"Successfully generated Python code")
         else:
             if verbose:
                 print("Generating Python code to stdout:")
-            convert_to_python(flow, sys.stdout, include_helpers=include_helpers)
+            convert_to_python(flow, sys.stdout)
         
         # Debug: dump compiled flow
         if debug and output_file:
