@@ -16,7 +16,6 @@ Options:
     -d, --display-name      Set a new display name for the top-level flow
     -v, --verbose           Enable verbose output
     --validate-only         Only validate the JSON model without generating code
-    --no-helper-functions   Don't include helper functions in the generated code
     --remove-tool-uuid      Remove the tool UUID from the generated code
     --debug                 Enable debug output for troubleshooting
     -V, --version           Show version information and exit
@@ -272,14 +271,9 @@ def main() -> int:
         help="Enable debug output for troubleshooting"
     )
     parser.add_argument(
-        "-V", "--version", 
-        action="store_true", 
-        help="Show version information and exit"
-    )
-    parser.add_argument(
-        "--no-helper-functions", 
+        "-V", "--version",
         action="store_true",
-        help="Don't include helper functions in the generated code"
+        help="Show version information and exit"
     )
     
     args = parser.parse_args()
@@ -353,7 +347,6 @@ def main() -> int:
             flow_name=args.name,
             display_name=args.display_name,
             remove_tool_uuid=args.remove_tool_uuid,
-            include_helpers=not args.no_helper_functions,
             verbose=args.verbose,
             debug=args.debug,
             validate_only=args.validate_only
