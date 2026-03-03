@@ -2,19 +2,21 @@ name: deepgram_voice_config
 speech_to_text:
   provider: deepgram_stt
   deepgram_stt_config:
-    api_url: "wss://api.deepgram.com/v1/listen"
-    api_key: "your-deepgram-api-key"
-    model: "example model" # e.g. nova-2
-    language: "en-US"
-    numerals: true
-    mip_opt_out: false
+    api_url: "wss://api.deepgram.com/v1/listen"  # Required
+    api_key: "your-deepgram-api-key"  # Required
+    model: "example model"  # Required, e.g. nova-2
+    language: "en-US"  # Optional
+    numerals: true  # Optional: convert numbers to numerals
+    keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition
+    mip_opt_out: false  # Optional: opt out of model improvement program
 text_to_speech:
   provider: deepgram_tts
   deepgram_tts_config:
-    api_key: "your-deepgram-api-key"
-    language: "en"
-    voice: "example voice" # e.g. aura-asteria-en
-    mip_opt_out: false
+    api_key: "your-deepgram-api-key"  # Required
+    api_url: null  # Optional
+    language: "en"  # Optional
+    model: "example model"  # Optional, e.g. aura-2-thalia-en
+    mip_opt_out: false  # Optional: opt out of model improvement program
 language: "en-US"
 
 
@@ -42,6 +44,7 @@ user_idle_handler:
   idle_timeout: 7
   idle_max_reprompts: 2
   idle_timeout_message: "Are you still there? Please let me know if you need any help."
+  idle_hangup_message: ""  # Optional: message to play before hanging up
 
 # Agent Idle Handler (Audio Cues & Hold Music)
 agent_idle_handler:
