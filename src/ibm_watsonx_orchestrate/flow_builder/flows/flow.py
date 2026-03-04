@@ -49,7 +49,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id
 
 from .events import StreamConsumer
 
@@ -401,16 +401,7 @@ class Flow(Node):
             name = name if name is not None and name != "" else tool
 
             if input_schema is None and output_schema is None:
-                # let's identify the correct tool id
-                tool_name = name
-                tool_id = None
-                if tool is not None and isinstance(tool, str):
-                    tool_name = tool
-                    # if the tool id has a colon in it, we need to split it first
-                    if ":" in tool:
-                        tool_name = tool.split(":")[0]
-                        tool_id = tool.split(":")[1]
-
+                tool_name, tool_id = parse_tool_name_id(tool)
                 tool_spec = None
                 # try to retrieve the schema from server
                 if tool_id is not None:

@@ -345,8 +345,8 @@ class UserNode(Node):
             label: str | None = None,
             required: bool = False,
             default: Any| None=None,
-            range_start: str | None = None,
-            range_end: str | None = None,
+            min_date: Any | None = None,
+            max_date: Any | None = None,
     ) -> UserField:
          """
          Creates a date input field in the form.
@@ -356,8 +356,8 @@ class UserNode(Node):
              label: Optional display label for the field.
              required: Whether the field is required. Defaults to False.
              default: Optional default value for the field, passed as DataMap.
-             range_start: Optional minimum date value (start of allowed date range).
-             range_end: Optional maximum date value (end of allowed date range).
+             min_date: Optional DataMap for the minimum date value (start of allowed date range).
+             max_date: Optional DataMap for the maximum date value (end of allowed date range).
 
          Returns:
              UserField: The created date input field.
@@ -373,8 +373,8 @@ class UserNode(Node):
                 label = label,
                 required = required,
                 initial_value = default,
-                range_start = range_start,
-                range_end = range_end,
+                min_date = min_date,
+                max_date = max_date,
             )
     def number_input_field(
             self,

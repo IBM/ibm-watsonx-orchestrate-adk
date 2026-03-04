@@ -1076,11 +1076,14 @@ class UserForm(BaseModel):
             label: str | None = None,
             required: bool = False,
             initial_value: Any| None=None,
-            range_start: str | None = None,
-            range_end: str | None = None,
-            min_date: str | None = None,
-            max_date: str | None = None
+            min_date: Any | None = None,
+            max_date: Any | None = None
     ) -> UserField:
+        # Validate that min/max are DataMap instances (or None)
+        ensure_datamap(initial_value, "initial_value")
+        ensure_datamap(min_date, "min_date")
+        ensure_datamap(max_date, "max_date")
+
         # Use the template system from utils
         schemas = clone_form_schema("date", {
             "ui": {
@@ -1090,6 +1093,19 @@ class UserForm(BaseModel):
             }
         })
         
+        # Build the input_map by merging assignments from initial_value, min_date and max_date
+        if initial_value is not None:
+            add_assignment(initial_value, min_date)
+            add_assignment(initial_value, max_date)
+            date_constraints = initial_value
+        elif min_date is not None:
+            add_assignment(min_date, max_date)
+            date_constraints = min_date
+        elif max_date is not None:
+            date_constraints = max_date
+        else:
+            date_constraints = None
+        
         # Create the field
         userfield = UserField(
             name=name,
@@ -1098,7 +1114,7 @@ class UserForm(BaseModel):
             direction="input",
             input_schema=schemas["input_schema"],
             output_schema=schemas["output_schema"],
-            input_map=initial_value,
+            input_map=date_constraints,
             uiSchema=schemas["ui_schema"],
         )
         
@@ -1111,16 +1127,6 @@ class UserForm(BaseModel):
             "title": label,
             "format": "date"
         }
-        
-        # Add date range constraints if provided
-        if range_start is not None:
-            schema_def["range_start"] = range_start
-        if range_end is not None:
-            schema_def["range_end"] = range_end
-        if min_date is not None:
-            schema_def["minDate"] = min_date
-        if max_date is not None:
-            schema_def["maxDate"] = max_date
 
         self.jsonSchema.properties[name] = schema_def
         

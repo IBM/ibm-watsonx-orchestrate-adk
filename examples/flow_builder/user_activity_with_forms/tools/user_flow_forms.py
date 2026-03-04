@@ -151,13 +151,17 @@ def build_user_form(aflow: Flow = None) -> Flow:
                                           min_num_files=data_map_min_files, max_num_files=data_map_max_files)
 
     #Date: End Date
-    data_map_end_date = DataMap()
-    data_map_end_date.add(Assignment(target_variable="self.input.default",value_expression="flow.input.event_date.dateEnd"))
+    data_map_default_date = DataMap()
+    data_map_default_date.add(Assignment(target_variable="self.input.default",value_expression="flow.input.event_date.dateEnd"))
 
-    data_map_end_date.add(Assignment(target_variable="self.input.min_date",value_expression="\"2026-01-05\""))
-    data_map_end_date.add(Assignment(target_variable="self.input.max_date",value_expression="\"2026-01-12\"")) 
+    data_map_min_date = DataMap()
+    data_map_min_date.add(Assignment(target_variable="self.input.min_date",value_expression="\"2026-01-05\""))
+    
+    data_map_max_date = DataMap()
+    data_map_max_date.add(Assignment(target_variable="self.input.max_date",value_expression="\"2026-01-12\""))
 
-    user_node_with_form.date_input_field(name="endDate", label="End Date", default=data_map_end_date,required=True)
+    user_node_with_form.date_input_field(name="endDate", label="End Date", required=True, default=data_map_default_date, 
+                                        min_date=data_map_min_date, max_date=data_map_max_date)
   
     data_map_list_source = DataMap()
     data_map_list_source.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.listOfLanguages"))
