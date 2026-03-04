@@ -2,6 +2,7 @@ import importlib
 import inspect
 import re
 import logging
+import uuid
 from copy import deepcopy
 from typing import Any, Dict, Optional
 
@@ -795,3 +796,47 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
                 if tool not in tools:
                     tools.append(tool)
     return tools
+
+
+def is_valid_uuid(value: str) -> bool:
+    """
+    Check if a string is a valid UUID.
+    
+    Args:
+        value: String to check
+        
+    Returns:
+        True if the string is a valid UUID, False otherwise
+    """
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def parse_tool_name_id(tool: str) -> tuple[str, str | None]:
+    """
+    Parse tool name and ID from a tool string.
+    
+    Supports multiple formats:
+    1. tool_name -> (tool_name, None)
+    2. tool_name:tool_id -> (tool_name, tool_id) where tool_id is a UUID
+    3. MCP_kit:MCP_tool_name -> (MCP_kit:MCP_tool_name, None)
+    4. MCP_kit:MCP_tool_name:MCP_tool_id -> (MCP_kit:MCP_tool_name, MCP_tool_id) where MCP_tool_id is a UUID
+    
+    The last portion after a colon is treated as a tool_id only if it's a valid UUID.
+    Otherwise, the entire string is treated as the tool name.
+    
+    Args:
+        tool: Tool string to parse
+        
+    Returns:
+        (tool_name, tool_id) where tool_id is None if not present or not a UUID
+    """
+    name_part, sep, id_part = tool.rpartition(":")
+    
+    if sep and is_valid_uuid(id_part):
+        return name_part, id_part
+    
+    return tool, None
