@@ -940,7 +940,22 @@ class FlowPythonGenerator:
             if form.instructions:
                 out.write(f"        {form_var}.instructions = {repr(form.instructions)}\n")
             if form.jsonSchema:
-                out.write(f"        {form_var}.jsonSchema = {repr(form.jsonSchema)}\n")
+                # Use set_form_schema to properly register the schema in the flow
+                if isinstance(form.jsonSchema, SchemaRef):
+                    # For SchemaRef, use the generated Pydantic class
+                    schema_ref = form.jsonSchema.ref
+                    # Extract schema name from ref (e.g., '#/schemas/MySchema' -> 'MySchema')
+                    schema_name = schema_ref.split('/')[-1] if '/' in schema_ref else schema_ref
+                    # Find the corresponding Pydantic class in schema_class_map
+                    if schema_name in schema_class_map:
+                        pydantic_class_name = schema_class_map[schema_name]
+                        out.write(f"        {form_var}.set_form_schema({pydantic_class_name}, flow={flow_var})\n")
+                    else:
+                        # Fallback to direct assignment if schema class not found
+                        out.write(f"        {form_var}.jsonSchema = {repr(form.jsonSchema)}\n")
+                else:
+                    # If it's a JsonSchemaObject, use set_form_schema
+                    out.write(f"        {form_var}.set_form_schema({repr(form.jsonSchema)}, flow={flow_var})\n")
             if form.buttons:
                 out.write(f"        {form_var}.buttons = {repr(form.buttons)}\n")
             out.write("\n")
