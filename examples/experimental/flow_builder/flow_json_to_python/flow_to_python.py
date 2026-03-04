@@ -495,9 +495,9 @@ class FlowPythonGenerator:
         node_id = node.spec.name
         var_name = get_valid_variable_name(node_id)
         
-        # Skip start and end nodes
-        # if node_id in ["__start__", "__end__"]:
-        #    return var_name
+        # Skip start and end nodes - use predefined START and END constants
+        if node_id in ["__start__", "__end__"]:
+            return ""
         
         node_name = node_id if node.spec.display_name is None else node.spec.display_name
         buffer.write(f"\n    # Node type: {type(node).__name__}, name: {node_name}\n")
@@ -784,12 +784,9 @@ class FlowPythonGenerator:
         normalized_name = normalize_identifier(node.spec.name)
         user_flow_func_name = f"build_{normalized_name}_flow"
         
-        # Create the user flow node using common attributes
-        FlowPythonGenerator._generate_common_node_attributes(
-            node, var_name, flow_var, schema_class_map, out, func_name="userflow"
-        )
-        FlowPythonGenerator._generate_node_field(node, var_name, fields=["position", "dimensions"], schema_class_map=schema_class_map, out= out)
-
+        # Create the user flow node without name/display_name parameters
+        out.write(f"    {var_name} = {flow_var}.userflow()\n")
+        
         # Call the function to build the user flow
         out.write(f"\n    # Build the {node.spec.name} user flow\n")
         out.write(f"    {user_flow_func_name}({var_name})\n")
@@ -985,69 +982,51 @@ class FlowPythonGenerator:
             if field:
                 # Get field name
                 field_name = field.name
-                field_var = get_valid_variable_name(f"{var_name}_{field_name}")
+                
+                # Handle input_map first - generate DataMap if needed
+                data_map_var = None
+                if hasattr(field, "input_map") and field.input_map is not None:
+                    maps = field.input_map.spec.maps
+                    if maps:
+                        data_map_var = f"{var_name}_data_map"
+                        out.write(f"    {data_map_var} = DataMap()\n")
+                        for map_item in maps:
+                            target_var = map_item.target_variable if hasattr(map_item, "target_variable") else None
+                            value_expr = map_item.value_expression if hasattr(map_item, "value_expression") else None
+                            
+                            if target_var and value_expr is not None:
+                                out.write(f"    {data_map_var}.add(Assignment(")
+                                out.write(f"target_variable={repr(target_var)}, ")
+                                out.write(f"value_expression={repr(value_expr)}")
+                                out.write(f"))\n")
+                        out.write("\n")
+                
+                # Now generate the field() call
                 out.write(f"    {var_name}: {node.__class__.__name__} = {flow_var}.field(\n")
+                params.append(f'        direction={repr(field.direction)}')
                 params.append(f'        name={repr(field_name)}')
+                
+                # Handle field display name
+                if field.display_name is not None:
+                    params.append(f'        display_name={repr(field.display_name)}')
                 
                 # Handle field kind
                 kind_value = UserFieldKind.str_to_code(field.kind)
                 params.append(f"        kind={kind_value}")
                 
-                # Handle direction
-                if field.direction is not None:
-                    params.append(f'        direction={repr(field.direction)}')
-                
-                # Handle field display name (not node display name)
-                if field.display_name is not None:
-                    params.append(f'        display_name={repr(field.display_name)}')
-
                 # Handle text
                 if field.text is not None:
                     params.append(f'        text={repr(field.text)}')
                 
-                # input and output schema are fixed for user field and should be re-generated to ensure correctness
-
-                # Handle input_map - only add if it's actually present in the JSON
-                if hasattr(field, "input_map") and field.input_map is not None:
-                    # Generate input_map code
-                        maps = field.input_map.spec.maps
-                        if maps:
-                            map_items = []
-                            for map_item in maps:
-                                map_dict = {}
-                                
-                                # Handle target_variable
-                                if hasattr(map_item, "target_variable"):
-                                    map_dict["target_variable"] = map_item.target_variable
-                                
-                                # Handle value_expression
-                                if hasattr(map_item, "value_expression"):
-                                    map_dict["value_expression"] = map_item.value_expression
-                                
-                                # Add default_value if it exists and is not None
-                                if hasattr(map_item, "default_value") and map_item.default_value is not None:
-                                    map_dict["default_value"] = map_item.default_value
-                                
-                                map_assignment = ""
-                                if "target_variable" in map_dict and "value_expression" in map_dict:
-                                    map_assignment = f"{'':8}{{"
-                                    map_assignment += f'\n{'':12}"target_variable": {repr(map_dict["target_variable"])}'
-                                    map_assignment += f',\n{'':12}"value_expression": {repr(map_dict["value_expression"])}'
-                                    if "default_value" in map_dict:
-                                        map_assignment += f',\n{'':12}"default_value": {repr(map_dict["default_value"])}'
-                                    map_assignment += f"\n{'':8}}}"
-
-                                    map_items.append(map_assignment)
-
-                            if map_items:
-                                input_map_param = "        input_map=create_data_map([\n" + ",\n".join(map_items) + f"\n{'':4}])"
-                                params.append(input_map_param)
+                # Add input_map if we generated one
+                if data_map_var:
+                    params.append(f"        input_map={data_map_var}")
                 
                 # Write all parameters
                 if params:
                     out.write(",\n".join(params))
                 
-                out.write(")\n")
+                out.write("\n    )\n")
         
         # generate optional properties
         FlowPythonGenerator._generate_node_field(node, var_name, fields = ["position"], schema_class_map=schema_class_map, out=out)
@@ -1350,7 +1329,7 @@ def generate_flow_decorator(flow_spec: Any, schema_class_map: Dict[str, str], ou
             if schema_ref.startswith("#/schemas/"):
                 schema_name = schema_ref[len("#/schemas/"):]
                 # Check if this is a DocProc input schema
-                if "docproc" in schema_name.lower() or schema_name.endswith("_input"):
+                if "docproc" in schema_name.lower():
                     # Use DocProcInput for docproc flows
                     out.write(f"    input_schema=DocProcInput,\n")
                 elif schema_name in schema_class_map:
@@ -1384,7 +1363,7 @@ def generate_flow_decorator(flow_spec: Any, schema_class_map: Dict[str, str], ou
 def generate_function_signature(flow_spec: Any, out: TextIO) -> None:
     """Generate the flow function signature."""
     function_name = f"build_{flow_spec.name}_flow"
-    out.write(f"def {function_name}(aflow: Flow) -> Flow:\n")
+    out.write(f"def {function_name}(aflow: Flow = None) -> Flow:\n")
     
     # Add docstring
     if flow_spec.description:
