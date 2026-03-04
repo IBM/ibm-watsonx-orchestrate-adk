@@ -172,8 +172,11 @@ def extract_embedded_schemas(
                     if name is None:
                         name = key
                 
-                if key == "fields":
-                    # Don't extract schemas from fields as they should be auto-generated later
+                if key == "fields" or key == "form":
+                    # Don't extract schemas from fields or forms as they should be auto-generated later
+                    new_obj[key] = value
+                elif key == "uiSchema":
+                    # Don't extract uiSchema - it's auto-generated
                     new_obj[key] = value
                 else:
                     new_value, schemas = extract_embedded_schemas(
