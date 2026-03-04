@@ -85,6 +85,13 @@ relative to this package root folder or imported using relative imports from the
             "--function",
             help="Used to specify a function for autodiscover, all other functions will not be converted. (Default behavior is to convert all top level functions found)"
         )
+    ] = None,
+    save_flow_json: Annotated[
+        Optional[str],
+        typer.Option(
+            "--save-flow-json",
+            help="Path to save the compiled flow JSON file. Only applicable for flow imports (--kind=flow)"
+        )
     ] = None
 ):
     tools_controller = ToolsController(kind, file, requirements_file)
@@ -112,6 +119,7 @@ relative to this package root folder or imported using relative imports from the
             requirements_file=requirements_file,
             package_root=package_root,
             name=name,
+            save_flow_json=save_flow_json,
         )
         tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
     finally:
