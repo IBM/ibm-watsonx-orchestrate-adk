@@ -13,7 +13,7 @@ from typing import Any, Dict, List, TextIO, Optional, Union, cast, Tuple
 from click.core import V
 from pydantic import BaseModel
 
-from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolRequestBody, ToolResponseBody
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolRequestBody, ToolResponseBody, JsonSchemaObject
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, Branch, UserFlow, Loop, Foreach
 )
@@ -173,7 +173,7 @@ def get_schema_class_from_ref(schema_ref: Any, schema_class_map: Dict[str, str])
     return None
 
 
-def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map: Dict[str, str])-> None:
+def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map: Dict[str, str], all_schemas: Optional[Dict[str, Any]] = None)-> None:
     """Generate a Pydantic model class for a schema."""
     class_name = get_schema_class_name(name)
     
@@ -205,7 +205,10 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             
             field_type = "str"  # Default type
             
-            if (hasattr(prop_schema, "ref") and prop_schema.ref) or isinstance(prop_schema, SchemaRef):
+            # Check if this is a reference to another schema ($ref or ref after preprocessing)
+            has_ref = (hasattr(prop_schema, "ref") and prop_schema.ref) or isinstance(prop_schema, SchemaRef) or safe_get(prop_schema, "$ref") is not None or safe_get(prop_schema, "ref") is not None
+            
+            if has_ref:
                 field_type = get_schema_class_from_ref(prop_schema, schema_class_map)
             else:
                 # Check for anyOf (union types)
@@ -286,16 +289,6 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             required_fields = safe_get(schema, "required", [])
             is_required = prop_name in required_fields if required_fields else False
             
-            # Generate field definition using normalized name
-            field_def = f"    {normalized_prop_name}: "
-            # Check if field_type is already a Union containing None
-            is_union_with_none = isinstance(field_type, str) and field_type.startswith("Union[") and "None" in field_type
-            
-            if not is_required and not is_union_with_none:
-                field_def += f"Optional[{field_type}]"
-            else:
-                field_def += str(field_type)
-            
             # Add Field constructor if needed
             field_params = []
             
@@ -310,8 +303,35 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
                 description = prop_description
                 field_params.append(f'description={repr(description)}')
             
-            # Get default value
-            default_value = safe_get(prop_schema, "default", value_kind=field_type if isinstance(field_type, str) else "str")
+            # Get default value - prefer schema-level default over field-level default
+            default_value = None
+            schema_level_default = safe_get(schema, "default")
+            # Check if this field references another schema (has $ref or ref after preprocessing)
+            is_ref_field = (hasattr(prop_schema, "ref") and prop_schema.ref) or isinstance(prop_schema, SchemaRef) or safe_get(prop_schema, "$ref") is not None or safe_get(prop_schema, "ref") is not None
+            
+            # First check if there's a schema-level default for this property
+            if schema_level_default and isinstance(schema_level_default, dict) and prop_name in schema_level_default:
+                default_value = schema_level_default[prop_name]
+            else:
+                # Fall back to field-level default
+                default_value = safe_get(prop_schema, "default", value_kind=field_type if isinstance(field_type, str) else "str")
+            
+            # For fields with $ref, check if the referenced schema has a default
+            ref_schema_default = None
+            if is_ref_field and all_schemas:
+                # Get the referenced schema name
+                ref_value = None
+                if hasattr(prop_schema, "ref") and prop_schema.ref:
+                    ref_value = prop_schema.ref
+                elif isinstance(prop_schema, dict):
+                    ref_value = prop_schema.get("$ref") or prop_schema.get("ref")
+                
+                if ref_value and isinstance(ref_value, str):
+                    ref_schema_name = ref_value.split('/')[-1]
+                    ref_schema = all_schemas.get(ref_schema_name)
+                    if ref_schema:
+                        ref_schema_default = safe_get(ref_schema, "default")
+            
             if default_value is not None:
                 # Validate that default value is appropriate for the field type
                 is_valid_default = True
@@ -330,12 +350,55 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
                     # Invalid default for optional field, use None
                     field_params.append('default=None')
             elif not is_required:
-                field_params.append('default=None')
+                # For fields with $ref, check if we should generate a default
+                if is_ref_field:
+                    ref_class_name = get_schema_class_from_ref(prop_schema, schema_class_map)
+                    if ref_class_name:
+                        # Always use default_factory for custom class instantiation
+                        field_params.append(f'default_factory={ref_class_name}')
+                    else:
+                        field_params.append('default=None')
+                # For optional fields with custom class types and no explicit default,
+                # generate a default by instantiating the referenced class
+                elif isinstance(field_type, str) and "Optional[" in field_type:
+                    # Extract the inner type from Optional[Type]
+                    if field_type.startswith("Optional[") and field_type.endswith("]"):
+                        class_name = field_type[9:-1]  # Remove "Optional[" and "]"
+                    else:
+                        class_name = field_type
+                    # Check if this is a custom class (not a built-in type like List, Dict, str, int, etc.)
+                    is_custom_class = (
+                        not class_name.startswith("List[") and
+                        not class_name.startswith("Dict[") and
+                        not class_name.startswith("Union[") and
+                        class_name not in ["str", "int", "float", "bool", "Any"]
+                    )
+                    if is_custom_class:
+                        # Generate default by instantiating the class using default_factory
+                        field_params.append(f'default_factory={class_name}')
+                    else:
+                        field_params.append('default=None')
+                else:
+                    field_params.append('default=None')
             
             # Get title
             title = safe_get(prop_schema, "title")
             if title:
                 field_params.append(f'title={repr(title)}')
+            
+            # Determine if field should be Optional based on whether it has a default
+            has_default = any(param.startswith('default') for param in field_params)
+            
+            # Generate field definition using normalized name
+            field_def = f"    {normalized_prop_name}: "
+            # Check if field_type is already a Union containing None
+            is_union_with_none = isinstance(field_type, str) and field_type.startswith("Union[") and "None" in field_type
+            
+            # Only wrap in Optional if field is not required AND has no default value
+            if not is_required and not has_default and not is_union_with_none:
+                field_def += f"Optional[{field_type}]"
+            else:
+                field_def += str(field_type)
             
             # Always use Field constructor for consistency
             field_def += f" = Field({', '.join(field_params)})"
@@ -371,7 +434,7 @@ def generate_schema_classes(schemas: Dict[str, Any], out: TextIO) -> Dict[str, s
         if class_name in generated_classes:
             continue
             
-        generate_schema_class(name, schema, out, schema_class_map)
+        generate_schema_class(name, schema, out, schema_class_map, schemas)
         generated_classes.add(class_name)
     
     return schema_class_map
@@ -1016,15 +1079,27 @@ class FlowPythonGenerator:
         return None
     
     @staticmethod
-    def _extract_form_field_parameters(field: UserField, method_name: str) -> Dict[str, Any]:
+    def _extract_form_field_parameters(field: UserField, method_name: str, form_json_schema: Optional[JsonSchemaObject] = None) -> Dict[str, Any]:
         """
         Extract parameters for a form field method call.
         Returns a dictionary of parameter names to values.
+        
+        Args:
+            field: The user field to extract parameters from
+            method_name: The method name being called
+            form_json_schema: The form's jsonSchema containing field definitions
         """
         params = {}
         
         # Common parameters
         params['name'] = field.name
+        
+        # Get field-specific schema from form's jsonSchema if available
+        field_json_schema = None
+        if form_json_schema and isinstance(form_json_schema, JsonSchemaObject):
+            properties = form_json_schema.properties
+            if properties and field.name in properties:
+                field_json_schema = properties[field.name]
         
         # Label from display_name or uiSchema
         if field.display_name:
@@ -1083,12 +1158,26 @@ class FlowPythonGenerator:
                     params['is_integer'] = True
         
         elif method_name == "file_upload_field":
-            # allow_multiple_files
-            if hasattr(field, 'output_schema') and field.output_schema:
+            # allow_multiple_files - check field_json_schema for "multi" or "type": "array"
+            if field_json_schema:
+                # Check for "multi" field (extra field in JsonSchemaObject)
+                multi = getattr(field_json_schema, 'multi', None)
+                if multi is True:
+                    params['allow_multiple_files'] = True
+                # Also check type
+                elif field_json_schema.type == 'array':
+                    params['allow_multiple_files'] = True
+            # Fallback to output_schema
+            elif hasattr(field, 'output_schema') and field.output_schema:
                 value_type = safe_get(field.output_schema, 'properties', {}).get('value', {}).get('type')
                 if value_type == 'array':
                     params['allow_multiple_files'] = True
-            # TODO: Extract file_max_size if available
+            
+            # file_max_size - check field_json_schema (extra field in JsonSchemaObject)
+            if field_json_schema:
+                file_max_size = getattr(field_json_schema, 'file_max_size', None)
+                if file_max_size is not None:
+                    params['file_max_size'] = file_max_size
         
         elif method_name == "list_output_field":
             # columns - extract from input_map display_items
@@ -1239,8 +1328,13 @@ class FlowPythonGenerator:
                     out.write(f"    # TODO: Add support for this field type or manually implement it\n")
                     continue
                 
+                # Get form's jsonSchema for field lookups
+                form_json_schema = None
+                if hasattr(form, 'jsonSchema') and form.jsonSchema:
+                    form_json_schema = form.jsonSchema
+                
                 # Extract parameters
-                field_params = FlowPythonGenerator._extract_form_field_parameters(field, method_name)
+                field_params = FlowPythonGenerator._extract_form_field_parameters(field, method_name, form_json_schema)
                 
                 # Handle input_map - generate DataMap for parameters that need it
                 datamap_params = {}
@@ -1278,6 +1372,12 @@ class FlowPythonGenerator:
                 # Add DataMap parameters to field_params
                 for datamap_var, param_name in datamap_params.items():
                     field_params[param_name] = datamap_var
+                
+                # For user_input_field: if min_num_users or max_num_users are present, ensure multiple_users=True
+                if method_name == "user_input_field":
+                    if 'min_num_users' in field_params or 'max_num_users' in field_params:
+                        if 'multiple_users' not in field_params:
+                            field_params['multiple_users'] = True
                 
                 # Generate the method call
                 out.write(f"    # Add form field: {field_name} (type: {method_name})\n")
@@ -1422,14 +1522,79 @@ class FlowPythonGenerator:
     def _generate_script_node(node: ScriptNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
                            out: TextIO) -> None:
         """Generate Python code for a script node."""
-        # First generate the common node attributes
+        # Get the script content
+        script_content = safe_getattr(node.spec, "fn")
+        script_var_name = f"{var_name}_script"
+        
+        # Generate the script variable if there's content
+        if script_content:
+            out.write(f"    # Script for {node.spec.name}\n")
+            out.write(f"    {script_var_name} = ")
+            
+            # Use triple-quoted string for multi-line content
+            if '\n' in script_content:
+                out.write(f'"""{script_content}"""\n')
+            else:
+                out.write(f'{repr(script_content)}\n')
+        
+        # Generate the node creation with script parameter
         out.write(f"    # Create script node: {node.spec.name}\n")
-        FlowPythonGenerator._generate_common_node_attributes(
-            node, var_name, flow_var, schema_class_map, out, func_name="script"
-        )
-
-        FlowPythonGenerator._generate_node_field(node = node, var_name = var_name, fields = ["fn", "position"],
-                    schema_class_map = schema_class_map, out = out)
+        out.write(f"    {var_name}: {node.__class__.__name__} = {flow_var}.script(\n")
+        
+        params: list[str] = []
+        params.append(f'        name={repr(node.spec.name)}')
+        
+        # Add common attributes
+        display_name = safe_getattr(node.spec, "display_name")
+        if display_name:
+            params.append(f'        display_name={repr(display_name)}')
+        
+        description = safe_getattr(node.spec, "description")
+        if description:
+            params.append(f'        description={repr(description)}')
+        
+        # Handle input schema
+        input_schema = safe_getattr(node.spec, "input_schema")
+        if input_schema:
+            input_schema_class = get_schema_class_from_ref(input_schema, schema_class_map)
+            if input_schema_class:
+                params.append(f'        input_schema={input_schema_class}')
+        
+        # Handle output schema
+        output_schema = safe_getattr(node.spec, "output_schema")
+        if output_schema:
+            output_schema_class = get_schema_class_from_ref(output_schema, schema_class_map)
+            if output_schema_class:
+                params.append(f'        output_schema={output_schema_class}')
+        
+        # Handle private schema
+        private_schema = safe_getattr(node.spec, "private_schema")
+        if private_schema:
+            private_schema_class = get_schema_class_from_ref(private_schema, schema_class_map)
+            if private_schema_class:
+                params.append(f'        private_schema={private_schema_class}')
+        
+        # Add the script parameter
+        if script_content:
+            params.append(f'        script={script_var_name}')
+        
+        out.write(",\n".join(params))
+        out.write("\n    )\n")
+        
+        # Generate datamap assignment
+        FlowPythonGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
+        
+        # Handle position field separately if it exists
+        position = safe_getattr(node.spec, "position")
+        if position:
+            spec_var_name = f"{var_name}_spec"
+            out.write(f"\n    {spec_var_name}: {node.spec.__class__.__name__} = {var_name}.get_spec()")
+            out.write(f"\n    {spec_var_name}.position = ")
+            if isinstance(position, BaseModel):
+                out.write(f'{repr(position)}')
+            else:
+                out.write(f"{position}")
+            out.write("\n")
 
     @staticmethod
     def _generate_docproc_node(node: DocProcNode, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
