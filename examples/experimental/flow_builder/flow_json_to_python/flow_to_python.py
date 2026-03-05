@@ -500,7 +500,6 @@ class FlowPythonGenerator:
             return ""
         
         node_name = node_id if node.spec.display_name is None else node.spec.display_name
-        buffer.write(f"\n    # Node type: {type(node).__name__}, name: {node_name}\n")
         # Dispatch based on node type
         #if isinstance(node, ToolNode):
         #    FlowPythonGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer)
@@ -543,7 +542,7 @@ class FlowPythonGenerator:
                 conditions = safe_getattr(evaluator, "conditions")
                 if conditions:
                     # Generate code for conditions
-                    out.write(f"    # Generate conditions for branch node {node.spec.name}\n")
+                    out.write(f"    # Create branch conditions for node: {node.spec.name}\n")
                     out.write(f"    {var_name}_conditions = Conditions(conditions=[\n")
                     
                     for condition in conditions:
@@ -749,6 +748,7 @@ class FlowPythonGenerator:
         foreach_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the foreach flow node using common attributes
+        out.write(f"    # Create foreach flow node: {node.spec.name}\n")
         FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, True, "foreach", mandatory_fields=["item_schema"]
         )
@@ -785,6 +785,7 @@ class FlowPythonGenerator:
         user_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the user flow node without name/display_name parameters
+        out.write(f"    # Create user flow node: {node.spec.name}\n")
         out.write(f"    {var_name} = {flow_var}.userflow()\n")
         
         # Call the function to build the user flow
@@ -819,6 +820,7 @@ class FlowPythonGenerator:
         loop_flow_func_name = f"build_{normalized_name}_flow"
         
         # Create the loop flow node using common attributes
+        out.write(f"    # Create loop flow node: {node.spec.name}\n")
         FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, True, "loop", mandatory_fields=["evaluator"]
         )
@@ -894,7 +896,254 @@ class FlowPythonGenerator:
         # Return the user flow
         out.write("\n    return user_flow\n")
     
-    @staticmethod 
+    @staticmethod
+    def _detect_form_field_method(field: UserField) -> str:
+        """
+        Detect which form field method to use based on field properties.
+        Returns the method name (e.g., 'text_input_field', 'boolean_input_field').
+        """
+        kind = field.kind
+        direction = field.direction
+        ui_widget = None
+        
+        # Extract ui:widget from uiSchema if available
+        if hasattr(field, 'uiSchema') and field.uiSchema:
+            ui_widget = safe_get(field.uiSchema, 'ui:widget')
+        
+        # Map based on kind, direction, and ui:widget
+        if kind == "any" and direction == "input":
+            if ui_widget in ["SelectWidget", "ComboboxWidget"]:
+                return "single_choice_input_field"
+        elif kind == "boolean" and direction == "input":
+            return "boolean_input_field"
+        elif kind == "text" and direction == "input":
+            return "text_input_field"
+        elif kind == "number" and direction == "input":
+            return "number_input_field"
+        elif kind == "date" and direction == "input":
+            return "date_input_field"
+        elif kind == "file" and direction == "input":
+            return "file_upload_field"
+        elif kind == "user" and direction == "input":
+            return "user_input_field"
+        elif kind == "array" and direction == "output":
+            # Check if it's a table or bullet list
+            if ui_widget == "Table":
+                return "list_output_field"  # with columns
+            else:
+                return "list_output_field"  # simple list
+        elif kind == "array" and direction == "input":
+            if ui_widget == "MultiselectDropdown":
+                return "multi_choice_input_field"
+            elif ui_widget == "Table":
+                return "multi_choice_input_field"  # table view
+            elif ui_widget == "EditableTable":
+                return "list_input_field"
+        elif kind == "text" and direction == "output":
+            # Text output field - check if it has a text property (message) or value (field)
+            if hasattr(field, 'text') and field.text:
+                return "message_output_field"
+            elif ui_widget == "DataWidget":
+                return "field_output_field"
+            return "message_output_field"
+        elif kind == "field" and direction == "output":
+            return "field_output_field"
+        elif kind == "message" and direction == "output":
+            return "message_output_field"
+        
+        # Fallback - shouldn't reach here
+        return "unknown_field"
+    
+    @staticmethod
+    def _extract_columns_from_display_items(field: UserField) -> Dict[str, str] | None:
+        """
+        Extract columns parameter from display_items in input_map.
+        
+        display_items format: ["item.first_name", "item.last_name"]
+        Returns: {"first_name": "First_name", "last_name": "Last_name"}
+        
+        Note: Display labels are lost during JSON compilation, so we generate
+        capitalized field names as labels.
+        """
+        import json
+        
+        if not hasattr(field, 'input_map') or not field.input_map:
+            return None
+        
+        # Find display_items assignment
+        for assignment in field.input_map.spec.maps:
+            if assignment.target_variable == "self.input.display_items":
+                # Parse the value_expression which is a JSON array string
+                try:
+                    display_items = json.loads(assignment.value_expression)
+                    if not display_items or not isinstance(display_items, list):
+                        return None
+                    
+                    # Extract field names from "item.field_name" format
+                    columns = {}
+                    for item in display_items:
+                        if isinstance(item, str) and item.startswith("item."):
+                            field_name = item[5:]  # Remove "item." prefix
+                            # Capitalize first letter and replace underscores for label
+                            label = field_name.replace("_", " ").title()
+                            columns[field_name] = label
+                    
+                    return columns if columns else None
+                except (json.JSONDecodeError, AttributeError):
+                    return None
+        
+        return None
+    
+    @staticmethod
+    def _extract_dropdown_item_column(field: UserField) -> str | None:
+        """
+        Extract dropdown_item_column parameter from display_text in input_map.
+        
+        display_text format: "item.field_name"
+        Returns: "field_name"
+        """
+        if not hasattr(field, 'input_map') or not field.input_map:
+            return None
+        
+        # Find display_text assignment
+        for assignment in field.input_map.spec.maps:
+            if assignment.target_variable == "self.input.display_text":
+                # Extract field name from "item.field_name" format
+                value = assignment.value_expression
+                if isinstance(value, str) and value.startswith("item."):
+                    return value[5:]  # Remove "item." prefix
+        
+        return None
+    
+    @staticmethod
+    def _extract_form_field_parameters(field: UserField, method_name: str) -> Dict[str, Any]:
+        """
+        Extract parameters for a form field method call.
+        Returns a dictionary of parameter names to values.
+        """
+        params = {}
+        
+        # Common parameters
+        params['name'] = field.name
+        
+        # Label from display_name or uiSchema
+        if field.display_name:
+            params['label'] = field.display_name
+        elif hasattr(field, 'uiSchema') and field.uiSchema:
+            ui_title = safe_get(field.uiSchema, 'ui:title')
+            if ui_title:
+                params['label'] = ui_title
+        
+        # Required - check if field name is in input_schema.required
+        if hasattr(field, 'input_schema') and field.input_schema:
+            required_fields = safe_get(field.input_schema, 'required', [])
+            if field.name in required_fields:
+                params['required'] = True
+        
+        # Help text
+        if hasattr(field, 'uiSchema') and field.uiSchema:
+            ui_help = safe_get(field.uiSchema, 'ui:help')
+            if ui_help:
+                params['help_text'] = ui_help
+            
+            # Placeholder text
+            ui_placeholder = safe_get(field.uiSchema, 'ui:placeholder')
+            if ui_placeholder:
+                params['placeholder_text'] = ui_placeholder
+        
+        # Method-specific parameters
+        if method_name == "single_choice_input_field":
+            # show_as_dropdown
+            if hasattr(field, 'uiSchema') and field.uiSchema:
+                ui_widget = safe_get(field.uiSchema, 'ui:widget')
+                if ui_widget in ["SelectWidget", "ComboboxWidget"]:
+                    params['show_as_dropdown'] = True
+        
+        elif method_name == "boolean_input_field":
+            # single_checkbox
+            if hasattr(field, 'uiSchema') and field.uiSchema:
+                ui_options = safe_get(field.uiSchema, 'ui:options', {})
+                label_option = safe_get(ui_options, 'label')
+                if label_option == False:
+                    params['single_checkbox'] = True
+            # TODO: Extract true_label and false_label if available
+        
+        elif method_name == "text_input_field":
+            # regex and regex_error_message
+            if hasattr(field, 'regex') and field.regex:
+                params['regex'] = field.regex
+            if hasattr(field, 'regex_error_msg') and field.regex_error_msg:
+                params['regex_error_message'] = field.regex_error_msg
+        
+        elif method_name == "number_input_field":
+            # is_integer
+            if hasattr(field, 'output_schema') and field.output_schema:
+                value_type = safe_get(field.output_schema, 'properties', {}).get('value', {}).get('type')
+                if value_type == 'integer':
+                    params['is_integer'] = True
+        
+        elif method_name == "file_upload_field":
+            # allow_multiple_files
+            if hasattr(field, 'output_schema') and field.output_schema:
+                value_type = safe_get(field.output_schema, 'properties', {}).get('value', {}).get('type')
+                if value_type == 'array':
+                    params['allow_multiple_files'] = True
+            # TODO: Extract file_max_size if available
+        
+        elif method_name == "list_output_field":
+            # columns - extract from input_map display_items
+            columns = FlowPythonGenerator._extract_columns_from_display_items(field)
+            if columns:
+                params['columns'] = columns
+        
+        elif method_name == "multi_choice_input_field":
+            # show_as_dropdown
+            if hasattr(field, 'uiSchema') and field.uiSchema:
+                ui_widget = safe_get(field.uiSchema, 'ui:widget')
+                if ui_widget == "MultiselectDropdown":
+                    params['show_as_dropdown'] = True
+                elif ui_widget == "Table":
+                    params['show_as_dropdown'] = False
+            
+            # dropdown_item_column - extract from input_map display_text
+            dropdown_item_column = FlowPythonGenerator._extract_dropdown_item_column(field)
+            if dropdown_item_column:
+                params['dropdown_item_column'] = dropdown_item_column
+            
+            # columns - extract from input_map display_items (for table view)
+            columns = FlowPythonGenerator._extract_columns_from_display_items(field)
+            if columns:
+                params['columns'] = columns
+            
+            # TODO: Extract minItems, maxItems
+        
+        elif method_name == "list_input_field":
+            # columns - extract from input_map display_items
+            columns = FlowPythonGenerator._extract_columns_from_display_items(field)
+            if columns:
+                params['columns'] = columns
+        
+        elif method_name == "message_output_field":
+            # message - extract from field.text
+            if hasattr(field, 'text') and field.text:
+                params['message'] = field.text
+        
+        elif method_name == "user_input_field":
+            # multiple_users
+            if hasattr(field, 'output_schema') and field.output_schema:
+                value_type = safe_get(field.output_schema, 'properties', {}).get('value', {}).get('type')
+                if value_type == 'array':
+                    params['multiple_users'] = True
+                else:
+                    params['multiple_users'] = False
+        
+        elif method_name == "message_output_field":
+            # message - TODO: extract from field metadata
+            pass
+        
+        return params
+    
+    @staticmethod
     def _gather_field_parameters(field: UserField) -> list[str]:
         """Gather the parameters of a field."""
         # Get the field type
@@ -928,51 +1177,131 @@ class FlowPythonGenerator:
             form_name = form.name
             form_display_name = form.display_name
 
-            user_node_var = var_name
-            out.write(f"    {user_node_var}: UserNode = {flow_var}.form(name={repr(form_name)}, display_name={repr(form_display_name)})\n")
-
-            form_var = f"{user_node_var}_form"
-            out.write(f"    {form_var} = {user_node_var}.get_spec().form\n")
-            out.write(f"    if {form_var}:\n")
-            if form.instructions:
-                out.write(f"        {form_var}.instructions = {repr(form.instructions)}\n")
-            if form.jsonSchema:
-                # Use set_form_schema to properly register the schema in the flow
-                if isinstance(form.jsonSchema, SchemaRef):
-                    # For SchemaRef, use the generated Pydantic class
-                    schema_ref = form.jsonSchema.ref
-                    # Extract schema name from ref (e.g., '#/schemas/MySchema' -> 'MySchema')
-                    schema_name = schema_ref.split('/')[-1] if '/' in schema_ref else schema_ref
-                    # Find the corresponding Pydantic class in schema_class_map
-                    if schema_name in schema_class_map:
-                        pydantic_class_name = schema_class_map[schema_name]
-                        out.write(f"        {form_var}.set_form_schema({pydantic_class_name}, flow={flow_var})\n")
-                    else:
-                        # Fallback to direct assignment if schema class not found
-                        out.write(f"        {form_var}.jsonSchema = {repr(form.jsonSchema)}\n")
-                else:
-                    # If it's a JsonSchemaObject, use set_form_schema
-                    out.write(f"        {form_var}.set_form_schema({repr(form.jsonSchema)}, flow={flow_var})\n")
+            # Extract cancel_button_label if present
+            cancel_button_label = None
+            custom_buttons = []
             if form.buttons:
-                out.write(f"        {form_var}.buttons = {repr(form.buttons)}\n")
+                for button in form.buttons:
+                    if button.name == "cancel" and button.kind == "cancel":
+                        # Extract cancel button label
+                        cancel_button_label = button.display_name
+                    elif button.name != "submit" or button.kind != "submit":
+                        # Custom button (not the default submit button)
+                        custom_buttons.append(button)
+            
+            # Generate form() call with cancel_button_label if present
+            user_node_var = var_name
+            form_params = [f"name={repr(form_name)}", f"display_name={repr(form_display_name)}"]
+            if cancel_button_label:
+                form_params.append(f"cancel_button_label={repr(cancel_button_label)}")
+            out.write(f"    # Create form node: {form_display_name}\n")
+            out.write(f"    {user_node_var}: UserNode = {flow_var}.form({', '.join(form_params)})\n")
+            
+            # Generate add_button() calls for custom buttons
+            # Note: edge_id is NOT passed to add_button() - edges are created separately using edge() function
+            if custom_buttons:
+                out.write("\n")
+                for button in custom_buttons:
+                    # Generate add_button() call - only pass display_name
+                    out.write(f"    # Add custom button: {button.display_name}\n")
+                    out.write(f"    {flow_var}.add_button({repr(button.display_name)})\n")
+            
+            # Handle form instructions if present
+            if form.instructions:
+                form_var = f"{user_node_var}_form"
+                out.write(f"\n    # Set form instructions\n")
+                out.write(f"    {form_var} = {user_node_var}.get_spec().form\n")
+                out.write(f"    if {form_var}:\n")
+                out.write(f"        {form_var}.instructions = {repr(form.instructions)}\n")
+            
             out.write("\n")
+            # Note: form.jsonSchema is auto-generated by field methods, so we skip it
+            # DO NOT call set_form_schema() - the schema is built automatically when
+            # you call methods like text_input_field(), single_choice_input_field(), etc.
 
-            # determine the function name
+            # Generate form fields using appropriate method calls
             for field in form.fields:
                 field_name = field.name
-                field_var = get_valid_variable_name(f"{var_name}_{field_name}", append_node=False)
-                out.write(f"    {field_var}: {field.__class__.__name__} = UserField(\n")
-                params = FlowPythonGenerator._gather_field_parameters(field)
-
-                # Write all parameters
-                if params:
-                    out.write("        ")
-                    out.write(",\n        ".join(params))
+                # Normalize field name for variable names (replace hyphens with underscores)
+                normalized_field_name = normalize_identifier(field_name)
                 
-                out.write(")\n")
-
-                # Assign field to form
-                out.write(f"    {user_node_var}.add_field_to_form({repr(field_name)}, {field_var})\n\n")
+                # Detect which method to use
+                method_name = FlowPythonGenerator._detect_form_field_method(field)
+                
+                if method_name == "unknown_field":
+                    # Log detailed warning about unsupported field
+                    field_kind = field.kind if hasattr(field, 'kind') else 'unknown'
+                    field_direction = field.direction if hasattr(field, 'direction') else 'unknown'
+                    ui_widget = None
+                    if hasattr(field, 'uiSchema') and field.uiSchema:
+                        ui_widget = safe_get(field.uiSchema, 'ui:widget')
+                    out.write(f"    # Warning: Unsupported field '{field_name}' (kind={field_kind}, direction={field_direction}, ui:widget={ui_widget})\n")
+                    out.write(f"    # TODO: Add support for this field type or manually implement it\n")
+                    continue
+                
+                # Extract parameters
+                field_params = FlowPythonGenerator._extract_form_field_parameters(field, method_name)
+                
+                # Handle input_map - generate DataMap for parameters that need it
+                datamap_params = {}
+                if hasattr(field, "input_map") and field.input_map is not None:
+                    maps = field.input_map.spec.maps
+                    if maps:
+                        for map_item in maps:
+                            target_var = map_item.target_variable if hasattr(map_item, "target_variable") else None
+                            value_expr = map_item.value_expression if hasattr(map_item, "value_expression") else None
+                            
+                            if target_var and value_expr is not None:
+                                # Skip display_items assignments (they map to columns parameter, not DataMap)
+                                # Skip display_text assignments (they map to dropdown_item_column parameter)
+                                param_name = target_var.split('.')[-1]
+                                if param_name in ["display_items", "display_text"]:
+                                    continue
+                                
+                                # Create DataMap variable name (use normalized field name)
+                                datamap_var = f"{normalized_field_name}_{param_name}_map"
+                                
+                                # Generate DataMap code
+                                if datamap_var not in datamap_params:
+                                    out.write(f"    # Create DataMap for {param_name} parameter of field '{field_name}'\n")
+                                    out.write(f"    {datamap_var} = DataMap()\n")
+                                    datamap_params[datamap_var] = param_name
+                                
+                                out.write(f"    {datamap_var}.add(Assignment(")
+                                out.write(f"target_variable={repr(target_var)}, ")
+                                out.write(f"value_expression={repr(value_expr)}")
+                                out.write(f"))\n")
+                        
+                        if datamap_params:
+                            out.write("\n")
+                
+                # Add DataMap parameters to field_params
+                for datamap_var, param_name in datamap_params.items():
+                    field_params[param_name] = datamap_var
+                
+                # Generate the method call
+                out.write(f"    # Add form field: {field_name} (type: {method_name})\n")
+                out.write(f"    {user_node_var}.{method_name}(")
+                
+                # Write parameters
+                param_strs = []
+                for param_name, param_value in field_params.items():
+                    if isinstance(param_value, str) and param_value in datamap_params:
+                        # It's a DataMap variable, don't quote it
+                        param_strs.append(f"{param_name}={param_value}")
+                    elif isinstance(param_value, bool):
+                        param_strs.append(f"{param_name}={param_value}")
+                    elif isinstance(param_value, (int, float)):
+                        param_strs.append(f"{param_name}={param_value}")
+                    else:
+                        param_strs.append(f"{param_name}={repr(param_value)}")
+                
+                if param_strs:
+                    out.write("\n        ")
+                    out.write(",\n        ".join(param_strs))
+                    out.write("\n    ")
+                
+                out.write(")\n\n")
 
         # Handle user node standalone fields
         fields = safe_getattr(node.spec, "fields")
@@ -989,6 +1318,7 @@ class FlowPythonGenerator:
                     maps = field.input_map.spec.maps
                     if maps:
                         data_map_var = f"{var_name}_data_map"
+                        out.write(f"    # Create DataMap for user field '{field_name}'\n")
                         out.write(f"    {data_map_var} = DataMap()\n")
                         for map_item in maps:
                             target_var = map_item.target_variable if hasattr(map_item, "target_variable") else None
@@ -1002,6 +1332,7 @@ class FlowPythonGenerator:
                         out.write("\n")
                 
                 # Now generate the field() call
+                out.write(f"    # Create user field node: {field_name}\n")
                 out.write(f"    {var_name}: {node.__class__.__name__} = {flow_var}.field(\n")
                 params.append(f'        direction={repr(field.direction)}')
                 params.append(f'        name={repr(field_name)}')
@@ -1092,6 +1423,7 @@ class FlowPythonGenerator:
                            out: TextIO) -> None:
         """Generate Python code for a script node."""
         # First generate the common node attributes
+        out.write(f"    # Create script node: {node.spec.name}\n")
         FlowPythonGenerator._generate_common_node_attributes(
             node, var_name, flow_var, schema_class_map, out, func_name="script"
         )
@@ -1106,6 +1438,7 @@ class FlowPythonGenerator:
         from ibm_watsonx_orchestrate.flow_builder.types import DocProcField, DocProcKVPSchema, DocProcOutputFormat
         
         # Generate the node creation with minimal parameters
+        out.write(f"    # Create document processing node: {node.spec.name}\n")
         out.write(f"    {var_name}: DocProcNode = {flow_var}.docproc(\n")
         out.write(f"        name={repr(node.spec.name)}")
         
@@ -1296,17 +1629,16 @@ class FlowPythonGenerator:
                 
                 start_ref = node_vars.get(start, f'"{start}"')
                 end_ref = node_vars.get(end, f'"{end}"')
-                id = safe_get(edge, "id")
 
                 # Special handling for START and END
                 if (start_ref.endswith(START)):
                     start_ref = "START"
                 if (end_ref.endswith(END)):
                     end_ref = "END"
-                if id is not None:
-                    out.write(f"    {flow_var}.edge({start_ref}, {end_ref}, id={repr(id)})\n")
-                else:
-                    out.write(f"    {flow_var}.edge({start_ref}, {end_ref})\n")
+                
+                # Generate edge connection (id is omitted as it will be auto-generated during flow import)
+                out.write(f"    # Connect: {start_ref} -> {end_ref}\n")
+                out.write(f"    {flow_var}.edge({start_ref}, {end_ref})\n")
             except Exception as e:
                 out.write(f"    # Error processing edge: {str(e)}\n")
 
