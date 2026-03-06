@@ -785,7 +785,7 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
         if kind == 'tool':
             tool_name = spec.get('tool')
             # the tool name might be the format of name:uuid.. we just need the name
-            tool_name = tool_name.rsplit(':',1)[0]
+            tool_name = parse_tool_name_id(tool_name)[0]
             if tool_name not in tools:
                 tools.append(tool_name)
         elif kind == 'foreach' or kind == "loop" or kind == "user_flow" or kind == "userflow":
