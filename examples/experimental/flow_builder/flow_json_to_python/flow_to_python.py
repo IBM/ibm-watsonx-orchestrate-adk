@@ -544,7 +544,7 @@ class FlowPythonGenerator:
         FlowPythonGenerator._generate_datamap_assignment(node, var_name, schema_class_map, out)
 
     @staticmethod
-    def to_py(node: Node, flow_var: str, schema_class_map: Dict[str, str]) -> str:
+    def to_py(node: Node, flow_var: str, schema_class_map: Dict[str, str], edge_map: Optional[Dict[str, str]] = None) -> str:
         """
         Generate Python code for a node.
         
@@ -552,6 +552,7 @@ class FlowPythonGenerator:
             node: The node to generate code for
             flow_var: The variable name for the flow
             schema_class_map: Dictionary mapping schema names to class names
+            edge_map: Optional mapping of edge IDs to target node IDs (for branch conditions)
             
         Returns:
             String containing the Python code for the node
@@ -574,7 +575,7 @@ class FlowPythonGenerator:
         #if isinstance(node, ToolNode):
         #    FlowPythonGenerator._generate_tool_node(node, var_name, flow_var, schema_class_map, buffer)
         if isinstance(node, Branch):
-            FlowPythonGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer)
+            FlowPythonGenerator._generate_branch_node(node, var_name, flow_var, schema_class_map, buffer, edge_map)
         elif isinstance(node, Loop):
             FlowPythonGenerator._generate_loop_flow_node(node, var_name, flow_var, schema_class_map, buffer)
         elif isinstance(node, Foreach):
@@ -595,73 +596,102 @@ class FlowPythonGenerator:
     
     @staticmethod
     def _generate_branch_node(node: Branch, var_name: str, flow_var: str, schema_class_map: Dict[str, str],
-                             out: TextIO) -> None:
-        """Generate Python code for a branch node (without cases - those are added later)."""
-
-        FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
-
+                             out: TextIO, edge_map: Optional[Dict[str, str]] = None) -> None:
+        """Generate Python code for a branch node using the fluent conditions API."""
+        
         # Try to get the evaluator expression
         evaluator = safe_getattr(node.spec, "evaluator")
+        has_edge_conditions = False
+        
         if evaluator:
             expression = safe_getattr(evaluator, "expression")
             if expression:
-                # this is a simple expression - spec already declared by _generate_any_node
+                # Simple expression - use the old approach
+                FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
                 FlowPythonGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out, declare_spec=False)
             else:
-                # this is a complex expression with conditions
+                # Complex expression with conditions - check if we have EdgeIdConditions
                 conditions = safe_getattr(evaluator, "conditions")
                 if conditions:
-                    # Generate code for conditions
-                    out.write(f"    # Create branch conditions for node: {node.spec.name}\n")
-                    out.write(f"    {var_name}_conditions = Conditions(conditions=[\n")
+                    # Check if any condition is an EdgeIdCondition
+                    has_edge_conditions = any(isinstance(c, EdgeIdCondition) for c in conditions)
                     
-                    for condition in conditions:
-                        # Check if this is a NodeIdCondition or EdgeIdCondition
-                        if isinstance(condition, NodeIdCondition):
-                            # This is a NodeIdCondition
-                            out.write(f"        NodeIdCondition(\n")
-                            condition_buffer = []
+                    if has_edge_conditions and edge_map:
+                        # Use the new fluent API with .condition() calls
+                        out.write(f"    # Create branch with conditions using fluent API\n")
+                        out.write(f"    {var_name}: Branch = {flow_var}.conditions(\n")
+                        out.write(f"        name={repr(node.spec.name)},\n")
+                        if node.spec.display_name:
+                            out.write(f"        display_name={repr(node.spec.display_name)}\n")
+                        out.write(f"    )\n")
+                        out.write(f"    \n")
+                        
+                        # Store conditions for later generation (after all nodes are defined)
+                        if not hasattr(FlowPythonGenerator, '_branch_conditions'):
+                            FlowPythonGenerator._branch_conditions = {}
+                        FlowPythonGenerator._branch_conditions[var_name] = (conditions, edge_map)
+                        
+                        # Generate spec configuration
+                        out.write(f"\n")
+                        out.write(f"    {var_name}_spec: BranchNodeSpec = {var_name}.get_spec()\n")
+                        
+                        # Generate other spec attributes (position, match_policy, etc.)
+                        if hasattr(node.spec, "position") and node.spec.position:
+                            pos = node.spec.position
+                            out.write(f"    {var_name}_spec.position = Position(x={pos.x}, y={pos.y})\n")
+                        if hasattr(node.spec, "match_policy") and node.spec.match_policy:
+                            out.write(f"    {var_name}_spec.match_policy = MatchPolicy.{node.spec.match_policy.name}\n")
+                        out.write(f"\n")
+                    else:
+                        # Fall back to old approach for NodeIdCondition or when no edge_map
+                        FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
+                        
+                        # Generate code for conditions
+                        out.write(f"    # Create branch conditions for node: {node.spec.name}\n")
+                        out.write(f"    {var_name}_conditions = Conditions(conditions=[\n")
+                        
+                        for condition in conditions:
+                            if isinstance(condition, NodeIdCondition):
+                                out.write(f"        NodeIdCondition(\n")
+                                condition_buffer = []
+                                if hasattr(condition, "expression") and condition.expression:
+                                    condition_buffer.append(f'            expression={repr(condition.expression)}')
+                                condition_buffer.append(f'            node_id={repr(condition.node_id)}')
+                                condition_buffer.append(f'            default={bool(condition.default)}')
+                                if hasattr(condition, "metadata") and condition.metadata:
+                                    metadata = condition.metadata
+                                    if isinstance(metadata, dict):
+                                        python_code = repr(metadata)
+                                        condition_buffer.append(f'            metadata={python_code}')
+                                out.write(",\n".join(condition_buffer))
+                                out.write(f"\n        ),\n")
+                            elif isinstance(condition, EdgeIdCondition):
+                                out.write(f"        EdgeIdCondition(\n")
+                                condition_buffer = []
+                                if hasattr(condition, "expression") and condition.expression:
+                                    condition_buffer.append(f'            expression={repr(condition.expression)}')
+                                condition_buffer.append(f'            edge_id={repr(condition.edge_id)}')
+                                condition_buffer.append(f'            default={bool(condition.default)}')
+                                if hasattr(condition, "metadata") and condition.metadata:
+                                    metadata = condition.metadata
+                                    if isinstance(metadata, dict):
+                                        python_code = repr(metadata)
+                                        condition_buffer.append(f'            metadata={python_code}')
+                                out.write(",\n".join(condition_buffer))
+                                out.write(f"\n        ),\n")
+                            else:
+                                raise ValueError(f"Unknown condition type: {type(condition)}")
+                        
+                        out.write(f"    ])\n")
+                        out.write(f"    {var_name}_spec.evaluator = {var_name}_conditions\n\n")
+                else:
+                    # No conditions, use standard node generation
+                    FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
+        else:
+            # No evaluator, use standard node generation
+            FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
 
-                            if hasattr(condition, "expression") and condition.expression:
-                                condition_buffer.append(f'            expression={repr(condition.expression)}')
-                            condition_buffer.append(f'            node_id={repr(condition.node_id)}')
-                            condition_buffer.append(f'            default={bool(condition.default)}')
-                            
-                            # Handle metadata if present
-                            if hasattr(condition, "metadata") and condition.metadata:
-                                metadata = condition.metadata
-                                if isinstance(metadata, dict):
-                                    python_code = repr(metadata)
-                                    condition_buffer.append(f'            metadata={python_code}')
-                            out.write(",\n".join(condition_buffer))
-                            
-                            out.write(f"\n        ),\n")
-                        elif isinstance(condition, EdgeIdCondition):
-                            # This is an EdgeIdCondition
-                            out.write(f"        EdgeIdCondition(\n")
-                            condition_buffer = []
-
-                            if hasattr(condition, "expression") and condition.expression:
-                                condition_buffer.append(f'            expression={repr(condition.expression)}')
-                            condition_buffer.append(f'            edge_id={repr(condition.edge_id)}')
-                            condition_buffer.append(f'            default={bool(condition.default)}')
-                            
-                            # Handle metadata if present
-                            if hasattr(condition, "metadata") and condition.metadata:
-                                metadata = condition.metadata
-                                if isinstance(metadata, dict):
-                                    python_code = repr(metadata)
-                                    condition_buffer.append(f'            metadata={python_code}')
-                            out.write(",\n".join(condition_buffer))
-                            
-                            out.write(f"\n        ),\n")
-                        else:
-                            raise ValueError(f"Unknown condition type: {type(condition)}")
-                    
-                    out.write(f"    ])\n")
-                    out.write(f"    {var_name}_spec.evaluator = {var_name}_conditions\n\n")
-
-        # Note: Cases are now generated separately after all nodes are defined
+        # Note: Condition calls are now generated separately after all nodes are defined
     
     @staticmethod
     def _generate_branch_cases(node: Branch, var_name: str, out: TextIO) -> None:
@@ -714,51 +744,129 @@ class FlowPythonGenerator:
                             out.write(f"    {var_name}.default({case_node_var})\n")
                         else:
                             out.write(f'    {var_name}.case({repr(case_key)}, {case_node_var})\n')
-                        processed_cases.add((case_key, case_node))
+                            processed_cases.add((case_key, case_node))
+        
+    @staticmethod
+    def _generate_branch_condition_calls(var_name: str, conditions: List[Any], edge_map: Dict[str, str],
+                                        node_vars: Dict[str, str], out: TextIO) -> List[str]:
+        """
+        Generate .condition() calls for a branch node using the fluent API.
+        Returns a list of edge IDs that were handled by conditions (to skip in edge generation).
+        """
+        handled_edges = []
+        out.write(f"    # Define conditional routing\n")
+        
+        first_condition = True
+        for condition in conditions:
+            if isinstance(condition, EdgeIdCondition):
+                edge_id = condition.edge_id
+                target_node_id = edge_map.get(edge_id)
+                
+                if target_node_id:
+                    handled_edges.append(edge_id)
+                    target_var = node_vars.get(target_node_id, f'"{target_node_id}"')
+                    
+                    # Handle START/END special cases
+                    if target_var == '"__end__"':
+                        target_var = node_vars.get("__end__", "END")
+                    elif target_var == '"__start__"':
+                        target_var = node_vars.get("__start__", "START")
+                    
+                    if first_condition:
+                        out.write(f"    {var_name}.condition(\n")
+                        first_condition = False
+                    else:
+                        out.write(f"    ).condition(\n")
+                    
+                    # Add expression if present
+                    if hasattr(condition, "expression") and condition.expression:
+                        out.write(f"        expression={repr(condition.expression)},\n")
+                    
+                    # Add to_node
+                    out.write(f"        to_node={target_var}")
+                    
+                    # Add default if true
+                    if hasattr(condition, "default") and condition.default:
+                        out.write(f",\n        default=True")
+                    
+                    out.write(f"\n")
+        
+        if not first_condition:
+            out.write(f"    )\n\n")
+        
+        return handled_edges
     
     @staticmethod
     def _generate_flow_attributes(flow: Flow, flow_var: str, schema_class_map: Dict[str, str],
                                  out: TextIO) -> None:
-        """
-        Generate code for common Flow attributes like nodes and edges.
-        
-        Args:
-            flow: The Flow object to generate code for
-            flow_var: The variable name for the flow
-            schema_class_map: Dictionary mapping schema names to class names
-            out: Output stream to write the generated code
-        """
-        # Generate node variables
-        node_vars = {}
-        for node_id, node in flow.nodes.items():
-            if node_id == "__start__":
-                node_vars[node_id] = "START"
-            elif node_id == "__end__":
-                node_vars[node_id] = "END"
-            else:
+            """
+            Generate code for common Flow attributes like nodes and edges.
+            
+            Args:
+                flow: The Flow object to generate code for
+                flow_var: The variable name for the flow
+                schema_class_map: Dictionary mapping schema names to class names
+                out: Output stream to write the generated code
+            """
+            # Generate node variables
+            node_vars = {}
+            for node_id, node in flow.nodes.items():
+                if node_id == "__start__":
+                    node_vars[node_id] = "START"
+                elif node_id == "__end__":
+                    node_vars[node_id] = "END"
+                else:
+                    var_name = get_valid_variable_name(node_id)
+                    node_vars[node_id] = var_name
+            
+            # Build edge_id to target_node_id mapping from edges
+            edge_map = {}
+            if hasattr(flow, "edges") and flow.edges:
+                for edge in flow.edges:
+                    try:
+                        if hasattr(edge, "id") and hasattr(edge, "end"):
+                            edge_map[edge.id] = edge.end
+                        elif isinstance(edge, dict):
+                            edge_id = edge.get("id")
+                            target_id = edge.get("end") or edge.get("target_id")
+                            if edge_id and target_id:
+                                edge_map[edge_id] = target_id
+                    except Exception:
+                        pass
+            
+            # Store branch nodes to process their cases and conditions later
+            branch_nodes = []
+            
+            # Initialize branch conditions storage
+            if not hasattr(FlowPythonGenerator, '_branch_conditions'):
+                FlowPythonGenerator._branch_conditions = {}
+            FlowPythonGenerator._branch_conditions = {}
+            
+            # Generate nodes (but defer branch cases and conditions)
+            for node_id, node in flow.nodes.items():
+                if isinstance(node, Branch):
+                    # Store branch node for later processing
+                    branch_nodes.append((node_id, node))
+                node_code = FlowPythonGenerator.to_py(node, flow_var, schema_class_map, edge_map)
+                out.write(node_code)
+            
+            # Now generate branch condition calls after all nodes are defined
+            handled_edges = set()
+            for node_id, branch_node in branch_nodes:
                 var_name = get_valid_variable_name(node_id)
-                node_vars[node_id] = var_name
-        
-        # Store branch nodes to process their cases later
-        branch_nodes = []
-        
-        # Generate nodes (but defer branch cases)
-        for node_id, node in flow.nodes.items():
-            # if node_id not in ["__start__", "__end__"]:
-            if isinstance(node, Branch):
-                # Store branch node for later case processing
-                branch_nodes.append((node_id, node))
-            node_code = FlowPythonGenerator.to_py(node, flow_var, schema_class_map)
-            out.write(node_code)
-        
-        # Now generate branch cases after all nodes are defined
-        for node_id, branch_node in branch_nodes:
-            var_name = get_valid_variable_name(node_id)
-            FlowPythonGenerator._generate_branch_cases(branch_node, var_name, out)
-        
-        # Generate edges
-        if hasattr(flow, "edges") and flow.edges:
-            FlowPythonGenerator._generate_edges(flow.edges, node_vars, flow_var, out, flow.nodes)
+                if var_name in FlowPythonGenerator._branch_conditions:
+                    conditions, cond_edge_map = FlowPythonGenerator._branch_conditions[var_name]
+                    edges_handled = FlowPythonGenerator._generate_branch_condition_calls(
+                        var_name, conditions, cond_edge_map, node_vars, out
+                    )
+                    handled_edges.update(edges_handled)
+                else:
+                    # Fall back to old case-based approach
+                    FlowPythonGenerator._generate_branch_cases(branch_node, var_name, out)
+            
+            # Generate edges (skip edges handled by branch conditions)
+            if hasattr(flow, "edges") and flow.edges:
+                FlowPythonGenerator._generate_edges(flow.edges, node_vars, flow_var, out, flow.nodes, handled_edges)
     
     @staticmethod
     def _generate_datamap_assignment(node: Node, var_name: str, schema_class_map: Dict[str, str], out: TextIO) -> None:
@@ -1779,8 +1887,9 @@ class FlowPythonGenerator:
         out.write("\n    \n")
 
     @staticmethod
-    def _generate_edges(edges: List[Any], node_vars: Dict[str, str], flow_var: str, 
-                       out: TextIO, nodes: Optional[Dict[str, Any]] = None) -> None:
+    def _generate_edges(edges: List[Any], node_vars: Dict[str, str], flow_var: str,
+                       out: TextIO, nodes: Optional[Dict[str, Any]] = None,
+                       handled_edges: Optional[set] = None) -> None:
         """
         Generate code for edges between nodes.
         
@@ -1790,14 +1899,29 @@ class FlowPythonGenerator:
             flow_var: Variable name for the flow
             out: Output stream to write the generated code
             nodes: Dictionary of nodes in the flow (used to identify branch nodes)
+            handled_edges: Set of edge IDs that were already handled by branch conditions
         """
         if not edges:
             out.write(f"    # No edges defined in the flow\n")
             return
         
+        if handled_edges is None:
+            handled_edges = set()
+        
         # Generate code for each edge
         for edge in edges:
             try:
+                # Check if this edge was already handled by a branch condition
+                edge_id = None
+                if hasattr(edge, "id"):
+                    edge_id = edge.id
+                elif isinstance(edge, dict):
+                    edge_id = edge.get("id")
+                
+                if edge_id and edge_id in handled_edges:
+                    # Skip this edge as it's handled by a branch condition
+                    continue
+                
                 # Handle both dictionary and FlowEdge objects
                 if hasattr(edge, "start") and hasattr(edge, "end"):
                     start = edge.start
