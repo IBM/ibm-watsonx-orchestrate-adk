@@ -386,16 +386,23 @@ def generate_schema_class(name: str, schema: Any, out: TextIO, schema_class_map:
             if title:
                 field_params.append(f'title={repr(title)}')
             
-            # Determine if field should be Optional based on whether it has a default
-            has_default = any(param.startswith('default') for param in field_params)
+            # Determine if field should be Optional based on whether it has a non-None default
+            has_non_none_default = any(
+                param.startswith('default=') and not param.startswith('default=None')
+                or param.startswith('default_factory=')
+                for param in field_params
+            )
             
             # Generate field definition using normalized name
             field_def = f"    {normalized_prop_name}: "
             # Check if field_type is already a Union containing None
             is_union_with_none = isinstance(field_type, str) and field_type.startswith("Union[") and "None" in field_type
             
-            # Only wrap in Optional if field is not required AND has no default value
-            if not is_required and not has_default and not is_union_with_none:
+            # Wrap in Optional if:
+            # 1. Field is not required AND
+            # 2. Field doesn't have a non-None default (fields with default=None still need Optional) AND
+            # 3. Field type is not already a Union with None
+            if not is_required and not has_non_none_default and not is_union_with_none:
                 field_def += f"Optional[{field_type}]"
             else:
                 field_def += str(field_type)
@@ -977,6 +984,8 @@ class FlowPythonGenerator:
         if kind == "any" and direction == "input":
             if ui_widget in ["SelectWidget", "ComboboxWidget"]:
                 return "single_choice_input_field"
+            elif ui_widget == "Table":
+                return "single_choice_input_field"  # table view for single choice
         elif kind == "boolean" and direction == "input":
             return "boolean_input_field"
         elif kind == "text" and direction == "input":
@@ -1133,6 +1142,18 @@ class FlowPythonGenerator:
                 ui_widget = safe_get(field.uiSchema, 'ui:widget')
                 if ui_widget in ["SelectWidget", "ComboboxWidget"]:
                     params['show_as_dropdown'] = True
+                elif ui_widget == "Table":
+                    params['show_as_dropdown'] = False
+            
+            # columns - extract from input_map display_items (for table view)
+            columns = FlowPythonGenerator._extract_columns_from_display_items(field)
+            if columns:
+                params['columns'] = columns
+            
+            # dropdown_item_column - extract from input_map display_text
+            dropdown_item_column = FlowPythonGenerator._extract_dropdown_item_column(field)
+            if dropdown_item_column:
+                params['dropdown_item_column'] = dropdown_item_column
         
         elif method_name == "boolean_input_field":
             # single_checkbox
