@@ -727,8 +727,15 @@ class FlowPythonGenerator:
         else:
             var_name = get_meaningful_variable_name(node, node_id, var_name_counts)
         
-        # Skip start and end nodes - use predefined START and END constants
+        # Handle start and end nodes specially - they use predefined START and END constants
+        # Store their position information to be set at the end (after edges create the nodes)
         if node_id in ["__start__", "__end__"]:
+            if hasattr(node.spec, 'position') and node.spec.position:
+                const_name = "START" if node_id == "__start__" else "END"
+                # Store position info in a class variable to be used later (dict avoids duplicates)
+                if not hasattr(FlowPythonGenerator, '_start_end_positions'):
+                    FlowPythonGenerator._start_end_positions = {}
+                FlowPythonGenerator._start_end_positions[const_name] = node.spec.position
             return ""
         
         node_name = node_id if node.spec.display_name is None else node.spec.display_name
@@ -796,10 +803,13 @@ class FlowPythonGenerator:
                         out.write(f"\n")
                         out.write(f"    {var_name}_spec: BranchNodeSpec = {var_name}.get_spec()\n")
                         
-                        # Generate other spec attributes (position, match_policy, etc.)
+                        # Generate other spec attributes (position, dimensions, match_policy, etc.)
                         if hasattr(node.spec, "position") and node.spec.position:
                             pos = node.spec.position
                             out.write(f"    {var_name}_spec.position = Position(x={pos.x}, y={pos.y})\n")
+                        if hasattr(node.spec, "dimensions") and node.spec.dimensions:
+                            dims = node.spec.dimensions
+                            out.write(f"    {var_name}_spec.dimensions = Dimensions(width={dims.width}, height={dims.height})\n")
                         if hasattr(node.spec, "match_policy") and node.spec.match_policy:
                             out.write(f"    {var_name}_spec.match_policy = MatchPolicy.{node.spec.match_policy.name}\n")
                         out.write(f"\n")
@@ -926,13 +936,16 @@ class FlowPythonGenerator:
                 
                 if target_node_id:
                     handled_edges.append(edge_id)
-                    target_var = node_vars.get(target_node_id, f'"{target_node_id}"')
                     
-                    # Handle START/END special cases
-                    if target_var == '"__end__"':
+                    # Handle START/END special cases first
+                    if target_node_id == "__end__":
                         target_var = node_vars.get("__end__", "END")
-                    elif target_var == '"__start__"':
+                    elif target_node_id == "__start__":
                         target_var = node_vars.get("__start__", "START")
+                    else:
+                        # Normalize the node ID by replacing spaces with underscores to match node.spec.name
+                        normalized_id = target_node_id.replace(" ", "_")
+                        target_var = node_vars.get(normalized_id, node_vars.get(target_node_id, f'"{target_node_id}"'))
                     
                     if first_condition:
                         out.write(f"    {var_name}.condition(\n")
@@ -1019,7 +1032,10 @@ class FlowPythonGenerator:
             # Now generate branch condition calls after all nodes are defined
             handled_edges = set()
             for node_id, branch_node in branch_nodes:
-                var_name = get_valid_variable_name(node_id)
+                # Use the meaningful variable name from node_vars (not get_valid_variable_name)
+                # because that's what was used when storing the conditions
+                spec_name = branch_node.spec.name if branch_node and hasattr(branch_node, 'spec') else node_id
+                var_name = node_vars.get(spec_name, get_valid_variable_name(node_id))
                 if var_name in FlowPythonGenerator._branch_conditions:
                     conditions, cond_edge_map = FlowPythonGenerator._branch_conditions[var_name]
                     edges_handled = FlowPythonGenerator._generate_branch_condition_calls(
@@ -1133,6 +1149,19 @@ class FlowPythonGenerator:
         comment_name = node.spec.display_name if node.spec.display_name else var_name
         out.write(f"    # Create user flow node: {comment_name}\n")
         out.write(f"    {var_name} = {flow_var}.userflow()\n")
+        
+        # Set position and dimensions if available
+        if hasattr(node.spec, "position") and node.spec.position:
+            pos = node.spec.position
+            out.write(f"\n    {var_name}_spec = {var_name}.get_spec()\n")
+            out.write(f"    {var_name}_spec.position = Position(x={pos.x}, y={pos.y})\n")
+            if hasattr(node.spec, "dimensions") and node.spec.dimensions:
+                dims = node.spec.dimensions
+                out.write(f"    {var_name}_spec.dimensions = Dimensions(width={dims.width}, height={dims.height})\n")
+        elif hasattr(node.spec, "dimensions") and node.spec.dimensions:
+            dims = node.spec.dimensions
+            out.write(f"\n    {var_name}_spec = {var_name}.get_spec()\n")
+            out.write(f"    {var_name}_spec.dimensions = Dimensions(width={dims.width}, height={dims.height})\n")
         
         # Call the function to build the user flow
         out.write(f"\n    # Build the {node.spec.name} user flow\n")
@@ -1612,8 +1641,26 @@ class FlowPythonGenerator:
             # Generate form fields using appropriate method calls
             for field in form.fields:
                 field_name = field.name
-                # Normalize field name for variable names (replace hyphens with underscores)
-                normalized_field_name = normalize_identifier(field_name)
+                
+                # Generate meaningful variable name from display_name if available
+                # This creates better variable names like "choose_your_flight_choices_map"
+                # instead of "field_daae1468_340d_4543_aa8f_f1dbca81b059_choices_map"
+                if field.display_name and field.display_name.strip():
+                    # Use display_name to create a meaningful base name
+                    import re
+                    base_name = field.display_name.strip()
+                    # Remove special characters and convert to snake_case
+                    base_name = re.sub(r'[^\w\s-]', '', base_name)
+                    base_name = re.sub(r'[-\s]+', '_', base_name)
+                    base_name = base_name.lower().strip('_')
+                    # Ensure it doesn't start with a digit
+                    if base_name and not base_name[0].isdigit():
+                        normalized_field_name = base_name
+                    else:
+                        normalized_field_name = normalize_identifier(field_name)
+                else:
+                    # Fallback to normalizing the field name
+                    normalized_field_name = normalize_identifier(field_name)
                 
                 # Detect which method to use
                 method_name = FlowPythonGenerator._detect_form_field_method(field)
@@ -2184,7 +2231,7 @@ def generate_flow_decorator(flow_spec: Any, schema_class_map: Dict[str, str], ou
 def generate_function_signature(flow_spec: Any, out: TextIO) -> None:
     """Generate the flow function signature."""
     function_name = f"build_{flow_spec.name}_flow"
-    out.write(f"def {function_name}(aflow: Flow | None = None) -> Flow:\n")
+    out.write(f"def {function_name}(aflow: Flow = None) -> Flow:\n")
     
     # Add docstring
     if flow_spec.description:
@@ -2219,6 +2266,7 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
     if hasattr(FlowPythonGenerator, "_user_flow_functions"):
         delattr(FlowPythonGenerator, "_user_flow_functions")
     FlowPythonGenerator._user_flow_functions = []
+    FlowPythonGenerator._start_end_positions = {}  # Use dict to avoid duplicates
     
     # First pass: collect variable names and detect collisions
     var_name_counts: Dict[str, Any] = {}
@@ -2252,6 +2300,13 @@ def generate_flow_py_code(flow: Flow, schema_class_map: Dict[str, str], out: Tex
         
     # Then write the main flow function content
     out.write(main_flow_buffer.getvalue())
+    
+    # Generate START/END position code (after edges have created the nodes)
+    if hasattr(FlowPythonGenerator, '_start_end_positions') and FlowPythonGenerator._start_end_positions:
+        for const_name, position in FlowPythonGenerator._start_end_positions.items():
+            out.write(f"    # Set position for {const_name}\n")
+            out.write(f"    aflow.nodes[{const_name}].spec.position = Position(x={position.x}, y={position.y})\n")
+        out.write("\n")
     
     # Generate return statement
     out.write("    return aflow\n")
