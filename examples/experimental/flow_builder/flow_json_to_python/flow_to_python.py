@@ -131,10 +131,76 @@ def capitalize_preserve_camel(s):
 
 
 def get_schema_class_name(schema_name: str) -> str:
-    """Generate a valid Python class name from a schema name."""
-    # Remove _input suffix if present
-    if schema_name.endswith("_input"):
-        schema_name = schema_name[:-6]
+    """
+    Generate a valid Python class name from a schema name.
+    Simplifies names by removing flow IDs, UUIDs, and redundant suffixes.
+    """
+    import re
+    
+    # Store original for reference
+    original_name = schema_name
+    
+    # Remove numeric suffixes at the end (e.g., _0, _1, _2)
+    schema_name = re.sub(r'_\d+$', '', schema_name)
+    
+    # Remove flow ID patterns (e.g., _7958SB, _ABC123)
+    schema_name = re.sub(r'_[A-Z0-9]{5,}(?=_|$)', '', schema_name)
+    
+    # Remove UUID patterns (e.g., _7b80bcc2_0393_45fd_b924_0aa5c022ebea)
+    schema_name = re.sub(r'_[a-f0-9]{8}_[a-f0-9]{4}_[a-f0-9]{4}_[a-f0-9]{4}_[a-f0-9]{12}', '', schema_name)
+    
+    # Simplify ONLY top-level flow schemas (those that start with flow name and end with schema type)
+    # Pattern: flow_name_input_schema (no node name in between)
+    if re.match(r'^[^_]+_input_schema$', schema_name):
+        return 'FlowInput'
+    if re.match(r'^[^_]+_output_schema$', schema_name):
+        return 'FlowOutput'
+    if re.match(r'^[^_]+_private_schema$', schema_name):
+        return 'FlowPrivate'
+    
+    # For node schemas, extract meaningful parts
+    # Pattern: flow_name_CodeBlock_1_output_schema -> CodeBlock1Output
+    match = re.search(r'_([A-Z][^_]+(?:_\d+)?)_(?:output|input)_schema$', schema_name)
+    if match:
+        node_part = match.group(1)
+        schema_type = 'Output' if '_output_schema' in schema_name else 'Input'
+        # Convert node_part to CamelCase (CodeBlock_1 -> CodeBlock1)
+        node_part = re.sub(r'_(\d+)', r'\1', node_part)  # Remove underscore before numbers
+        parts = node_part.split('_')
+        camel_node = ''.join(capitalize_preserve_camel(part) for part in parts)
+        return f"{camel_node}{schema_type}"
+    
+    # For prompt schemas with UUIDs or display names
+    # Pattern: flow_name_prompt_xxx_input_schema -> PromptXxxInput
+    match = re.search(r'_prompt_([^_]+(?:_[^_]+)?)_(?:output|input)_schema$', schema_name)
+    if match:
+        prompt_part = match.group(1)
+        schema_type = 'Output' if '_output_schema' in schema_name else 'Input'
+        # Try to extract meaningful name from display name if available
+        # For now, just use a generic name with first part
+        parts = prompt_part.split('_')
+        if len(parts) > 0:
+            # Use first meaningful part
+            first_part = parts[0] if parts[0] not in ['get', 'set', 'update'] else '_'.join(parts[:2])
+            camel_prompt = capitalize_preserve_camel(first_part)
+            return f"{camel_prompt}Prompt{schema_type}"
+        return f"Prompt{schema_type}"
+    
+    # For nested property schemas (e.g., properties_initialValues)
+    match = re.search(r'properties_([^_]+)$', schema_name)
+    if match:
+        prop_name = match.group(1)
+        return capitalize_preserve_camel(prop_name)
+    
+    # Fallback: Remove flow name prefix and convert to CamelCase
+    # Remove first component (flow name)
+    parts = schema_name.split('_')
+    if len(parts) > 1:
+        parts = parts[1:]  # Remove first part (flow name)
+    
+    # Remove _input/_output/_schema suffixes
+    schema_name = '_'.join(parts)
+    schema_name = re.sub(r'_(input|output|schema)$', '', schema_name)
     
     # Convert to CamelCase
     parts = schema_name.split('_')
@@ -427,17 +493,27 @@ def generate_schema_classes(schemas: Dict[str, Any], out: TextIO) -> Dict[str, s
     """Generate Pydantic model classes for all schemas."""
     schema_class_map = {}
     generated_classes = set()  # Track already generated class names
+    class_name_counts = {}  # Track how many times each base name is used
     
-    # First pass: map all schema names to class names
+    # First pass: map all schema names to class names, handling collisions
     for name, schema in schemas.items():
-        class_name = get_schema_class_name(name)
+        base_class_name = get_schema_class_name(name)
+        
+        # Handle collisions by appending a number
+        if base_class_name in class_name_counts:
+            class_name_counts[base_class_name] += 1
+            class_name = f"{base_class_name}{class_name_counts[base_class_name]}"
+        else:
+            class_name_counts[base_class_name] = 1
+            class_name = base_class_name
+        
         schema_class_map[name] = class_name
     
-    # Second pass: generate classes, avoiding duplicates
+    # Second pass: generate classes
     for name, schema in schemas.items():
         class_name = schema_class_map[name]
         
-        # Skip if we've already generated this class
+        # Skip if we've already generated this class (shouldn't happen now, but keep as safety)
         if class_name in generated_classes:
             continue
             
