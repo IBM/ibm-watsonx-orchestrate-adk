@@ -351,8 +351,8 @@ class EnvService:
         if not service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR):
             import getpass
             service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = getpass.getpass("Set Master Password for Local Services: ")
-        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 8):
-                raise BadRequest(f"Invalid password provided. Password must be a minimum of 8 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 18):
+                raise BadRequest(f"Invalid password provided. Password must be a minimum of 18 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
 
         try:
             self.__persist_service_credentials(service_credentials)
