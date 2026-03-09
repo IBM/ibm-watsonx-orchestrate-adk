@@ -1145,10 +1145,21 @@ class FlowPythonGenerator:
         normalized_name = normalize_identifier(node.spec.name)
         user_flow_func_name = f"build_{normalized_name}_flow"
         
-        # Create the user flow node without name/display_name parameters
+        # Create the user flow node with name and display_name parameters
         comment_name = node.spec.display_name if node.spec.display_name else var_name
         out.write(f"    # Create user flow node: {comment_name}\n")
-        out.write(f"    {var_name} = {flow_var}.userflow()\n")
+        
+        # Build the userflow() call with name and display_name
+        params = []
+        if node.spec.name:
+            params.append(f"name={repr(node.spec.name)}")
+        if node.spec.display_name:
+            params.append(f"display_name={repr(node.spec.display_name)}")
+        
+        if params:
+            out.write(f"    {var_name} = {flow_var}.userflow({', '.join(params)})\n")
+        else:
+            out.write(f"    {var_name} = {flow_var}.userflow()\n")
         
         # Set position and dimensions if available
         if hasattr(node.spec, "position") and node.spec.position:
@@ -1593,8 +1604,9 @@ class FlowPythonGenerator:
         form = safe_getattr(node.spec, "form")
         if form:
             # generate the form first
-            form_name = form.name
-            form_display_name = form.display_name
+            # Use the enclosing user node's name and display_name, not the form's
+            node_name = node.spec.name
+            node_display_name = node.spec.display_name
 
             # Extract cancel_button_label if present
             cancel_button_label = None
@@ -1610,10 +1622,10 @@ class FlowPythonGenerator:
             
             # Generate form() call with cancel_button_label if present
             user_node_var = var_name
-            form_params = [f"name={repr(form_name)}", f"display_name={repr(form_display_name)}"]
+            form_params = [f"name={repr(node_name)}", f"display_name={repr(node_display_name)}"]
             if cancel_button_label:
                 form_params.append(f"cancel_button_label={repr(cancel_button_label)}")
-            out.write(f"    # Create form node: {form_display_name}\n")
+            out.write(f"    # Create form node: {node_display_name}\n")
             out.write(f"    {user_node_var}: UserNode = {flow_var}.form({', '.join(form_params)})\n")
             
             # Generate add_button() calls for custom buttons
