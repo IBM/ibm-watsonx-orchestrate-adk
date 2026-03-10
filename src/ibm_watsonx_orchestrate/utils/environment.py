@@ -315,7 +315,7 @@ class EnvService:
         return env_dict
 
     @staticmethod
-    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$', min_length: int = 0) -> bool:
+    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!#$%^&*()_+=\-]+$', min_length: int = 0) -> bool:
         return  (len(cred) >= min_length) and bool(re.match(pattern, cred))
 
     def __persist_service_credentials(self, service_credentials: dict):
@@ -331,7 +331,7 @@ class EnvService:
 
     def get_service_credentials(self, username: Optional[str] = None, password: Optional[str] = None) -> dict:
         _DEFAULT_SERVICE_USER = "orchestrate"
-        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$')
+        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!#$%^&*()_+=\-]+$')
         service_credentials = {}
         cfg_service_credentials = self.__config.read(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT) or {}
 
