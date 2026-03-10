@@ -840,3 +840,22 @@ def parse_tool_name_id(tool: str) -> tuple[str, str | None]:
         return name_part, id_part
     
     return tool, None
+
+def normalize_and_validate_tool_spec(tool_spec_raw: dict) -> ToolSpec:
+    """
+    Normalize and validate a tool spec.
+    
+    Removes empty dict {} for schemas before validation to let Pydantic use defaults.
+    This prevents validation errors when the server returns empty schemas.
+    
+    Args:
+        tool_spec_raw: Raw tool spec from the server
+        
+    Returns:
+        Validated ToolSpec object
+    """
+    if 'output_schema' in tool_spec_raw and tool_spec_raw['output_schema'] == {}:
+        del tool_spec_raw['output_schema']
+    if 'input_schema' in tool_spec_raw and tool_spec_raw['input_schema'] == {}:
+        del tool_spec_raw['input_schema']
+    return ToolSpec.model_validate(tool_spec_raw)
