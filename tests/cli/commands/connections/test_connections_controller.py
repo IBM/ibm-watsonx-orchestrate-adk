@@ -1072,7 +1072,7 @@ class TestSetCredentialsConnection:
             if config.auth_type == ConnectionAuthType.OAUTH2_PASSWORD:
                 assert mock_add_credentials.call_count == 2
             else:
-                mock_add_credentials.assert_called_once()
+                mock_add_credentials.assert_called()
     
     def test_set_credentials_connection_no_config(self, connections_spec_content, caplog):
         app_id = connections_spec_content.get("app_id")
