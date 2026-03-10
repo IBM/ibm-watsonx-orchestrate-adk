@@ -418,6 +418,17 @@ class MultiFileConstraints:
             )
             sys.exit(1)
         
+        # Validate max_size_per_file is not greater than max_total_size
+        if (max_size_per_file is not None and max_total_size is not None and
+            max_size_per_file > max_total_size):
+            per_file_mb = max_size_per_file / (1024 * 1024)
+            total_mb = max_total_size / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({per_file_mb:.2f}MB) cannot be greater than max_total_size ({total_mb:.2f}MB). "
+                f"Please set max_size_per_file to {max_total_size} bytes or less."
+            )
+            sys.exit(1)
+        
         self.min_files = min_files
         self.max_files = max_files
         self.max_size_per_file = max_size_per_file
