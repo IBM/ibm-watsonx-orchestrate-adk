@@ -22,12 +22,40 @@ class WatsonSTTConfig(BaseModel):
   bearer_token: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   model: Annotated[str, Field(min_length=1,max_length=256)]
   background_audio_suppression: Optional[Annotated[float, Field(ge=0.0, le=1.0)]] = None
+  language_customization_id: Optional[Annotated[str, Field(min_length=1, max_length=256)]] = Field(
+    default=None,
+    description="Language customization ID"
+  )
+  inactivity_timeout: Optional[Annotated[int, Field(ge=-1)]] = Field(
+    default=None,
+    description="Seconds of inactivity before the service stops listening. Default 30"
+  )
   profanity_filter: Optional[bool] = None
   smart_formatting: Optional[bool] = None
+  speaker_labels: Optional[bool] = Field(
+    default=None,
+    description="Enable speaker labels (beta). Default false"
+  )
   redaction: Optional[bool] = None
-  end_of_phrase_silence_time: Optional[Annotated[float, Field(ge=0.0, le=120.0)]] = None
   low_latency: Optional[bool] = None
   learning_opt_out: Optional[bool] = None
+  watson_metadata: Optional[Annotated[str, Field(min_length=1, max_length=512)]] = Field(
+    default=None,
+    description="Value for x-watson-metadata header."
+  )
+  smart_formatting_version: Optional[Annotated[int, Field(ge=0)]] = Field(
+    default=None,
+    description="Version of smart formatting to use."
+  )
+  customization_weight: Optional[Annotated[float, Field(ge=0.0, le=1.0)]] = Field(
+    default=None,
+    description="Weight for custom language model (0.0 to 1.0). Default 0.5"
+  )
+  character_insertion_bias: Optional[Annotated[float, Field(ge=-1.0, le=1.0)]] = Field(
+    default=None,
+    description="Bias for character insertion (-1.0 to 1.0). Default 0.0"
+  )
+  end_of_phrase_silence_time: Optional[Annotated[float, Field(ge=0.0, le=120.0)]] = None
 
 class EmotechSTTConfig(BaseModel):
   api_key: Annotated[str,Field(min_length=1,max_length=2048)]
@@ -37,10 +65,43 @@ class DeepgramSTTConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1, max_length=2048)]
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   model: Annotated[str, Field(min_length=1, max_length=256)]
-  language: Optional[str] = None
-  numerals: Optional[bool] = None
   keyterm: Optional[list[str]] = None
   mip_opt_out: Optional[bool] = None
+  # v1/listen endpoint parameters
+  channels: Optional[int] = Field(default=None, description="Number of audio channels")
+  diarize: Optional[bool] = Field(default=None, description="Enable speaker diarization")
+  dictation: Optional[bool] = Field(default=None, description="Enable dictation mode")
+  endpointing: Optional[int] = Field(default=None, description="Endpointing silence duration in seconds, or false to disable")
+  extra: Optional[List[str]] = Field(default=None, description="Extra parameters to pass to Deepgram")
+  interim_results: Optional[bool] = Field(default=None, description="Enable interim results")
+  keywords: Optional[List[str]] = Field(default=None, description="Keywords to detect")
+  language: Optional[str] = None
+  multichannel: Optional[bool] = Field(default=None, description="Transcribe each audio channel independently")
+  numerals: Optional[bool] = None
+  profanity_filter: Optional[bool] = Field(default=None, description="Filter profanity")
+  punctuate: Optional[bool] = Field(default=None, description="Add punctuation and capitalization")
+  redact: Optional[str] = Field(default=None, description="Redact sensitive information")
+  replace: Optional[List[str]] = Field(default=None, description="Replace specified terms")
+  search: Optional[List[str]] = Field(default=None, description="Search for specific terms")
+  smart_format: Optional[bool] = Field(default=None, description="Apply smart formatting to the transcript")
+  tag: Optional[List[str]] = Field(default=None, description="Tag for the request")
+  utterance_end_ms: Optional[int] = Field(default=None, description="How long Deepgram will wait to send UtteranceEnd message after word has been transcribed")
+  vad_events: Optional[bool] = Field(default=None, description="Enable Deepgram's voice activity detection events")
+  version: Optional[str] = Field(default=None, description="API version")
+  # v2/listen endpoint parameters
+  eager_eot_threshold: Optional[float] = Field(
+    default=None,
+    ge=0.3,
+    le=0.9,
+    description="End-of-turn confidence required to fire an eager EOT event, between (0.3 - 0.9)"
+  )
+  eot_threshold: Optional[float] = Field(
+    default=None,
+    ge=0.5,
+    le=0.9,
+    description="End-of-turn confidence required to finish a turn, between (0.5 - 0.9)"
+  )
+  eot_timeout_ms: Optional[int] = Field(default=None, description="A turn will be finished when this much time (ms) has passed after speech, regardless of EOT confidence")
 
 
 class SpeechToTextConfig(BaseModel):
@@ -76,12 +137,23 @@ class ElevenLabsVoiceSettings(BaseModel):
   similarity_boost: Optional[float] = 0.75
   use_speaker_boost: Optional[bool] = True
 
+class ElevenLabsPronounciationDict(BaseModel):
+  pronunciation_dictionary_id: str = Field(..., description="ID of the pronunciation dictionary")
+  version_id: str = Field(..., description="Version ID of the pronunciation dictionary")
+
 class ElevenLabsTTSConfig(BaseModel):
+  api_url: Optional[str] = Field(default=None, min_length=1, max_length=2048, description="ElevenLabs API URL")
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   model_id: Annotated[str, Field(min_length=1, max_length=128)]
   voice_id: Annotated[str, Field(min_length=1, max_length=128)]
   language_code: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   apply_text_normalization: Optional[str] = None
+  optimize_streaming_latency: Optional[int] = Field(default=None, description="Optimize streaming latency (0-4)")
+  apply_language_text_normalization: Optional[bool] = Field(default=None, description="Whether to apply language-specific text normalization")
+  pronunciation_dictionary_locators: Optional[List[ElevenLabsPronounciationDict]] = Field(default=None, description="List of pronunciation dictionary locators")
+  seed: Optional[int] = Field(default=None, description="Seed for deterministic audio generation")
+  previous_text: Optional[str] = Field(default=None, description="Previous text for context")
+  next_text: Optional[str] = Field(default=None, description="Next text for context")
   voice_settings: Optional[ElevenLabsVoiceSettings] = None
 
 class DeepgramTTSConfig(BaseModel):
@@ -102,10 +174,6 @@ class TextToSpeechConfig(BaseModel):
   def validate_providers(self):
     _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config'])
     return self
-
-class AdditionalProperties(BaseModel):
-  speech_to_text: Optional[SpeechToTextConfig] = None
-  text_to_speech: Optional[TextToSpeechConfig] = None
 
 class DTMFInput(BaseModel):
   inter_digit_timeout_ms: Optional[int] = Field(default=2500, description="The amount of time (ms) to wait for a new DTMF digit")
@@ -138,13 +206,23 @@ class UserIdleHandlerConfig(BaseModel):
   idle_timeout_message: Optional[str] = Field(default="", description="Message to play on idle")
   idle_hangup_message: Optional[str] = Field(default="", description="Message to play before hanging up")
 
+class UserIdleHandlerLangConfig(BaseModel):
+  idle_timeout_message: Optional[str] = Field(
+    default="",
+    description="Localized idle message for this language."
+  )
+  idle_hangup_message: Optional[str] = Field(
+    default="",
+    description="Localized final hangup message for this language."
+  )
+
 class AudioClips(Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
 
 class AgentIdleHandlerMessages(BaseModel):
-  pre_hold_message: Optional[str] = Field(default="We're taking a little extra time but we'll be with you shortly. Thanks for your patience!", max_length=250, description="The text to play for the user before playing on-hold audio")
-  hold_message: Optional[str] = Field(default="Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait.", max_length=250, description="The text to play to the user periodically while on hold")
+  pre_hold_message: Optional[str] = Field(default="We're taking a little extra time but we'll be with you shortly. Thanks for your patience!", min_length=0, max_length=250, description="The text to play for the user before playing on-hold audio")
+  hold_message: Optional[str] = Field(default="Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait.", min_length=0, max_length=250, description="The text to play to the user periodically while on hold")
 
 class AgentIdleHandler(AgentIdleHandlerMessages):
   model_config = ConfigDict(use_enum_values=True)
@@ -154,6 +232,13 @@ class AgentIdleHandler(AgentIdleHandlerMessages):
   audio_clip_id: Optional[AudioClips] = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
   hold_audio_seconds: Optional[int] = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
 
+class LanguageVoiceConfig(BaseModel):
+  """Voice configuration for a specific language"""
+  text_to_speech: Optional[TextToSpeechConfig] = None
+  speech_to_text: Optional[SpeechToTextConfig] = None
+  user_idle_handler: Optional[UserIdleHandlerLangConfig] = None
+  agent_idle_handler: Optional[AgentIdleHandlerMessages] = None
+
 class AttachedAgent(BaseModel):
   id: str
   name: Optional[str] = None
@@ -161,10 +246,20 @@ class AttachedAgent(BaseModel):
 
 class VoiceConfiguration(BaseModel):
   name: Annotated[str, Field(min_length=1,max_length=128)]
+  llm_aggregation_timeout_seconds: Optional[float] = Field(
+    default=0.8,
+    description="Maximum time to wait for additional transcription content before pushing aggregated result."
+  )
   speech_to_text: SpeechToTextConfig
   text_to_speech: TextToSpeechConfig
-  language: Optional[Annotated[str,Field(min_length=2,max_length=16)]] = None
-  additional_languages: Optional[dict[str,AdditionalProperties]] = None
+  language: Optional[Annotated[str,Field(min_length=2,max_length=16)]] = Field(
+    default="en-us",
+    description="Default language code, e.g., 'en-us'"
+  )
+  additional_languages: Optional[Dict[str, LanguageVoiceConfig]] = Field(
+    default=None,
+    description="Additional language configurations keyed by language code"
+  )
   dtmf_input: Optional[DTMFInput] = None
   vad: Optional[VADConfig] = None
   user_idle_handler: Optional[UserIdleHandlerConfig] = None
@@ -184,10 +279,10 @@ class VoiceConfiguration(BaseModel):
 
 class VoiceConfigurationListEntry(BaseModel):
     name: str = Field(description="Name of the voice configuration.")
-    id: str = Field(default=None, description="A unique identifier for the voice configuration.")
-    speech_to_text_provider: Optional[str] = Field("The speech to text service provider.")
-    text_to_speech_provider: Optional[str] = Field("The text to speech service provider.")
-    attached_agents: Optional[List[str]] = Field("A list of agent names that use the voice configuration.")
+    id: Optional[str] = Field(default=None, description="A unique identifier for the voice configuration.")
+    speech_to_text_provider: Optional[str] = Field(default=None, description="The speech to text service provider.")
+    text_to_speech_provider: Optional[str] = Field(default=None, description="The text to speech service provider.")
+    attached_agents: Optional[List[str]] = Field(default=None, description="A list of agent names that use the voice configuration.")
 
     def get_row_details(self):
         attached_agents = ", ".join(self.attached_agents) if self.attached_agents else ""
