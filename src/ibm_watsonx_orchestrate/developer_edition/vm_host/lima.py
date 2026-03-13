@@ -526,10 +526,8 @@ def _ensure_lima_vm_stopped():
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     default_env_path = EnvService.get_default_env_file()
     merged_env_dict = EnvService.merge_env(default_env_path, None)
-    health_user = merged_env_dict.get("WXO_USER")
-    health_pass = merged_env_dict.get("WXO_PASS")
 
-    was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+    was_server_running = EnvService._check_dev_edition_server_health()
 
     """Edit Lima VM config file directly to update resources."""
     logger.info("Stopping Lima VM...")
@@ -570,7 +568,7 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
    
     if was_server_running:
         health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
-        server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
+        server_is_started = EnvService._wait_for_dev_edition_server_health_check(timeout_seconds=health_check_timeout)
 
         if server_is_started:
             logger.info("Lima VM editted and server restarted successfully.")

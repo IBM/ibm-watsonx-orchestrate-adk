@@ -7,7 +7,7 @@ import requests
 from urllib.parse import urlparse
 
 from ibm_watsonx_orchestrate.cli.config import Config, ENV_WXO_URL_OPT, ENV_CRN_OPT, ENVIRONMENTS_SECTION_HEADER, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, CHAT_UI_PORT
-from ibm_watsonx_orchestrate.cli.commands.channels.types import RuntimeEnvironmentType
+from ibm_watsonx_orchestrate.cli.commands.channels.types import EnvironmentType, RuntimeEnvironmentType
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, is_ibm_cloud_platform, get_environment, get_cpd_instance_id_from_url, is_saas_env, AUTH_CONFIG_FILE_FOLDER, AUTH_SECTION_HEADER, AUTH_MCSP_TOKEN_OPT, AUTH_CONFIG_FILE
 
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
@@ -260,7 +260,7 @@ class ChannelsWebchatController:
         if environment == "ibmcloud":
             config_lines.append(f'crn: "{crn}"')
             config_lines.append(f'deploymentPlatform: "ibmcloud"')
-        if is_local_dev():
+        if is_local_dev() or self.env == EnvironmentType.DRAFT:
             config_lines.append(f"""chatOptions: {{
                 agentId: "{agent_id}"
             }}""")

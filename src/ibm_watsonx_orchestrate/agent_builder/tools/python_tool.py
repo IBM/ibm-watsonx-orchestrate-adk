@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from types import MappingProxyType
-from typing import Any, Callable, Dict, List, Optional, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, get_type_hints, get_origin, get_args, Annotated
 import logging
 
 from pydantic import TypeAdapter, BaseModel
@@ -17,6 +17,8 @@ from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, T
     PythonToolBinding, ToolResponseFormat
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
+from ibm_watsonx_orchestrate.agent_builder.tools.types import MultiFileConstraints, WXOFile
+
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -30,6 +32,73 @@ JOIN_TOOL_PARAMS = {
 TOOLS_DYNAMIC_PARAM_FLAG = "x-ibm-dynamic-field"
 TOOLS_DYNAMIC_SCHEMA_FLAG = "x-ibm-dynamic-schema"
 
+EXTENSION_TO_MIME = {
+    "csv":  ["text/csv"],               
+    "doc":  ["application/msword"],       
+    "docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],  
+    "jpeg": ["image/jpeg"],           
+    "jpg":  ["image/jpeg"],               
+    "png":  ["image/png"],              
+    "pdf":  ["application/pdf"],          
+    "ppt":  ["application/vnd.ms-powerpoint"], 
+    "pptx": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],  
+    "svg":  ["image/svg+xml"],            
+    "txt":  ["text/plain"],               
+    "xls":  ["application/vnd.ms-excel"], 
+    "xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],  
+    "html": ["text/html"],              
+    "wav":  ["audio/wav", "audio/x-wav"],
+    "mp3":  ["audio/mpeg"],               
+    "mp4":  ["audio/mp4"],               
+    "tiff": ["image/tiff"],              
+    "py":   ["text/x-python"],             
+    "yaml": ["application/x-yaml", "text/yaml"],      
+    "yml":  ["application/x-yaml", "text/yaml"],                
+    "java": ["text/x-java-source"],     
+    "json": ["application/json"],        
+    "xml":  ["application/xml"],          
+    "js":   ["application/javascript"],    
+    "ts":   ["application/typescript"],    
+    "go":   ["text/x-go"],                
+    "md":   ["text/markdown"]
+}
+
+def _extensions_to_mime_types(exts: list[str] | None) -> list[str] | None:
+    if not exts:
+        return None
+
+    mimes = []
+    for ext in exts:
+        if ext not in EXTENSION_TO_MIME:
+            logger.warning(f"Unsupported file extension '{ext}'")
+            continue
+        mimes.extend(EXTENSION_TO_MIME[ext])
+
+    return mimes
+
+def _extract_list_wxofile_params(fn):
+    """
+    Extract parameter names that are List[WXOFile] without MultiFileConstraints.
+    Returns a list of parameter names.
+    """
+    sig = inspect.signature(fn)
+    list_wxofile_params = []
+
+    for name, param in sig.parameters.items():
+        annotation = param.annotation
+        
+        # Skip Annotated types (they might have MultiFileConstraints)
+        if get_origin(annotation) is Annotated:
+            continue
+            
+        # Check if it's a List type
+        if get_origin(annotation) in (list, List):
+            args = get_args(annotation)
+            # Check if the list contains WXOFile
+            if args and args[0] is WXOFile:
+                list_wxofile_params.append(name)
+    
+    return list_wxofile_params
 
 def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict):
     parsed_expected_credentials = []
@@ -80,7 +149,6 @@ def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynam
             setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
         base_schema.properties.update(dynamic_schema.properties)
 
-
 class PythonTool(BaseTool):
     def __init__(self,
                 fn,
@@ -125,16 +193,25 @@ class PythonTool(BaseTool):
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
-                from ibm_watsonx_orchestrate.run.context import AgentRun
-                context_object = context_param_value if isinstance(context_param_value,AgentRun) \
-                    else AgentRun(request_context=context_param_value)
-                kwargs[run_context_param] = context_object
+                kwargs[run_context_param] = self.__parse_context_param(context_param_value)
 
 
         result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
         return ToolResponse(content=result,context_updates=context_updates)
+    
+    def __parse_context_param(self, context_param_value):
+        from ibm_watsonx_orchestrate.run.context import AgentRun
+        
+        if isinstance(context_param_value, AgentRun):
+            return context_param_value
+        
+        try:
+            return AgentRun(**context_param_value)
+        except:
+            return AgentRun(request_context=context_param_value)
+
 
     
     @property
@@ -185,23 +262,31 @@ class PythonTool(BaseTool):
         # If the function is a join tool, validate its signature matches the expected parameters. If not, raise error with details.
         if self.kind == PythonToolKind.JOIN_TOOL:
             _validate_join_tool_func(self.fn, sig, spec.name)
-
         if not self.input_schema:
             input_schema_model = None
             try:
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=True)
             except ValueError as e:
                 err_msg = str(e)
+                # Check if error is due to Annotated types with MultiFileConstraints (false positive)
+                constraints_params = _extract_multifile_constraints(self.fn)
+                list_wxofile_params = _extract_list_wxofile_params(self.fn)
+                has_file_constraints = bool(constraints_params or list_wxofile_params)
+                
                 if "Found invalid Google-Style docstring" in err_msg:
                     logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
-                elif "in docstring not found in function signature." in err_msg:
+                elif "in docstring not found in function signature." in err_msg and not has_file_constraints:
+                    # Only warn if it's not a file constraint parameter (those are expected to have Annotated types)
                     logger.warning("Unable to properly parse parameter descriptions due to missing or incorrect type hints. This may result in degraded agent performance. To fix this, please ensure the tool inputs have type hints that match those in the docstring.")
+                elif "in docstring not found in function signature." in err_msg and has_file_constraints:
+                    # Suppress warning for file constraint parameters - this is expected behavior
+                    pass
                 else:
                     logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
             except Exception as e:
                 logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
             finally:
-                if not input_schema_model:   
+                if not input_schema_model:
                     input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
 
             input_schema_json_original = input_schema_model.model_json_schema()
@@ -224,6 +309,63 @@ class PythonTool(BaseTool):
             # Convert the input schema to a JsonSchemaObject
             input_schema_obj = JsonSchemaObject(**input_schema_json)
             input_schema_obj = _fix_optional(input_schema_obj)
+
+            # Multiple file constraints
+            constraints_by_param = _extract_multifile_constraints(self.fn)
+
+            # Detect List[WXOFile] parameters without explicit constraints
+            list_wxofile_params = _extract_list_wxofile_params(self.fn)
+            
+            for param_name, (_, constraints) in constraints_by_param.items():
+                prop: JsonSchemaObject = input_schema_obj.properties.get(param_name)
+                if not prop:
+                    continue
+
+                if prop.items is None:
+                    prop.items = JsonSchemaObject(type="string", format="wxo-file")
+                
+                prop.items.type = "string"
+                prop.items.format = "wxo-file"
+
+                constraints_payload = {
+                    "accepted_types": _extensions_to_mime_types(constraints.accepted_file_extensions),
+                    "max_files": constraints.max_files,
+                    "min_files": constraints.min_files,
+                    "max_total_size": constraints.max_total_size,
+                    "allowMultipleFiles": constraints.max_files > 1,
+                }
+                
+                # Only include max_size_per_file if it's not None
+                if constraints.max_size_per_file is not None:
+                    constraints_payload["max_size_per_file"] = constraints.max_size_per_file
+                
+                # Include custom text if provided
+                if constraints.text is not None:
+                    constraints_payload["text"] = constraints.text
+                
+                setattr(prop.items, "x-file-constraints", constraints_payload)
+            
+            # Handle List[WXOFile] without explicit MultiFileConstraints
+            for param_name in list_wxofile_params:
+                # Skip if already handled by MultiFileConstraints
+                if param_name in constraints_by_param:
+                    continue
+                    
+                prop: JsonSchemaObject = input_schema_obj.properties.get(param_name)
+                if not prop:
+                    continue
+
+                if prop.items is None:
+                    prop.items = JsonSchemaObject(type="string", format="wxo-file")
+                
+                prop.items.type = "string"
+                prop.items.format = "wxo-file"
+
+                constraints_payload = {
+                    "allowMultipleFiles": True,
+                }
+                
+                setattr(prop.items, "x-file-constraints", constraints_payload)
 
             spec.input_schema = ToolRequestBody(
                 type='object',
@@ -417,6 +559,19 @@ def _extract_context_param(name: str, input_schema: ToolRequestBody) -> Optional
     #         input_schema.required.remove(agent_run_param)
 
     return agent_run_param
+
+def _extract_multifile_constraints(fn):
+    sig = inspect.signature(fn)
+    constraints_by_param = {}
+
+    for name, param in sig.parameters.items():
+        annotation = param.annotation
+        if get_origin(annotation) is Annotated:
+            base_type, *metadata = get_args(annotation)
+            for item in metadata:
+                if isinstance(item, MultiFileConstraints):
+                    constraints_by_param[name] = (base_type, item)
+    return constraints_by_param
 
 
 def tool(

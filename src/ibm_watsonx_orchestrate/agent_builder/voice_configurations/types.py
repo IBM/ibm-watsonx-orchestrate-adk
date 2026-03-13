@@ -32,6 +32,7 @@ class DeepgramSTTConfig(BaseModel):
   model: Annotated[str, Field(min_length=1, max_length=256)]
   language: Optional[str] = None
   numerals: Optional[bool] = None
+  keyterm: Optional[list[str]] = None
   mip_opt_out: Optional[bool] = None
 
 
@@ -77,8 +78,9 @@ class ElevenLabsTTSConfig(BaseModel):
 
 class DeepgramTTSConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  api_url: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   language: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
-  voice: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
+  model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   mip_opt_out: Optional[bool] = None
 
 class TextToSpeechConfig(BaseModel):
@@ -126,6 +128,7 @@ class UserIdleHandlerConfig(BaseModel):
   idle_timeout: Optional[int] = Field(default=7, description="Idle timeout in seconds before triggering the handler")
   idle_max_reprompts: Optional[int] = Field(default=2, description="How many times to replay before ending the session")
   idle_timeout_message: Optional[str] = Field(default="", description="Message to play on idle")
+  idle_hangup_message: Optional[str] = Field(default="", description="Message to play before hanging up")
 
 class AudioClips(Enum):
   guitar_1 = "guitar_1"

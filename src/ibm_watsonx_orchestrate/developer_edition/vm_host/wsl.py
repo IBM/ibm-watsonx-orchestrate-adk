@@ -721,10 +721,8 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
     try:
         default_env_path = EnvService.get_default_env_file()
         merged_env_dict = EnvService.merge_env(default_env_path, None)
-        health_user = merged_env_dict.get("WXO_USER")
-        health_pass = merged_env_dict.get("WXO_PASS")
 
-        was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+        was_server_running = EnvService._check_dev_edition_server_health()
 
         wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
         
@@ -806,7 +804,7 @@ EOF
         if was_server_running:
             logger.info("Waiting for API to be reachable...")
             health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
-            server_is_started = EnvService._wait_for_dev_edition_server_health_check(health_user, health_pass, timeout_seconds=health_check_timeout)
+            server_is_started = EnvService._wait_for_dev_edition_server_health_check(timeout_seconds=health_check_timeout)
 
             if server_is_started:
                 logger.info("WSL VM editted and server restarted successfully.")

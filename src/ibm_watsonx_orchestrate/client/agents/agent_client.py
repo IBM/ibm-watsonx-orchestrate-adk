@@ -12,7 +12,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 2
-MAX_RETRIES = 10
+MAX_RETRIES = 150
+try:
+    MAX_RETRIES = int(os.environ.get("WXO_AGENT_DEPLOYMENT_TIMEOUT", MAX_RETRIES * 2)) // 2
+except Exception as e:
+    pass
 
 class ReleaseMode(str, Enum):
     DEPLOY = "deploy"

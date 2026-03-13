@@ -10,6 +10,7 @@ import requests
 import urllib.parse
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.agent_builder.connections import KeyValueConnectionCredentials
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,13 @@ class JsonSchemaObject(BaseModel):
     in_field: Optional[Literal['query', 'header', 'path', 'body']] = Field(None, alias='in')
     aliasName: str | None = None
     wrap_data: Optional[bool] = True
+    # Multifile:
+    minItems: int | None = None
+    maxItems: int | None = None
+    maxSizePerFile: int | None = None
+    maxTotalSize: int | None = None
+    acceptedFileExtensions: list[str] | None = None
+
     "Runtime feature where the sdk can provide the original name of a field before prefixing"
 
     @model_validator(mode='after')
@@ -306,7 +314,7 @@ X_AMZ_META_HEADER_PREFIX = os.getenv("X_AMZ_META_HEADER_PREFIX", "x-amz-meta-")
 
 
 class WXOFile(str):
-
+    
     @classmethod
     def get_file_name(cls, url: str) -> str | None:
         """Returns the file name."""
@@ -375,6 +383,68 @@ class WXOFile(str):
             "format": "wxo-file",
             "description": "A URL identifying the File to be used.",
         }
+    
+class MultiFileConstraints:
+    # Maximum file size limit: 30MB in bytes
+    MAX_FILE_SIZE_LIMIT = 30 * 1024 * 1024  # 31,457,280 bytes
+    
+    def __init__(
+        self,
+        *,
+        min_files: int = 1,
+        max_files: int = 100,
+        max_size_per_file: int | None = None,
+        max_total_size: int | None = None,
+        accepted_file_extensions: list[str] | None = None,
+        text: str | None = None,
+    ):
+        # Validate max_size_per_file
+        if max_size_per_file is not None and max_size_per_file > self.MAX_FILE_SIZE_LIMIT:
+            max_size_mb = max_size_per_file / (1024 * 1024)
+            limit_mb = self.MAX_FILE_SIZE_LIMIT / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({max_size_mb:.2f}MB) exceeds the maximum allowed limit of {limit_mb:.0f}MB. "
+                f"Please set max_size_per_file to {self.MAX_FILE_SIZE_LIMIT} bytes or less."
+            )
+            sys.exit(1)
+        
+        # Validate max_total_size
+        if max_total_size is not None and max_total_size > self.MAX_FILE_SIZE_LIMIT:
+            max_total_mb = max_total_size / (1024 * 1024)
+            limit_mb = self.MAX_FILE_SIZE_LIMIT / (1024 * 1024)
+            logger.error(
+                f"max_total_size ({max_total_mb:.2f}MB) exceeds the maximum allowed limit of {limit_mb:.0f}MB. "
+                f"Please set max_total_size to {self.MAX_FILE_SIZE_LIMIT} bytes or less."
+            )
+            sys.exit(1)
+        
+        # Validate max_size_per_file is not greater than max_total_size
+        if (max_size_per_file is not None and max_total_size is not None and
+            max_size_per_file > max_total_size):
+            per_file_mb = max_size_per_file / (1024 * 1024)
+            total_mb = max_total_size / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({per_file_mb:.2f}MB) cannot be greater than max_total_size ({total_mb:.2f}MB). "
+                f"Please set max_size_per_file to {max_total_size} bytes or less."
+            )
+            sys.exit(1)
+        
+        self.min_files = min_files
+        self.max_files = max_files
+        self.max_size_per_file = max_size_per_file
+
+        # Calculate max_total_size, capping at platform limit
+        if max_total_size is not None:
+            self.max_total_size = max_total_size
+        elif max_size_per_file is not None:
+            # Auto-calculate but cap at platform limit to avoid backend rejection
+            calculated_total = max_files * max_size_per_file
+            self.max_total_size = min(calculated_total, self.MAX_FILE_SIZE_LIMIT)
+        else:
+            self.max_total_size = None
+
+        self.accepted_file_extensions = accepted_file_extensions
+        self.text = text
 
 
 class ToolListEntry(BaseModel):
