@@ -42,17 +42,6 @@ class KnowledgeBaseRepresentation(str, Enum):
     auto = "auto"
     tool = "tool"
 
-class EmbeddingMode(str, Enum):
-    Server = "server"
-    Client = "client"
-
-
-class SearchMode(str, Enum):
-    Vector = "vector"
-    Hybrid = "hybrid"
-    Lexical = "lexical"
-
-
 class ConfidenceThresholds(BaseModel):
     retrieval_confidence_threshold: Optional[RetrievalConfidenceThreshold] = None
     response_confidence_threshold: Optional[ResponseConfidenceThreshold] = None
@@ -255,65 +244,6 @@ class AstraDBConnection(BaseModel):
     filter: Optional[str] = None
     field_mapping: Optional[FieldMapping] = None
 
-class OpenSearchConnection(BaseModel):
-    """
-    example:
-
-    {
-        "url": "https://xxxx.databases.appdomain.cloud",
-        "index": "search-wa-docs",
-        "port": "31871",
-        "query_body": {"size":5,"query":{"text_expansion":{"ml.tokens":{"model_id":".elser_model_2_linux-x86_64","model_text": "$QUERY"}}}},
-        "result_filter": [
-                            {
-                                "match": {
-                                    "title": "A_keyword_in_title"
-                                }
-                            },
-                            {
-                                "match": {
-                                    "text": "A_keyword_in_text"
-                                }
-                            },
-                            {
-                                "match": {
-                                    "id": "A_specific_ID"
-                                }
-                            }
-                        ],
-        "field_mapping": {
-                        "title": "title",
-                        "body": "text",
-                        "url": "some-url"
-                    }
-    }
-    """
-    url: str
-    index: str
-    port: Optional[str] = None
-    text_field: Optional[str] = None
-    vector_field: Optional[str] = None
-    embedding_mode: Optional[str] = None
-    embedding_model_id: Optional[str] = None
-    search_mode: Optional[str] = None
-    query_body: Optional[dict] = None
-    result_filter: Optional[list] = None
-    field_mapping: FieldMapping = \
-        Field(default_factory=lambda: FieldMapping())
-
-    @model_validator(mode='after')
-    def validate_client_embedding(self) -> 'OpenSearchConnection':
-        if self.embedding_mode == EmbeddingMode.Client and (self.embedding_model_id is None or self.vector_field is None):
-            raise ValueError("embedding_model_id and vector_field are required when embedding_mode is \"client\"")
-        return self
-
-    @model_validator(mode='after')
-    def validate_search_mode(self) -> 'OpenSearchConnection':
-        if self.search_mode == SearchMode.Hybrid and (self.text_field is None or self.vector_field is None):
-            raise ValueError("both text_field and vector_field are required when search_mode is \"hybrid\"")
-        return self
-
-
 class IndexConnection(BaseModel):
     connection_id: Optional[str] = None
     app_id: Optional[str] = None
@@ -321,7 +251,7 @@ class IndexConnection(BaseModel):
     elastic_search: Optional[ElasticSearchConnection] = None
     custom_search: Optional[CustomSearchConnection] = None
     astradb: Optional[AstraDBConnection] = None
-    open_search: Optional[OpenSearchConnection] = None
+
 
 class QuerySource(str, Enum):
     SessionHistory = "SessionHistory"
