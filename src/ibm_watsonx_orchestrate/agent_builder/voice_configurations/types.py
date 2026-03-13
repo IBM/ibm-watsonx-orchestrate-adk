@@ -133,8 +133,8 @@ class WatsonTTSConfig(BaseModel):
 
 class EmotechTTSConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1,max_length=2048)]
-  api_key: Annotated[str, Field(min_length=1,max_length=2048)]
-  voice: Optional[Annotated[str, Field(min_length=1,max_length=128)]]
+  api_key: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
+  voice: Optional[Annotated[str, Field(min_length=1,max_length=128)]] = None
 
 class ElevenLabsVoiceSettings(BaseModel):
   speed: Optional[float] = 1.0

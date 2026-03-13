@@ -49,7 +49,9 @@ class VoiceConfigurationsClient(BaseWXOClient):
     # formatted_config_names = [f"names={n}" for n in names]
     # return self._get(f"/voice_configurations?{"&".join(formatted_config_names)}")
     config_list = self.list()
-    filtered_list = [cfg for cfg in config_list if cfg.name in names]
+    
+    # Filter by name and validate only the matched configs
+    filtered_list = [cfg for cfg in config_list if cfg.get('name') in names]
 
     try:
       return [ VoiceConfiguration.model_validate(cfg) for cfg in filtered_list ]
@@ -69,13 +71,10 @@ class VoiceConfigurationsClient(BaseWXOClient):
   def list(self) -> list[dict]:
     try:
       response = self._get("/voice_configurations")
-      return [VoiceConfiguration.model_validate(x) for x in response.get('voice_configurations',[])]
+      
+      return response.get('voice_configurations', [])
     
     except ClientAPIException as e:
       if e.response.status_code == 404:
         return []
-      raise e
-    
-    except ValidationError as e:
-      logger.error("Recieved unexpected response from server")
       raise e

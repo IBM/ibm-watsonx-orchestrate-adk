@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "ibm-watsonx-orchestrate"
 dynamic = ["version"]
 
-description = "IBM watsonx.orchestrate SDK"
+description = "IBM watsonx.orchestrate ADK"
 authors = [
     { name = "IBM", email = "support@ibm.com" }
 ]
