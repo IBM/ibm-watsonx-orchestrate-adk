@@ -181,7 +181,9 @@
                     "ui:title": "Last name",
                     "ui:help": "Enter name",
                     "ui:placeholder": "Enter your name here"
-                  }
+                  },
+                  "regex": "^[a-zA-Z0-9\\s]+$",
+                  "regex_error_msg": "No special characters allowed"
                 },
                 {
                   "name": "age",
@@ -302,6 +304,65 @@
                   }
                 },
                 {
+                  "name": "credentials",
+                  "kind": "file",
+                  "direction": "input",
+                  "display_name": "Upload credentials",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.min_num_files",
+                          "value_expression": "1",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_num_files",
+                          "value_expression": "2",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "min_num_files": {
+                        "type": "integer"
+                      },
+                      "max_num_files": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "wxo-file"
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "FileUpload",
+                    "ui:upload_button_label": "",
+                    "ui:title": "Upload credentials"
+                  }
+                },
+                {
                   "name": "endDate",
                   "kind": "date",
                   "direction": "input",
@@ -312,6 +373,20 @@
                         {
                           "target_variable": "self.input.default",
                           "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_date",
+                          "value_expression": "\"2026-01-05\"",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_date",
+                          "value_expression": "\"2026-01-12\"",
                           "has_no_value": false,
                           "default_value": null,
                           "metadata": {}
@@ -326,11 +401,11 @@
                         "type": "string",
                         "format": "date"
                       },
-                      "maximum": {
+                      "max_date": {
                         "type": "string",
                         "format": "date"
                       },
-                      "minimum": {
+                      "min_date": {
                         "type": "string",
                         "format": "date"
                       }
@@ -784,6 +859,88 @@
                   }
                 },
                 {
+                  "name": "approvers",
+                  "kind": "user",
+                  "direction": "input",
+                  "display_name": "Select Approvers",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.min_num_users",
+                          "value_expression": "1",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_num_users",
+                          "value_expression": "5",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "min_num_users": {
+                        "type": "number"
+                      },
+                      "max_num_users": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "wxo-user"
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "UserPickerWidget",
+                    "ui:title": "Select Approvers",
+                    "ui:multi": true
+                  }
+                },
+                {
+                  "name": "assignee",
+                  "kind": "user",
+                  "direction": "input",
+                  "display_name": "Select Assignee",
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "wxo-user"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "UserPickerWidget",
+                    "ui:title": "Select Assignee",
+                    "ui:multi": false
+                  }
+                },
+                {
                   "name": "success",
                   "kind": "text",
                   "text": "Application successfully completed.",
@@ -845,6 +1002,13 @@
                   "acknowledge": {
                     "type": "string",
                     "title": "Projected salary"
+                  },
+                  "credentials": {
+                    "type": "array",
+                    "title": "Upload credentials",
+                    "items": {},
+                    "file_max_size": 256,
+                    "multi": true
                   },
                   "endDate": {
                     "type": "string",
@@ -935,6 +1099,19 @@
                     "isRowAddable": true,
                     "isRowDeletable": true
                   },
+                  "approvers": {
+                    "type": "array",
+                    "title": "Select Approvers",
+                    "items": {
+                      "type": "string",
+                      "format": "wxo-user"
+                    }
+                  },
+                  "assignee": {
+                    "type": "string",
+                    "title": "Select Assignee",
+                    "format": "wxo-user"
+                  },
                   "success": {
                     "type": "string",
                     "title": "Successful submission"
@@ -946,7 +1123,9 @@
                   "age",
                   "endDate",
                   "books",
-                  "Fruits"
+                  "Fruits",
+                  "approvers",
+                  "assignee"
                 ]
               },
               "buttons": [
@@ -955,21 +1134,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+                  "edge_id": "01204443-18e8-46df-b201-56c4ea42fe23"
                 },
                 {
-                  "name": "316bb801-dc95-4ef8-ab31-38392d00c84e",
+                  "name": "dcb05517-61fb-4956-92ca-0e4c905571b2",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+                  "edge_id": "53d36be3-f793-4f15-9c3b-4529d5bc28c0"
                 },
                 {
-                  "name": "de2f2707-f53c-49e1-bf4d-1625693e425e",
+                  "name": "810a07bf-dfa9-4009-a3a2-ba50f13ade5d",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
+                  "edge_id": "b05c791d-7e92-4cc7-8026-cce9686e6df2"
                 },
                 {
                   "name": "cancel",
@@ -1028,7 +1207,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "2c95eac1-a21c-4311-9cba-234b9da0705b"
+          "id": "01204443-18e8-46df-b201-56c4ea42fe23"
         },
         {
           "start": "process_submit",
@@ -1037,7 +1216,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "40aa8d90-1511-4dc3-8fec-64c333c04680"
+          "id": "53d36be3-f793-4f15-9c3b-4529d5bc28c0"
         },
         {
           "start": "process_save_draft",
@@ -1046,7 +1225,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "82b3d2e6-c870-4959-89e2-1c9346d51b25"
+          "id": "b05c791d-7e92-4cc7-8026-cce9686e6df2"
         },
         {
           "start": "process_review",
@@ -1297,6 +1476,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-02-05T06:17:21.411626+00:00"
+    "compiled_on": "2026-03-03T17:43:51.295214+00:00"
   }
 }

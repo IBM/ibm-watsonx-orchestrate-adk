@@ -721,10 +721,8 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
     try:
         default_env_path = EnvService.get_default_env_file()
         merged_env_dict = EnvService.merge_env(default_env_path, None)
-        health_user = merged_env_dict.get("WXO_USER")
-        health_pass = merged_env_dict.get("WXO_PASS")
 
-        was_server_running = EnvService._check_dev_edition_server_health(username=health_user, password=health_pass)
+        was_server_running = EnvService._check_dev_edition_server_health()
 
         wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
         

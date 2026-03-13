@@ -8,5 +8,7 @@ from .voice_configurations.mcp_tools import __tools__ as voice_configuration_too
 from .models.mcp_tools import __tools__ as model_tools
 from .channels.mcp_tools import __tools__ as channel_tools
 from .phone.mcp_tools import __tools__ as phone_tools
+from .chat.mcp_tools import __tools__ as chat_tools
+from .skills.mcp_tools import __tools__ as skill_tools
 
-__all_tools__ = agent_tools + tool_tools + toolkit_tools + knowledge_base_tools + connection_tools + voice_configuration_tools + model_tools + channel_tools + phone_tools + [check_version]
+__all_tools__ = agent_tools + tool_tools + toolkit_tools + knowledge_base_tools + connection_tools + voice_configuration_tools + model_tools + channel_tools + phone_tools + skill_tools + chat_tools + [check_version]

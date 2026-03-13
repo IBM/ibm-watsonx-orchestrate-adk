@@ -49,7 +49,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
 
 from .events import StreamConsumer
 
@@ -401,23 +401,14 @@ class Flow(Node):
             name = name if name is not None and name != "" else tool
 
             if input_schema is None and output_schema is None:
-                # let's identify the correct tool id
-                tool_name = name
-                tool_id = None
-                if tool is not None and isinstance(tool, str):
-                    tool_name = tool
-                    # if the tool id has a colon in it, we need to split it first
-                    if ":" in tool:
-                        tool_name = tool.split(":")[0]
-                        tool_id = tool.split(":")[1]
-
+                tool_name, tool_id = parse_tool_name_id(tool)
                 tool_spec = None
                 # try to retrieve the schema from server
                 if tool_id is not None:
                     try:
                         tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
                         if tool_spec_raw and isinstance(tool_spec_raw, dict):
-                            tool_spec = ToolSpec.model_validate(tool_spec_raw)
+                            tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
                     except ClientAPIException as e:
                         # let's try with name as well before throwing error
                         pass
@@ -426,6 +417,7 @@ class Flow(Node):
                     tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
                     if (tool_specs is None) or (len(tool_specs) == 0):
                         raise ValueError(f"tool '{tool_name}' not found")
+                    tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
                     
                 elif tool_spec is None:
                     raise ValueError(f"tool id '{tool_id}' not found")
@@ -1961,7 +1953,9 @@ class UserFlow(Flow):
               direction: Literal["input", "output"] = "output",
               text: str | None = None, # The text used to ask question to the user, e.g. 'what is your name?'
               input_map: DataMap | DataMapSpec | None= None,
-              default: Any | None = None) -> UserNode:
+              default: Any | None = None,
+              multiple_users: bool = False,
+              required: bool = False) -> UserNode:
         '''create a node in the flow'''
         # create a json schema object based on the single field
         if not name:
@@ -1980,6 +1974,44 @@ class UserFlow(Flow):
 
             if kind == UserFieldKind.Text and text is None:
                 raise ValueError("Text field must be set for Text input.")
+        
+        # Handle multiple_users and required parameters for User field kind
+        if kind == UserFieldKind.User and direction == "input":
+            required_list = ["value"] if required else []
+            if multiple_users:
+                # Create array schema for multiple users with input schema for min/max
+                input_schema_properties = {
+                    "min_num_users": {"type": "integer"},
+                    "max_num_users": {"type": "integer"}
+                }
+                
+                schema_obj = {
+                    "input": JsonSchemaObject(
+                        type='object',
+                        properties=input_schema_properties,
+                        required=[],
+                        additionalProperties=False
+                    ) if input_schema_properties else None,
+                    "output": JsonSchemaObject(
+                        type='object',
+                        properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
+                        required=required_list,
+                        additionalProperties=False
+                    )
+                }
+                # Remove input key if no properties
+                if not input_schema_properties:
+                    del schema_obj["input"]
+            else:
+                # Single user schema - no input schema
+                schema_obj = {
+                    "output": JsonSchemaObject(
+                        type='object',
+                        properties={"value": {"type": "string", "format": "wxo-user"}},
+                        required=required_list,
+                        additionalProperties=False
+                    )
+                }
 
         # A user node will only has 1 field or 1 form.
         user_node_spec = UserNodeSpec(

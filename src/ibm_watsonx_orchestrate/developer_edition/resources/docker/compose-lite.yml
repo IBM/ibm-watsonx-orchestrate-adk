@@ -61,8 +61,9 @@ services:
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
-      WXCO_C_FEATURES: '{"feature-45580":1}'
+      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      ALLOWED_COMPONENT_LIST: '["knowledge"]'
     ports:
       - 3001:3001
   
@@ -108,6 +109,8 @@ services:
     restart: unless-stopped
     ports:
       - "4444:4444"
+    volumes:
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       APP_NAME: MCP Gateway
       CONNECTION_MANAGER_BASE_URL: http://wxo-server-connection-manager:3001
@@ -127,6 +130,8 @@ services:
       PLUGINS_ENABLED: true
       JWT_AUDIENCE_VERIFICATION: false
       LOG_LEVEL: DEBUG
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -725,6 +730,8 @@ services:
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
   tools-runtime-manager:
@@ -863,7 +870,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -u \"elastic:$ES_PASSWORD\" http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'",
+          "curl -s -u \"elastic:$ES_PASSWORD\"  http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'",
         ]
       interval: 10s
       timeout: 10s
@@ -1193,11 +1200,14 @@ services:
       WDU_RUNTIME_URL: wdu-runtime:8080
       WDU_TIMEOUT_SECS: "180"
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
+      REDIS_URL: redis://wxo-server-redis:6379/0
     profiles:
       - docproc
     depends_on:
       wxo-doc-processing-cache:
         condition: service_healthy
+      wxo-server-redis:
+        condition: service_started
     ports:
       - "18081:8080"
     healthcheck:
@@ -1332,6 +1342,9 @@ services:
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
       STANDALONE_DPI: "true"
+      REDIS_HOST: wxo-server-redis
+      REDIS_PORT: 6379
+      REDIS_LOCAL_DEV: "true"
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
