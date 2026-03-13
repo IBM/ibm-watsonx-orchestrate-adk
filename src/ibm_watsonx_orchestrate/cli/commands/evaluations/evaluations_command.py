@@ -29,6 +29,7 @@ except ImportError as e:
 
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
+
 logger = logging.getLogger(__name__)
 
 HIDE_ENVIRONMENT_MGR_PANEL = os.environ.get("HIDE_ENVIRONMENT_MGR_PANEL", "true").lower() == "true"
