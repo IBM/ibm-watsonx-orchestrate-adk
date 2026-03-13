@@ -20,6 +20,14 @@ from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 
+from enum import Enum
+class Operator(str, Enum):
+    """Supported operators for RuleBuilder conditions."""
+    EQUALS = "equals"
+    NOT_EQUALS = "not_equals"
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+
 logger = logging.getLogger(__name__)
 
 def get_valid_name(name: str) -> str:
@@ -795,6 +803,417 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
             for tool in embedded_tools:
                 if tool not in tools:
                     tools.append(tool)
+
+# Dynamic Forms Helper Functions
+
+def create_allof_condition(conditions: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Create an allOf (AND) condition for combining multiple field conditions.
+    
+    Args:
+        conditions: List of condition dictionaries, each with properties
+        
+    Returns:
+        Dictionary with allOf structure
+        
+    Example:
+        create_allof_condition([
+            {"properties": {"field1": {"const": "A"}}},
+            {"properties": {"field2": {"const": "B"}}}
+        ])
+        # Returns: {"allOf": [{"properties": {"field1": {"const": "A"}}}, ...]}
+    """
+    return {"allOf": conditions}
+
+
+def create_anyof_condition(conditions: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Create an anyOf (OR) condition for alternative field conditions.
+    
+    Args:
+        conditions: List of condition dictionaries, each with properties
+        
+    Returns:
+        Dictionary with anyOf structure
+        
+    Example:
+        create_anyof_condition([
+            {"properties": {"field1": {"const": "A"}}},
+            {"properties": {"field1": {"const": "B"}}}
+        ])
+        # Returns: {"anyOf": [{"properties": {"field1": {"const": "A"}}}, ...]}
+    """
+    return {"anyOf": conditions}
+
+
+def create_json_schema_condition(
+    if_condition: dict[str, Any],
+    then_effect: dict[str, Any],
+    else_effect: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """
+    Create a JSON Schema if/then/else condition structure for dynamic forms.
+    
+    Supports simple conditions with single field checks, as well as complex
+    conditions using allOf (AND) and anyOf (OR) operators. Can be nested
+    for multi-level conditional logic.
+    
+    Args:
+        if_condition: The condition to evaluate (can include allOf/anyOf)
+        then_effect: The effect to apply when condition is true
+        else_effect: Optional effect to apply when condition is false
+        
+    Returns:
+        Dictionary with if/then/else structure
+        
+    Example (simple):
+        create_json_schema_condition(
+            if_condition={"properties": {"country": {"const": "USA"}}},
+            then_effect={"properties": {"zipcode": {"x-is-visible": True}}},
+            else_effect={"properties": {"zipcode": {"x-is-visible": False}}}
+        )
+        
+    Example (complex with allOf):
+        create_json_schema_condition(
+            if_condition=create_allof_condition([
+                {"properties": {"field1": {"const": "A"}}},
+                {"properties": {"field2": {"const": "B"}}}
+            ]),
+            then_effect={"properties": {"field3": {"title": "Both A and B"}}},
+            else_effect={"properties": {"field3": {"title": "Other"}}}
+        )
+        
+    Example (nested):
+        create_json_schema_condition(
+            if_condition={"properties": {"field1": {"const": "A"}}},
+            then_effect={"properties": {"field2": {"title": "Option A"}}},
+            else_effect=create_json_schema_condition(
+                if_condition={"properties": {"field1": {"const": "B"}}},
+                then_effect={"properties": {"field2": {"title": "Option B"}}},
+                else_effect={"properties": {"field2": {"title": "Other"}}}
+            )
+        )
+    """
+    condition = {
+        "if": if_condition,
+        "then": then_effect
+    }
+    
+    if else_effect is not None:
+        condition["else"] = else_effect
+    
+    return condition
+
+def _build_operator_condition(field_name: str, field_value: Any, operator: str) -> dict[str, Any]:
+    """
+    Build JSON Schema condition based on operator type.
+    
+    Args:
+        field_name: The field to check
+        field_value: The value to compare against
+        operator: One of: "equals", "not_equals", "minimum", "maximum"
+        
+    Returns:
+        JSON Schema condition dictionary
+        
+    Raises:
+        ValueError: If operator is not supported
+        
+    Example:
+        _build_operator_condition("age", 18, "minimum")
+        # Returns: {"properties": {"age": {"minimum": 18}}}
+    """
+    if operator == Operator.EQUALS:
+        return {"properties": {field_name: {"const": field_value}}}
+    elif operator == Operator.NOT_EQUALS:
+        return {"properties": {field_name: {"not": {"const": field_value}}}}
+    elif operator == Operator.MINIMUM:
+        return {"properties": {field_name: {"minimum": field_value}}}
+    elif operator == Operator.MAXIMUM:
+        return {"properties": {field_name: {"maximum": field_value}}}
+    else:
+        valid_operators = [op.value for op in Operator]
+        raise ValueError(
+            f"Unsupported operator: '{operator}'. Must be one of: {valid_operators}"
+        )
+
+def create_visibility_condition(
+    field_name: str,
+    field_value: Any,
+    impacted_field: str,
+    visible_when_true: bool = True,
+    operator: str = None
+) -> dict[str, Any]:
+    """
+    Create a visibility condition for showing/hiding fields based on another field's value.
+    
+    Args:
+        field_name: The field to check
+        field_value: The value to compare against
+        impacted_field: The field whose visibility will be controlled
+        visible_when_true: Whether to show (True) or hide (False) when condition matches
+        
+    Returns:
+        Complete condition dictionary with if/then/else structure
+        
+    Raises:
+        ValueError: If operator is not provided or is invalid
+        
+    Examples:
+        # Equals operator
+        create_visibility_condition(
+            field_name="country",
+            field_value="USA",
+            impacted_field="zipcode",
+            visible_when_true=True,
+            operator="equals"
+        )
+        # Shows zipcode when country equals USA, hides it otherwise
+        
+        # Not equals operator
+        create_visibility_condition(
+            field_name="country",
+            field_value="USA",
+            impacted_field="international_shipping",
+            visible_when_true=True,
+            operator="not_equals"
+        )
+        # Shows international_shipping when country is NOT USA
+        
+        # Minimum operator (>=)
+        create_visibility_condition(
+            field_name="age",
+            field_value=18,
+            impacted_field="adult_content",
+            visible_when_true=True,
+            operator="minimum"
+        )
+        # Shows adult_content when age >= 18
+    """
+    if operator is None:
+        raise ValueError("operator parameter is required. Must be one of: equals, not_equals, minimum, maximum")
+    
+    return create_json_schema_condition(
+        if_condition={"properties": {field_name: {"const": field_value}}},
+        then_effect={"properties": {impacted_field: {"x-is-visible": visible_when_true}}},
+        else_effect={"properties": {impacted_field: {"x-is-visible": not visible_when_true}}}
+    )
+
+
+def create_label_condition(
+    field_name: str,
+    field_value: Any,
+    impacted_field: str,
+    label_when_true: str,
+    label_when_false: str,
+    operator: str = None
+) -> dict[str, Any]:
+    """
+    Create a label condition for changing field labels based on another field's value.
+    
+    Args:
+        field_name: The field to check
+        field_value: The value to compare against
+        impacted_field: The field whose label will be changed
+        label_when_true: Label to use when condition matches
+        label_when_false: Label to use when condition doesn't match
+        operator: Comparison operator - one of: "equals", "not_equals", "minimum", "maximum" (required)
+        
+    Returns:
+        Complete condition dictionary with if/then/else structure
+        
+    Raises:
+        ValueError: If operator is not provided or is invalid
+        
+    Examples:
+        # Equals operator
+        create_label_condition(
+            field_name="country",
+            field_value="USA",
+            impacted_field="region",
+            label_when_true="State",
+            label_when_false="Province"
+        )
+        # Changes region label to "State" for USA, "Province" otherwise
+
+        # Maximum operator (<=)
+        create_label_condition(
+            field_name="age",
+            field_value=65,
+            impacted_field="discount_type",
+            label_when_true="Senior Discount",
+            label_when_false="Regular Price",
+            operator="maximum"
+        )
+        # Changes label to "Senior Discount" when age <= 65
+    """
+    if operator is None:
+        raise ValueError("operator parameter is required. Must be one of: equals, not_equals, minimum, maximum")
+    return create_json_schema_condition(
+        if_condition=_build_operator_condition(field_name, field_value, operator),
+        then_effect={"properties": {impacted_field: {"title": label_when_true}}},
+        else_effect={"properties": {impacted_field: {"title": label_when_false}}}
+    )
+
+
+def create_tool_input_map(mappings: list[dict[str, str]]) -> dict[str, Any]:
+    """
+    Create a tool input map for value source behaviours.
+    
+    Args:
+        mappings: List of mapping dictionaries with keys:
+            - target_variable: Target tool input parameter (e.g., "self.tool.input.country")
+            - value_expression: Source expression (e.g., "parent.field.country" for form fields)
+            - assignment_type: Type of assignment ("field", "literal", or "variable")
+            
+    Returns:
+        DataMapSpec dictionary structure
+        
+    Example:
+        For referencing a form field in value-source behaviour:
+        create_tool_input_map([
+            {
+                "target_variable": "self.tool.input.country",
+                "value_expression": "parent.field.country",
+                "assignment_type": "field"
+            }
+        ])
+        
+    Note:
+        - Use "parent.field.fieldName" to reference form fields in Chat UI
+        - Use "self.tool.input.paramName" for tool input parameters
+        - Field names are case-sensitive
+    """
+    from .data_map import Assignment
+    
+    maps = []
+    for mapping in mappings:
+        assignment = Assignment(
+            target_variable=mapping["target_variable"],
+            value_expression=mapping["value_expression"],
+            metadata={"assignmentType": mapping.get("assignment_type", "field")}
+        )
+        maps.append(assignment.model_dump())
+    
+    return {
+        "spec": {
+            "maps": maps
+        }
+    }
+
+
+def validate_behaviour_field_references(form_fields: list[str], behaviour: dict[str, Any]) -> list[str]:
+    """
+    Validate that all field references in a behaviour exist in the form.
+    
+    Args:
+        form_fields: List of field names in the form
+        behaviour: Behaviour dictionary to validate
+        
+    Returns:
+        List of error messages (empty if valid)
+    """
+    errors = []
+    
+    # Check on_change_to_field
+    if "on_change_to_field" in behaviour:
+        field = behaviour["on_change_to_field"]
+        if field not in form_fields:
+            errors.append(f"on_change_to_field '{field}' does not exist in form")
+    
+    # Check impacted_field in behaviours
+    if "behaviours" in behaviour:
+        for rule in behaviour["behaviours"]:
+            if "impacted_field" in rule:
+                field = rule["impacted_field"]
+                if field not in form_fields:
+                    errors.append(f"impacted_field '{field}' does not exist in form")
+    
+    return errors
+
+
+def validate_tool_format(tool: str) -> bool:
+    """
+    Validate that a tool identifier is in the correct format "name:uuid".
+    
+    Args:
+        tool: Tool identifier string
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if not tool or ':' not in tool:
+        return False
+    
+    parts = tool.split(':')
+    if len(parts) != 2:
+        return False
+    
+    name, uuid_part = parts
+    if not name or not uuid_part:
+        return False
+    
+    # Basic UUID format check (8-4-4-4-12 hex digits)
+    import re
+    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return bool(re.match(uuid_pattern, uuid_part, re.IGNORECASE))
+
+
+def detect_circular_dependencies(behaviours: list[dict[str, Any]]) -> list[str]:
+    """
+    Detect circular dependencies in behaviour definitions.
+    
+    Args:
+        behaviours: List of behaviour dictionaries
+        
+    Returns:
+        List of error messages describing circular dependencies (empty if none)
+    """
+    errors = []
+    
+    # Build dependency graph
+    dependencies = {}
+    for behaviour in behaviours:
+        trigger = behaviour.get("on_change_to_field")
+        if not trigger:
+            continue
+            
+        impacted = set()
+        if "behaviours" in behaviour:
+            for rule in behaviour["behaviours"]:
+                if "impacted_field" in rule:
+                    impacted.add(rule["impacted_field"])
+        
+        dependencies[trigger] = impacted
+    
+    # Check for cycles using DFS
+    def has_cycle(node: str, visited: set, rec_stack: set, path: list) -> bool:
+        visited.add(node)
+        rec_stack.add(node)
+        path.append(node)
+        
+        if node in dependencies:
+            for neighbor in dependencies[node]:
+                if neighbor not in visited:
+                    if has_cycle(neighbor, visited, rec_stack, path):
+                        return True
+                elif neighbor in rec_stack:
+                    # Found cycle
+                    cycle_start = path.index(neighbor)
+                    cycle = path[cycle_start:] + [neighbor]
+                    errors.append(f"Circular dependency detected: {' -> '.join(cycle)}")
+                    return True
+        
+        path.pop()
+        rec_stack.remove(node)
+        return False
+    
+    visited = set()
+    for node in dependencies:
+        if node not in visited:
+            has_cycle(node, visited, set(), [])
+    
+    return errors
     return tools
 
 
@@ -859,3 +1278,281 @@ def normalize_and_validate_tool_spec(tool_spec_raw: dict) -> ToolSpec:
     if 'input_schema' in tool_spec_raw and tool_spec_raw['input_schema'] == {}:
         del tool_spec_raw['input_schema']
     return ToolSpec.model_validate(tool_spec_raw)
+
+
+class RuleBuilder:
+    """
+    Builder class for creating user-friendly form behavior rules.
+    
+    This class provides static methods to create rules for dynamic forms
+    without requiring knowledge of JSON Schema condition syntax. It wraps
+    the existing helper functions and provides a consistent API.
+    
+    Example:Supported operators:
+        - "equals": Exact match (field == value)
+        - "not_equals": Not equal (field != value)
+        - "minimum": Greater than or equal (field >= value)
+        - "maximum": Less than or equal (field <= value)
+    
+    Examples:
+        # Create label rules with equals operator
+        rules = [
+            RuleBuilder.label_rule(
+                field_name="country",
+                field_value="USA",
+                impacted_field="region",
+                label_when_true="State",
+                label_when_false="Province",
+                operator="equals"
+            )
+        ]
+        
+        # Create visibility rules with minimum operator
+        rules = [
+            RuleBuilder.visibility_rule(
+                field_name="age",
+                field_value=18,
+                impacted_field="adult_content",
+                visible_when_true=True,
+                operator="minimum"
+            )
+        ]
+    """
+    
+    @staticmethod
+    def label_rule(
+        field_name: str,
+        field_value: Any,
+        impacted_field: str,
+        label_when_true: str,
+        label_when_false: str,
+        operator: str = None
+    ) -> dict[str, Any]:
+        """
+        Create a rule that changes a field's label based on another field's value.
+        
+        Args:
+            field_name: The field to monitor for changes
+            field_value: The value to check against
+            impacted_field: The field whose label will change
+            label_when_true: Label to display when condition matches
+            label_when_false: Label to display when condition doesn't match
+            operator: Comparison operator - one of: "equals", "not_equals", "minimum", "maximum" (required)
+            
+        Returns:
+            Complete rule dictionary ready for use in label_behaviour_field
+            
+        Raises:
+            ValueError: If operator is not provided or is invalid
+            
+        Examples:
+            # Equals operator
+            RuleBuilder.label_rule(
+                field_name="country",
+                field_value="USA",
+                impacted_field="code",
+                label_when_true="Zip code",
+                label_when_false="Postal code",
+                operator="equals"
+            )
+            
+            # Maximum operator (<=)
+            RuleBuilder.label_rule(
+                field_name="age",
+                field_value=65,
+                impacted_field="discount_type",
+                label_when_true="Senior Discount",
+                label_when_false="Regular Price",
+                operator="maximum"
+            )
+        """
+        return {
+            "condition": create_label_condition(
+                field_name=field_name,
+                field_value=field_value,
+                impacted_field=impacted_field,
+                label_when_true=label_when_true,
+                label_when_false=label_when_false,
+                operator=operator
+            ),
+            "impacted_field": impacted_field
+        }
+    
+    @staticmethod
+    def visibility_rule(
+        field_name: str,
+        field_value: Any,
+        impacted_field: str,
+        visible_when_true: bool = True,
+        operator: str = None
+    ) -> dict[str, Any]:
+        """
+        Create a rule that shows or hides a field based on another field's value.
+        
+        Args:
+            field_name: The field to monitor for changes
+            field_value: The value to check against
+            impacted_field: The field whose visibility will be controlled
+            visible_when_true: Whether to show (True) or hide (False) when condition matches
+            operator: Comparison operator - one of: "equals", "not_equals", "minimum", "maximum" (required)
+            
+        Returns:
+            Complete rule dictionary ready for use in visibility_behaviour_field
+            
+        Raises:
+            ValueError: If operator is not provided or is invalid
+            
+        Examples:
+            # Equals operator
+            RuleBuilder.visibility_rule(
+                field_name="country",
+                field_value="USA",
+                impacted_field="city",
+                visible_when_true=True,
+                operator="equals"
+            )
+            
+            # Not equals operator
+            RuleBuilder.visibility_rule(
+                field_name="country",
+                field_value="USA",
+                impacted_field="international_shipping",
+                visible_when_true=True,
+                operator="not_equals"
+            )
+            
+            # Minimum operator (>=)
+            RuleBuilder.visibility_rule(
+                field_name="age",
+                field_value=18,
+                impacted_field="adult_content",
+                visible_when_true=True,
+                operator="minimum"
+            )
+        """
+        return {
+            "condition": create_visibility_condition(
+                field_name=field_name,
+                field_value=field_value,
+                impacted_field=impacted_field,
+                visible_when_true=visible_when_true,
+                operator=operator
+            ),
+            "impacted_field": impacted_field
+        }
+    
+    @staticmethod
+    def custom_rule(
+        if_condition: dict[str, Any],
+        then_effect: dict[str, Any],
+        else_effect: dict[str, Any] | None,
+        impacted_field: str
+    ) -> dict[str, Any]:
+        """
+        Create a custom rule with full control over JSON Schema conditions.
+        
+        Use this for advanced scenarios not covered by label_rule or visibility_rule.
+        
+        ** This is intended to be used later if runtime supports nested
+           conditions and rules **
+        
+        Args:
+            if_condition: The condition to evaluate
+            then_effect: Effect to apply when condition is true
+            else_effect: Effect to apply when condition is false (optional)
+            impacted_field: The field affected by this rule
+            
+        Returns:
+            Complete rule dictionary ready for use in behavior fields
+            
+        Example:
+            RuleBuilder.custom_rule(
+                if_condition={"properties": {"field1": {"const": "value"}}},
+                then_effect={"properties": {"field2": {"title": "New Label"}}},
+                else_effect={"properties": {"field2": {"title": "Default"}}},
+                impacted_field="field2"
+            )
+        """
+        return {
+            "condition": create_json_schema_condition(
+                if_condition=if_condition,
+                then_effect=then_effect,
+                else_effect=else_effect
+            ),
+            "impacted_field": impacted_field
+        }
+
+
+def create_value_source_config(
+    tool_name: str,
+    tool_id: str,
+    field_mappings: dict[str, str],
+    client: Any = None
+) -> dict[str, Any]:
+    """
+    Create configuration for value_source_behaviour_field with simplified API.
+    
+    This helper function simplifies the creation of value source behaviors by:
+    1. Auto-fetching tool schema from the API (if client provided)
+    2. Auto-constructing the tool parameter in "name:id" format
+    3. Auto-generating the tool_input_map from simple field mappings
+    
+    Args:
+        tool_name: Name of the tool (e.g., "get_states_or_provinces")
+        tool_id: UUID of the tool (e.g., "9f0ecb53-dbd9-4e41-be46-29c8d47d6df8")
+        field_mappings: Dictionary mapping tool parameters to form field expressions
+                       Format: {"tool_param": "parent.field.form_field"}
+        client: Optional ToolClient instance to auto-fetch tool schema
+        
+    Returns:
+        Dictionary with 'tool', 'tool_input_schema', and 'tool_input_map' keys
+        
+    Example:
+        from ibm_watsonx_orchestrate.client import WxOClient
+        
+        client = WxOClient()
+        config = create_value_source_config(
+            tool_name="get_states_or_provinces",
+            tool_id="9f0ecb53-dbd9-4e41-be46-29c8d47d6df8",
+            field_mappings={
+                "country": "parent.field.country"
+            },
+            client=client.tools
+        )
+        
+        # Use in form
+        form_node.value_source_behaviour_field(
+            name="value_source",
+            on_change_to_field="country",
+            impacted_field="region",
+            **config
+        )
+    """
+    # Construct tool parameter in required format
+    tool = f"{tool_name}:{tool_id}"
+    
+    # Fetch tool schema if client provided
+    tool_input_schema = None
+    if client:
+        try:
+            tool_spec = client.get_draft_by_id(tool_id)
+            if tool_spec and isinstance(tool_spec, dict):
+                tool_input_schema = tool_spec.get('input_schema')
+        except Exception as e:
+            logger.warning(f"Failed to fetch tool schema for {tool_name}:{tool_id}: {e}")
+    
+    # Generate tool_input_map from field_mappings
+    tool_input_map = create_tool_input_map([
+        {
+            "target_variable": f"self.tool.input.{param}",
+            "value_expression": expr,
+            "assignment_type": "variable"
+        }
+        for param, expr in field_mappings.items()
+    ])
+    
+    return {
+        "tool": tool,
+        "tool_input_schema": tool_input_schema,
+        "tool_input_map": tool_input_map
+    }
