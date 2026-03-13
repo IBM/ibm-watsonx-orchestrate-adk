@@ -641,6 +641,7 @@ class UserFieldKind(str, Enum):
     MultiChoice = "array"
     Array = "array"  # this is a duplicate of List
     User = "user"  # user field for selecting users
+    Behaviour = "behaviour" # support for dynamic forms
 
     @staticmethod
     def str_to_kind(kind: str) -> "UserFieldKind":
@@ -673,6 +674,8 @@ class UserFieldKind(str, Enum):
             return UserFieldKind.List
         elif kind == "user":
             return UserFieldKind.User
+        elif kind == "behaviour":
+            return UserFieldKind.Behaviour # support for dynamic forms
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -707,6 +710,8 @@ class UserFieldKind(str, Enum):
             return "UserFieldKind.List"
         elif kind == "user":
             return "UserFieldKind.User"
+        elif kind == "behaviour":
+            return "UserFieldKind.Behaviour" # support for dynamic forms
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -793,6 +798,174 @@ class UserField(BaseModel):
             model_spec["regex_error_msg"] = self.regex_error_msg
         return model_spec
 
+# Behaviour Rule Classes for Dynamic Forms
+
+class BehaviourRule(BaseModel):
+    """
+    Base class for behaviour rules that define conditional logic for dynamic forms.
+    
+    Supports if/then/else structures with simple and complex conditions using
+    allOf (AND) and anyOf (OR) operators.
+    
+    Attributes:
+        condition: JSON Schema condition structure with if/then/else
+        impacted_field: The field that is affected by this behaviour
+    """
+    condition: dict[str, Any] | None = None
+    impacted_field: str
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour rule to JSON format."""
+        model_spec = {}
+        if self.condition:
+            model_spec["condition"] = self.condition
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        return model_spec
+
+
+class VisibilityBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for controlling field visibility based on conditions.
+    
+    Uses x-is-visible property in the condition's then/else clauses to
+    show or hide fields dynamically.
+    
+    Example:
+        If field_1 == "USA" then show field_zipcode (x-is-visible: true)
+        else hide field_zipcode (x-is-visible: false)
+    """
+    pass
+
+
+class LabelBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for changing field labels based on conditions.
+    
+    Uses title property in the condition's then/else clauses to
+    dynamically update field labels.
+    
+    Supports complex conditions with allOf (AND) and anyOf (OR) operators,
+    as well as nested if/then/else structures.
+    
+    Example:
+        If field_country == "USA" then field_region.title = "State"
+        else field_region.title = "Province"
+    """
+    pass
+
+
+class ValueSourceBehaviourRule(BaseModel):
+    """
+    Behaviour rule for populating field values from a tool based on conditions.
+    
+    Calls a synchronous tool to fetch dynamic values for dropdown fields.
+    The tool must return a list of primitives or objects with a 'label' field.
+    
+    Attributes:
+        kind: Always "value_source"
+        tool: Tool identifier in format "name:uuid"
+        impacted_field: The dropdown field to populate
+        tool_input_map: Data map for tool input parameters
+        tool_input_schema: JSON schema for tool inputs
+    
+    Example:
+        When field_country changes, call get_regions tool to populate field_region
+    """
+    kind: Literal["value_source"] = "value_source"
+    tool: str
+    impacted_field: str
+    tool_input_map: Any | None = None
+    tool_input_schema: dict[str, Any] | None = None
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, dict):
+                self.tool_input_map = DataMapSpec(**self.tool_input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the value source rule to JSON format."""
+        model_spec = {}
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.tool:
+            model_spec["tool"] = self.tool
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, DataMapSpec):
+                model_spec["tool_input_map"] = self.tool_input_map.to_json()
+            else:
+                model_spec["tool_input_map"] = self.tool_input_map
+        if self.tool_input_schema:
+            model_spec["tool_input_schema"] = self.tool_input_schema
+        return model_spec
+
+
+class BehaviourField(BaseModel):
+    """
+    A special field type that defines dynamic form behaviours.
+    
+    BehaviourFields are not visible to users but control the behaviour of other
+    fields based on conditions. They can control visibility, labels, or populate
+    values from tools.
+    
+    Attributes:
+        name: Unique identifier for this behaviour
+        kind: Always "behaviour"
+        behaviour_kind: Type of behaviour ("visibility", "label", or "value-source")
+        on_change_to_field: The field that triggers this behaviour when changed
+        display_name: Human-readable name for this behaviour
+        input_map: Data map (typically empty for behaviours)
+        behaviours: List of behaviour rules to apply
+    
+    Example:
+        BehaviourField that shows zipcode field only when country is "USA"
+    """
+    name: str
+    kind: Literal["behaviour"] = "behaviour"
+    behaviour_kind: Literal["visibility", "label", "value-source"]
+    on_change_to_field: str
+    display_name: str | None = None
+    input_map: Any | None = None
+    behaviours: list[VisibilityBehaviourRule | LabelBehaviourRule | ValueSourceBehaviourRule] = []
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.input_map:
+            from .data_map import DataMapSpec, DataMap
+            if isinstance(self.input_map, dict):
+                self.input_map = DataMapSpec(**self.input_map)
+            elif isinstance(self.input_map, DataMap):
+                self.input_map = DataMapSpec(spec=self.input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour field to JSON format."""
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.behaviour_kind:
+            model_spec["behaviour_kind"] = self.behaviour_kind
+        if self.on_change_to_field:
+            model_spec["on_change_to_field"] = self.on_change_to_field
+        if self.display_name:
+            model_spec["display_name"] = self.display_name
+        if self.input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.input_map, DataMapSpec):
+                model_spec["input_map"] = self.input_map.to_json()
+            else:
+                model_spec["input_map"] = self.input_map
+        if self.behaviours and len(self.behaviours) > 0:
+            model_spec["behaviours"] = [behaviour.to_json() for behaviour in self.behaviours]
+        return model_spec
+
+
 class UserFormButton(BaseModel):
     name: str
     kind: Literal["submit", "cancel"]
@@ -824,7 +997,8 @@ class UserForm(BaseModel):
     kind: str = "form"
     display_name: str | None = None
     instructions: str | None = None
-    fields: list[UserField] = []  
+    fields: list[UserField] = []
+    behaviours: list[BehaviourField] = []  # Dynamic form behaviours
     jsonSchema: JsonSchemaObject | SchemaRef | None = None
     buttons: list[UserFormButton]
 
@@ -844,14 +1018,17 @@ class UserForm(BaseModel):
         # Initialize jsonSchema if not provided
         if not hasattr(self, 'jsonSchema') or self.jsonSchema is None:
             self.jsonSchema = JsonSchemaObject( # pyright: ignore[reportCallIssue]
-                type='object', 
-                properties={}, 
-                required=[], 
+                type='object',
+                properties={},
+                required=[],
                 description=self.instructions if hasattr(self, 'instructions') else None
             )
         
         if not hasattr(self, 'fields') or self.fields is None:
             self.fields = []
+        
+        if not hasattr(self, 'behaviours') or self.behaviours is None:
+            self.behaviours = []
 
         if not hasattr(self, 'buttons') or self.buttons is None:
             self.buttons = [
@@ -868,14 +1045,60 @@ class UserForm(BaseModel):
         if self.display_name:
             model_spec["display_name"] = self.display_name
         if self.fields and len(self.fields) > 0:
-            model_spec["fields"] = [field.to_json() for field in self.fields]
+            # Include both regular fields and behaviour fields in the fields array
+            # Behaviours should be inserted right after their trigger field (on_change_to_field)
+            all_fields = []
+            field_names = [field.name for field in self.fields]
+            
+            for field in self.fields:
+                # Add the field
+                all_fields.append(field.to_json())
+                
+                # Add any behaviours that are triggered by this field
+                if self.behaviours and len(self.behaviours) > 0:
+                    for behaviour in self.behaviours:
+                        if behaviour.on_change_to_field == field.name:
+                            all_fields.append(behaviour.to_json())
+            
+            model_spec["fields"] = all_fields
+        elif self.behaviours and len(self.behaviours) > 0:
+            # If no regular fields but have behaviours, include only behaviours
+            model_spec["fields"] = [behaviour.to_json() for behaviour in self.behaviours]
         if self.jsonSchema:
             model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
         if self.buttons and len(self.buttons) > 0:
-            model_spec["buttons"] = [button.to_json() for button in self.buttons]     
+            model_spec["buttons"] = [button.to_json() for button in self.buttons]
 
         return model_spec
 
+    def validate_behaviours(self) -> list[str]:
+        """
+        Validate all behaviours in the form for circular dependencies.
+        
+        Returns:
+            List of error messages (empty if valid)
+        """
+        from .utils import detect_circular_dependencies
+
+        # Collect all behaviours and convert to dict format for validation
+        behaviours = []
+        for behaviour_field in self.behaviours:
+            behaviour_dict = {
+                "on_change_to_field": behaviour_field.on_change_to_field,
+                "behaviours": []
+            }
+
+            # Extract impacted fields from behaviour rules
+            for rule in behaviour_field.behaviours:
+                if hasattr(rule, 'impacted_field'):
+                    behaviour_dict["behaviours"].append({
+                        "impacted_field": rule.impacted_field
+                    })
+
+            behaviours.append(behaviour_dict)
+
+        return detect_circular_dependencies(behaviours)
+    
     def add_or_replace_field(self, name: str, userfield: UserField):
         """
         Replace an existing field (by name) in self.fields or append a new one.
@@ -1676,6 +1899,243 @@ class UserForm(BaseModel):
         # Update JSON schema - use model_construct to bypass validation for custom "file" type
         # pyright: ignore[reportCallIssue]
         self.jsonSchema.properties[name] = JsonSchemaObject.model_construct(type="file", title=label)
+        return userfield
+
+    # Dynamic Forms Behaviour Methods
+    
+    def add_visibility_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a visibility behaviour to control field visibility based on conditions.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of visibility rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_visibility_behaviour(
+                name="show_zipcode",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"zipcode": {"x-is-visible": True}}},
+                        "else": {"properties": {"zipcode": {"x-is-visible": False}}}
+                    },
+                    "impacted_field": "zipcode"
+                }],
+                display_name="Show Zipcode for USA"
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create visibility behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(VisibilityBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="visibility",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_label_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a label behaviour to change field labels based on conditions.
+        
+        Supports simple and complex conditions using allOf (AND) and anyOf (OR) operators,
+        as well as nested if/then/else structures.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of label rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example (simple):
+            form.add_label_behaviour(
+                name="region_label",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"region": {"title": "State"}}},
+                        "else": {"properties": {"region": {"title": "Province"}}}
+                    },
+                    "impacted_field": "region"
+                }],
+                display_name="Region Label"
+            )
+            
+        Example (complex with allOf):
+            form.add_label_behaviour(
+                name="complex_label",
+                on_change_to_field="field1",
+                rules=[{
+                    "condition": {
+                        "if": {
+                            "allOf": [
+                                {"properties": {"field1": {"const": "A"}}},
+                                {"properties": {"field2": {"const": "B"}}}
+                            ]
+                        },
+                        "then": {"properties": {"field3": {"title": "Both A and B"}}},
+                        "else": {"properties": {"field3": {"title": "Other"}}}
+                    },
+                    "impacted_field": "field3"
+                }]
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create label behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(LabelBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="label",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_value_source_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            impacted_field: str,
+            tool: str,
+            tool_input_schema: dict[str, Any],
+            tool_input_map: dict[str, Any] | None = None,
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a value source behaviour to populate field values from a tool.
+        
+        The tool must be synchronous and return a list of primitives or objects with a 'label' field.
+        The impacted field must be a single-select dropdown.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            impacted_field: The dropdown field to populate with tool results
+            tool: Tool identifier in format "name:uuid"
+            tool_input_schema: JSON schema for tool inputs
+            tool_input_map: Optional data map for tool input parameters
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_value_source_behaviour(
+                name="populate_regions",
+                on_change_to_field="country",
+                impacted_field="region",
+                tool="get_regions:12345-uuid",
+                tool_input_schema={
+                    "type": "object",
+                    "properties": {
+                        "country": {"type": "string"}
+                    }
+                },
+                tool_input_map={
+                    "spec": {
+                        "maps": [{
+                            "target_variable": "self.tool.input.country",
+                            "value_expression": "parent.field.country",
+                            "metadata": {"assignmentType": "field"}
+                        }]
+                    }
+                },
+                display_name="Populate Regions"
+            )
+            
+        Note:
+            - Use "parent.field.fieldName" to reference form fields in Chat UI
+            - Use "self.tool.input.paramName" for tool input parameters
+            - Field names are case-sensitive
+        """
+        from .data_map import DataMap, DataMapSpec
+        
+        # Convert tool_input_map to DataMapSpec if provided
+        if tool_input_map:
+            if isinstance(tool_input_map, dict):
+                tool_input_map = DataMapSpec(**tool_input_map)
+        else:
+            tool_input_map = DataMapSpec(spec=DataMap(maps=[]))
+        
+        # Create value source behaviour rule
+        behaviour_rule = ValueSourceBehaviourRule(
+            kind="value_source",
+            tool=tool,
+            impacted_field=impacted_field,
+            tool_input_map=tool_input_map,
+            tool_input_schema=tool_input_schema
+        )
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="value-source",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=[behaviour_rule]
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+
 
         return userfield
 

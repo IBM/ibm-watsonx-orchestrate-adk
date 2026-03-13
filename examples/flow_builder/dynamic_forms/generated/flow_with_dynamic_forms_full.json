@@ -1,0 +1,690 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "user_activity_with_dynamic_forms_full",
+    "display_name": "Dynamic Form - A simple example",
+    "description": "Demonstrates dynamic form behaviours",
+    "input_schema": {
+      "$ref": "#/schemas/user_activity_with_dynamic_forms_full_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "Example dynamic form",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
+      },
+      "nodes": {
+        "dynamic_form": {
+          "spec": {
+            "kind": "user",
+            "name": "dynamic_form",
+            "display_name": "Dynamic form example",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [],
+            "form": {
+              "name": "dynamic_form",
+              "kind": "form",
+              "display_name": "Dynamic form example",
+              "fields": [
+                {
+                  "name": "country",
+                  "kind": "any",
+                  "direction": "input",
+                  "display_name": "Country",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "flow.input.countries",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.default_country",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      },
+                      "default": {}
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "ComboboxWidget",
+                    "ui:placeholder": "Select an option",
+                    "ui:title": "Country"
+                  }
+                },
+                {
+                  "name": "visibility_behaviour",
+                  "kind": "behaviour",
+                  "behaviour_kind": "visibility",
+                  "on_change_to_field": "country",
+                  "display_name": "Visibility rule",
+                  "input_map": {
+                    "spec": {}
+                  },
+                  "behaviours": [
+                    {
+                      "condition": {
+                        "if": {
+                          "properties": {
+                            "country": {
+                              "const": "USA"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "city": {
+                              "x-is-visible": true
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "city": {
+                              "x-is-visible": false
+                            }
+                          }
+                        }
+                      },
+                      "impacted_field": "city"
+                    },
+                    {
+                      "condition": {
+                        "if": {
+                          "properties": {
+                            "country": {
+                              "const": "Canada"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "url": {
+                              "x-is-visible": true
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "url": {
+                              "x-is-visible": false
+                            }
+                          }
+                        }
+                      },
+                      "impacted_field": "url"
+                    }
+                  ]
+                },
+                {
+                  "name": "label_behaviour",
+                  "kind": "behaviour",
+                  "behaviour_kind": "label",
+                  "on_change_to_field": "country",
+                  "display_name": "Label rule",
+                  "input_map": {
+                    "spec": {}
+                  },
+                  "behaviours": [
+                    {
+                      "condition": {
+                        "if": {
+                          "properties": {
+                            "country": {
+                              "const": "USA"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "code": {
+                              "title": "Zip code"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "code": {
+                              "title": "Postal code"
+                            }
+                          }
+                        }
+                      },
+                      "impacted_field": "code"
+                    },
+                    {
+                      "condition": {
+                        "if": {
+                          "properties": {
+                            "country": {
+                              "const": "USA"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "region": {
+                              "title": "State"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "region": {
+                              "title": "Province"
+                            }
+                          }
+                        }
+                      },
+                      "impacted_field": "region"
+                    },
+                    {
+                      "condition": {
+                        "if": {
+                          "properties": {
+                            "country": {
+                              "const": "USA"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "documents": {
+                              "title": "US W-2 Form"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "documents": {
+                              "title": "Canadian T4 Form"
+                            }
+                          }
+                        }
+                      },
+                      "impacted_field": "documents"
+                    }
+                  ]
+                },
+                {
+                  "name": "value_source_behaviour",
+                  "kind": "behaviour",
+                  "behaviour_kind": "value-source",
+                  "on_change_to_field": "country",
+                  "display_name": "ProgSelect",
+                  "input_map": {
+                    "spec": {}
+                  },
+                  "behaviours": [
+                    {
+                      "kind": "value_source",
+                      "tool": "get_states_or_provinces:9f0ecb53-dbd9-4e41-be46-29c8d47d6df8",
+                      "impacted_field": "region",
+                      "tool_input_map": {
+                        "spec": {
+                          "maps": [
+                            {
+                              "target_variable": "self.tool.input.country",
+                              "value_expression": "parent.field.country",
+                              "has_no_value": false,
+                              "default_value": null,
+                              "metadata": {
+                                "assignmentType": "variable"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "region",
+                  "kind": "any",
+                  "direction": "input",
+                  "display_name": "Region",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.choices",
+                          "value_expression": "",
+                          "has_no_value": true,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_text",
+                          "value_expression": "",
+                          "has_no_value": true,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "",
+                          "has_no_value": true,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.display_items",
+                          "value_expression": "[]",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "choices": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_items": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "display_text": {
+                        "type": "string"
+                      },
+                      "default": {}
+                    },
+                    "required": [
+                      "choices"
+                    ],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "ComboboxWidget",
+                    "ui:placeholder": "Select an option",
+                    "ui:title": "Region"
+                  }
+                },
+                {
+                  "name": "code",
+                  "kind": "text",
+                  "direction": "input",
+                  "display_name": "Code",
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TextWidget",
+                    "ui:title": "Code"
+                  },
+                  "regex_error_msg": "Input does not match the required pattern"
+                },
+                {
+                  "name": "city",
+                  "kind": "text",
+                  "direction": "input",
+                  "display_name": "City",
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TextWidget",
+                    "ui:title": "City"
+                  },
+                  "regex_error_msg": "Input does not match the required pattern"
+                },
+                {
+                  "name": "documents",
+                  "kind": "file",
+                  "direction": "input",
+                  "display_name": "Documents",
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "min_num_files": {
+                        "type": "integer"
+                      },
+                      "max_num_files": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "wxo-file"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "FileUpload",
+                    "ui:upload_button_label": "",
+                    "ui:title": "Documents"
+                  }
+                },
+                {
+                  "name": "url",
+                  "kind": "text",
+                  "direction": "input",
+                  "display_name": "URL",
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TextWidget",
+                    "ui:title": "URL"
+                  },
+                  "regex_error_msg": "Input does not match the required pattern"
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "properties": {
+                  "country": {
+                    "title": "Country"
+                  },
+                  "region": {
+                    "title": "Region"
+                  },
+                  "code": {
+                    "type": "string",
+                    "title": "Code"
+                  },
+                  "city": {
+                    "type": "string",
+                    "title": "City"
+                  },
+                  "documents": {
+                    "type": "array",
+                    "title": "Documents",
+                    "items": {},
+                    "file_max_size": 10,
+                    "multi": false
+                  },
+                  "url": {
+                    "type": "string",
+                    "title": "URL"
+                  }
+                },
+                "required": []
+              },
+              "buttons": [
+                {
+                  "name": "submit",
+                  "kind": "submit",
+                  "display_name": "Submit",
+                  "visible": true
+                },
+                {
+                  "name": "cancel",
+                  "kind": "cancel",
+                  "display_name": "Cancel",
+                  "visible": true
+                }
+              ]
+            }
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "dynamic_form"
+        },
+        {
+          "start": "dynamic_form",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "init_data": {
+      "spec": {
+        "kind": "script",
+        "name": "init_data",
+        "display_name": "init_data",
+        "fn": "\n# Initialize countries list\nflow.input.countries = [\"USA\", \"Canada\"]\n\n# Initialize US states\nflow.input.usa_states = [\"California\", \"Texas\", \"New York\", \"Florida\", \"Illinois\", \"Pennsylvania\"]\n\n# Initialize Canadian provinces\nflow.input.canada_provinces = [\"Ontario\", \"Quebec\", \"British Columbia\", \"Alberta\", \"Manitoba\", \"Saskatchewan\"]\n\n# Set default selections\nflow.input.default_country = \"USA\"\nflow.input.default_region = \"California\"\n"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "init_data"
+    },
+    {
+      "start": "init_data",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "user_activity_with_dynamic_forms_full_input": {
+      "type": "object",
+      "title": "user_activity_with_dynamic_forms_full_input",
+      "required": [],
+      "properties": {
+        "countries": {
+          "type": "array",
+          "title": "Countries",
+          "description": "A list of available countries.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "USA",
+            "Canada"
+          ]
+        },
+        "usa_states": {
+          "type": "array",
+          "title": "Usa States",
+          "description": "A list of US states.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "California",
+            "Texas",
+            "New York",
+            "Florida"
+          ]
+        },
+        "canada_provinces": {
+          "type": "array",
+          "title": "Canada Provinces",
+          "description": "A list of Canadian provinces.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Ontario",
+            "Quebec",
+            "British Columbia",
+            "Alberta"
+          ]
+        },
+        "default_country": {
+          "type": "string",
+          "title": "Default Country",
+          "description": "Default country selection.",
+          "default": "USA"
+        },
+        "default_region": {
+          "type": "string",
+          "title": "Default Region",
+          "description": "Default region selection.",
+          "default": "California"
+        }
+      }
+    },
+    "dynamic_form": {
+      "type": "object",
+      "title": "dynamic_form",
+      "properties": {}
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2026-03-11T23:57:19.821393+00:00"
+  }
+}
