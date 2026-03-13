@@ -30,7 +30,7 @@ client_secret: ${GENESYS_BOT_CLIENT_SECRET}
 verification_token: ${GENESYS_BOT_VERIFICATION_TOKEN}
 
 # Required: Bot Connector integration ID
-bot_connector_id: ${ENESYS_BOT_CONNECTOR_ID}
+bot_connector_id: ${GENESYS_BOT_CONNECTOR_ID}
 
 # Required: Genesys API Server URI for your region
-api_url: https://api.mypurecloud.com
+api_url: ${GENESYS_API_URL}
