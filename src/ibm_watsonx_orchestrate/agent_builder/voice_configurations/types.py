@@ -120,10 +120,9 @@ class WatsonTTSConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   bearer_token: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1,max_length=128)]
-  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   rate_percentage: Optional[int] = None
   pitch_percentage: Optional[int] = None
-  learning_opt_out: Optional[bool] = None
+  language: Optional[str] = None
 
 class EmotechTTSConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1,max_length=2048)]
