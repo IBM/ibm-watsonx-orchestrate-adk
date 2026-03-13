@@ -17,7 +17,7 @@ from agentops.tool_planner import build_snapshot
 from agentops.analyze_run import run as run_analyze
 from agentops.batch_annotate import generate_test_cases_from_stories
 from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
-from agentops.record_chat import record_chats
+from agentops.record.record_chat import record_chats
 from agentops.external_agent.external_validate import ExternalAgentValidation
 from agentops.external_agent.performance_test import ExternalAgentPerformanceTest
 from agentops.red_teaming.attack_list import print_attacks
