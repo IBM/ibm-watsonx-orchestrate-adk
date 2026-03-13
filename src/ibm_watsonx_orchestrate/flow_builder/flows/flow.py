@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 from enum import Enum
 from pydantic.main import BaseModel
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec, WXOFile
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.flow_builder.types import BranchNodeSpec, BranchNodeSpec, Conditions, Expression, ForeachSpec, PromptNodeSpec
 from ibm_watsonx_orchestrate.flow_builder.node import Node, TimerNode
@@ -783,7 +783,7 @@ class Flow(Node):
             kvp_model_name: str | None = None,
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
-            output_format: DocProcOutputFormat | str = DocProcOutputFormat.docref) -> DocProcNode:
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
