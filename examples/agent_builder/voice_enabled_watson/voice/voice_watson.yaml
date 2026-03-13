@@ -29,5 +29,7 @@ text_to_speech:
     language: "en-US"  # Optional: language code
     rate_percentage: 0  # Optional: rate percentage for speech synthesis
     pitch_percentage: 0  # Optional: pitch percentage for speech synthesis
+    customization_id: null  # Optional: (Advanced option) Custom ID for the Watson TTS service
+    meta_id: null  # Optional: (Advanced option) Meta ID for the Watson TTS service
     learning_opt_out: true  # Optional: opt out of data collection for learning
 language: "en-us"  # Optional: default language for the voice configuration (default: en-us)
