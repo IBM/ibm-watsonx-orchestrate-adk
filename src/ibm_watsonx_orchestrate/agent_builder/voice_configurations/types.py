@@ -58,8 +58,12 @@ class WatsonSTTConfig(BaseModel):
   end_of_phrase_silence_time: Optional[Annotated[float, Field(ge=0.0, le=120.0)]] = None
 
 class EmotechSTTConfig(BaseModel):
-  api_key: Annotated[str,Field(min_length=1,max_length=2048)]
-  api_url: Annotated[str,Field(min_length=1,max_length=2048)]
+  api_url: Annotated[str, Field(min_length=1, max_length=2048)]
+  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  positive_speech_threshold: Optional[float] = Field(default=0.25, description="Confidence threshold above which audio is classified as speech, default is 0.25")
+  negative_speech_threshold: Optional[float] = Field(default=0.25, description="Confidence threshold below which audio is classified as non-speech, default is 0.25")
+  partial_interval: Optional[int] = Field(default=500, description="Time interval (in ms) between partial transcription results, default is 500 ms.")
+  silence_threshold: Optional[int] = Field(default=500, description="Silence duration (in ms) after speech used to determine end of utterance, default is 1500 ms.")
 
 class DeepgramSTTConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1, max_length=2048)]
@@ -120,9 +124,12 @@ class WatsonTTSConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   bearer_token: Optional[Annotated[str, Field(min_length=1,max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1,max_length=128)]
-  rate_percentage: Optional[int] = None
-  pitch_percentage: Optional[int] = None
-  language: Optional[str] = None
+  rate_percentage: Optional[int] = Field(default=0, description="Rate percentage for speech synthesis, default is 0")
+  pitch_percentage: Optional[int] = Field(default=0, description="Pitch percentage for speech synthesis, default is 0")
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = Field(default=None, description="Language code for the voice, e.g., 'en-US'")
+  customization_id: Optional[Annotated[str, Field(min_length=1, max_length=256)]] = Field(default=None, description="Custom ID for the Watson TTS service")
+  meta_id: Optional[Annotated[str, Field(min_length=1, max_length=256)]] = Field(default=None, description="Meta ID for the Watson TTS service")
+  learning_opt_out: Optional[bool] = Field(default=None, description="Set to true to opt out of data collection for learning purposes")
 
 class EmotechTTSConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1,max_length=2048)]
@@ -226,10 +233,10 @@ class AgentIdleHandlerMessages(BaseModel):
 class AgentIdleHandler(AgentIdleHandlerMessages):
   model_config = ConfigDict(use_enum_values=True)
 
-  typing_enabled: Optional[bool] = Field(default=True, description="Enable typing indicator")
-  typing_duration_seconds: Optional[int] = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
-  audio_clip_id: Optional[AudioClips] = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
-  hold_audio_seconds: Optional[int] = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
+  typing_enabled: bool = Field(default=True, description="Enable typing indicator")
+  typing_duration_seconds: int = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
+  audio_clip_id: AudioClips = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
+  hold_audio_seconds: int = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
 
 class LanguageVoiceConfig(BaseModel):
   """Voice configuration for a specific language"""
@@ -256,7 +263,7 @@ class VoiceConfiguration(BaseModel):
     description="Default language code, e.g., 'en-us'"
   )
   additional_languages: Optional[Dict[str, LanguageVoiceConfig]] = Field(
-    default=None,
+    default_factory=dict,
     description="Additional language configurations keyed by language code"
   )
   dtmf_input: Optional[DTMFInput] = None
