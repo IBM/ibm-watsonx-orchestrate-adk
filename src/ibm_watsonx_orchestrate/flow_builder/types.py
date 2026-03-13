@@ -637,6 +637,7 @@ class UserFieldKind(str, Enum):
     Choice = "any"
     List = "array"  # used to display list output
     DateRange = "date-range"
+    TimeRange = "time-range"
     Field = "field"
     MultiChoice = "array"
     Array = "array"  # this is a duplicate of List
@@ -1234,39 +1235,84 @@ class UserForm(BaseModel):
             name: str,
             label: str | None = None,
             required: bool = False,
-            start_date_label:str | None = None,
-            end_date_label:str | None = None,
-            default_start: Any| None = None,
-            default_end: Any| None = None
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_date: Any | None = None,
+            max_date: Any | None = None
     ) -> UserField:
+        """
+        Creates a date range input field in the form.
+
+        This method creates a DateRange type field. For TimeRange fields,
+        use datetime_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_date: Optional DataMap for minimum date constraint (maps to self.input.min_date).
+            max_date: Optional DataMap for maximum date constraint (maps to self.input.max_date).
+
+        Returns:
+            UserField: The created date range input field.
+        """
+        # Validate inputs
         ensure_datamap(default_start, "default_start")
         ensure_datamap(default_end, "default_end")
-        
-        # Use the template system from utils
-        schemas = clone_form_schema("date_range", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD",
-                "ui:options": {"range": True},
-                "ui:order": ["start", "end"]
-            }
-        })
-        
-        # Add additional UI properties if provided
+        ensure_datamap(min_date, "min_date")
+        ensure_datamap(max_date, "max_date")
+
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+
+        template_type = "date_range"
+        format_type = "date"
+        min_prop = "min_date"
+        max_prop = "max_date"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "DateWidget",
+            "format": "YYYY-MM-DD",
+            "ui:options": {"range": True},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
         if start_date_label:
             schemas["ui_schema"]["ui:start_label"] = start_date_label
         if end_date_label:
             schemas["ui_schema"]["ui:end_label"] = end_date_label
-        
-        # Set up input_map
-        if default_start:
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_date, and max_date
+        # Similar to number_input_field pattern
+        if default_start is not None:
             input_map = default_start
             add_assignment(input_map, default_end)
-        else:
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif default_end is not None:
             input_map = default_end
-        
-        # Create the field
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif min_date is not None:
+            input_map = min_date
+            add_assignment(input_map, max_date)
+        elif max_date is not None:
+            input_map = max_date
+        else:
+            input_map = None
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.DateRange,
@@ -1277,59 +1323,213 @@ class UserForm(BaseModel):
             input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
+
         self.add_or_replace_field(name, userfield)
-        
-        # Update JSON schema
+
         self.jsonSchema.properties[name] = {
             "type": "array",
-            "items": {"type": "string", "format": "date"},
+            "items": {},
             "title": label
         }
-        
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
 
         return userfield
-         
+
+    def datetime_range_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None
+    ) -> UserField:
+        """
+        Creates a datetime (time) range input field in the form.
+
+        This method creates a TimeRange type field. For DateRange fields,
+        use date_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_time: Optional DataMap for minimum time constraint (maps to self.input.min_time).
+            max_time: Optional DataMap for maximum time constraint (maps to self.input.max_time).
+
+        Returns:
+            UserField: The created datetime range input field.
+        """
+        # Validate inputs
+        ensure_datamap(default_start, "default_start")
+        ensure_datamap(default_end, "default_end")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+
+        template_type = "time_range"
+        format_type = "time"
+        min_prop = "min_time"
+        max_prop = "max_time"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "TimeWidget",
+            "ui:options": {"is_range": True, "is_timezone": True, "is_datepicker": False},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
+        if start_date_label:
+            schemas["ui_schema"]["ui:start_label"] = start_date_label
+        if end_date_label:
+            schemas["ui_schema"]["ui:end_label"] = end_date_label
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_time, and max_time
+        # Similar to number_input_field pattern
+        if default_start is not None:
+            input_map = default_start
+            add_assignment(input_map, default_end)
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif default_end is not None:
+            input_map = default_end
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.TimeRange,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
+
     def date_input_field(
             self,
             name: str,
             label: str | None = None,
             required: bool = False,
-            initial_value: Any| None=None,
+            initial_value: Any | None = None,
             min_date: Any | None = None,
-            max_date: Any | None = None
+            max_date: Any | None = None,
+            multiple_dates: bool = False,
     ) -> UserField:
-        # Validate that min/max are DataMap instances (or None)
+        """
+        Creates a date input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial date value.
+            min_date: Optional DataMap for minimum allowed date.
+            max_date: Optional DataMap for maximum allowed date.
+            multiple_dates: If True, allows selection of multiple dates. Defaults to False.
+
+        Returns:
+            UserField: The created date input field.
+        """
+        # Validate inputs
         ensure_datamap(initial_value, "initial_value")
         ensure_datamap(min_date, "min_date")
         ensure_datamap(max_date, "max_date")
-
-        # Use the template system from utils
-        schemas = clone_form_schema("date", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD"
-            }
-        })
         
-        # Build the input_map by merging assignments from initial_value, min_date and max_date
+        # Build the input_map by merging all assignments from initial_value, min_date and max_date
         if initial_value is not None:
-            add_assignment(initial_value, min_date)
-            add_assignment(initial_value, max_date)
-            date_constraints = initial_value
+            input_map = initial_value
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
         elif min_date is not None:
-            add_assignment(min_date, max_date)
-            date_constraints = min_date
+            input_map = min_date
+            add_assignment(input_map, max_date)
         elif max_date is not None:
-            date_constraints = max_date
+            input_map = max_date
         else:
-            date_constraints = None
+            input_map = None
         
-        # Create the field
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+        
+        # Base config with common properties, only widget and type differ based on multiple_dates
+        config = {
+            "template": "date",
+            "format": "YYYY-MM-DD",
+            "json_format": "date",
+            "min_prop": "min_date",
+            "max_prop": "max_date",
+            "widget": "MultiDateWidget" if multiple_dates else "DateWidget",
+            "json_schema_type": "array" if multiple_dates else "string",
+        }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "format": config["format"]
+        }
+
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        # Update schemas for multiple dates (input default, output value, and JSON schema)
+        if multiple_dates:
+            array_schema = {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+            schemas["input_schema"].properties["default"] = array_schema
+            schemas["output_schema"].properties["value"] = array_schema
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.Date,
@@ -1337,22 +1537,152 @@ class UserForm(BaseModel):
             direction="input",
             input_schema=schemas["input_schema"],
             output_schema=schemas["output_schema"],
-            input_map=date_constraints,
+            input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
+
         self.add_or_replace_field(name, userfield)
+
+        # Set JSON schema based on type
+        if multiple_dates:
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "title": label,
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+        else:
+            self.jsonSchema.properties[name] = {
+                "type": "string",
+                "title": label,
+                "format": config["json_format"]
+            }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
+
+    def datetime_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            initial_value: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None,
+            inputType: UserFieldKind = UserFieldKind.DateTime,
+    ) -> UserField:
+        """
+        Creates a datetime or time input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial datetime/time value.
+            min_time: Optional DataMap for minimum allowed datetime/time.
+            max_time: Optional DataMap for maximum allowed datetime/time.
+            inputType: Type of field (DateTime or Time). Defaults to DateTime.
+
+        Returns:
+            UserField: The created datetime/time input field.
+        """
+        # Validate inputType
+        valid_types = [UserFieldKind.DateTime, UserFieldKind.Time]
+        if inputType not in valid_types:
+            raise ValueError(f"inputType must be one of DateTime or Time, got {inputType}")
         
-        # Update JSON schema
-        schema_def = {
-            "type": "string",
-            "title": label,
-            "format": "date"
+        # Validate inputs
+        ensure_datamap(initial_value, "initial_value")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+        
+        # Build the input_map by merging all assignments from initial_value, min_time and max_time
+        if initial_value is not None:
+            input_map = initial_value
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+        
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+        
+        # Configure based on inputType
+        if inputType == UserFieldKind.Time:
+            config = {
+                "template": "time",
+                "json_format": "time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": False
+                }
+            }
+        else:  # UserFieldKind.DateTime
+            config = {
+                "template": "datetime",
+                "json_format": "date-time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": True
+                }
+            }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "ui:options": config["ui_options"]
         }
 
-        self.jsonSchema.properties[name] = schema_def
-        
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
+        userfield = UserField(
+            name=name,
+            kind=inputType,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
 
