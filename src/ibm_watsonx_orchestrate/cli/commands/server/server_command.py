@@ -21,7 +21,7 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller imp
 from ibm_watsonx_orchestrate.cli.commands.server.images.images_command import images_app
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
     AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, LICENSE_HEADER, \
-    ENV_ACCEPT_LICENSE
+    ENV_ACCEPT_LICENSE, DOCKER_SERVICE_CREDS_OPT
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
@@ -438,7 +438,6 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
             logger.error('The terms and conditions were not accepted, exiting.')
             exit(1)
 
-
 def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     """
     Prepare the compose + env files in a cache directory (~/.cache/orchestrate)
@@ -535,6 +534,16 @@ def server_start(
         "--cert-bundle-path",
         help="Path to a custom certificate bundle file."
     ),
+    service_username: str = typer.Option(
+        None,
+        "--service-username",
+        help="Username configured on Developer Edition services .e.g Postgres, Minio"
+    ),
+    service_password: str = typer.Option(
+        None,
+        "--service-password",
+        help="Password configured on Developer Edition services .e.g Postgres, Minio"
+    ),
 ):
     cli_config = Config()
     confirm_accepts_license_agreement(accept_terms_and_conditions, cli_config)
@@ -560,8 +569,10 @@ def server_start(
     user_env = env_service.get_user_env(user_env_file=user_env_file, fallback_to_persisted_env=False)
     developer_edition_source = env_service.get_dev_edition_source_core(user_env)
     env_service.persist_user_env(user_env, include_secrets=persist_env_secrets, source=developer_edition_source)
-    
-    merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False)
+
+    service_creds = env_service.get_service_credentials(username=service_username, password=service_password)
+
+    merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False, service_credentials=service_creds)
 
     if not DockerUtils.check_exclusive_observability(experimental_with_langfuse, experimental_with_ibm_telemetry):
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
@@ -639,7 +650,7 @@ def server_start(
                      with_ai_builder=with_ai_builder,
                      env_service=env_service)
     
-    run_db_migration(with_ai_builder)
+    run_db_migration(with_ai_builder, merged_env_dict)
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
@@ -753,9 +764,10 @@ def server_reset(
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
     stop_virtual_machine(keep_vm=keep_vm)
 
-def run_db_migration(with_ai_builder: bool = False) -> None:
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
+def run_db_migration(with_ai_builder: bool = False, merged_env_dict: Optional[dict] = None) -> None:
+    if not merged_env_dict:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
 
     # Set required env keys
     merged_env_dict.update({
@@ -799,9 +811,11 @@ def run_db_migration(with_ai_builder: bool = False) -> None:
 
 
 
-def create_langflow_db() -> None:
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
+def create_langflow_db(merged_env_dict: Optional[dict] = None) -> None:
+    if not merged_env_dict:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
+
     merged_env_dict['WATSONX_SPACE_ID']='X'
     merged_env_dict['WATSONX_APIKEY']='X'
     merged_env_dict['WXAI_API_KEY'] = ''

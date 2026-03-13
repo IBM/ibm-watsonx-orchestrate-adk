@@ -100,8 +100,14 @@ export const searchKnowledgeTool = {
 ### Full Working Example
 
 For a complete implementation, see:
-- [`src/knowledge.ts`](../src/knowledge.ts) - Tool definition and configuration
-- [`src/knowledgeService.ts`](../src/knowledgeService.ts) - OpenSearch integration and business logic
+
+**TypeScript:**
+- [`ts_server/src/knowledge.ts`](../toolkits/banking_mcp_server/ts_server/src/knowledge.ts) - Tool definition and configuration
+- [`ts_server/src/knowledgeService.ts`](../toolkits/banking_mcp_server/ts_server/src/knowledgeService.ts) - OpenSearch integration and business logic
+
+**Python:**
+- [`py_server/src/knowledge.py`](../toolkits/banking_mcp_server/py_server/src/knowledge.py) - Tool definition and configuration
+- [`py_server/src/knowledge_service.py`](../toolkits/banking_mcp_server/py_server/src/knowledge_service.py) - OpenSearch integration and business logic
 
 ### Configuration
 
@@ -148,12 +154,19 @@ Placeholders available:
 
 The Knowledge Tool is only registered when `OPENSEARCH_PASSWORD` is set, allowing for flexible deployment:
 
+**TypeScript Example** (from [`ts_server/src/index.ts`](../toolkits/banking_mcp_server/ts_server/src/index.ts)):
 ```typescript
-// In src/index.ts
 if (process.env.OPENSEARCH_PASSWORD) {
   // Register knowledge tool (available at all times)
   registerToolsDirect(server, knowledgeTools);
 }
+```
+
+**Python Example** (from [`py_server/src/server.py`](../toolkits/banking_mcp_server/py_server/src/server.py)):
+```python
+if os.getenv('OPENSEARCH_PASSWORD'):
+    # Register knowledge tool (available at all times)
+    register_tools_direct(server, knowledge_tools)
 ```
 
 This pattern enables:

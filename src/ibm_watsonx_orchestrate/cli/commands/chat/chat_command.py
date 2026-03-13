@@ -70,6 +70,14 @@ def chat_ask(
         bool,
         typer.Option("--include-reasoning", "-r", help="Show reasoning trace from the agent")
     ] = False,
+    capture_logs: Annotated[
+        bool,
+        typer.Option("--capture-logs", "-l", help="Capture and display execution logs (only available for custom agents)")
+    ] = False,
+    thread_id: Annotated[
+        str,
+        typer.Option("--thread-id", "-t", help="Thread ID to continue an existing conversation")
+    ] = None,
 ):
     """Chat with an agent: interactive mode or start chat by asking a question.
     
@@ -80,10 +88,13 @@ def chat_ask(
     orchestrate chat ask --agent-name <my-agent-name> "What is the weather?" --include-reasoning
     orchestrate chat ask --agent-name <my-agent-name>
     orchestrate chat ask --agent-name <my-agent-name> --include-reasoning
+    orchestrate chat ask --agent-name <my-agent-name> --capture-logs
+    orchestrate chat ask --agent-name <my-agent-name> --thread-id <thread-id>
     
     """
 
-    chat_ask_interactive(agent_name, include_reasoning=include_reasoning, initial_message=message)
+    chat_ask_interactive(agent_name, include_reasoning=include_reasoning, initial_message=message,
+                        capture_logs=capture_logs, thread_id=thread_id)
 
 if __name__ == "__main__":
     chat_app()

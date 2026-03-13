@@ -25,6 +25,9 @@ dependencies = [
 packages = ["."]
 package-data = true
 
+[tool.hatch.build.targets.wheel.force-include]
+"../../skills" = "ibm_watsonx_orchestrate_mcp_server/src/skills/bundled"
+
 [tool.hatch.build]
 include = [
     "./*"

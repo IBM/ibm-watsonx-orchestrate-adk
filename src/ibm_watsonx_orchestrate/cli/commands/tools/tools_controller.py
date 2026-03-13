@@ -382,7 +382,7 @@ def get_resolved_py_tool_reqs_file (tool_file, requirements_file, package_root):
 
     return resolved_requirements_file
 
-def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
+def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exclude_ibm_watsonx_orchestrate=True):
     requirements = []
 
     if requirements_file is not None:
@@ -392,7 +392,8 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
     if remove_trailing_newlines is True:
         requirements = [x.strip() for x in requirements]
 
-    requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
+    if exclude_ibm_watsonx_orchestrate:
+        requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
     requirements = list(dict.fromkeys(requirements))
 
     return requirements
@@ -970,18 +971,20 @@ class ToolsController:
                                     raise ex
 
                             zip_tool_artifacts.writestr("tool-spec.json", tool.dumps_spec())
+                        
+                        cfg = Config()
+                        registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
+                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
 
                         requirements = []
                         if resolved_requirements_file is not None:
-                            requirements = get_requirement_lines(requirements_file=resolved_requirements_file, remove_trailing_newlines=False)
+                            exclude_ibm_watsonx_orchestrate = not registry_type == RegistryType.SKIP
+                            requirements = get_requirement_lines(requirements_file=resolved_requirements_file, remove_trailing_newlines=False, exclude_ibm_watsonx_orchestrate=exclude_ibm_watsonx_orchestrate)
 
                         # Ensure there is a newline at the end of the file
                         if len(requirements) > 0 and not requirements[-1].endswith("\n"):
                             requirements[-1] = requirements[-1]+"\n"
 
-                        cfg = Config()
-                        registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
-                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
 
                         version = __version__
                         if registry_type == RegistryType.LOCAL:
@@ -1001,6 +1004,11 @@ class ToolsController:
                                 logger.error(f"Could not find ibm-watsonx-orchestrate@{override_version} on https://test.pypi.org/project/ibm-watsonx-orchestrate")
                                 exit(1)
                             requirements.append(f"ibm-watsonx-orchestrate @ {wheel_file}\n")
+                        elif registry_type == RegistryType.SKIP: # Skip automatically adding the ADK as a dependency
+                            if self.requirements_file:
+                                logger.warning("Skipping adding 'ibm-watsonx-orchestrate' to tool requirements. Please ensure the requirements.txt contains the correct package.")
+                            else:
+                                BadRequest("Cannot skip addition of 'ibm-watsonx-orchestrate' to tool requirements. Please provide a 'requirements.txt' file or use 'orchestrate env acticate <env_name> --registry pypi'")
                         else:
                             logger.error(f"Unrecognized registry type provided to orchestrate env activate local --registry <registry>")
                             exit(1)
@@ -1182,7 +1190,8 @@ class ToolsController:
             self,
             name: str,
             output_path: str, 
-            zip_file_out: Optional[zipfile.ZipFile] = None, 
+            zip_file_out: Optional[zipfile.ZipFile] = None,
+            toolkit_output_file: Optional[str] = None,
             connections_output_path: str = "/connections", 
             spec: dict | None = None) -> None:
         
@@ -1191,7 +1200,7 @@ class ToolsController:
         if not zip_file_out and  output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
-        
+
         if not spec:
             client = self.get_client()
             specs = client.get_draft_by_name(name)
@@ -1212,7 +1221,7 @@ class ToolsController:
             tc = ToolkitController()
             tc.export_toolkit(
                 name=toolkit_name,
-                output_file=output_file,
+                output_file=toolkit_output_file or output_file,
                 zip_file_out=zip_file_out,
                 connections_output_path=connections_output_path
             )
@@ -1255,6 +1264,7 @@ class ToolsController:
                 self.export_tool(
                     name=t,
                     output_path=f"{output_file.parent}/{t}",
+                    toolkit_output_file=f"{output_file.parent.parent}/toolkits",
                     zip_file_out=zip_file_out,
                     connections_output_path=connections_output_path
                 )

@@ -41,7 +41,7 @@ def build_collaborator_agents_flow(aflow: Flow) -> Flow:
     """
     Return information about a city.
     """
-    # Flow will take an input 'city' which is a city. Try to input one of these four cities: San Jose, Fremont, New York or Los Angeles
+    # Flow will take an input 'city' which is a city. Try to input one of these four cities: San Jose California, Fremont, New York or Los Angeles
     # 1st agent will take city as an input and look up the date which the citi was founded
     # 2nd agent will take city as an input and look up real time weather data
     # 3rd agent will take city as an input and look up current population and coordinates of the city
