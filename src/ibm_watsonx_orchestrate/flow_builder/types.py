@@ -2685,7 +2685,7 @@ class TextExtractionResponse(BaseModel):
     Attributes:
         output_file_ref (str): The url to the file that contains the extracted text and kvps.
     '''
-    output_file_ref: str = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
+    output_file_ref: WXOFile = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
 
 
 class DecisionsCondition(BaseModel):
