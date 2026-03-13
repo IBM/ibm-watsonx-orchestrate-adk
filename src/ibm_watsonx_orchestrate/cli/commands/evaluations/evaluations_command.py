@@ -47,7 +47,7 @@ def _native_agent_template():
     return {
         "spec_version": "v1",
         "style": "default",
-        "llm": "watsonx/meta-llama/llama-3-405b-instruct",
+        "llm": "watsonx/meta-llama/llama-3-3-70b-instruct",
         "name": "",
         "description": "Native agent for validating external agent",
         "instructions": "Use the tools and external agent(s) provided to answer the user's question.  If you do not have enough information to answer the question, say so.  If you need more information, ask follow up questions.",

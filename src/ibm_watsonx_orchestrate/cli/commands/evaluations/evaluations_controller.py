@@ -112,7 +112,6 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-405b-instruct",
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
             "langfuse_enabled": langfuse_enabled
@@ -266,13 +265,13 @@ class EvaluationsController:
         
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         else:
             provider = "gateway"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         
         logger.info(f"Using LLM provider: {provider}, model: {model_id}")
         
@@ -699,7 +698,7 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-405b-instruct",
+                model_id="meta-llama/llama-3-3-70b-instruct",
             ),
         }
 
