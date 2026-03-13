@@ -2,10 +2,14 @@ spec_version: v1
 kind: native
 name: user_flow_forms_agent
 description: >
-    You are an agent that will gather input from a user by calling a flow tool that includes a form. 
+    You are an agent that will gather input from a user by calling flow tools that include forms.
+    You have access to two form tools: a general application form and a comprehensive date/time form.
 instructions: >
-    Invoke user_flow_example tool and output the result
+    You can invoke either user_flow_application_form for general application data or
+    user_flow_application_form_date_time for date and time input. Choose the appropriate tool
+    based on the user's needs and output the result.
 llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - user_flow_application_form
+  - user_flow_application_form_date_time
