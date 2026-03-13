@@ -22,8 +22,10 @@ try:
     from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
     from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
     _import_error = False
-except ImportError:
+    _import_error_msg = None
+except ImportError as e:
     _import_error = True
+    _import_error_msg = str(e)
 
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
@@ -35,7 +37,8 @@ evaluation_app = typer.Typer(no_args_is_help=True)
 
 def _check_import_error():
     if _import_error:
-        logger.error("AgentOps not found. Please install it using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
+        logger.error(f"Failed to import evaluation dependencies: {_import_error_msg}. "
+                     "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
         sys.exit(1)
 
 def _feature_requires_legacy_eval():
