@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 from enum import Enum
 from pydantic.main import BaseModel
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec, WXOFile
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.flow_builder.types import BranchNodeSpec, BranchNodeSpec, Conditions, Expression, ForeachSpec, PromptNodeSpec
 from ibm_watsonx_orchestrate.flow_builder.node import Node, TimerNode
@@ -349,7 +349,8 @@ class Flow(Node):
     def _create_node_from_tool_fn(
         self,
         tool: Callable,
-        error_handler_config: Optional[NodeErrorHandlerConfig] = None
+        error_handler_config: Optional[NodeErrorHandlerConfig] = None,
+        display_name: str | None = None
     ) -> ToolNode:
         if not isinstance(tool, Callable):
             raise ValueError("Only functions with @tool decorator can be added.")
@@ -367,7 +368,7 @@ class Flow(Node):
 
         toolnode_spec = ToolNodeSpec(type = "tool",
                                      name = tool_spec.name,
-                                     display_name = tool_spec.name,
+                                     display_name = display_name if display_name else tool_spec.name,
                                      description = tool_spec.description,
                                      input_schema = tool_spec.input_schema,
                                      output_schema = tool_spec.output_schema,
@@ -455,7 +456,7 @@ class Flow(Node):
             if callable(tool):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
-                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config, display_name = display_name)
                     # if name is specifed, override the name in the tool spec
                     if name is not None:
                         node.spec.name = name
@@ -783,7 +784,7 @@ class Flow(Node):
             kvp_model_name: str | None = None,
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
-            output_format: DocProcOutputFormat | str = DocProcOutputFormat.docref) -> DocProcNode:
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
