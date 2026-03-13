@@ -349,7 +349,8 @@ class Flow(Node):
     def _create_node_from_tool_fn(
         self,
         tool: Callable,
-        error_handler_config: Optional[NodeErrorHandlerConfig] = None
+        error_handler_config: Optional[NodeErrorHandlerConfig] = None,
+        display_name: str | None = None
     ) -> ToolNode:
         if not isinstance(tool, Callable):
             raise ValueError("Only functions with @tool decorator can be added.")
@@ -367,7 +368,7 @@ class Flow(Node):
 
         toolnode_spec = ToolNodeSpec(type = "tool",
                                      name = tool_spec.name,
-                                     display_name = tool_spec.name,
+                                     display_name = display_name if display_name else tool_spec.name,
                                      description = tool_spec.description,
                                      input_schema = tool_spec.input_schema,
                                      output_schema = tool_spec.output_schema,
@@ -455,7 +456,7 @@ class Flow(Node):
             if callable(tool):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
-                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config, display_name = display_name)
                     # if name is specifed, override the name in the tool spec
                     if name is not None:
                         node.spec.name = name
