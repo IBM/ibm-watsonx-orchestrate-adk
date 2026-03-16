@@ -72,6 +72,7 @@ class ToolkitMCPInputSpec(BaseModel):
     tools: Optional[List[str]] = None
     connections: Optional[List[str]] = None
     source: Optional[ToolkitSource] = None
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
     allowed_context: Optional[List[str]] = None
 
     def __parse_tool_string(tool_string: str) -> List[str]:

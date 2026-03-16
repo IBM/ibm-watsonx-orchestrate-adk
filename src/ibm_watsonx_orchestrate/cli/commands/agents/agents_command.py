@@ -437,3 +437,25 @@ def experimental_connect_connections(
     """
     agents_controller = AgentsController()
     agents_controller.connect_connections_to_agent(agent_name=name, connection_ids=connection_ids)
+
+@agents_app.command(name="copy", help='Copy an agent to a different workspace')
+def agent_copy(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the agent to copy"),
+    ],
+    destination_workspace: Annotated[
+        str,
+        typer.Option("--destination", "-d", help="Destination workspace name"),
+    ],
+    source_workspace: Annotated[
+        Optional[str],
+        typer.Option("--source", "-s", help="Source workspace name (defaults to active workspace)"),
+    ] = None,
+):
+    agents_controller = AgentsController()
+    agents_controller.copy_agent(
+        agent_name=name,
+        destination_workspace=destination_workspace,
+        source_workspace=source_workspace
+    )
