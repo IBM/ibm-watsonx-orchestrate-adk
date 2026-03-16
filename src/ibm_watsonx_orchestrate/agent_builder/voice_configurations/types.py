@@ -71,6 +71,20 @@ class DeepgramSTTConfig(BaseModel):
   model: Annotated[str, Field(min_length=1, max_length=256)]
   keyterm: Optional[list[str]] = None
   mip_opt_out: Optional[bool] = None
+  
+  @model_validator(mode="after")
+  def validate_keyterm_model(self):
+    """Ensure keyterm is only used with supported models"""
+    if self.keyterm is not None and len(self.keyterm) > 0:
+      # List of models that support keyterm
+      supported_models = ["flux-general-en", "nova-3", "nova-3-general"]
+      
+      if self.model not in supported_models:
+        raise ValueError(
+          f"keyterm parameter is only supported for models: {', '.join(supported_models)}. Current model: {self.model}"
+        )
+    return self
+  
   # v1/listen endpoint parameters
   channels: Optional[int] = Field(default=None, description="Number of audio channels")
   diarize: Optional[bool] = Field(default=None, description="Enable speaker diarization")
