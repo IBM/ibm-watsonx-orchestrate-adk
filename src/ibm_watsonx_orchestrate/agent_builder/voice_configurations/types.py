@@ -1,4 +1,5 @@
 import json
+import warnings
 from enum import Enum
 from typing import Annotated, Optional, List, Dict
 from pydantic import BaseModel, Field, model_validator, ConfigDict
@@ -37,7 +38,10 @@ class WatsonSTTConfig(BaseModel):
     description="Enable speaker labels (beta). Default false"
   )
   redaction: Optional[bool] = None
-  low_latency: Optional[bool] = None
+  low_latency: Optional[bool] = Field(
+    default=None,
+    description="Enable low latency mode. Available only for some next-generation models"
+  )
   learning_opt_out: Optional[bool] = None
   watson_metadata: Optional[Annotated[str, Field(min_length=1, max_length=512)]] = Field(
     default=None,
@@ -57,6 +61,18 @@ class WatsonSTTConfig(BaseModel):
   )
   end_of_phrase_silence_time: Optional[Annotated[float, Field(ge=0.0, le=120.0)]] = None
 
+  @model_validator(mode="after")
+  def warn_low_latency(self):
+    if self.low_latency is True:
+      warnings.warn(
+        "Low latency is available only for some next-generation Watson STT models. "
+        "For next-generation models that do not support low-latency, the service will fail. "
+        "See: https://cloud.ibm.com/docs/speech-to-text?topic=speech-to-text-models-ng",
+        UserWarning,
+        stacklevel=2
+      )
+    return self
+
 class EmotechSTTConfig(BaseModel):
   api_url: Annotated[str, Field(min_length=1, max_length=2048)]
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
@@ -73,16 +89,32 @@ class DeepgramSTTConfig(BaseModel):
   mip_opt_out: Optional[bool] = None
   
   @model_validator(mode="after")
-  def validate_keyterm_model(self):
-    """Ensure keyterm is only used with supported models"""
+  def validate_model_and_features(self):
+    """Validate model and feature usage"""
+    # Warn if model doesn't start with nova-2 or nova-3
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+      warnings.warn(
+        f"Model '{self.model}' is not officially supported by the ADK. "
+        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Proceed at your own risk.",
+        UserWarning,
+        stacklevel=2
+      )
+    
+    # Block keyterm usage on non-nova-3 models
     if self.keyterm is not None and len(self.keyterm) > 0:
-      # List of models that support keyterm
-      supported_models = ["flux-general-en", "nova-3", "nova-3-general"]
-      
-      if self.model not in supported_models:
+      if not self.model.startswith("nova-3"):
         raise ValueError(
-          f"keyterm parameter is only supported for models: {', '.join(supported_models)}. Current model: {self.model}"
+          f"keyterm parameter is only supported for nova-3 models. Current model: {self.model}"
         )
+    
+    # Block keywords usage on non-nova-2 models
+    if self.keywords is not None and len(self.keywords) > 0:
+      if not self.model.startswith("nova-2"):
+        raise ValueError(
+          f"keywords parameter is only supported for nova-2 models. Current model: {self.model}"
+        )
+    
     return self
   
   # v1/listen endpoint parameters
@@ -98,7 +130,7 @@ class DeepgramSTTConfig(BaseModel):
   numerals: Optional[bool] = None
   profanity_filter: Optional[bool] = Field(default=None, description="Filter profanity")
   punctuate: Optional[bool] = Field(default=None, description="Add punctuation and capitalization")
-  redact: Optional[str] = Field(default=None, description="Redact sensitive information")
+  redact: Optional[List[str]] = Field(default=None, description="Redact sensitive information")
   replace: Optional[List[str]] = Field(default=None, description="Replace specified terms")
   search: Optional[List[str]] = Field(default=None, description="Search for specific terms")
   smart_format: Optional[bool] = Field(default=None, description="Apply smart formatting to the transcript")
@@ -169,10 +201,20 @@ class ElevenLabsTTSConfig(BaseModel):
   language_code: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
   apply_text_normalization: Optional[str] = None
   optimize_streaming_latency: Optional[int] = Field(default=None, description="Optimize streaming latency (0-4)")
-  apply_language_text_normalization: Optional[bool] = Field(default=None, description="Whether to apply language-specific text normalization")
+  apply_language_text_normalization: Optional[bool] = Field(default=None, description="Whether to apply language-specific text normalization. Currently only supported for Japanese (ja)")
   pronunciation_dictionary_locators: Optional[List[ElevenLabsPronounciationDict]] = Field(default=None, description="List of pronunciation dictionary locators")
   seed: Optional[int] = Field(default=None, description="Seed for deterministic audio generation")
   voice_settings: Optional[ElevenLabsVoiceSettings] = None
+
+  @model_validator(mode="after")
+  def validate_language_text_normalization(self):
+    """Ensure apply_language_text_normalization is only used with Japanese language code"""
+    if self.apply_language_text_normalization is not None and self.apply_language_text_normalization:
+      if self.language_code != "ja":
+        raise ValueError(
+          f"apply_language_text_normalization is only supported for Japanese language code 'ja'. Current language_code: {self.language_code}"
+        )
+    return self
 
 class DeepgramTTSConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
