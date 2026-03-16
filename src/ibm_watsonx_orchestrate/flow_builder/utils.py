@@ -404,6 +404,22 @@ FIELD_INPUT_SCHEMA_TEMPLATES = {
             additionalProperties=False # pyright: ignore[reportCallIssue]
         )
     },
+     "time": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "time"}},
+            required=["value"],
+            additionalProperties=False # pyright: ignore[reportCallIssue]
+        )
+    },
+     "datetime": {
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "datetime"}},
+            required=["value"],
+            additionalProperties=False # pyright: ignore[reportCallIssue]
+        )
+    },
 
     # File upload templates
     "file": {
@@ -411,24 +427,6 @@ FIELD_INPUT_SCHEMA_TEMPLATES = {
             type='object',
             properties={"value": {"type": "string", "format": "wxo-file"}},
             required=["value"]
-        )
-    },
-
-    # User input templates
-    "user": {
-        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
-            type='object',
-            properties={
-                "min_num_users": {"type": "number"},
-                "max_num_users": {"type": "number"}
-            },
-            required=[]
-        ),
-        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
-            type='object',
-            properties={"value": {"type": "array", "items": {"type": "string"}}},
-            required=["value"],
-            additionalProperties=False
         )
     },
 }
@@ -544,11 +542,53 @@ FORM_SCHEMA_TEMPLATES = {
         }
     },
     
+    # Time input templates
+    "time": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "default": {"type": "string", "format": "time"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "time"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "TimeWidget",
+            "ui:title": "",  # Will be filled in
+        }
+    },
+    
+    # DateTime input templates
+    "datetime": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "default": {"type": "string", "format": "date-time"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={"value": {"type": "string", "format": "date-time"}},
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "TimeWidget",
+            "ui:title": "",  # Will be filled in
+        }
+    },
+    
     # Date range templates
     "date_range": {
         "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
             properties={
+                "default_start": {"type": "string", "format": "date"},
+                "default_end": {"type": "string", "format": "date"},
                 "value": {
                     "type": "object",
                     "properties": {
@@ -557,7 +597,7 @@ FORM_SCHEMA_TEMPLATES = {
                     }
                 }
             },
-            required=["value"]
+            required=[]
         ),
         "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
@@ -576,6 +616,36 @@ FORM_SCHEMA_TEMPLATES = {
             "ui:widget": "DateWidget",
             "format": "YYYY-MM-DD",
             "ui:options": {"range": True},
+            "ui:order": ["start", "end"]
+        }
+    },
+    
+    # Time range templates
+    "time_range": {
+        "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "default_start": {"type": "string", "format": "time"},
+                "default_end": {"type": "string", "format": "time"}
+            },
+            required=[]
+        ),
+        "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]
+            type='object',
+            properties={
+                "value": {
+                    "type": "object",
+                    "properties": {
+                        "end": {"type": "string", "format": "time"},
+                        "start": {"type": "string", "format": "time"}
+                    }
+                }
+            },
+            required=["value"]
+        ),
+        "ui": {
+            "ui:widget": "TimeWidget",
+            "ui:options": {"is_range": True, "is_timezone": True, "is_datepicker": False},
             "ui:order": ["start", "end"]
         }
     },

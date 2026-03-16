@@ -1975,44 +1975,6 @@ class UserFlow(Flow):
 
             if kind == UserFieldKind.Text and text is None:
                 raise ValueError("Text field must be set for Text input.")
-        
-        # Handle multiple_users and required parameters for User field kind
-        if kind == UserFieldKind.User and direction == "input":
-            required_list = ["value"] if required else []
-            if multiple_users:
-                # Create array schema for multiple users with input schema for min/max
-                input_schema_properties = {
-                    "min_num_users": {"type": "integer"},
-                    "max_num_users": {"type": "integer"}
-                }
-                
-                schema_obj = {
-                    "input": JsonSchemaObject(
-                        type='object',
-                        properties=input_schema_properties,
-                        required=[],
-                        additionalProperties=False
-                    ) if input_schema_properties else None,
-                    "output": JsonSchemaObject(
-                        type='object',
-                        properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
-                        required=required_list,
-                        additionalProperties=False
-                    )
-                }
-                # Remove input key if no properties
-                if not input_schema_properties:
-                    del schema_obj["input"]
-            else:
-                # Single user schema - no input schema
-                schema_obj = {
-                    "output": JsonSchemaObject(
-                        type='object',
-                        properties={"value": {"type": "string", "format": "wxo-user"}},
-                        required=required_list,
-                        additionalProperties=False
-                    )
-                }
 
         # A user node will only has 1 field or 1 form.
         user_node_spec = UserNodeSpec(
