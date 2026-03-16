@@ -172,8 +172,6 @@ class ElevenLabsTTSConfig(BaseModel):
   apply_language_text_normalization: Optional[bool] = Field(default=None, description="Whether to apply language-specific text normalization")
   pronunciation_dictionary_locators: Optional[List[ElevenLabsPronounciationDict]] = Field(default=None, description="List of pronunciation dictionary locators")
   seed: Optional[int] = Field(default=None, description="Seed for deterministic audio generation")
-  previous_text: Optional[str] = Field(default=None, description="Previous text for context")
-  next_text: Optional[str] = Field(default=None, description="Next text for context")
   voice_settings: Optional[ElevenLabsVoiceSettings] = None
 
 class DeepgramTTSConfig(BaseModel):
