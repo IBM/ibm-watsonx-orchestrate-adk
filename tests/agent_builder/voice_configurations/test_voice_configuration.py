@@ -261,3 +261,78 @@ class TestVoiceConfigurationInit:
     assert config.text_to_speech.emotech_tts_config.api_key == config_data['text_to_speech']['emotech_tts_config']['api_key']
     assert config.text_to_speech.emotech_tts_config.voice == config_data['text_to_speech']['emotech_tts_config']['voice']
 
+  def test_deepgram_keyterm_with_supported_model_nova3(self):
+    """Test that keyterm works with nova-3 model"""
+    config_data = {
+      "name": "deepgram_keyterm_test",
+      "speech_to_text": {
+        "provider": "deepgram",
+        "deepgram_stt_config": {
+          "api_url": "https://api.deepgram.com",
+          "api_key": "test_key",
+          "model": "nova-3",
+          "keyterm": ["help", "search", "Mr. Smith"]
+        }
+      },
+      "text_to_speech": {
+        "provider": "watson",
+        "watson_tts_config": {
+          "api_url": "example.url/tts",
+          "api_key": "example tts key",
+          "voice": "example voice"
+        }
+      }
+    }
+    config = VoiceConfiguration.model_validate(config_data)
+    assert config.speech_to_text.deepgram_stt_config.keyterm == ["help", "search", "Mr. Smith"]
+
+  def test_deepgram_keyterm_with_supported_model_flux(self):
+    """Test that keyterm works with flux-general-en model"""
+    config_data = {
+      "name": "deepgram_keyterm_test",
+      "speech_to_text": {
+        "provider": "deepgram",
+        "deepgram_stt_config": {
+          "api_url": "https://api.deepgram.com",
+          "api_key": "test_key",
+          "model": "flux-general-en",
+          "keyterm": ["help"]
+        }
+      },
+      "text_to_speech": {
+        "provider": "watson",
+        "watson_tts_config": {
+          "api_url": "example.url/tts",
+          "api_key": "example tts key",
+          "voice": "example voice"
+        }
+      }
+    }
+    config = VoiceConfiguration.model_validate(config_data)
+    assert config.speech_to_text.deepgram_stt_config.keyterm == ["help"]
+
+  def test_deepgram_keyterm_with_unsupported_model_nova2(self):
+    """Test that keyterm raises error with nova-2 model"""
+    config_data = {
+      "name": "deepgram_keyterm_test",
+      "speech_to_text": {
+        "provider": "deepgram",
+        "deepgram_stt_config": {
+          "api_url": "https://api.deepgram.com",
+          "api_key": "test_key",
+          "model": "nova-2",
+          "keyterm": ["help", "search"]
+        }
+      },
+      "text_to_speech": {
+        "provider": "watson",
+        "watson_tts_config": {
+          "api_url": "example.url/tts",
+          "api_key": "example tts key",
+          "voice": "example voice"
+        }
+      }
+    }
+    with pytest.raises(ValidationError) as exc_info:
+      VoiceConfiguration.model_validate(config_data)
+    assert "keyterm parameter is only supported for models" in str(exc_info.value)
