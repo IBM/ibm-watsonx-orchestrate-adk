@@ -4,6 +4,11 @@ from enum import Enum
 import os
 
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
+from ibm_watsonx_orchestrate.cli.workspace_context import (
+    resolve_and_inject_workspace,
+    add_workspace_query_param,
+    convert_workspace_id_to_name,
+)
 from pydantic import BaseModel
 import requests
 import time
@@ -113,14 +118,37 @@ class AgentClient(BaseWXOClient):
         self.base_endpoint = "/orchestrate/agents" if is_local_dev(self.base_url) else "/agents"
 
     def create(self, payload: dict) -> AgentUpsertResponse:
-        response = self._post(self.base_endpoint, data=transform_agents_from_flat_agent_spec(payload))
+        # Resolve workspace field and inject active workspace context
+        payload = resolve_and_inject_workspace(payload)
+        
+        # Transform payload for API
+        transformed_payload = transform_agents_from_flat_agent_spec(payload)
+        
+        response = self._post(self.base_endpoint, data=transformed_payload)
         return AgentUpsertResponse.model_validate(response)
 
     def get(self) -> dict:
-        return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?include_hidden=true"))
+        # Add workspace_id query parameter if active workspace exists
+        params = add_workspace_query_param({'include_hidden': 'true'})
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        agents = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{query_string}"))
+        
+        # Convert workspace_id to workspace name in response
+        if isinstance(agents, list):
+            agents = [convert_workspace_id_to_name(agent) for agent in agents]
+        else:
+            agents = convert_workspace_id_to_name(agents)
+        
+        return agents
 
     def update(self, agent_id: str, data: dict) -> AgentUpsertResponse:
-        response = self._patch(f"{self.base_endpoint}/{agent_id}", data=transform_agents_from_flat_agent_spec(data))
+        # Resolve workspace field and inject active workspace context
+        data = resolve_and_inject_workspace(data)
+        
+        # Transform payload for API
+        transformed_payload = transform_agents_from_flat_agent_spec(data)
+        
+        response = self._patch(f"{self.base_endpoint}/{agent_id}", data=transformed_payload)
         return AgentUpsertResponse.model_validate(response)
 
     def delete(self, agent_id: str) -> dict:
@@ -131,7 +159,12 @@ class AgentClient(BaseWXOClient):
 
     def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
-        return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(formatted_agent_names)}&include_hidden=true"))
+        params = {'include_hidden': 'true'}
+        # Add workspace filtering if applicable
+        params = add_workspace_query_param(params)
+        # Build query string with names and other params
+        query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
+        return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}"))
     
     def get_draft_by_id(self, agent_id: str) -> dict | str:
         if agent_id is None:
@@ -147,7 +180,12 @@ class AgentClient(BaseWXOClient):
     
     def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
-        return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(formatted_agent_ids)}&include_hidden=true"))
+        params = {'include_hidden': 'true'}
+        # Add workspace filtering if applicable
+        params = add_workspace_query_param(params)
+        # Build query string with ids and other params
+        query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]
+        return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}"))
 
     def poll_release_status(self, agent_id: str, environment_id: str, mode: str = "deploy") -> bool:
         expected_status = {
@@ -237,4 +275,40 @@ class AgentClient(BaseWXOClient):
         """
         response: requests.Response = self._get(f"{self.base_endpoint}/{agent_id}/download", return_raw=True)  # type: ignore
         return response.content
+    
+    def copy_agent(self, agent_id: str, destination_workspace_id: str, source_workspace_id: str) -> dict:
+        """
+        Copy an agent to a destination workspace asynchronously.
+        
+        copies all agent dependencies (tools, collaborators) automatically.
+        
+        Args:
+            agent_id: Source agent UUID to copy
+            destination_workspace_id: Destination workspace ID (use '00000000-0000-0000-0000-000000000001' for global)
+            source_workspace_id: Source workspace ID (use '00000000-0000-0000-0000-000000000001' for global)
+            
+        Returns:
+            dict with keys:
+                - id: UUID of the newly created agent copy
+                - message: Status message
+                - status_endpoint: Endpoint to check copy operation status
+        """
+        payload = {
+            "destination_workspace_id": destination_workspace_id,
+            "source_workspace_id": source_workspace_id
+        }
+        
+        response = self._post(f"{self.base_endpoint}/{agent_id}/copy", data=payload)
+        return response
+    
+    def get_agent_copy_status(self, agent_id: str) -> dict:
+        """
+        Get the status of an agent copy operation.
+        
+        This endpoint is used to poll the status of an async agent copy operation.
+        
+        Args:
+            agent_id: The ID of the newly created agent (returned from copy_agent)
+        """
+        return self._get(f"{self.base_endpoint}/{agent_id}/template-status")
     
