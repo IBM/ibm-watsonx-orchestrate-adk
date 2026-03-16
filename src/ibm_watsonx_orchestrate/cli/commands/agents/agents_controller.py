@@ -37,6 +37,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id, get_conn_id_from_app_id
@@ -58,6 +59,7 @@ from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_cl
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
 
 logger = logging.getLogger(__name__)
 
@@ -1549,12 +1551,9 @@ class AgentsController:
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
         if isinstance(agent, Agent):
-            # Get the raw response to check for custom agent config
+            # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
-            response_data = native_client._post(
-                native_client.base_endpoint,
-                data=transform_agents_from_flat_agent_spec(agent.model_dump(exclude_none=True))
-            )
+            response_data = native_client.create(agent.model_dump(exclude_none=True))
             response = AgentUpsertResponse.model_validate(response_data)
             _raise_guidelines_warning(response)
 
@@ -2213,7 +2212,15 @@ class AgentsController:
 
                 logger.info(f"Successfully removed agent {name}")
             else:
-                logger.warning(f"No agent named '{name}' found")
+                # Provide workspace-aware error message
+                if should_use_workspaces():
+                    active_workspace = get_active_workspace_name()
+                    if active_workspace:
+                        logger.warning(f"No agent named '{name}' found in active workspace '{active_workspace}'")
+                    else:
+                        logger.warning(f"No agent named '{name}' found")
+                else:
+                    logger.warning(f"No agent named '{name}' found")
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)
@@ -2571,6 +2578,108 @@ class AgentsController:
             logger.info(f"Successfully undeployed agent {name}")
         else:
             logger.error(f"Error undeploying agent {name}")
+
+    def copy_agent(
+        self,
+        agent_name: str,
+        destination_workspace: str,
+        source_workspace: Optional[str] = None
+    ):
+        """
+        Copy an agent to a destination workspace.
+        
+        Args:
+            agent_name: Name of the agent to copy
+            destination_workspace: Destination workspace name (required)
+            source_workspace: Source workspace name (defaults to active workspace)
+        """
+        console = Console()
+        workspace_context = WorkspaceContext()
+        
+        # Check if workspaces are supported (IBM Cloud only)
+        if not workspace_context.should_use_workspaces():
+            logger.error("Agent copy is only supported for IBM Cloud instances. Workspaces are not available in the current environment.")
+            sys.exit(1)
+        
+        # Lazy import to avoid circular dependency
+        from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_controller import WorkspacesController
+        workspace_controller = WorkspacesController()
+        
+        # Resolve source workspace
+        source_workspace, source_workspace_id = workspace_controller._resolve_workspace(source_workspace)
+        
+        # Resolve destination workspace
+        destination_workspace, destination_workspace_id = workspace_controller._resolve_workspace(destination_workspace)
+        
+        # Validate that source and destination are different
+        if source_workspace_id == destination_workspace_id:
+            logger.error(f"Cannot copy agent to the same workspace. Source and destination workspaces are both '{source_workspace}'")
+            sys.exit(1)
+        
+        # Get agent by name from source workspace
+        # The API will filter by workspace_id query parameter automatically
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+        
+        # Query agents from source workspace and track which client found it
+        existing_native_agents = native_client.get_draft_by_name(agent_name)
+        existing_external_agents = external_client.get_draft_by_name(agent_name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
+        
+        # Determine which type of agent was found
+        agent = None
+        client = None
+        agent_type_name = None
+        
+        if len(existing_native_agents) > 0:
+            agent = existing_native_agents[0]
+            client = native_client
+            agent_type_name = "native"
+        elif len(existing_external_agents) > 0:
+            agent = existing_external_agents[0]
+            client = external_client
+            agent_type_name = "external"
+        elif len(existing_assistant_agents) > 0:
+            agent = existing_assistant_agents[0]
+            client = assistant_client
+            agent_type_name = "assistant"
+        else:
+            logger.error(f"No agent found with name '{agent_name}' in workspace '{source_workspace}'")
+            sys.exit(1)
+        
+        agent_id = agent.get("id")
+        
+        try:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(
+                    description=f"Copying agent '{agent_name}' from '{source_workspace}' to '{destination_workspace}'",
+                    total=None
+                )
+                
+                response = client.copy_agent(
+                    agent_id=agent_id,
+                    destination_workspace_id=destination_workspace_id,
+                    source_workspace_id=source_workspace_id
+                )
+            
+            new_agent_id = response.get("id")
+            message = response.get("message")
+            status_endpoint = response.get("status_endpoint")
+            
+            logger.info(f"✓ Agent copy initiated successfully")
+            logger.info(f"  New agent ID: {new_agent_id}")
+            logger.info(f"  {message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to copy agent: {str(e)}")
+            sys.exit(1)
+    
     
     @staticmethod
     def _format_agent_display_name(agent: AnyAgentT) -> str:

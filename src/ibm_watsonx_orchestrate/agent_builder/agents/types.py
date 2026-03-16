@@ -97,6 +97,7 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     # Catalog Only
     publisher: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
@@ -415,3 +416,26 @@ def validate_assistant_agent_fields(values: dict) -> dict:
                 raise ValueError("All context_variables must be non-empty strings")
 
     return values
+
+
+# ==================== AGENT COPY TYPES ====================
+
+class AgentCopyRequest(BaseModel):
+    """Request model for copying an agent to a workspace.
+    
+    Note: Currently copies all agent dependencies (tools, collaborators) automatically.
+    """
+    destination_workspace_id: str = Field(
+        ...,
+        description="Destination workspace ID where the agent will be copied. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+    source_workspace_id: str = Field(
+        ...,
+        description="Source workspace ID where the agent currently exists. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+
+class AgentCopyResponse(BaseModel):
+    """Response model for agent copy operation."""
+    id: str = Field(..., description="UUID of the newly created agent copy")
+    message: str = Field(..., description="Status message indicating the copy operation has been initiated")
+    status_endpoint: str = Field(..., description="Endpoint to check the status of the copy operation")
