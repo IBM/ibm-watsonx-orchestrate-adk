@@ -51,6 +51,8 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+import yaml
 
 from  ibm_watsonx_orchestrate import __version__
 

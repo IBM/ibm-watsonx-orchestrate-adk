@@ -361,13 +361,14 @@ class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
     spec_version: SpecVersion = None
     kind: KnowledgeBaseKind = KnowledgeBaseKind.KNOWLEDGE_BASE
-    id: Optional[UUID] = None 
+    id: Optional[UUID] = None
     tenant_id: Optional[str] = None
     name: str
     description: Optional[str] = None
     vector_index: Optional[KnowledgeBaseBuiltInVectorIndexConfig] = None
     conversational_search_tool: Optional[ConversationalSearchConfig] | Optional[UUID] = None
     prioritize_built_in_index: Optional[bool] = None
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
     representation: Optional[KnowledgeBaseRepresentation] = None
     vector_index_id: Optional[UUID] = None 
     created_by: Optional[str] = None
