@@ -173,12 +173,25 @@ class VoiceConfigurationsController:
 
   def remove_voice_config_by_name(self, voice_config_name: str) -> None:
     client = self.get_voice_configurations_client()
-    voice_config = self.get_voice_config_by_name(voice_config_name)
-    if voice_config:
-      client.delete(voice_config.voice_configuration_id)
+    # Get raw config list without validation for deletion
+    config_list = client.list()
+    matching_configs = [cfg for cfg in config_list if cfg.get('name') == voice_config_name]
+    
+    if not matching_configs:
+      logger.info(f"Voice config '{voice_config_name}' not found")
+      return
+    
+    if len(matching_configs) > 1:
+      logger.error(f"Multiple voice_configs with the name '{voice_config_name}' found. Failed to delete config")
+      sys.exit(1)
+    
+    config_id = matching_configs[0].get('voice_configuration_id')
+    if config_id:
+      client.delete(config_id)
       logger.info(f"Sucessfully deleted voice config '{voice_config_name}'")
     else:
-      logger.info(f"Voice config '{voice_config_name}' not found")
+      logger.error(f"Voice config '{voice_config_name}' has no ID")
+      sys.exit(1)
 
   def resolve_config_id(
       self,
