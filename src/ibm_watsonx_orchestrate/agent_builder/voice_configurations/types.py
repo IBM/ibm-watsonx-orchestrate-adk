@@ -86,36 +86,8 @@ class DeepgramSTTConfig(BaseModel):
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   model: Annotated[str, Field(min_length=1, max_length=256)]
   keyterm: Optional[list[str]] = None
+  keywords: Optional[List[str]] = Field(default=None, description="Keywords to detect")
   mip_opt_out: Optional[bool] = None
-  
-  @model_validator(mode="after")
-  def validate_model_and_features(self):
-    """Validate model and feature usage"""
-    # Warn if model doesn't start with nova-2 or nova-3
-    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
-      warnings.warn(
-        f"Model '{self.model}' is not officially supported by the ADK. "
-        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
-        f"Proceed at your own risk.",
-        UserWarning,
-        stacklevel=2
-      )
-    
-    # Block keyterm usage on non-nova-3 models
-    if self.keyterm is not None and len(self.keyterm) > 0:
-      if not self.model.startswith("nova-3"):
-        raise ValueError(
-          f"keyterm parameter is only supported for nova-3 models. Current model: {self.model}"
-        )
-    
-    # Block keywords usage on non-nova-2 models
-    if self.keywords is not None and len(self.keywords) > 0:
-      if not self.model.startswith("nova-2"):
-        raise ValueError(
-          f"keywords parameter is only supported for nova-2 models. Current model: {self.model}"
-        )
-    
-    return self
   
   # v1/listen endpoint parameters
   channels: Optional[int] = Field(default=None, description="Number of audio channels")
@@ -124,7 +96,6 @@ class DeepgramSTTConfig(BaseModel):
   endpointing: Optional[int] = Field(default=None, description="Endpointing silence duration in seconds, or false to disable")
   extra: Optional[List[str]] = Field(default=None, description="Extra parameters to pass to Deepgram")
   interim_results: Optional[bool] = Field(default=None, description="Enable interim results")
-  keywords: Optional[List[str]] = Field(default=None, description="Keywords to detect")
   language: Optional[str] = None
   multichannel: Optional[bool] = Field(default=None, description="Transcribe each audio channel independently")
   numerals: Optional[bool] = None
@@ -153,6 +124,34 @@ class DeepgramSTTConfig(BaseModel):
   )
   eot_timeout_ms: Optional[int] = Field(default=None, description="A turn will be finished when this much time (ms) has passed after speech, regardless of EOT confidence")
 
+  @model_validator(mode="after")
+  def validate_model_and_features(self):
+    """Validate model and feature usage"""
+    # Warn if model doesn't start with nova-2 or nova-3
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+      warnings.warn(
+        f"Model '{self.model}' is not officially supported by the ADK. "
+        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Proceed at your own risk.",
+        UserWarning,
+        stacklevel=2
+      )
+    
+    # Block keyterm usage on non-nova-3 models
+    if self.keyterm is not None and len(self.keyterm) > 0:
+      if not self.model.startswith("nova-3"):
+        raise ValueError(
+          f"keyterm parameter is only supported for nova-3 models. Current model: {self.model}"
+        )
+    
+    # Block keywords usage on non-nova-2 models
+    if self.keywords is not None and len(self.keywords) > 0:
+      if not self.model.startswith("nova-2"):
+        raise ValueError(
+          f"keywords parameter is only supported for nova-2 models. Current model: {self.model}"
+        )
+    
+    return self
 
 class SpeechToTextConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
