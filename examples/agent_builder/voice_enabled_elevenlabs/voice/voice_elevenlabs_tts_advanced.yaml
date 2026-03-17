@@ -11,7 +11,7 @@ speech_to_text:
 text_to_speech:
   provider: elevenlabs_tts
   elevenlabs_tts_config:
-    api_url: "https://api.elevenlabs.io"  # Optional: ElevenLabs API URL
+    api_url: "https://api.elevenlabs.io/v1/text-to-speech"  # Optional: ElevenLabs API URL
     api_key: "your-elevenlabs-api-key"
     model_id: "example model" # e.g. eleven_turbo_v2_5
     voice_id: "example voice" # e.g. CwhRBWXzGAHq8TQ4Fs17
