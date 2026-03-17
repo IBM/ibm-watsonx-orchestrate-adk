@@ -198,6 +198,8 @@ services:
       DPS_CACHE_URL: http://localhost:18083
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
+      ENABLE_AGENT_DEBUG: "true"
+      
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
