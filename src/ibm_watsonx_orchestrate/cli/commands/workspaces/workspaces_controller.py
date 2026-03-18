@@ -61,23 +61,6 @@ class WorkspacesController:
             if not active_env:
                 logger.error("No active environment. Please activate an environment first using 'orchestrate env activate'")
                 sys.exit(1)
-            
-            env_url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
-            if is_local_dev(env_url):
-                logger.error(
-                    "Workspaces functionality is only available in IBM Cloud environments.")
-                sys.exit(1)
-            
-            if is_cpd_env(env_url):
-                logger.error(
-                    "Workspaces functionality is only available in IBM Cloud environments.")
-                sys.exit(1)
-            
-            # Check if it's AWS/GA platform (not IBM Cloud)
-            if not is_ibm_cloud_platform(env_url):
-                logger.error(
-                    "Workspaces functionality is only available in IBM Cloud environments.")
-                sys.exit(1)
                 
         except Exception as e:
             logger.error(f"Failed to validate environment: {str(e)}")
