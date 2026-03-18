@@ -192,12 +192,19 @@ class WorkspacesController:
                     workspace_name = workspace.get("name", "")
                     workspace_id = workspace.get("workspace_id", "")
                     
-                    # Show Global Workspace as active when no workspace is activated
-                    is_global = workspace_id == GLOBAL_WORKSPACE_ID
+                    # Check if this is the Global Workspace (by ID or name)
+                    is_global = (
+                        workspace_id == GLOBAL_WORKSPACE_ID or
+                        workspace_name == GLOBAL_WORKSPACE_NAME
+                    )
+                    
+                    # Determine if this workspace should show as active
                     is_active = ""
                     if active_workspace:
+                        # A specific workspace is activated - check if it matches
                         is_active = "✓" if workspace_name == active_workspace else ""
                     elif is_global:
+                        # No workspace activated - Global is the default active workspace
                         is_active = "✓"
                     
                     table.add_row(
