@@ -99,10 +99,15 @@ class WorkspacesController:
     # ==================== WORKSPACE CRUD OPERATIONS ====================
 
     def _validate_workspace_name(self, name: str):
-        # Name must be 1-255 characters, can contain letters, numbers, spaces, underscores, and hyphens
+        # Name must be 1-40 characters, can contain letters, numbers, spaces, underscores, and hyphens
         # Must not be empty or only whitespace
         if not name or not name.strip():
             logger.error("Workspace name cannot be empty or only whitespace.")
+            sys.exit(1)
+        
+        # Check maximum length (API enforces 40 characters)
+        if len(name) > 40:
+            logger.error(f"Invalid workspace name. Name must be at most 40 characters long (current length: {len(name)}).")
             sys.exit(1)
         
         # Allow letters, numbers, spaces, underscores, and hyphens
