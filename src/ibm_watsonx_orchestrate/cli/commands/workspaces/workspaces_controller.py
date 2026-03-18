@@ -8,7 +8,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import typer
 
 from ibm_watsonx_orchestrate.client.workspaces.workspace_client import WorkspaceClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.agent_builder.workspaces.types import WorkspaceRole
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
@@ -64,8 +64,21 @@ class WorkspacesController:
             
             env_url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
             if is_local_dev(env_url):
-                logger.error("Workspace management is only available for IBM Cloud environments.")
+                logger.error(
+                    "Workspaces functionality is only available in IBM Cloud environments.")
                 sys.exit(1)
+            
+            if is_cpd_env(env_url):
+                logger.error(
+                    "Workspaces functionality is only available in IBM Cloud environments.")
+                sys.exit(1)
+            
+            # Check if it's AWS/GA platform (not IBM Cloud)
+            if not is_ibm_cloud_platform(env_url):
+                logger.error(
+                    "Workspaces functionality is only available in IBM Cloud environments.")
+                sys.exit(1)
+                
         except Exception as e:
             logger.error(f"Failed to validate environment: {str(e)}")
             sys.exit(1)
