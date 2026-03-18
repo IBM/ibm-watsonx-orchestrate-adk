@@ -7,7 +7,7 @@ speech_to_text:
   watson_stt_config:
     api_url: "example-stt-url" # Required
     api_key: "example-stt-key" # Required
-    model: "en-US"  # Required, e.g., en-US_BroadbandModel
+    model: "en-US"  # Required (e.g. "en-US", "en-US_Telephony")
     background_audio_suppression: 0  # Optional: 0.0-1.0, background noise suppression level
     language_customization_id: null  # Optional: Language customization ID
     inactivity_timeout: 30  # Optional: Seconds of inactivity before stopping (-1 for no timeout)
