@@ -15,7 +15,15 @@ class ExternalAgentClient(BaseWXOClient):
         return self._post("/agents/external-chat", data=payload)
 
     def get(self) -> dict:
-        return self._get("/agents/external-chat?include_hidden=true")
+        # Add workspace_id query parameter if active workspace exists
+        params = add_workspace_query_param({'include_hidden': 'true'})
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        agents = self._get(f"/agents/external-chat?{query_string}")
+        
+        # Convert workspace_id to workspace name in response for each agent
+        if isinstance(agents, list):
+            return [convert_workspace_id_to_name(agent) for agent in agents]
+        return agents
 
     def update(self, agent_id: str, data: dict) -> dict:
         return self._patch(f"/agents/external-chat/{agent_id}", data=data)
