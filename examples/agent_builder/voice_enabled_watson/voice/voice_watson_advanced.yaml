@@ -5,7 +5,7 @@ llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for addit
 speech_to_text:
   provider: watson_stt
   watson_stt_config:
-    api_url: "example-stt-url" # Required
+    api_url: "https://api.us-south.speech-to-text.watson.cloud.ibm.com/instances/your-instance-id" # Required
     api_key: "example-stt-key" # Required
     model: "en-US"  # Required (e.g. "en-US", "en-US_Telephony")
     background_audio_suppression: 0  # Optional: 0.0-1.0, background noise suppression level
