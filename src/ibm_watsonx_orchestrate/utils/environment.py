@@ -315,7 +315,7 @@ class EnvService:
         return env_dict
 
     @staticmethod
-    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$', min_length: int = 0) -> bool:
+    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!#$%^&*()_+=\-]+$', min_length: int = 0) -> bool:
         return  (len(cred) >= min_length) and bool(re.match(pattern, cred))
 
     def __persist_service_credentials(self, service_credentials: dict):
@@ -331,7 +331,7 @@ class EnvService:
 
     def get_service_credentials(self, username: Optional[str] = None, password: Optional[str] = None) -> dict:
         _DEFAULT_SERVICE_USER = "orchestrate"
-        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?/]+$')
+        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!#$%^&*()_+=\-]+$')
         service_credentials = {}
         cfg_service_credentials = self.__config.read(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT) or {}
 
@@ -351,8 +351,8 @@ class EnvService:
         if not service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR):
             import getpass
             service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = getpass.getpass("Set Master Password for Local Services: ")
-        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 8):
-                raise BadRequest(f"Invalid password provided. Password must be a minimum of 8 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 18):
+                raise BadRequest(f"Invalid password provided. Password must be a minimum of 18 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
 
         try:
             self.__persist_service_credentials(service_credentials)

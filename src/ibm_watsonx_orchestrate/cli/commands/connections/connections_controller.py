@@ -746,6 +746,12 @@ def set_credentials_connection(
 
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=credentials, payload=app_creds)
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=credentials, payload=runtime_creds)
+    elif use_app_credentials:
+        add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
+        try:
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=credentials, payload={})
+        except:
+            pass
     else:
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
     

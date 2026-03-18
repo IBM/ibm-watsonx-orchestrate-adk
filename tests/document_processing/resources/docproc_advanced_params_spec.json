@@ -225,6 +225,7 @@
         "output_file_ref": {
           "type": "string",
           "title": "output_file_ref",
+          "format": "wxo-file",
           "description": "The url to the file that contains the extracted text and kvps."
         }
       }

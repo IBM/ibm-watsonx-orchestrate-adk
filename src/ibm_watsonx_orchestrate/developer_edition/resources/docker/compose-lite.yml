@@ -109,6 +109,8 @@ services:
     restart: unless-stopped
     ports:
       - "4444:4444"
+    volumes:
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     environment:
       APP_NAME: MCP Gateway
       CONNECTION_MANAGER_BASE_URL: http://wxo-server-connection-manager:3001
@@ -128,6 +130,8 @@ services:
       PLUGINS_ENABLED: true
       JWT_AUDIENCE_VERIFICATION: false
       LOG_LEVEL: DEBUG
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -194,6 +198,8 @@ services:
       DPS_CACHE_URL: http://localhost:18083
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
+      ENABLE_AGENT_DEBUG: "true"
+      
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -1338,6 +1344,9 @@ services:
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       DISABLE_TLS: true
       STANDALONE_DPI: "true"
+      REDIS_HOST: wxo-server-redis
+      REDIS_PORT: 6379
+      REDIS_LOCAL_DEV: "true"
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
