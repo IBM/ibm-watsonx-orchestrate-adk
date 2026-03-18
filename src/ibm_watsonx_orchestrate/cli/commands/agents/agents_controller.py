@@ -14,6 +14,7 @@ import sys
 import zipfile
 import os
 import tempfile
+from itertools import chain
 from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
@@ -36,13 +37,14 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id, get_conn_id_from_app_id
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import \
     import_python_knowledge_base, KnowledgeBaseController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model, ModelsController
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, ToolKindImport, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
@@ -57,6 +59,7 @@ from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_cl
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
 
 logger = logging.getLogger(__name__)
 
@@ -334,12 +337,430 @@ class AgentsController:
         if not file:
             raise ValueError("File must be provided for native agents")
 
+        # Check if file is a ZIP, if so handle import from ZIP
+        if file.endswith('.zip'):
+            logger.info(f"Detected ZIP file, initiating bulk import from '{file}'")
+            return AgentsController._import_from_zip(file, app_id)
+
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
 
         return agents
+    @staticmethod
+    def _import_from_zip(zip_path: str, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        if not zipfile.is_zipfile(zip_path):
+            logger.error(f"File '{zip_path}' is not a valid ZIP file")
+            sys.exit(1)
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logger.info(f"Extracting ZIP file...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            resources = AgentsController._scan_extracted_structure(temp_dir)
+            
+            logger.info("Importing dependencies...")
+            AgentsController._import_dependencies(resources)
+            
+            logger.info("Importing agents...")
+            imported_agents = AgentsController._import_agents_with_dependencies(resources, app_id)
+            
+            logger.info(f"ZIP import completed successfully. Imported {len(imported_agents)} agent(s).")
+            
+            return imported_agents
+
+    @staticmethod
+    def _scan_extracted_structure(base_dir: str) -> dict:
+        base_path = Path(base_dir)
+        resources = {
+            'root_dir': None,
+            'connections': [],
+            'tools': [],
+            'toolkits': [],
+            'knowledge_bases': [],
+            'agents': {
+                'native': [],
+                'external': [],
+                'assistant': []
+            },
+            'models': [],
+            'model_policies': [],
+        }
+        
+        for item in base_path.rglob('*'):
+            if item.is_dir():
+                subdirs = [d.name for d in item.iterdir() if d.is_dir()]
+                if 'agents' in subdirs or 'tools' in subdirs or 'connections' in subdirs:
+                    resources['root_dir'] = str(item)
+                    break
+        
+        if not resources['root_dir']:
+            resources['root_dir'] = base_dir
+        
+        root = Path(resources['root_dir'])
+        logger.info(f"Found root directory: {root}")
+        
+        connections_dir = root / 'connections'
+        if connections_dir.exists():
+            # Connections can be yaml, yml, or json
+            connection_files = list(chain(
+                connections_dir.glob('*.yaml'),
+                connections_dir.glob('*.yml'),
+                connections_dir.glob('*.json')
+            ))
+            resources['connections'] = [str(f) for f in connection_files]
+            logger.info(f"Found {len(resources['connections'])} connection(s)")
+        
+        tools_dir = root / 'tools'
+        if tools_dir.exists():
+            tool_dirs = [d for d in tools_dir.iterdir() if d.is_dir()]
+            resources['tools'] = [str(d) for d in tool_dirs]
+            logger.info(f"Found {len(resources['tools'])} tool(s)")
+        
+        toolkits_dir = root / 'toolkits'
+        if toolkits_dir.exists():
+            toolkit_files = list(chain(
+                toolkits_dir.glob('*.yaml'),
+                toolkits_dir.glob('*.yml'),
+                toolkits_dir.glob('*.json'),
+                toolkits_dir.glob('*.py'),
+            ))
+            resources['toolkits'] = [str(f) for f in toolkit_files]
+            logger.info(f"Found {len(resources['toolkits'])} toolkit(s)")
+        
+        kb_dir = root / 'knowledge-base'
+        if kb_dir.exists():
+            kb_files = list(chain(
+                kb_dir.glob('*.yaml'),
+                kb_dir.glob('*.yml'),
+                kb_dir.glob('*.json'),
+                kb_dir.glob('*.py'),
+            ))
+            resources['knowledge_bases'] = [str(f) for f in kb_files]
+            logger.info(f"Found {len(resources['knowledge_bases'])} knowledge base(s)")
+        
+        # Scan for models (virtual models and model policies)
+        models_dir = root / 'models'
+        resources['models'] = []
+        resources['model_policies'] = []
+        if models_dir.exists():
+            model_files = list(chain(
+                models_dir.glob('*.yaml'),
+                models_dir.glob('*.yml'),
+                models_dir.glob('*.json'),
+                models_dir.glob('*.py'),
+            ))
+            # Separate models from policies based on name prefix
+            for model_file in model_files:
+                try:
+                    with open(model_file, 'r') as f:
+                        spec = yaml.safe_load(f)
+                    name = spec.get('name', '')
+                    if name.startswith('virtual-policy/'):
+                        resources['model_policies'].append(str(model_file))
+                    elif name.startswith('virtual-model/'):
+                        resources['models'].append(str(model_file))
+                except Exception as e:
+                    logger.warning(f"Failed to parse model file {model_file}: {e}")
+            
+            logger.info(f"Found {len(resources['models'])} virtual model(s)")
+            logger.info(f"Found {len(resources['model_policies'])} model polic(ies)")
+        
+        agents_dir = root / 'agents'
+        if agents_dir.exists():
+            for kind in ['native', 'external', 'assistant']:
+                kind_dir = agents_dir / kind
+                if kind_dir.exists():
+                    agent_files = list(chain(
+                        kind_dir.glob('*.yaml'),
+                        kind_dir.glob('*.yml')
+                    ))
+                    resources['agents'][kind] = [str(f) for f in agent_files]
+                    logger.info(f"Found {len(resources['agents'][kind])} {kind} agent(s)")
+        
+        return resources
+
+    @staticmethod
+    def _import_dependencies(resources: dict) -> None:
+        from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import import_connection
+        from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController
+        
+        if resources['connections']:
+            logger.info(f"Importing {len(resources['connections'])} connection(s)...")
+            for conn_file in resources['connections']:
+                try:
+                    import_connection(file=conn_file)
+                    logger.info(f"  ✓ Imported connection from {Path(conn_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import connection from {Path(conn_file).name}: {e}")
+        
+        if resources['tools']:
+            logger.info(f"Importing {len(resources['tools'])} tool(s)...")
+            tools_controller = ToolsController()
+            for tool_dir in resources['tools']:
+                try:
+                    AgentsController._import_tool_from_directory(tool_dir, tools_controller)
+                    logger.info(f"  ✓ Imported tool from {Path(tool_dir).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import tool from {Path(tool_dir).name}: {e}")
+        
+        if resources['toolkits']:
+            logger.info(f"Importing {len(resources['toolkits'])} toolkit(s)...")
+            toolkit_controller = ToolkitController()
+            for toolkit_file in resources['toolkits']:
+                try:
+                    toolkit_controller.import_toolkit(file=toolkit_file)
+                    logger.info(f"  ✓ Imported toolkit from {Path(toolkit_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import toolkit from {Path(toolkit_file).name}: {e}")
+        
+        if resources['knowledge_bases']:
+            logger.info(f"Importing {len(resources['knowledge_bases'])} knowledge base(s)...")
+            kb_controller = KnowledgeBaseController()
+            for kb_file in resources['knowledge_bases']:
+                try:
+                    kb_controller.import_knowledge_base(file=kb_file, app_id="")
+                    logger.info(f"  ✓ Imported knowledge base from {Path(kb_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import knowledge base from {Path(kb_file).name}: {e}")
+        
+        if resources['models']:
+            logger.info(f"Importing {len(resources['models'])} virtual model(s)...")
+            models_controller = ModelsController()
+            for model_file in resources['models']:
+                try:
+                    # Extract app_id from model spec if present
+                    with open(model_file, 'r') as f:
+                        model_spec = yaml.safe_load(f)
+                    app_id = model_spec.get('app_id', None)
+                    models_controller.import_model(file=model_file, app_id=app_id)
+                    logger.info(f"  ✓ Imported model from {Path(model_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import model from {Path(model_file).name}: {e}")
+        
+        if resources['model_policies']:
+            logger.info(f"Importing {len(resources['model_policies'])} model polic(ies)...")
+            models_controller = ModelsController()
+            for policy_file in resources['model_policies']:
+                try:
+                    models_controller.import_model_policy(file=policy_file)
+                    logger.info(f"  ✓ Imported model policy from {Path(policy_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import model policy from {Path(policy_file).name}: {e}")
+
+    @staticmethod
+    def _import_tool_from_directory(tool_dir: str, tools_controller: ToolsController) -> None:
+        from ibm_watsonx_orchestrate.cli.commands.agents.agents_helper import get_available_connections, prompt_select_app_ids
+
+        tool_path = Path(tool_dir)
+        tool_name = tool_path.name
+
+        # Fetch available connections and prompt user to select app_ids for this tool
+        logger.info(f"\nProcessing tool: {tool_name}")
+        available_connections = get_available_connections()
+        selected_app_ids = []
+
+        if available_connections:
+            selected_app_ids = prompt_select_app_ids(tool_name, available_connections)
+        else:
+            logger.warning(f"No connections available. Tool '{tool_name}' will be imported without connections.")
+        
+        py_files = list(tool_path.glob('*.py'))
+        yaml_files = list(tool_path.glob('*.yaml')) + list(tool_path.glob('*.yml'))
+        json_files = list(tool_path.glob('*.json'))
+
+        if py_files:
+            kind, main_file = AgentsController._detect_python_tool_kind(py_files, tool_path)
+            requirements = tool_path / 'requirements.txt'
+            
+            if kind == ToolKindImport.python:
+                package_root = str(tool_path) if len(py_files) > 1 else None
+                tools = tools_controller.import_tool(
+                    kind=kind,
+                    file=str(main_file),
+                    requirements_file=str(requirements) if requirements.exists() else None,
+                    package_root=package_root,
+                    app_id=selected_app_ids if selected_app_ids else None
+                )
+                tools_controller.publish_or_update_tools(tools=tools, package_root=package_root if package_root else "")
+            elif kind == ToolKindImport.flow:
+                tools = tools_controller.import_tool(
+                    kind=kind,
+                    file=str(main_file),
+                    app_id=selected_app_ids if selected_app_ids else None
+                )
+                tools_controller.publish_or_update_tools(tools=tools)
+            
+        elif yaml_files:
+            kind = ToolKindImport.openapi
+            main_file = yaml_files[0]
+            
+            tools = tools_controller.import_tool(
+                kind=kind,
+                file=str(main_file),
+                app_id=selected_app_ids if selected_app_ids else None
+            )
+            tools_controller.publish_or_update_tools(tools=tools)
+            
+        elif json_files:
+            kind, main_file = AgentsController._detect_json_tool_kind(json_files)
+            
+            tools = tools_controller.import_tool(
+                kind=kind,
+                file=str(main_file),
+                app_id=selected_app_ids if selected_app_ids else None
+            )
+            tools_controller.publish_or_update_tools(tools=tools)
+            
+        else:
+            logger.warning(f"No importable files (.py, .yaml/.yml, .json) found in {tool_dir}, skipping")
+    
+    @staticmethod
+    def _detect_python_tool_kind(py_files: List[Path], tool_path: Path) -> tuple[ToolKindImport, Path]:
+        # Check if any Python file contains Flow decorator patterns
+        for py_file in py_files:
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Check for Flow tool
+                    if '@flow' in content.lower() or 'from ibm_watsonx_orchestrate.flow_builder' in content:
+                        logger.info(f"Detected Flow tool in {py_file.name}")
+                        return ToolKindImport.flow, py_file
+            except Exception as e:
+                raise ValueError(f"Failed to read {py_file.name}: {e}")
+        
+        # Default to Python tool
+        return ToolKindImport.python, py_files[0]
+    
+    @staticmethod
+    def _detect_json_tool_kind(json_files: List[Path]) -> tuple[ToolKindImport, Path]:
+        main_file = json_files[0]
+        
+        try:
+            with open(main_file, 'r', encoding='utf-8') as f:
+                spec = json.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to read {main_file.name}: {e}")
+        
+        # Check for Flow tool (has spec.kind field)
+        spec_kind = spec.get('spec', {}).get('kind', '').lower()
+        if spec_kind == 'flow':
+            logger.info(f"Detected Flow tool in {main_file.name}")
+            return ToolKindImport.flow, main_file
+        
+        # Check for OpenAPI tool
+        if 'openapi' in spec or 'swagger' in spec or ('paths' in spec and 'info' in spec):
+            logger.info(f"Detected OpenAPI tool in {main_file.name}")
+            return ToolKindImport.openapi, main_file
+        
+        # Check for Langflow tool
+        if 'data' in spec and ('nodes' in spec.get('data', {}) or 'edges' in spec.get('data', {})):
+            logger.info(f"Detected Langflow tool in {main_file.name}")
+            return ToolKindImport.langflow, main_file
+        
+        # Default to Langflow if no clear indicators
+        logger.warning(f"Could not definitively determine JSON tool type for {main_file.name}, defaulting to Langflow")
+        return ToolKindImport.langflow, main_file
+
+    @staticmethod
+    def _import_agents_with_dependencies(resources: dict, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        all_agent_files = []
+        for kind in ['external', 'assistant', 'native']:
+            all_agent_files.extend(resources['agents'].get(kind, []))
+        
+        if not all_agent_files:
+            logger.info("No agents found to import")
+            # @TODO Potentially throw an error here as atleast one agent is required.
+            return []
+        
+        logger.info(f"Analyzing {len(all_agent_files)} agent(s) for dependencies...")
+        agent_data = AgentsController._parse_agent_files(all_agent_files)
+        
+        sorted_agents = AgentsController._topological_sort_agents(agent_data)
+        
+        imported_agents = []
+        for agent_info in sorted_agents:
+            try:
+                agents = parse_file(agent_info['file_path'])
+                for agent in agents:
+                    if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
+                        agent.app_id = app_id
+                imported_agents.extend(agents)
+                logger.info(f"  ✓ Imported agent '{agent_info['name']}' from {Path(agent_info['file_path']).name}")
+            except Exception as e:
+                logger.warning(f"  ✗ Failed to import agent '{agent_info['name']}' from {Path(agent_info['file_path']).name}: {e}")
+        
+        return imported_agents
+
+    @staticmethod
+    def _parse_agent_files(agent_files: List[str]) -> List[dict]:
+        agent_data = []
+        
+        for agent_file in agent_files:
+            try:
+                with open(agent_file, 'r') as f:
+                    spec = yaml.safe_load(f)
+                
+                agent_name = spec.get('name')
+                if not agent_name:
+                    logger.warning(f"Agent file {agent_file} missing 'name' field, skipping")
+                    continue
+                
+                # Extract collaborators (only for native agents)
+                collaborators = []
+                if spec.get('kind') == 'native':
+                    collaborators = spec.get('collaborators', [])
+                
+                agent_data.append({
+                    'name': agent_name,
+                    'file_path': agent_file,
+                    'collaborators': collaborators
+                })
+                
+            except Exception as e:
+                logger.warning(f"Failed to parse agent file {agent_file}: {e}")
+                continue
+        
+        return agent_data
+
+    @staticmethod
+    def _topological_sort_agents(agent_data: List[dict]) -> List[dict]:
+        agent_map = {agent['name']: agent for agent in agent_data}
+        
+        dependents = {agent['name']: [] for agent in agent_data}
+        in_degree = {agent['name']: 0 for agent in agent_data}
+        
+        for agent in agent_data:
+            for collaborator in agent['collaborators']:
+                if collaborator in agent_map:
+                    dependents[collaborator].append(agent['name'])
+                    in_degree[agent['name']] += 1
+                else:
+                    # Collaborator not in the ZIP
+                    logger.warning(f"Agent '{agent['name']}' references collaborator '{collaborator}' which is not in the ZIP file")
+        
+        queue = [name for name, degree in in_degree.items() if degree == 0]
+        sorted_order = []
+        
+        while queue:
+            current = queue.pop(0)
+            sorted_order.append(current)
+            
+            for dependent in dependents[current]:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    queue.append(dependent)
+        
+        # Check for circular dependencies
+        if len(sorted_order) != len(agent_data):
+            remaining = [name for name, degree in in_degree.items() if degree > 0]
+            logger.error(f"Circular dependency detected among agents: {remaining}")
+            logger.error("These agents will not be imported. Please resolve the circular dependencies.")
+            return [agent_map[name] for name in sorted_order]
+        
+        return [agent_map[name] for name in sorted_order]
 
 
     @staticmethod
@@ -1130,12 +1551,9 @@ class AgentsController:
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
         if isinstance(agent, Agent):
-            # Get the raw response to check for custom agent config
+            # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
-            response_data = native_client._post(
-                native_client.base_endpoint,
-                data=transform_agents_from_flat_agent_spec(agent.model_dump(exclude_none=True))
-            )
+            response_data = native_client.create(agent.model_dump(exclude_none=True))
             response = AgentUpsertResponse.model_validate(response_data)
             _raise_guidelines_warning(response)
 
@@ -1794,7 +2212,15 @@ class AgentsController:
 
                 logger.info(f"Successfully removed agent {name}")
             else:
-                logger.warning(f"No agent named '{name}' found")
+                # Provide workspace-aware error message
+                if should_use_workspaces():
+                    active_workspace = get_active_workspace_name()
+                    if active_workspace:
+                        logger.warning(f"No agent named '{name}' found in active workspace '{active_workspace}'")
+                    else:
+                        logger.warning(f"No agent named '{name}' found")
+                else:
+                    logger.warning(f"No agent named '{name}' found")
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)
@@ -2152,6 +2578,108 @@ class AgentsController:
             logger.info(f"Successfully undeployed agent {name}")
         else:
             logger.error(f"Error undeploying agent {name}")
+
+    def copy_agent(
+        self,
+        agent_name: str,
+        destination_workspace: str,
+        source_workspace: Optional[str] = None
+    ):
+        """
+        Copy an agent to a destination workspace.
+        
+        Args:
+            agent_name: Name of the agent to copy
+            destination_workspace: Destination workspace name (required)
+            source_workspace: Source workspace name (defaults to active workspace)
+        """
+        console = Console()
+        workspace_context = WorkspaceContext()
+        
+        # Check if workspaces are supported (IBM Cloud only)
+        if not workspace_context.should_use_workspaces():
+            logger.error("Agent copy is only supported for IBM Cloud instances. Workspaces are not available in the current environment.")
+            sys.exit(1)
+        
+        # Lazy import to avoid circular dependency
+        from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_controller import WorkspacesController
+        workspace_controller = WorkspacesController()
+        
+        # Resolve source workspace
+        source_workspace, source_workspace_id = workspace_controller._resolve_workspace(source_workspace)
+        
+        # Resolve destination workspace
+        destination_workspace, destination_workspace_id = workspace_controller._resolve_workspace(destination_workspace)
+        
+        # Validate that source and destination are different
+        if source_workspace_id == destination_workspace_id:
+            logger.error(f"Cannot copy agent to the same workspace. Source and destination workspaces are both '{source_workspace}'")
+            sys.exit(1)
+        
+        # Get agent by name from source workspace
+        # The API will filter by workspace_id query parameter automatically
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+        
+        # Query agents from source workspace and track which client found it
+        existing_native_agents = native_client.get_draft_by_name(agent_name)
+        existing_external_agents = external_client.get_draft_by_name(agent_name)
+        existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
+        
+        # Determine which type of agent was found
+        agent = None
+        client = None
+        agent_type_name = None
+        
+        if len(existing_native_agents) > 0:
+            agent = existing_native_agents[0]
+            client = native_client
+            agent_type_name = "native"
+        elif len(existing_external_agents) > 0:
+            agent = existing_external_agents[0]
+            client = external_client
+            agent_type_name = "external"
+        elif len(existing_assistant_agents) > 0:
+            agent = existing_assistant_agents[0]
+            client = assistant_client
+            agent_type_name = "assistant"
+        else:
+            logger.error(f"No agent found with name '{agent_name}' in workspace '{source_workspace}'")
+            sys.exit(1)
+        
+        agent_id = agent.get("id")
+        
+        try:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(
+                    description=f"Copying agent '{agent_name}' from '{source_workspace}' to '{destination_workspace}'",
+                    total=None
+                )
+                
+                response = client.copy_agent(
+                    agent_id=agent_id,
+                    destination_workspace_id=destination_workspace_id,
+                    source_workspace_id=source_workspace_id
+                )
+            
+            new_agent_id = response.get("id")
+            message = response.get("message")
+            status_endpoint = response.get("status_endpoint")
+            
+            logger.info(f"✓ Agent copy initiated successfully")
+            logger.info(f"  New agent ID: {new_agent_id}")
+            logger.info(f"  {message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to copy agent: {str(e)}")
+            sys.exit(1)
+    
     
     @staticmethod
     def _format_agent_display_name(agent: AnyAgentT) -> str:

@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "ibm-watsonx-orchestrate"
 dynamic = ["version"]
 
-description = "IBM watsonx.orchestrate SDK"
+description = "IBM watsonx.orchestrate ADK"
 authors = [
     { name = "IBM", email = "support@ibm.com" }
 ]
@@ -35,7 +35,7 @@ dependencies = [
     "urllib3>=2.2.3",
     "pytz>=2025.2",
     "redis>=6.0.0",
-    "websockets>=16.0,<17.0.0",
+    "websocket-client>=1.8.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +52,7 @@ dev = [
 
 
 agentops = [
-    "ibm_watsonx_orchestrate_evaluation_framework>=1.2.6",
+    "ibm_watsonx_orchestrate_evaluation_framework==1.2.6",
 ]
 [tool.pytest.ini_options]
 pythonpath = "src"

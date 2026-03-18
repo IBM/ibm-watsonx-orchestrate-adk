@@ -149,7 +149,6 @@ def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynam
             setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
         base_schema.properties.update(dynamic_schema.properties)
 
-
 class PythonTool(BaseTool):
     def __init__(self,
                 fn,
@@ -194,16 +193,25 @@ class PythonTool(BaseTool):
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
-                from ibm_watsonx_orchestrate.run.context import AgentRun
-                context_object = context_param_value if isinstance(context_param_value,AgentRun) \
-                    else AgentRun(request_context=context_param_value)
-                kwargs[run_context_param] = context_object
+                kwargs[run_context_param] = self.__parse_context_param(context_param_value)
 
 
         result = self.fn(*args, **kwargs)
         context_updates = context_object.get_context_updates() if context_object else {}
 
         return ToolResponse(content=result,context_updates=context_updates)
+    
+    def __parse_context_param(self, context_param_value):
+        from ibm_watsonx_orchestrate.run.context import AgentRun
+        
+        if isinstance(context_param_value, AgentRun):
+            return context_param_value
+        
+        try:
+            return AgentRun(**context_param_value)
+        except:
+            return AgentRun(request_context=context_param_value)
+
 
     
     @property

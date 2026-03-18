@@ -419,7 +419,10 @@ def detect_file_upload_request(content) -> Optional[dict]:
         Example: {
             "text": "Please upload the file you want to use : document_ref",
             "supported_formats": "CSV,DOC,DOCX,JPEG,PDF,PNG,WAV,XLS,XLSX,XLSM,PPT,PPTX",
-            "size_limit": "10MB"
+            "size_limit": "10MB",
+            "max_files": 1,
+            "min_files": 1,
+            "allow_multiple": False
         }
     """
     if not isinstance(content, list):
@@ -427,10 +430,42 @@ def detect_file_upload_request(content) -> Optional[dict]:
     
     for item in content:
         if isinstance(item, dict) and item.get("response_type") == "file_upload":
+            upload_settings = item.get("uploadSettings", {})
+            
+            # Extract supported formats from allowedFileMimeTypes
+            supported_formats = ""
+            if upload_settings and "allowedFileMimeTypes" in upload_settings:
+                mime_types = upload_settings["allowedFileMimeTypes"]
+                if isinstance(mime_types, dict):
+                    # Get unique file extensions (keys of the dictionary)
+                    formats_list = sorted(set(ext.upper() for ext in mime_types.keys()))
+                    supported_formats = ",".join(formats_list)
+            else:
+                # Fallback to old format
+                supported_formats = item.get("supported_formats", "")
+            
+            # Extract size limit
+            size_limit = ""
+            if upload_settings and "maxSingleFileSizeMB" in upload_settings:
+                size_limit = f"{upload_settings['maxSingleFileSizeMB']}MB"
+            else:
+                # Fallback to old format
+                size_limit = item.get("size_limit", "")
+            
+            # Extract multiple file settings
+            max_files = upload_settings.get("maxFilesPerUpload", 1) if upload_settings else 1
+            min_files = upload_settings.get("minFilesPerUpload", 1) if upload_settings else 1
+            allow_multiple = upload_settings.get("allowMultipleFiles", False) if upload_settings else False
+            # allowMultipleFiles must be explicitly True to allow multiple files
+            allow_multiple = allow_multiple is True
+            
             return {
                 "text": item.get("text", "Please upload a file"),
-                "supported_formats": item.get("supported_formats", ""),
-                "size_limit": item.get("size_limit", "")
+                "supported_formats": supported_formats,
+                "size_limit": size_limit,
+                "max_files": max_files,
+                "min_files": min_files,
+                "allow_multiple": allow_multiple
             }
     
     return None
@@ -491,15 +526,32 @@ def _prompt_for_file_upload(upload_request: dict) -> Optional[tuple[str, str]]:
         Tuple of (file_path, message) if user provides valid file, None if user cancels
     """
     console.print()
+    
+    # Build the panel content
+    panel_content = f"[yellow]{upload_request['text']}[/yellow]\n\n"
+    panel_content += f"[cyan]Supported formats:[/cyan] {upload_request['supported_formats']}\n"
+    panel_content += f"[cyan]Size limit:[/cyan] {upload_request['size_limit']}"
+    
+    # Add file count information if multiple files are allowed
+    max_files = upload_request.get('max_files', 1)
+    min_files = upload_request.get('min_files', 1)
+    allow_multiple = upload_request.get('allow_multiple', False)
+    
+    if allow_multiple and max_files > 1:
+        panel_content += f"\n[cyan]Files allowed:[/cyan] {min_files} to {max_files} files"
+    
     console.print(Panel(
-        f"[yellow]{upload_request['text']}[/yellow]\n\n"
-        f"[cyan]Supported formats:[/cyan] {upload_request['supported_formats']}\n"
-        f"[cyan]Size limit:[/cyan] {upload_request['size_limit']}",
-        title="File Upload Required",
+        panel_content,
+        title=f"File Upload Required {'(Multiple Files)' if allow_multiple else ''}",
         title_align="left",
         border_style="yellow",
         padding=(1, 2)
     ))
+    
+    # Note: Currently only supporting single file upload
+    # TODO: Implement multiple file upload support when allow_multiple is True
+    if allow_multiple and max_files > 1:
+        console.print("[yellow]Note: Multiple file upload is requested but currently only single file is supported in CLI[/yellow]")
     
     while True:
         file_path = Prompt.ask(
@@ -610,7 +662,9 @@ def extract_downloadable_files(thread_messages_response) -> list:
                                         files_to_download.append(file_info)
                                         logger.info(f"Detected downloadable file: {file_info['fileName']}")
                             except (json.JSONDecodeError, TypeError, AttributeError) as e:
-                                logger.debug(f"Could not parse content as JSON: {e}")
+                                # Only log if content looks like it was intended to be JSON
+                                if isinstance(downloadable_content_str, str) and downloadable_content_str.strip().startswith(("{", "[")):
+                                    logger.debug(f"Could not parse content as JSON: {e}")
     
     return files_to_download
 
@@ -1302,6 +1356,17 @@ async def _execute_agent_interaction_websocket(
                     os._exit(0)
             
             interaction_result = display_message("assistant", content, agent_name, include_reasoning, reasoning_trace, thread_id, return_agent_interaction_result, thinking_messages)
+            
+            # Check for downloadable files after WebSocket completion
+            if not return_agent_interaction_result:
+                try:
+                    thread_messages_response = threads_client.get_thread_messages(thread_id)
+                    files_to_download = extract_downloadable_files(thread_messages_response)
+                    if files_to_download:
+                        logger.info(f"Total {len(files_to_download)} downloadable file(s) detected after WebSocket completion")
+                        _prompt_and_download_files(files_to_download)
+                except Exception as e:
+                    logger.error(f"Error checking for downloadable files: {e}", exc_info=True)
             
             # Display captured logs if capture_logs is enabled
             if capture_logs and run_status:

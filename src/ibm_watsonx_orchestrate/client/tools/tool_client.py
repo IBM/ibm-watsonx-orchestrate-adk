@@ -1,6 +1,11 @@
 from typing import Literal
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.cli.workspace_context import (
+    resolve_and_inject_workspace,
+    add_workspace_query_param,
+    convert_workspace_id_to_name,
+)
 from typing_extensions import List
 
 class ToolClient(BaseWXOClient):
@@ -9,12 +14,30 @@ class ToolClient(BaseWXOClient):
     """
 
     def create(self, payload: dict) -> dict:
+        # Resolve workspace field and inject active workspace context
+        payload = resolve_and_inject_workspace(payload)
         return self._post("/tools", data=payload)
 
-    def get(self) -> dict:        
-        return self._get("/tools")
+    def get(self) -> dict:
+        # Add workspace_id query parameter if active workspace exists
+        params = add_workspace_query_param()
+        if params:
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            tools = self._get(f"/tools?{query_string}")
+        else:
+            tools = self._get("/tools")
+        
+        # Convert workspace_id to workspace name in response
+        if isinstance(tools, list):
+            tools = [convert_workspace_id_to_name(tool) for tool in tools]
+        elif isinstance(tools, dict):
+            tools = convert_workspace_id_to_name(tools)
+        
+        return tools
 
     def update(self, agent_id: str, data: dict) -> dict:
+        # Resolve workspace field and inject active workspace context
+        data = resolve_and_inject_workspace(data)
         return self._put(f"/tools/{agent_id}", data=data)
 
     def delete(self, tool_id: str) -> dict:
@@ -35,7 +58,12 @@ class ToolClient(BaseWXOClient):
 
     def get_drafts_by_names(self, tool_names: List[str]) -> List[dict]:
         formatted_tool_names = [f"names={x}" for x in tool_names]
-        return self._get(f"/tools?{'&'.join(formatted_tool_names)}")
+        params = {}
+        # Add workspace filtering if applicable
+        params = add_workspace_query_param(params)
+        # Build query string with names and other params
+        query_parts = formatted_tool_names + [f"{k}={v}" for k, v in params.items()]
+        return self._get(f"/tools?{'&'.join(query_parts)}")
     
     def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
         if tool_id is None:
@@ -51,4 +79,9 @@ class ToolClient(BaseWXOClient):
     
     def get_drafts_by_ids(self, tool_ids: List[str]) -> List[dict]:
         formatted_tool_ids = [f"ids={x}" for x in tool_ids]
-        return self._get(f"/tools?{'&'.join(formatted_tool_ids)}")
+        params = {}
+        # Add workspace filtering if applicable
+        params = add_workspace_query_param(params)
+        # Build query string with ids and other params
+        query_parts = formatted_tool_ids + [f"{k}={v}" for k, v in params.items()]
+        return self._get(f"/tools?{'&'.join(query_parts)}")

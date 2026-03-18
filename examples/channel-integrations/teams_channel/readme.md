@@ -11,7 +11,7 @@ This example demonstrates how to integrate a Microsoft Teams channel with wxo AD
 2. Generate an app password for your bot
 3. Note the Application (client) ID and Tenant ID
 4. Configure the bot's messaging endpoint
-5. Create a `.env` file with the following variables:
+5. Create/export the following environment variables:
 ```bash
 TEAMS_APP_ID=your_application_id
 TEAMS_APP_PASSWORD=your_app_password
@@ -19,8 +19,12 @@ TEAMS_TENANT_ID=your_tenant_id
 ```
 
 ## Running the Example
-1. Ensure your `.env` file is configured
-2. Run the channel configuration script
-3. Deploy your agent with the Teams channel enabled
+1. Ensure your environment variables are configured
+2. Run the import script:
+    ```bash
+    ./import_all.sh
+    ```
+   The script will output an **event URL**
+3. Set the event URL as the bot's messaging endpoint
 4. Add the bot to your Teams workspace
 5. Test by messaging your bot in Teams

@@ -1,5 +1,10 @@
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.cli.workspace_context import (
+    resolve_and_inject_workspace,
+    add_workspace_query_param,
+    convert_workspace_id_to_name,
+)
 from typing_extensions import List
 import os
 import json
@@ -10,7 +15,19 @@ class ToolKitClient(BaseWXOClient):
         super().__init__(*args, **kwargs)
 
     def get(self) -> List[dict]:
-        return self._get("/toolkits")
+        # Add workspace_id query parameter if active workspace exists
+        params = add_workspace_query_param()
+        if params:
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            toolkits = self._get(f"/toolkits?{query_string}")
+        else:
+            toolkits = self._get("/toolkits")
+        
+        # Convert workspace_id to workspace name in response
+        if isinstance(toolkits, list):
+            toolkits = [convert_workspace_id_to_name(toolkit) for toolkit in toolkits]
+        
+        return toolkits
 
 
     # POST /toolkits/prepare/list-tools
@@ -45,6 +62,8 @@ class ToolKitClient(BaseWXOClient):
         Creates new toolkit metadata
         """
         try:
+            # Resolve workspace field and inject active workspace context
+            payload = resolve_and_inject_workspace(payload)
             return self._post("/toolkits", data=payload)
 
         except ClientAPIException as e:
@@ -77,8 +96,12 @@ class ToolKitClient(BaseWXOClient):
 
     def get_drafts_by_names(self, toolkit_names: List[str]) -> List[dict]:
         formatted_toolkit_names = [f"names={x}" for x in toolkit_names]
-
-        return self._get(f"/toolkits?{'&'.join(formatted_toolkit_names)}")
+        params = {}
+        # Add workspace filtering if applicable
+        params = add_workspace_query_param(params)
+        # Build query string with names and other params
+        query_parts = formatted_toolkit_names + [f"{k}={v}" for k, v in params.items()]
+        return self._get(f"/toolkits?{'&'.join(query_parts)}")
 
     
     def get_draft_by_id(self, toolkit_id: str) -> dict:
