@@ -15,7 +15,15 @@ class AssistantAgentClient(BaseWXOClient):
         return self._post("/assistants/watsonx", data=payload)
 
     def get(self) -> dict:
-        return self._get("/assistants/watsonx?include_hidden=true")
+        # Add workspace_id query parameter if active workspace exists
+        params = add_workspace_query_param({'include_hidden': 'true'})
+        query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+        agents = self._get(f"/assistants/watsonx?{query_string}")
+        
+        # Convert workspace_id to workspace name in response for each agent
+        if isinstance(agents, list):
+            return [convert_workspace_id_to_name(agent) for agent in agents]
+        return agents
 
     def update(self, agent_id: str, data: dict) -> dict:
         return self._patch(f"/assistants/watsonx/{agent_id}", data=data)
