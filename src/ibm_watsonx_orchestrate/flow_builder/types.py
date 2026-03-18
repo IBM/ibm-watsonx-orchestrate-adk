@@ -637,10 +637,12 @@ class UserFieldKind(str, Enum):
     Choice = "any"
     List = "array"  # used to display list output
     DateRange = "date-range"
+    TimeRange = "time-range"
     Field = "field"
     MultiChoice = "array"
     Array = "array"  # this is a duplicate of List
     User = "user"  # user field for selecting users
+    Behaviour = "behaviour" # support for dynamic forms
 
     @staticmethod
     def str_to_kind(kind: str) -> "UserFieldKind":
@@ -673,6 +675,8 @@ class UserFieldKind(str, Enum):
             return UserFieldKind.List
         elif kind == "user":
             return UserFieldKind.User
+        elif kind == "behaviour":
+            return UserFieldKind.Behaviour # support for dynamic forms
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -707,6 +711,8 @@ class UserFieldKind(str, Enum):
             return "UserFieldKind.List"
         elif kind == "user":
             return "UserFieldKind.User"
+        elif kind == "behaviour":
+            return "UserFieldKind.Behaviour" # support for dynamic forms
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -793,6 +799,174 @@ class UserField(BaseModel):
             model_spec["regex_error_msg"] = self.regex_error_msg
         return model_spec
 
+# Behaviour Rule Classes for Dynamic Forms
+
+class BehaviourRule(BaseModel):
+    """
+    Base class for behaviour rules that define conditional logic for dynamic forms.
+    
+    Supports if/then/else structures with simple and complex conditions using
+    allOf (AND) and anyOf (OR) operators.
+    
+    Attributes:
+        condition: JSON Schema condition structure with if/then/else
+        impacted_field: The field that is affected by this behaviour
+    """
+    condition: dict[str, Any] | None = None
+    impacted_field: str
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour rule to JSON format."""
+        model_spec = {}
+        if self.condition:
+            model_spec["condition"] = self.condition
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        return model_spec
+
+
+class VisibilityBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for controlling field visibility based on conditions.
+    
+    Uses x-is-visible property in the condition's then/else clauses to
+    show or hide fields dynamically.
+    
+    Example:
+        If field_1 == "USA" then show field_zipcode (x-is-visible: true)
+        else hide field_zipcode (x-is-visible: false)
+    """
+    pass
+
+
+class LabelBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for changing field labels based on conditions.
+    
+    Uses title property in the condition's then/else clauses to
+    dynamically update field labels.
+    
+    Supports complex conditions with allOf (AND) and anyOf (OR) operators,
+    as well as nested if/then/else structures.
+    
+    Example:
+        If field_country == "USA" then field_region.title = "State"
+        else field_region.title = "Province"
+    """
+    pass
+
+
+class ValueSourceBehaviourRule(BaseModel):
+    """
+    Behaviour rule for populating field values from a tool based on conditions.
+    
+    Calls a synchronous tool to fetch dynamic values for dropdown fields.
+    The tool must return a list of primitives or objects with a 'label' field.
+    
+    Attributes:
+        kind: Always "value_source"
+        tool: Tool identifier in format "name:uuid"
+        impacted_field: The dropdown field to populate
+        tool_input_map: Data map for tool input parameters
+        tool_input_schema: JSON schema for tool inputs
+    
+    Example:
+        When field_country changes, call get_regions tool to populate field_region
+    """
+    kind: Literal["value_source"] = "value_source"
+    tool: str
+    impacted_field: str
+    tool_input_map: Any | None = None
+    tool_input_schema: dict[str, Any] | None = None
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, dict):
+                self.tool_input_map = DataMapSpec(**self.tool_input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the value source rule to JSON format."""
+        model_spec = {}
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.tool:
+            model_spec["tool"] = self.tool
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, DataMapSpec):
+                model_spec["tool_input_map"] = self.tool_input_map.to_json()
+            else:
+                model_spec["tool_input_map"] = self.tool_input_map
+        if self.tool_input_schema:
+            model_spec["tool_input_schema"] = self.tool_input_schema
+        return model_spec
+
+
+class BehaviourField(BaseModel):
+    """
+    A special field type that defines dynamic form behaviours.
+    
+    BehaviourFields are not visible to users but control the behaviour of other
+    fields based on conditions. They can control visibility, labels, or populate
+    values from tools.
+    
+    Attributes:
+        name: Unique identifier for this behaviour
+        kind: Always "behaviour"
+        behaviour_kind: Type of behaviour ("visibility", "label", or "value-source")
+        on_change_to_field: The field that triggers this behaviour when changed
+        display_name: Human-readable name for this behaviour
+        input_map: Data map (typically empty for behaviours)
+        behaviours: List of behaviour rules to apply
+    
+    Example:
+        BehaviourField that shows zipcode field only when country is "USA"
+    """
+    name: str
+    kind: Literal["behaviour"] = "behaviour"
+    behaviour_kind: Literal["visibility", "label", "value-source"]
+    on_change_to_field: str
+    display_name: str | None = None
+    input_map: Any | None = None
+    behaviours: list[VisibilityBehaviourRule | LabelBehaviourRule | ValueSourceBehaviourRule] = []
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.input_map:
+            from .data_map import DataMapSpec, DataMap
+            if isinstance(self.input_map, dict):
+                self.input_map = DataMapSpec(**self.input_map)
+            elif isinstance(self.input_map, DataMap):
+                self.input_map = DataMapSpec(spec=self.input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour field to JSON format."""
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.behaviour_kind:
+            model_spec["behaviour_kind"] = self.behaviour_kind
+        if self.on_change_to_field:
+            model_spec["on_change_to_field"] = self.on_change_to_field
+        if self.display_name:
+            model_spec["display_name"] = self.display_name
+        if self.input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.input_map, DataMapSpec):
+                model_spec["input_map"] = self.input_map.to_json()
+            else:
+                model_spec["input_map"] = self.input_map
+        if self.behaviours and len(self.behaviours) > 0:
+            model_spec["behaviours"] = [behaviour.to_json() for behaviour in self.behaviours]
+        return model_spec
+
+
 class UserFormButton(BaseModel):
     name: str
     kind: Literal["submit", "cancel"]
@@ -824,7 +998,8 @@ class UserForm(BaseModel):
     kind: str = "form"
     display_name: str | None = None
     instructions: str | None = None
-    fields: list[UserField] = []  
+    fields: list[UserField] = []
+    behaviours: list[BehaviourField] = []  # Dynamic form behaviours
     jsonSchema: JsonSchemaObject | SchemaRef | None = None
     buttons: list[UserFormButton]
 
@@ -844,14 +1019,17 @@ class UserForm(BaseModel):
         # Initialize jsonSchema if not provided
         if not hasattr(self, 'jsonSchema') or self.jsonSchema is None:
             self.jsonSchema = JsonSchemaObject( # pyright: ignore[reportCallIssue]
-                type='object', 
-                properties={}, 
-                required=[], 
+                type='object',
+                properties={},
+                required=[],
                 description=self.instructions if hasattr(self, 'instructions') else None
             )
         
         if not hasattr(self, 'fields') or self.fields is None:
             self.fields = []
+        
+        if not hasattr(self, 'behaviours') or self.behaviours is None:
+            self.behaviours = []
 
         if not hasattr(self, 'buttons') or self.buttons is None:
             self.buttons = [
@@ -868,13 +1046,60 @@ class UserForm(BaseModel):
         if self.display_name:
             model_spec["display_name"] = self.display_name
         if self.fields and len(self.fields) > 0:
-            model_spec["fields"] = [field.to_json() for field in self.fields]
+            # Include both regular fields and behaviour fields in the fields array
+            # Behaviours should be inserted right after their trigger field (on_change_to_field)
+            all_fields = []
+            field_names = [field.name for field in self.fields]
+            
+            for field in self.fields:
+                # Add the field
+                all_fields.append(field.to_json())
+                
+                # Add any behaviours that are triggered by this field
+                if self.behaviours and len(self.behaviours) > 0:
+                    for behaviour in self.behaviours:
+                        if behaviour.on_change_to_field == field.name:
+                            all_fields.append(behaviour.to_json())
+            
+            model_spec["fields"] = all_fields
+        elif self.behaviours and len(self.behaviours) > 0:
+            # If no regular fields but have behaviours, include only behaviours
+            model_spec["fields"] = [behaviour.to_json() for behaviour in self.behaviours]
         if self.jsonSchema:
             model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
         if self.buttons and len(self.buttons) > 0:
-            model_spec["buttons"] = [button.to_json() for button in self.buttons]     
+            model_spec["buttons"] = [button.to_json() for button in self.buttons]
 
         return model_spec
+
+    def validate_behaviours(self) -> list[str]:
+        """
+        Validate all behaviours in the form for circular dependencies.
+        
+        Returns:
+            List of error messages (empty if valid)
+        """
+        from .utils import detect_circular_dependencies
+
+        # Collect all behaviours and convert to dict format for validation
+        behaviours = []
+        for behaviour_field in self.behaviours:
+            behaviour_dict = {
+                "on_change_to_field": behaviour_field.on_change_to_field,
+                "behaviours": []
+            }
+
+            # Extract impacted fields from behaviour rules
+            for rule in behaviour_field.behaviours:
+                if hasattr(rule, 'impacted_field'):
+                    behaviour_dict["behaviours"].append({
+                        "impacted_field": rule.impacted_field
+                    })
+
+            behaviours.append(behaviour_dict)
+
+        return detect_circular_dependencies(behaviours)
+    
 
     def set_form_schema(self, schema: JsonSchemaObject | type[BaseModel], flow: Any):
         """
@@ -1048,39 +1273,84 @@ class UserForm(BaseModel):
             name: str,
             label: str | None = None,
             required: bool = False,
-            start_date_label:str | None = None,
-            end_date_label:str | None = None,
-            default_start: Any| None = None,
-            default_end: Any| None = None
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_date: Any | None = None,
+            max_date: Any | None = None
     ) -> UserField:
+        """
+        Creates a date range input field in the form.
+
+        This method creates a DateRange type field. For TimeRange fields,
+        use datetime_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_date: Optional DataMap for minimum date constraint (maps to self.input.min_date).
+            max_date: Optional DataMap for maximum date constraint (maps to self.input.max_date).
+
+        Returns:
+            UserField: The created date range input field.
+        """
+        # Validate inputs
         ensure_datamap(default_start, "default_start")
         ensure_datamap(default_end, "default_end")
-        
-        # Use the template system from utils
-        schemas = clone_form_schema("date_range", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD",
-                "ui:options": {"range": True},
-                "ui:order": ["start", "end"]
-            }
-        })
-        
-        # Add additional UI properties if provided
+        ensure_datamap(min_date, "min_date")
+        ensure_datamap(max_date, "max_date")
+
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+
+        template_type = "date_range"
+        format_type = "date"
+        min_prop = "min_date"
+        max_prop = "max_date"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "DateWidget",
+            "format": "YYYY-MM-DD",
+            "ui:options": {"range": True},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
         if start_date_label:
             schemas["ui_schema"]["ui:start_label"] = start_date_label
         if end_date_label:
             schemas["ui_schema"]["ui:end_label"] = end_date_label
-        
-        # Set up input_map
-        if default_start:
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_date, and max_date
+        # Similar to number_input_field pattern
+        if default_start is not None:
             input_map = default_start
             add_assignment(input_map, default_end)
-        else:
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif default_end is not None:
             input_map = default_end
-        
-        # Create the field
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif min_date is not None:
+            input_map = min_date
+            add_assignment(input_map, max_date)
+        elif max_date is not None:
+            input_map = max_date
+        else:
+            input_map = None
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.DateRange,
@@ -1091,59 +1361,213 @@ class UserForm(BaseModel):
             input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
+
         self.add_or_replace_field(name, userfield)
-        
-        # Update JSON schema
+
         self.jsonSchema.properties[name] = {
             "type": "array",
-            "items": {"type": "string", "format": "date"},
+            "items": {},
             "title": label
         }
-        
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
 
         return userfield
-         
+
+    def datetime_range_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None
+    ) -> UserField:
+        """
+        Creates a datetime (time) range input field in the form.
+
+        This method creates a TimeRange type field. For DateRange fields,
+        use date_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_time: Optional DataMap for minimum time constraint (maps to self.input.min_time).
+            max_time: Optional DataMap for maximum time constraint (maps to self.input.max_time).
+
+        Returns:
+            UserField: The created datetime range input field.
+        """
+        # Validate inputs
+        ensure_datamap(default_start, "default_start")
+        ensure_datamap(default_end, "default_end")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+
+        template_type = "time_range"
+        format_type = "time"
+        min_prop = "min_time"
+        max_prop = "max_time"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "TimeWidget",
+            "ui:options": {"is_range": True, "is_timezone": True, "is_datepicker": False},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
+        if start_date_label:
+            schemas["ui_schema"]["ui:start_label"] = start_date_label
+        if end_date_label:
+            schemas["ui_schema"]["ui:end_label"] = end_date_label
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_time, and max_time
+        # Similar to number_input_field pattern
+        if default_start is not None:
+            input_map = default_start
+            add_assignment(input_map, default_end)
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif default_end is not None:
+            input_map = default_end
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.TimeRange,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
+
     def date_input_field(
             self,
             name: str,
             label: str | None = None,
             required: bool = False,
-            initial_value: Any| None=None,
+            initial_value: Any | None = None,
             min_date: Any | None = None,
-            max_date: Any | None = None
+            max_date: Any | None = None,
+            multiple_dates: bool = False,
     ) -> UserField:
-        # Validate that min/max are DataMap instances (or None)
+        """
+        Creates a date input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial date value.
+            min_date: Optional DataMap for minimum allowed date.
+            max_date: Optional DataMap for maximum allowed date.
+            multiple_dates: If True, allows selection of multiple dates. Defaults to False.
+
+        Returns:
+            UserField: The created date input field.
+        """
+        # Validate inputs
         ensure_datamap(initial_value, "initial_value")
         ensure_datamap(min_date, "min_date")
         ensure_datamap(max_date, "max_date")
-
-        # Use the template system from utils
-        schemas = clone_form_schema("date", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD"
-            }
-        })
         
-        # Build the input_map by merging assignments from initial_value, min_date and max_date
+        # Build the input_map by merging all assignments from initial_value, min_date and max_date
         if initial_value is not None:
-            add_assignment(initial_value, min_date)
-            add_assignment(initial_value, max_date)
-            date_constraints = initial_value
+            input_map = initial_value
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
         elif min_date is not None:
-            add_assignment(min_date, max_date)
-            date_constraints = min_date
+            input_map = min_date
+            add_assignment(input_map, max_date)
         elif max_date is not None:
-            date_constraints = max_date
+            input_map = max_date
         else:
-            date_constraints = None
+            input_map = None
         
-        # Create the field
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+        
+        # Base config with common properties, only widget and type differ based on multiple_dates
+        config = {
+            "template": "date",
+            "format": "YYYY-MM-DD",
+            "json_format": "date",
+            "min_prop": "min_date",
+            "max_prop": "max_date",
+            "widget": "MultiDateWidget" if multiple_dates else "DateWidget",
+            "json_schema_type": "array" if multiple_dates else "string",
+        }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "format": config["format"]
+        }
+
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        # Update schemas for multiple dates (input default, output value, and JSON schema)
+        if multiple_dates:
+            array_schema = {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+            schemas["input_schema"].properties["default"] = array_schema
+            schemas["output_schema"].properties["value"] = array_schema
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.Date,
@@ -1151,22 +1575,152 @@ class UserForm(BaseModel):
             direction="input",
             input_schema=schemas["input_schema"],
             output_schema=schemas["output_schema"],
-            input_map=date_constraints,
+            input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
+
         self.add_or_replace_field(name, userfield)
+
+        # Set JSON schema based on type
+        if multiple_dates:
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "title": label,
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+        else:
+            self.jsonSchema.properties[name] = {
+                "type": "string",
+                "title": label,
+                "format": config["json_format"]
+            }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
+
+    def datetime_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            initial_value: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None,
+            inputType: UserFieldKind = UserFieldKind.DateTime,
+    ) -> UserField:
+        """
+        Creates a datetime or time input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial datetime/time value.
+            min_time: Optional DataMap for minimum allowed datetime/time.
+            max_time: Optional DataMap for maximum allowed datetime/time.
+            inputType: Type of field (DateTime or Time). Defaults to DateTime.
+
+        Returns:
+            UserField: The created datetime/time input field.
+        """
+        # Validate inputType
+        valid_types = [UserFieldKind.DateTime, UserFieldKind.Time]
+        if inputType not in valid_types:
+            raise ValueError(f"inputType must be one of DateTime or Time, got {inputType}")
         
-        # Update JSON schema
-        schema_def = {
-            "type": "string",
-            "title": label,
-            "format": "date"
+        # Validate inputs
+        ensure_datamap(initial_value, "initial_value")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+        
+        # Build the input_map by merging all assignments from initial_value, min_time and max_time
+        if initial_value is not None:
+            input_map = initial_value
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+        
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+        
+        # Configure based on inputType
+        if inputType == UserFieldKind.Time:
+            config = {
+                "template": "time",
+                "json_format": "time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": False
+                }
+            }
+        else:  # UserFieldKind.DateTime
+            config = {
+                "template": "datetime",
+                "json_format": "date-time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": True
+                }
+            }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "ui:options": config["ui_options"]
         }
 
-        self.jsonSchema.properties[name] = schema_def
-        
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
+        userfield = UserField(
+            name=name,
+            kind=inputType,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
 
@@ -1713,6 +2267,243 @@ class UserForm(BaseModel):
         # Update JSON schema - use model_construct to bypass validation for custom "file" type
         # pyright: ignore[reportCallIssue]
         self.jsonSchema.properties[name] = JsonSchemaObject.model_construct(type="file", title=label)
+        return userfield
+
+    # Dynamic Forms Behaviour Methods
+    
+    def add_visibility_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a visibility behaviour to control field visibility based on conditions.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of visibility rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_visibility_behaviour(
+                name="show_zipcode",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"zipcode": {"x-is-visible": True}}},
+                        "else": {"properties": {"zipcode": {"x-is-visible": False}}}
+                    },
+                    "impacted_field": "zipcode"
+                }],
+                display_name="Show Zipcode for USA"
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create visibility behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(VisibilityBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="visibility",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_label_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a label behaviour to change field labels based on conditions.
+        
+        Supports simple and complex conditions using allOf (AND) and anyOf (OR) operators,
+        as well as nested if/then/else structures.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of label rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example (simple):
+            form.add_label_behaviour(
+                name="region_label",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"region": {"title": "State"}}},
+                        "else": {"properties": {"region": {"title": "Province"}}}
+                    },
+                    "impacted_field": "region"
+                }],
+                display_name="Region Label"
+            )
+            
+        Example (complex with allOf):
+            form.add_label_behaviour(
+                name="complex_label",
+                on_change_to_field="field1",
+                rules=[{
+                    "condition": {
+                        "if": {
+                            "allOf": [
+                                {"properties": {"field1": {"const": "A"}}},
+                                {"properties": {"field2": {"const": "B"}}}
+                            ]
+                        },
+                        "then": {"properties": {"field3": {"title": "Both A and B"}}},
+                        "else": {"properties": {"field3": {"title": "Other"}}}
+                    },
+                    "impacted_field": "field3"
+                }]
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create label behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(LabelBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="label",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_value_source_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            impacted_field: str,
+            tool: str,
+            tool_input_schema: dict[str, Any],
+            tool_input_map: dict[str, Any] | None = None,
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a value source behaviour to populate field values from a tool.
+        
+        The tool must be synchronous and return a list of primitives or objects with a 'label' field.
+        The impacted field must be a single-select dropdown.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            impacted_field: The dropdown field to populate with tool results
+            tool: Tool identifier in format "name:uuid"
+            tool_input_schema: JSON schema for tool inputs
+            tool_input_map: Optional data map for tool input parameters
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_value_source_behaviour(
+                name="populate_regions",
+                on_change_to_field="country",
+                impacted_field="region",
+                tool="get_regions:12345-uuid",
+                tool_input_schema={
+                    "type": "object",
+                    "properties": {
+                        "country": {"type": "string"}
+                    }
+                },
+                tool_input_map={
+                    "spec": {
+                        "maps": [{
+                            "target_variable": "self.tool.input.country",
+                            "value_expression": "parent.field.country",
+                            "metadata": {"assignmentType": "field"}
+                        }]
+                    }
+                },
+                display_name="Populate Regions"
+            )
+            
+        Note:
+            - Use "parent.field.fieldName" to reference form fields in Chat UI
+            - Use "self.tool.input.paramName" for tool input parameters
+            - Field names are case-sensitive
+        """
+        from .data_map import DataMap, DataMapSpec
+        
+        # Convert tool_input_map to DataMapSpec if provided
+        if tool_input_map:
+            if isinstance(tool_input_map, dict):
+                tool_input_map = DataMapSpec(**tool_input_map)
+        else:
+            tool_input_map = DataMapSpec(spec=DataMap(maps=[]))
+        
+        # Create value source behaviour rule
+        behaviour_rule = ValueSourceBehaviourRule(
+            kind="value_source",
+            tool=tool,
+            impacted_field=impacted_field,
+            tool_input_map=tool_input_map,
+            tool_input_schema=tool_input_schema
+        )
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="value-source",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=[behaviour_rule]
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+
 
         return userfield
 
@@ -2722,7 +3513,7 @@ class TextExtractionResponse(BaseModel):
     Attributes:
         output_file_ref (str): The url to the file that contains the extracted text and kvps.
     '''
-    output_file_ref: str = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
+    output_file_ref: WXOFile = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
 
 
 class DecisionsCondition(BaseModel):

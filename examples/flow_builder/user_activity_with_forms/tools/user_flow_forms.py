@@ -80,7 +80,7 @@ class FlowInput(BaseModel):
     event_date: MyDate = Field(
         default=MyDate(),
         description="The event date"
-    ),
+    )
 
     listOfFruits: List[str] = Field(
         default=["apple", "oranges", "bananas"],
@@ -140,29 +140,6 @@ def build_user_form(aflow: Flow = None) -> Flow:
      #Field: Projected salary
     user_node_with_form.field_output_field(name="acknowledge", label="Projected salary", value = data_map_desired_salary)
 
-    #FileUpload
-    data_map_min_files = DataMap()
-    data_map_min_files.add(Assignment(target_variable="self.input.min_num_files", value_expression="1"))
-
-    data_map_max_files = DataMap()
-    data_map_max_files.add(Assignment(target_variable="self.input.max_num_files", value_expression="2"))
-
-    user_node_with_form.file_upload_field(name="credentials", label="Upload credentials", allow_multiple_files=True, file_max_size=256,
-                                          min_num_files=data_map_min_files, max_num_files=data_map_max_files)
-
-    #Date: End Date
-    data_map_default_date = DataMap()
-    data_map_default_date.add(Assignment(target_variable="self.input.default",value_expression="flow.input.event_date.dateEnd"))
-
-    data_map_min_date = DataMap()
-    data_map_min_date.add(Assignment(target_variable="self.input.min_date",value_expression="\"2026-01-05\""))
-    
-    data_map_max_date = DataMap()
-    data_map_max_date.add(Assignment(target_variable="self.input.max_date",value_expression="\"2026-01-12\""))
-
-    user_node_with_form.date_input_field(name="endDate", label="End Date", required=True, default=data_map_default_date, 
-                                        min_date=data_map_min_date, max_date=data_map_max_date)
-  
     data_map_list_source = DataMap()
     data_map_list_source.add(Assignment(target_variable="self.input.choices", value_expression="flow.input.listOfLanguages"))
     
@@ -208,6 +185,16 @@ def build_user_form(aflow: Flow = None) -> Flow:
     data_map_list_fruits.add(Assignment(target_variable="self.input.default", value_expression="flow.input.listOfFruits"))
 
     user_node_with_form.list_input_field(name="Fruits", label="Preferred fruits", default=data_map_list_fruits)
+
+    #FileUpload
+    data_map_min_files = DataMap()
+    data_map_min_files.add(Assignment(target_variable="self.input.min_num_files", value_expression="1"))
+
+    data_map_max_files = DataMap()
+    data_map_max_files.add(Assignment(target_variable="self.input.max_num_files", value_expression="2"))
+
+    user_node_with_form.file_upload_field(name="credentials", label="Upload credentials", allow_multiple_files=True, file_max_size=256,
+                                          min_num_files=data_map_min_files, max_num_files=data_map_max_files)
 
     # User field: Select multiple approvers (min 1, max 5)
     data_map_min_users = DataMap()

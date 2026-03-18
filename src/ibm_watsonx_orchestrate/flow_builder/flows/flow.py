@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 from enum import Enum
 from pydantic.main import BaseModel
-from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec, WXOFile
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.flow_builder.types import BranchNodeSpec, BranchNodeSpec, Conditions, Expression, ForeachSpec, PromptNodeSpec
 from ibm_watsonx_orchestrate.flow_builder.node import Node, TimerNode
@@ -50,7 +50,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
 
 from .events import StreamConsumer
 
@@ -350,7 +350,8 @@ class Flow(Node):
     def _create_node_from_tool_fn(
         self,
         tool: Callable,
-        error_handler_config: Optional[NodeErrorHandlerConfig] = None
+        error_handler_config: Optional[NodeErrorHandlerConfig] = None,
+        display_name: str | None = None
     ) -> ToolNode:
         if not isinstance(tool, Callable):
             raise ValueError("Only functions with @tool decorator can be added.")
@@ -368,7 +369,7 @@ class Flow(Node):
 
         toolnode_spec = ToolNodeSpec(type = "tool",
                                      name = tool_spec.name,
-                                     display_name = tool_spec.name,
+                                     display_name = display_name if display_name else tool_spec.name,
                                      description = tool_spec.description,
                                      input_schema = tool_spec.input_schema,
                                      output_schema = tool_spec.output_schema,
@@ -409,7 +410,7 @@ class Flow(Node):
                     try:
                         tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
                         if tool_spec_raw and isinstance(tool_spec_raw, dict):
-                            tool_spec = ToolSpec.model_validate(tool_spec_raw)
+                            tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
                     except ClientAPIException as e:
                         # let's try with name as well before throwing error
                         pass
@@ -418,6 +419,7 @@ class Flow(Node):
                     tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
                     if (tool_specs is None) or (len(tool_specs) == 0):
                         raise ValueError(f"tool '{tool_name}' not found")
+                    tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
                     
                 elif tool_spec is None:
                     raise ValueError(f"tool id '{tool_id}' not found")
@@ -455,7 +457,7 @@ class Flow(Node):
             if callable(tool):
                 tool_spec = getattr(tool, "__tool_spec__", None)
                 if tool_spec:
-                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config)
+                    node = self._create_node_from_tool_fn(tool, error_handler_config = error_handler_config, display_name = display_name)
                     # if name is specifed, override the name in the tool spec
                     if name is not None:
                         node.spec.name = name
@@ -840,7 +842,7 @@ class Flow(Node):
             kvp_model_name: str | None = None,
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
-            output_format: DocProcOutputFormat | str = DocProcOutputFormat.docref) -> DocProcNode:
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -2031,44 +2033,6 @@ class UserFlow(Flow):
 
             if kind == UserFieldKind.Text and text is None:
                 raise ValueError("Text field must be set for Text input.")
-        
-        # Handle multiple_users and required parameters for User field kind
-        if kind == UserFieldKind.User and direction == "input":
-            required_list = ["value"] if required else []
-            if multiple_users:
-                # Create array schema for multiple users with input schema for min/max
-                input_schema_properties = {
-                    "min_num_users": {"type": "integer"},
-                    "max_num_users": {"type": "integer"}
-                }
-                
-                schema_obj = {
-                    "input": JsonSchemaObject(
-                        type='object',
-                        properties=input_schema_properties,
-                        required=[],
-                        additionalProperties=False
-                    ) if input_schema_properties else None,
-                    "output": JsonSchemaObject(
-                        type='object',
-                        properties={"value": {"type": "array", "items": {"type": "string", "format": "wxo-user"}}},
-                        required=required_list,
-                        additionalProperties=False
-                    )
-                }
-                # Remove input key if no properties
-                if not input_schema_properties:
-                    del schema_obj["input"]
-            else:
-                # Single user schema - no input schema
-                schema_obj = {
-                    "output": JsonSchemaObject(
-                        type='object',
-                        properties={"value": {"type": "string", "format": "wxo-user"}},
-                        required=required_list,
-                        additionalProperties=False
-                    )
-                }
 
         # A user node will only has 1 field or 1 form.
         user_node_spec = UserNodeSpec(

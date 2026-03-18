@@ -1,0 +1,1003 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "user_flow_application_form_date_time_multipledates",
+    "display_name": "Application form date time multipledates",
+    "description": "Creates a comprehensive form with all date, time, and datetime field variations.",
+    "input_schema": {
+      "$ref": "#/schemas/user_flow_application_form_date_time_input"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "Date Time Application",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
+      },
+      "nodes": {
+        "DateTimeForm": {
+          "spec": {
+            "kind": "user",
+            "name": "DateTimeForm",
+            "display_name": "Comprehensive Date and Time Form",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [],
+            "form": {
+              "name": "DateTimeForm",
+              "kind": "form",
+              "display_name": "Comprehensive Date and Time Form",
+              "fields": [
+                {
+                  "name": "Casual day off",
+                  "kind": "date",
+                  "direction": "input",
+                  "display_name": "Casual day off",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_date.dateSimple",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "max_date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "min_date": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DateWidget",
+                    "ui:title": "Casual day off",
+                    "format": "YYYY-MM-DD"
+                  }
+                },
+                {
+                  "name": "Employee vacation",
+                  "kind": "date",
+                  "direction": "input",
+                  "display_name": "Employee vacation",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_date.dateEvent",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_date",
+                          "value_expression": "flow.input.event_date.dateStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_date",
+                          "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "max_date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "min_date": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DateWidget",
+                    "ui:title": "Employee vacation",
+                    "format": "YYYY-MM-DD"
+                  }
+                },
+                {
+                  "name": "Alternative availability dates",
+                  "kind": "date",
+                  "direction": "input",
+                  "display_name": "Alternative availability dates",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_date.dateList",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_date",
+                          "value_expression": "flow.input.event_date.dateStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_date",
+                          "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      },
+                      "max_date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "min_date": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "MultiDateWidget",
+                    "ui:title": "Alternative availability dates",
+                    "format": "YYYY-MM-DD"
+                  }
+                },
+                {
+                  "name": "Lunch time",
+                  "kind": "time",
+                  "direction": "input",
+                  "display_name": "Lunch time",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_time.timeSimple",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "time"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "time"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TimeWidget",
+                    "ui:title": "Lunch time",
+                    "ui:options": {
+                      "is_range": false,
+                      "is_timezone": true,
+                      "is_datepicker": false
+                    }
+                  }
+                },
+                {
+                  "name": "Login time",
+                  "kind": "time",
+                  "direction": "input",
+                  "display_name": "Login time",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_time.timeDefaultStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_time",
+                          "value_expression": "flow.input.event_time.timeStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_time",
+                          "value_expression": "flow.input.event_time.timeEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "time"
+                      },
+                      "min_time": {
+                        "type": "string",
+                        "format": "time"
+                      },
+                      "max_time": {
+                        "type": "string",
+                        "format": "time"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "time"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TimeWidget",
+                    "ui:title": "Login time",
+                    "ui:options": {
+                      "is_range": false,
+                      "is_timezone": true,
+                      "is_datepicker": false
+                    }
+                  }
+                },
+                {
+                  "name": "Release Cutoff",
+                  "kind": "datetime",
+                  "direction": "input",
+                  "display_name": "Release Cutoff",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_datetime.dateTimeSimple",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TimeWidget",
+                    "ui:title": "Release Cutoff",
+                    "ui:options": {
+                      "is_range": false,
+                      "is_timezone": true,
+                      "is_datepicker": true
+                    }
+                  }
+                },
+                {
+                  "name": "Project submission period",
+                  "kind": "datetime",
+                  "direction": "input",
+                  "display_name": "Project submission period",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "flow.input.event_datetime.dateTimeEvent",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_time",
+                          "value_expression": "flow.input.event_datetime.dateTimeStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_time",
+                          "value_expression": "flow.input.event_datetime.dateTimeEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "min_time": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "max_time": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TimeWidget",
+                    "ui:title": "Project submission period",
+                    "ui:options": {
+                      "is_range": false,
+                      "is_timezone": true,
+                      "is_datepicker": true
+                    }
+                  }
+                },
+                {
+                  "name": "Employee probation period",
+                  "kind": "date-range",
+                  "direction": "input",
+                  "display_name": "Employee probation",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default_start",
+                          "value_expression": "flow.input.event_date.dateStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.default_end",
+                          "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_date",
+                          "value_expression": "flow.input.event_date.dateStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_date",
+                          "value_expression": "flow.input.event_date.dateEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default_start": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "default_end": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "max_date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "min_date": {
+                            "type": "string",
+                            "format": "date"
+                          }
+                        }
+                      },
+                      "min_date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "max_date": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "end": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "start": {
+                            "type": "string",
+                            "format": "date"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DateWidget",
+                    "format": "YYYY-MM-DD",
+                    "ui:options": {
+                      "range": true
+                    },
+                    "ui:order": [
+                      "start",
+                      "end"
+                    ],
+                    "ui:title": "Employee probation",
+                    "ui:start_label": "Start Date",
+                    "ui:end_label": "End Date"
+                  }
+                },
+                {
+                  "name": "Working Shift",
+                  "kind": "time-range",
+                  "direction": "input",
+                  "display_name": "Working Hours",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default_start",
+                          "value_expression": "flow.input.event_time.timeDefaultStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.default_end",
+                          "value_expression": "flow.input.event_time.timeDefaultEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.min_time",
+                          "value_expression": "flow.input.event_time.timeStart",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        },
+                        {
+                          "target_variable": "self.input.max_time",
+                          "value_expression": "flow.input.event_time.timeEnd",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default_start": {
+                        "type": "string",
+                        "format": "time"
+                      },
+                      "default_end": {
+                        "type": "string",
+                        "format": "time"
+                      },
+                      "min_time": {
+                        "type": "string",
+                        "format": "time"
+                      },
+                      "max_time": {
+                        "type": "string",
+                        "format": "time"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "object",
+                        "properties": {
+                          "end": {
+                            "type": "string",
+                            "format": "time"
+                          },
+                          "start": {
+                            "type": "string",
+                            "format": "time"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ]
+                  },
+                  "uiSchema": {
+                    "ui:widget": "TimeWidget",
+                    "ui:options": {
+                      "is_range": true,
+                      "is_timezone": true,
+                      "is_datepicker": false
+                    },
+                    "ui:order": [
+                      "start",
+                      "end"
+                    ],
+                    "ui:title": "Working Hours",
+                    "ui:start_label": "Start Time",
+                    "ui:end_label": "End Time"
+                  }
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "properties": {
+                  "Casual day off": {
+                    "type": "string",
+                    "title": "Casual day off",
+                    "format": "date"
+                  },
+                  "Employee vacation": {
+                    "type": "string",
+                    "title": "Employee vacation",
+                    "format": "date"
+                  },
+                  "Alternative availability dates": {
+                    "type": "array",
+                    "title": "Alternative availability dates",
+                    "items": {
+                      "type": "string",
+                      "format": "date"
+                    }
+                  },
+                  "Lunch time": {
+                    "type": "array",
+                    "title": "Lunch time",
+                    "items": {}
+                  },
+                  "Login time": {
+                    "type": "array",
+                    "title": "Login time",
+                    "items": {}
+                  },
+                  "Release Cutoff": {
+                    "type": "array",
+                    "title": "Release Cutoff",
+                    "items": {}
+                  },
+                  "Project submission period": {
+                    "type": "array",
+                    "title": "Project submission period",
+                    "items": {}
+                  },
+                  "Employee probation period": {
+                    "type": "array",
+                    "title": "Employee probation",
+                    "items": {}
+                  },
+                  "Working Shift": {
+                    "type": "array",
+                    "title": "Working Hours",
+                    "items": {}
+                  }
+                },
+                "required": [
+                  "Employee vacation",
+                  "Login time",
+                  "Project submission period",
+                  "Employee probation period",
+                  "Working Shift"
+                ]
+              },
+              "buttons": [
+                {
+                  "name": "submit",
+                  "kind": "submit",
+                  "display_name": "Submit",
+                  "visible": true,
+                  "edge_id": "ee75a4c2-3137-447c-aed6-b924f9b1701d"
+                },
+                {
+                  "name": "cancel",
+                  "kind": "cancel",
+                  "display_name": "Cancel",
+                  "visible": true,
+                  "edge_id": "6791c382-8663-4b1c-9027-27e546889f89"
+                }
+              ]
+            }
+          }
+        },
+        "process_submit": {
+          "spec": {
+            "kind": "script",
+            "name": "process_submit",
+            "display_name": "process_submit",
+            "fn": "print(\"Processing submission with all date/time fields...\")"
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "DateTimeForm"
+        },
+        {
+          "start": "DateTimeForm",
+          "end": "process_submit",
+          "id": "ee75a4c2-3137-447c-aed6-b924f9b1701d"
+        },
+        {
+          "start": "process_submit",
+          "end": "__end__"
+        },
+        {
+          "start": "DateTimeForm",
+          "end": "__end__",
+          "id": "6791c382-8663-4b1c-9027-27e546889f89"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "init_data": {
+      "spec": {
+        "kind": "script",
+        "name": "init_data",
+        "display_name": "init_data",
+        "fn": "\n# Date fields\nflow.input.event_date.dateStart = \"2023-01-01\"\nflow.input.event_date.dateEnd = \"2023-12-31\"\nflow.input.event_date.dateEvent = \"2023-06-15\"\nflow.input.event_date.dateSimple = \"2023-07-01\"\n\n# Time fields\nflow.input.event_time.timeStart = \"09:00\"\nflow.input.event_time.timeEnd = \"17:00\"\nflow.input.event_time.timeDefaultStart = \"10:00\"\nflow.input.event_time.timeDefaultEnd = \"16:00\"\nflow.input.event_time.timeSimple = \"12:00\"\n\n# DateTime fields\nflow.input.event_datetime.dateTimeStart = \"2023-01-01T09:00:00\"\nflow.input.event_datetime.dateTimeEnd = \"2023-12-31T17:00:00\"\nflow.input.event_datetime.dateTimeEvent = \"2023-06-15T14:00:00\"\nflow.input.event_datetime.dateTimeSimple = \"2023-07-01T12:00:00\"\n"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "init_data"
+    },
+    {
+      "start": "init_data",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "MyDate": {
+      "type": "object",
+      "title": "MyDate",
+      "description": "This datatype represents date information.\n\nAttributes:\n    dateStart (str): The start date.\n    dateEnd (str): The end date.\n    dateEvent (str): The event date.\n    dateSimple (str): A simple date without constraints.\n    dateList (List[str]): A list of dates for multiple date selection.",
+      "properties": {
+        "dateStart": {
+          "type": "string",
+          "title": "Datestart",
+          "description": "Start date",
+          "default": "2023-01-01"
+        },
+        "dateEnd": {
+          "type": "string",
+          "title": "Dateend",
+          "description": "End date",
+          "default": "2023-12-31"
+        },
+        "dateEvent": {
+          "type": "string",
+          "title": "Dateevent",
+          "description": "Event date",
+          "default": "2023-06-15"
+        },
+        "dateSimple": {
+          "type": "string",
+          "title": "Datesimple",
+          "description": "Simple date",
+          "default": "2023-07-01"
+        },
+        "dateList": {
+          "type": "array",
+          "title": "Datelist",
+          "description": "List of alternative availability dates",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "2023-08-10",
+            "2023-08-15",
+            "2023-08-20"
+          ]
+        }
+      }
+    },
+    "MyTime": {
+      "type": "object",
+      "title": "MyTime",
+      "description": "This datatype represents time information.\n\nAttributes:\n    timeStart (str): The start time.\n    timeEnd (str): The end time.\n    timeDefaultStart (str): The default start time.\n    timeDefaultEnd (str): The default end time.\n    timeSimple (str): A simple time without constraints.",
+      "properties": {
+        "timeStart": {
+          "type": "string",
+          "title": "Timestart",
+          "description": "Start time",
+          "default": "09:00"
+        },
+        "timeEnd": {
+          "type": "string",
+          "title": "Timeend",
+          "description": "End time",
+          "default": "17:00"
+        },
+        "timeDefaultStart": {
+          "type": "string",
+          "title": "Timedefaultstart",
+          "description": "Default start time",
+          "default": "10:00"
+        },
+        "timeDefaultEnd": {
+          "type": "string",
+          "title": "Timedefaultend",
+          "description": "Default end time",
+          "default": "16:00"
+        },
+        "timeSimple": {
+          "type": "string",
+          "title": "Timesimple",
+          "description": "Simple time",
+          "default": "12:00"
+        }
+      }
+    },
+    "MyDateTime": {
+      "type": "object",
+      "title": "MyDateTime",
+      "description": "This datatype represents datetime information.\n\nAttributes:\n    dateTimeStart (str): The start datetime.\n    dateTimeEnd (str): The end datetime.\n    dateTimeEvent (str): The event datetime.\n    dateTimeSimple (str): A simple datetime without constraints.",
+      "properties": {
+        "dateTimeStart": {
+          "type": "string",
+          "title": "Datetimestart",
+          "description": "Start datetime",
+          "default": "2023-01-01T09:00:00"
+        },
+        "dateTimeEnd": {
+          "type": "string",
+          "title": "Datetimeend",
+          "description": "End datetime",
+          "default": "2023-12-31T17:00:00"
+        },
+        "dateTimeEvent": {
+          "type": "string",
+          "title": "Datetimeevent",
+          "description": "Event datetime",
+          "default": "2023-06-15T14:00:00"
+        },
+        "dateTimeSimple": {
+          "type": "string",
+          "title": "Datetimesimple",
+          "description": "Simple datetime",
+          "default": "2023-07-01T12:00:00"
+        }
+      }
+    },
+    "user_flow_application_form_date_time_input": {
+      "type": "object",
+      "title": "user_flow_application_form_date_time_input",
+      "required": [],
+      "properties": {
+        "event_date": {
+          "title": "MyDate",
+          "$ref": "#/schemas/MyDate"
+        },
+        "event_time": {
+          "title": "MyTime",
+          "$ref": "#/schemas/MyTime"
+        },
+        "event_datetime": {
+          "title": "MyDateTime",
+          "$ref": "#/schemas/MyDateTime"
+        }
+      }
+    },
+    "DateTimeForm": {
+      "type": "object",
+      "title": "DateTimeForm",
+      "properties": {}
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2026-03-12T11:32:26.515882+00:00"
+  }
+}

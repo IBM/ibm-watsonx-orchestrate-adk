@@ -261,6 +261,7 @@ class ToolSpec(BaseModel):
     toolkit_id: str | None = None
     is_async: bool = False
     response_format: ToolResponseFormat = ToolResponseFormat.CONTENT
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     def is_custom_join_tool(self) -> bool:
         if self.binding.python is None:
@@ -415,6 +416,17 @@ class MultiFileConstraints:
             logger.error(
                 f"max_total_size ({max_total_mb:.2f}MB) exceeds the maximum allowed limit of {limit_mb:.0f}MB. "
                 f"Please set max_total_size to {self.MAX_FILE_SIZE_LIMIT} bytes or less."
+            )
+            sys.exit(1)
+        
+        # Validate max_size_per_file is not greater than max_total_size
+        if (max_size_per_file is not None and max_total_size is not None and
+            max_size_per_file > max_total_size):
+            per_file_mb = max_size_per_file / (1024 * 1024)
+            total_mb = max_total_size / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({per_file_mb:.2f}MB) cannot be greater than max_total_size ({total_mb:.2f}MB). "
+                f"Please set max_size_per_file to {max_total_size} bytes or less."
             )
             sys.exit(1)
         

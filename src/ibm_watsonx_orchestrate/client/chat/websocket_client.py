@@ -2,10 +2,10 @@ import asyncio
 import json
 import logging
 import jwt
-import websockets
+import websocket
+import threading
 
 from typing import Optional, Callable, Dict, Any
-from websockets.client import WebSocketClientProtocol
 from urllib.parse import urlparse, urlunparse
 
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
@@ -16,16 +16,20 @@ logger = logging.getLogger(__name__)
 
 class WebSocketClient(BaseWXOClient):
     """
-    WebSocket client for real-time chat message streaming.
+    WebSocket client for real-time chat message streaming using websocket-client.
     
     This client establishes a WebSocket connection to receive async messages
     and run completion events in real-time, eliminating the need for HTTP polling.
+    Uses lightweight websocket-client library.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ws_connection: Optional[WebSocketClientProtocol] = None
+        self.ws_connection: Optional[websocket.WebSocketApp] = None
         self._message_handlers: Dict[str, Callable] = {}
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
     
     def get_user_id(self) -> Optional[str]:
         """Extract user ID from the JWT token.
@@ -113,6 +117,86 @@ class WebSocketClient(BaseWXOClient):
         ws_url = urlunparse((ws_scheme, ws_host, ws_path, '', query_string, ''))
         return ws_url
     
+    def _on_message(self, ws, message):
+        """Handle incoming WebSocket messages."""
+        try:
+            if not isinstance(message, str):
+                return
+            
+            # Engine.IO protocol parsing
+            if len(message) < 1:
+                return
+            
+            # Get message type
+            msg_type = message[0]
+            
+            if msg_type == '0':
+                # OPEN - send CONNECT
+                ws.send('40')
+                return
+            
+            elif msg_type == '2':
+                # PING - send PONG
+                ws.send('3')
+                return
+            
+            elif msg_type == '3':
+                # PONG
+                return
+            
+            elif message.startswith('42'):
+                # EVENT
+                json_str = message[2:]
+                parsed = json.loads(json_str)
+                
+                if isinstance(parsed, list) and len(parsed) >= 2:
+                    event_name = parsed[0]
+                    event_data = parsed[1]
+                    
+                    if isinstance(event_data, dict):
+                        event_type = event_data.get('event', 'unknown')
+                        
+                        # Call registered handler
+                        if event_type in self._message_handlers:
+                            handler = self._message_handlers[event_type]
+                            if asyncio.iscoroutinefunction(handler):
+                                # Schedule coroutine in the event loop
+                                if self._loop:
+                                    asyncio.run_coroutine_threadsafe(handler(event_data), self._loop)
+                            else:
+                                handler(event_data)
+            
+            elif message.startswith('40'):
+                # CONNECT
+                return
+            
+            elif message.startswith('41'):
+                # DISCONNECT
+                self._running = False
+                return
+            
+            else:
+                logger.warning(f"Received unknown Engine.IO message: {message[:50]}")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Non-JSON message received: {message}")
+        except Exception as e:
+            logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
+    
+    def _on_error(self, ws, error):
+        """Handle WebSocket errors."""
+        logger.error(f"WebSocket error: {error}")
+    
+    def _on_close(self, ws, close_status_code, close_msg):
+        """Handle WebSocket close."""
+        logger.info(f"WebSocket connection closed: {close_status_code} - {close_msg}")
+        self._running = False
+    
+    def _on_open(self, ws):
+        """Handle WebSocket open."""
+        logger.info("WebSocket connection established")
+        self._running = True
+    
     async def connect(
         self,
         agent_id: str,
@@ -131,25 +215,59 @@ class WebSocketClient(BaseWXOClient):
         
         # Get headers for authentication
         headers = self._get_headers()
-        additional_headers = [(k, v) for k, v in headers.items()]
-                
+        header_list = [f"{k}: {v}" for k, v in headers.items()]
+        
         try:
-            self.ws_connection = await websockets.connect(
+            # Store the current event loop
+            self._loop = asyncio.get_event_loop()
+            
+            # Create WebSocket connection
+            self.ws_connection = websocket.WebSocketApp(
                 ws_url,
-                additional_headers=additional_headers,
-                ping_interval=20,  # Send ping every 20 seconds
-                ping_timeout=10,   # Wait 10 seconds for pong
+                header=header_list,
+                on_message=self._on_message,
+                on_error=self._on_error,
+                on_close=self._on_close,
+                on_open=self._on_open
             )
+            
+            # Run WebSocket in a separate thread
+            self._thread = threading.Thread(
+                target=self.ws_connection.run_forever,
+                kwargs={'ping_interval': 20, 'ping_timeout': 10}
+            )
+            self._thread.daemon = True
+            self._thread.start()
+            
+            # Wait for connection to establish
+            for _ in range(50):  # Wait up to 5 seconds
+                if self._running:
+                    break
+                await asyncio.sleep(0.1)
+            
+            if not self._running:
+                raise RuntimeError("WebSocket connection failed to establish")
+                
         except Exception as e:
             logger.warning(f"WebSocket connection failed: {e}")
             raise
     
     async def disconnect(self) -> None:
         """Close WebSocket connection."""
+        self._running = False
         if self.ws_connection:
-            await self.ws_connection.close()
-            self.ws_connection = None
-
+            try:
+                self.ws_connection.close()
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket: {e}")
+            finally:
+                self.ws_connection = None
+        
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+            self._thread = None
+        
+        self._loop = None
     
     def register_handler(self, event_type: str, handler: Callable) -> None:
         """
@@ -163,90 +281,18 @@ class WebSocketClient(BaseWXOClient):
     
     async def listen(self) -> None:
         """
-        Listen for WebSocket messages and dispatch to handlers.
+        Listen for WebSocket messages.
         
-        This method runs in a loop, receiving messages and calling
-        registered handlers based on event type. Handles Engine.IO/Socket.IO
-        protocol messages.
-        
-        Engine.IO message types:
-        - 0: OPEN (handshake)
-        - 1: CLOSE
-        - 2: PING
-        - 3: PONG
-        - 4: MESSAGE (Socket.IO messages)
-        - 40: CONNECT
-        - 41: DISCONNECT
-        - 42: EVENT
-        - 43: ACK
+        The actual listening is done in the background thread.
+        This method just waits while the connection is active.
         """
         if not self.ws_connection:
             raise RuntimeError("WebSocket not connected. Call connect() first.")
         
         try:
-            async for message in self.ws_connection:
-                try:
-                    if not isinstance(message, str):
-                        continue
-                    
-                    # Engine.IO protocol parsing
-                    if len(message) < 1:
-                        continue
-                    
-                    # Get message type (first character or first two characters)
-                    msg_type = message[0]
-                    
-                    if msg_type == '0':
-                        await self.ws_connection.send('40')
-                        continue
-                    
-                    elif msg_type == '2':
-                        await self.ws_connection.send('3')
-                        continue
-                    
-                    elif msg_type == '3':
-                        continue
-                    
-                    elif message.startswith('42'):
-                        json_str = message[2:]  # Remove "42" prefix
-                        parsed = json.loads(json_str)
-                        
-                        if isinstance(parsed, list) and len(parsed) >= 2:
-                            event_name = parsed[0] 
-                            event_data = parsed[1] 
-                            
-                            
-                            # Extract the actual event type from the data
-                            if isinstance(event_data, dict):
-                                event_type = event_data.get('event', 'unknown')
-                               
-                                # Call registered handler
-                                if event_type in self._message_handlers:
-                                    handler = self._message_handlers[event_type]
-                                    if asyncio.iscoroutinefunction(handler):
-                                        await handler(event_data)
-                                    else:
-                                        handler(event_data)
-
-                    elif message.startswith('40'):
-                        # Socket.IO CONNECT
-                        continue
-                    
-                    elif message.startswith('41'):
-                        # Socket.IO DISCONNECT
-                        break
-                    
-                    else:
-                        # Unknown message type
-                        logger.warning(f"Received unknown Engine.IO message: {message[:50]}")
-                        
-                except json.JSONDecodeError as e:
-                    logger.error(f"Non-JSON message received: {message}")
-                except Exception as e:
-                    logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
-                    
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("WebSocket connection closed")
+            # Wait while connection is active
+            while self._running:
+                await asyncio.sleep(0.1)
         except Exception as e:
             logger.error(f"WebSocket listen error: {e}", exc_info=True)
             raise
@@ -258,11 +304,11 @@ class WebSocketClient(BaseWXOClient):
         Args:
             message: Message data to send (will be JSON serialized)
         """
-        if not self.ws_connection:
+        if not self.ws_connection or not self._running:
             raise RuntimeError("WebSocket not connected. Call connect() first.")
         
         try:
-            await self.ws_connection.send(json.dumps(message))
+            self.ws_connection.send(json.dumps(message))
             logger.debug(f"Sent WebSocket message: {message.get('type', 'unknown')}")
         except Exception as e:
             logger.error(f"Failed to send WebSocket message: {e}")

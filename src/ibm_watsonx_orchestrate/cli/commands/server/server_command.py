@@ -200,7 +200,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     DockerUtils.ensure_docker_installed()
 
     cli_config = Config()
-    env_service = EnvService(cli_config)
+    env_service = EnvService(cli_config) 
     env_service.prepare_clean_env(user_env_file)
     user_env = env_service.get_user_env(user_env_file)
     merged_env_dict = env_service.prepare_server_env_vars_minimal(user_env=user_env)
@@ -239,10 +239,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
     # Make env file vm-visible and reuse existing env file if present
-    vm_env_dir = Path.home() / ".cache/orchestrate"
-    vm_env_dir.mkdir(parents=True, exist_ok=True)
-    vm_env_file = vm_env_dir / final_env_file.name
-    shutil.copy(final_env_file, vm_env_file)
+    vm_env_file = copy_files_to_cache(final_env_file, env_service)
 
     logger.info("Waiting for orchestrate server to be fully started and ready...")
 
