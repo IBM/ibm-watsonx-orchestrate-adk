@@ -86,11 +86,18 @@ class WorkspacesController:
     # ==================== WORKSPACE CRUD OPERATIONS ====================
 
     def _validate_workspace_name(self, name: str):
-        # Name must start with a letter and contain only alphanumeric characters and underscores
-        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', name):
+        # Name must be 1-255 characters, can contain letters, numbers, spaces, underscores, and hyphens
+        # Must not be empty or only whitespace
+        if not name or not name.strip():
+            logger.error("Workspace name cannot be empty or only whitespace.")
+            sys.exit(1)
+        
+        # Allow letters, numbers, spaces, underscores, and hyphens
+        # Name should start with a letter or number (not special characters)
+        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9 _-]*$', name.strip()):
             logger.error(
                 f"Invalid workspace name '{name}'. "
-                "Name must start with a letter and contain only alphanumeric characters and underscores (no hyphens or spaces)."
+                "Name must start with a letter or number and can contain only alphanumeric characters, spaces, underscores, and hyphens."
             )
             sys.exit(1)
 
