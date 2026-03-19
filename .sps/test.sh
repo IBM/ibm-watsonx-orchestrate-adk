@@ -13,6 +13,8 @@ BASE_DIR=$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")
 echo $BASE_DIR
 
 UNIT_TEST_SCRIPT=$(cat <<EOF
+pip install "./packages/core"
+pip install "./packages/clients"
 pip install ".[dev, agentops]"
 mkdir -p coverage
 hatch run test:coverage run -m pytest --junitxml coverage/test-results.xml
