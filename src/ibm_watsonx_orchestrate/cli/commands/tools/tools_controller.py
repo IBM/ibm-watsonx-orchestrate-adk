@@ -173,14 +173,9 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
                 continue
 
-            # Validate that the connection is not key_value when the tool in openapi
+            # OpenAPI tools support all connection types - no validation needed
             case ToolKind.openapi:
-                permitted_connections_types.extend([
-                    ConnectionSecurityScheme.API_KEY_AUTH,
-                    ConnectionSecurityScheme.BASIC_AUTH,
-                    ConnectionSecurityScheme.BEARER_TOKEN,
-                    ConnectionSecurityScheme.OAUTH2
-                ])
+                pass
 
             # Validate that the connection is key_value when the tool in langflow
             case ToolKind.langflow:
@@ -200,7 +195,8 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
                 continue
 
-            if conn.security_scheme not in permitted_connections_types:
+            # Only validate connection types for tools that have restrictions (e.g., langflow)
+            if permitted_connections_types and conn.security_scheme not in permitted_connections_types:
                 logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
                 exit(1)
 
