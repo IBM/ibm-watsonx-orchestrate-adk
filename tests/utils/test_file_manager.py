@@ -21,9 +21,9 @@ class MockEncodingGuesses:
 
 class TestFileManagerGetEncoding:
     def test_file_manager_get_encoding(self):
-        with patch("ibm_watsonx_orchestrate.utils.file_manager.Path.exists") as mock_path_exists, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.from_path") as mock_from_path, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.Config.read") as mock_config_read:
+        with patch("ibm_watsonx_orchestrate_core.utils.file_manager.Path.exists") as mock_path_exists, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.from_path") as mock_from_path, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.Config.read") as mock_config_read:
             
             mock_path = Path("test_file.yaml")
             mock_path_exists.return_value = True
@@ -43,9 +43,9 @@ class TestFileManagerGetEncoding:
             assert encoding == mock_encoding
     
     def test_file_manager_get_encoding_no_guess(self):
-        with patch("ibm_watsonx_orchestrate.utils.file_manager.Path.exists") as mock_path_exists, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.from_path") as mock_from_path, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.Config.read") as mock_config_read:
+        with patch("ibm_watsonx_orchestrate_core.utils.file_manager.Path.exists") as mock_path_exists, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.from_path") as mock_from_path, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.Config.read") as mock_config_read:
             
             mock_path = Path("test_file.yaml")
             mock_path_exists.return_value = True
@@ -63,9 +63,9 @@ class TestFileManagerGetEncoding:
             assert encoding == fm.DEFAULT_ENCODING
     
     def test_file_manager_get_encoding_non_existent(self):
-        with patch("ibm_watsonx_orchestrate.utils.file_manager.Path.exists") as mock_path_exists, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.from_path") as mock_from_path, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.Config.read") as mock_config_read:
+        with patch("ibm_watsonx_orchestrate_core.utils.file_manager.Path.exists") as mock_path_exists, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.from_path") as mock_from_path, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.Config.read") as mock_config_read:
             
             mock_path = Path("test_file.yaml")
             mock_path_exists.return_value = False
@@ -81,9 +81,9 @@ class TestFileManagerGetEncoding:
             assert encoding == fm.DEFAULT_ENCODING
     
     def test_file_manager_get_encoding_config_set(self):
-        with patch("ibm_watsonx_orchestrate.utils.file_manager.Path.exists") as mock_path_exists, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.from_path") as mock_from_path, \
-            patch("ibm_watsonx_orchestrate.utils.file_manager.Config.read") as mock_config_read:
+        with patch("ibm_watsonx_orchestrate_core.utils.file_manager.Path.exists") as mock_path_exists, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.from_path") as mock_from_path, \
+            patch("ibm_watsonx_orchestrate_core.utils.file_manager.Config.read") as mock_config_read:
             
             mock_encoding = "test_encoding"
             mock_path = Path("test_file.yaml")
@@ -184,7 +184,7 @@ class TestSafeOpen:
             ]
     )
     def test_safe_open(self, open_args, open_kwargs):
-        with patch("ibm_watsonx_orchestrate.utils.file_manager.FileManager") as mock_file_manager:
+        with patch("ibm_watsonx_orchestrate_core.utils.file_manager.FileManager") as mock_file_manager:
             mock_instance = mock_file_manager.return_value
 
             safe_open(*open_args, **open_kwargs)
