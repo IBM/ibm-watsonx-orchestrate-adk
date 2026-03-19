@@ -175,7 +175,7 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
 
             # OpenAPI tools support all connection types - no validation needed
             case ToolKind.openapi:
-                pass
+                continue
 
             # Validate that the connection is key_value when the tool in langflow
             case ToolKind.langflow:
@@ -195,8 +195,7 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
                 continue
 
-            # Only validate connection types for tools that have restrictions (e.g., langflow)
-            if permitted_connections_types and conn.security_scheme not in permitted_connections_types:
+            if conn.security_scheme not in permitted_connections_types:
                 logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
                 exit(1)
 
