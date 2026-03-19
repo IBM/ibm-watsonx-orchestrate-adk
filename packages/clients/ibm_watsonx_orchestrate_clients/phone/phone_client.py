@@ -179,7 +179,7 @@ class PhoneClient(BaseWXOClient):
         Args:
             config_id: Phone config identifier
         """
-        from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+        from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
 
         config = self.get_phone_channel(config_id)
         if not config:

@@ -15,7 +15,8 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11, <3.14"
 dependencies = [
     "ibm-cloud-sdk-core>=3.24.2",
-    "ibm-watsonx-orchestrate-core"
+    "ibm-watsonx-orchestrate-core",
+    "websocket-client>=1.8.0,<2.0.0"
 ]
 
 [tool.setuptools]
