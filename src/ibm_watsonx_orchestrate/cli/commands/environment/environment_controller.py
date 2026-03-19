@@ -25,7 +25,8 @@ from ibm_watsonx_orchestrate.cli.config import (
 )
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
-from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
 from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env, is_ibm_cloud_platform
