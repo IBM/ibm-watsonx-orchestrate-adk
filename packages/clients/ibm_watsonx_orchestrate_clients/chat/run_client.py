@@ -8,10 +8,10 @@ import os
 
 from typing import Optional, TypedDict, Callable, Dict, Any, List
 
-from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
-from ibm_watsonx_orchestrate.client.utils import is_local_dev
-from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from ibm_watsonx_orchestrate.client.chat.websocket_client import WebSocketClient
+from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient
+from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
+from ibm_watsonx_orchestrate_core.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate_clients.chat.websocket_client import WebSocketClient
 
 logger = logging.getLogger(__name__)
 
