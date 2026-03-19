@@ -22,10 +22,13 @@ try:
     from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
     from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
     _import_error = False
-except ImportError:
+    _import_error_msg = None
+except ImportError as e:
     _import_error = True
+    _import_error_msg = str(e)
 
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,8 @@ evaluation_app = typer.Typer(no_args_is_help=True)
 
 def _check_import_error():
     if _import_error:
-        logger.error("AgentOps not found. Please install it using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
+        logger.error(f"Failed to import evaluation dependencies: {_import_error_msg}. "
+                     "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
         sys.exit(1)
 
 def _feature_requires_legacy_eval():
@@ -47,7 +51,7 @@ def _native_agent_template():
     return {
         "spec_version": "v1",
         "style": "default",
-        "llm": "watsonx/meta-llama/llama-3-405b-instruct",
+        "llm": "watsonx/meta-llama/llama-3-3-70b-instruct",
         "name": "",
         "description": "Native agent for validating external agent",
         "instructions": "Use the tools and external agent(s) provided to answer the user's question.  If you do not have enough information to answer the question, say so.  If you need more information, ask follow up questions.",
