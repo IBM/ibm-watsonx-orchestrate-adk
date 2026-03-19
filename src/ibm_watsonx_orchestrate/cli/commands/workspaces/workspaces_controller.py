@@ -8,7 +8,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import typer
 
 from ibm_watsonx_orchestrate.client.workspaces.workspace_client import WorkspaceClient
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.agent_builder.workspaces.types import WorkspaceRole
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
@@ -61,11 +61,7 @@ class WorkspacesController:
             if not active_env:
                 logger.error("No active environment. Please activate an environment first using 'orchestrate env activate'")
                 sys.exit(1)
-            
-            env_url = cfg.get(ENVIRONMENTS_SECTION_HEADER, active_env, ENV_WXO_URL_OPT)
-            if is_local_dev(env_url):
-                logger.error("Workspace management is only available for IBM Cloud environments.")
-                sys.exit(1)
+                
         except Exception as e:
             logger.error(f"Failed to validate environment: {str(e)}")
             sys.exit(1)
@@ -86,11 +82,23 @@ class WorkspacesController:
     # ==================== WORKSPACE CRUD OPERATIONS ====================
 
     def _validate_workspace_name(self, name: str):
-        # Name must start with a letter and contain only alphanumeric characters and underscores
-        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', name):
+        # Name must be 1-40 characters, can contain letters, numbers, spaces, underscores, and hyphens
+        # Must not be empty or only whitespace
+        if not name or not name.strip():
+            logger.error("Workspace name cannot be empty or only whitespace.")
+            sys.exit(1)
+        
+        # Check maximum length (API enforces 40 characters)
+        if len(name) > 40:
+            logger.error(f"Invalid workspace name. Name must be at most 40 characters long (current length: {len(name)}).")
+            sys.exit(1)
+        
+        # Allow letters, numbers, spaces, underscores, and hyphens
+        # Name should start with a letter or number (not special characters)
+        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9 _-]*$', name.strip()):
             logger.error(
                 f"Invalid workspace name '{name}'. "
-                "Name must start with a letter and contain only alphanumeric characters and underscores (no hyphens or spaces)."
+                "Name must start with a letter or number and can contain only alphanumeric characters, spaces, underscores, and hyphens."
             )
             sys.exit(1)
 
@@ -172,12 +180,19 @@ class WorkspacesController:
                     workspace_name = workspace.get("name", "")
                     workspace_id = workspace.get("workspace_id", "")
                     
-                    # Show Global Workspace as active when no workspace is activated
-                    is_global = workspace_id == GLOBAL_WORKSPACE_ID
+                    # Check if this is the Global Workspace (by ID or name)
+                    is_global = (
+                        workspace_id == GLOBAL_WORKSPACE_ID or
+                        workspace_name == GLOBAL_WORKSPACE_NAME
+                    )
+                    
+                    # Determine if this workspace should show as active
                     is_active = ""
                     if active_workspace:
+                        # A specific workspace is activated - check if it matches
                         is_active = "✓" if workspace_name == active_workspace else ""
                     elif is_global:
+                        # No workspace activated - Global is the default active workspace
                         is_active = "✓"
                     
                     table.add_row(
