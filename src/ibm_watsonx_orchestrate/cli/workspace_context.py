@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Global workspace ID constant
 GLOBAL_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001"
-GLOBAL_WORKSPACE_NAME = "Global Workspace"
+GLOBAL_WORKSPACE_NAME = "Global workspace"
 
 
 def is_ibm_cloud_platform(url: str) -> bool:
@@ -110,7 +110,7 @@ class WorkspaceContext:
                 if workspace.get("name") == workspace_name:
                     return workspace.get("workspace_id")
             
-            logger.warning(f"Workspace '{workspace_name}' not found")
+            # Workspace not found - return None and let caller handle the error message
             return None
             
         except Exception as e:
