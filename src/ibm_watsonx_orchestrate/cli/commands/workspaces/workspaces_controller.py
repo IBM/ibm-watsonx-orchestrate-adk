@@ -297,15 +297,23 @@ class WorkspacesController:
         """
         Resolve workspace name to workspace ID.
         Uses active workspace if name not provided.
+        If no active workspace, defaults to global workspace.
         
         Returns:
             Tuple of (workspace_name, workspace_id)
         """
+        from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID, GLOBAL_WORKSPACE_NAME
+        
         if not workspace_name:
             workspace_name = self._get_active_workspace()
             if not workspace_name:
-                logger.error("No workspace specified and no active workspace. Use -n to specify a workspace or activate one first")
-                sys.exit(1)
+                # Default to global workspace when no workspace is active
+                workspace_name = GLOBAL_WORKSPACE_NAME
+                return workspace_name, GLOBAL_WORKSPACE_ID
+        
+        # Handle global workspace explicitly
+        if workspace_name == GLOBAL_WORKSPACE_NAME:
+            return workspace_name, GLOBAL_WORKSPACE_ID
         
         workspace_id = self.workspace_context._resolve_workspace_name_to_id(workspace_name)
         if not workspace_id:
