@@ -37,7 +37,7 @@ import re
 logger = logging.getLogger(__name__)
 console = Console()
 
-GLOBAL_WORKSPACE_NAME = "Global Workspace"
+GLOBAL_WORKSPACE_NAME = "Global workspace"
 GLOBAL_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001"
 
 
