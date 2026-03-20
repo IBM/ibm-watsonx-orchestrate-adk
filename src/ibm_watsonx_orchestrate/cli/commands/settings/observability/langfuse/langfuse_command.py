@@ -10,8 +10,8 @@ from yaml.representer import Representer
 from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
 from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
     AnalyticsLLMResponse
-from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
-from ibm_watsonx_orchestrate.client.utils import instantiate_client, handle_error
+from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client, handle_error
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
