@@ -669,6 +669,8 @@ class UserFieldKind(str, Enum):
             return UserFieldKind.List
         elif kind == "date-range":
             return UserFieldKind.DateRange
+        elif kind == "time-range":
+            return UserFieldKind.TimeRange
         elif kind == "field":
             return UserFieldKind.Field
         elif kind == "array":
@@ -705,6 +707,8 @@ class UserFieldKind(str, Enum):
             return "UserFieldKind.List"
         elif kind == "date-range":
             return "UserFieldKind.DateRange"
+        elif kind == "time-range":
+            return "UserFieldKind.TimeRange"
         elif kind == "field":
             return "UserFieldKind.Field"
         elif kind == "array":

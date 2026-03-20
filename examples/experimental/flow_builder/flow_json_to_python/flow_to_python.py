@@ -10,7 +10,6 @@ from io import StringIO
 from platform import node
 from typing import Any, Dict, List, TextIO, Optional, Union, cast, Tuple
 
-from click.core import V
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolRequestBody, ToolResponseBody, JsonSchemaObject
@@ -1314,6 +1313,14 @@ class FlowPythonGenerator:
             return "number_input_field"
         elif kind == "date" and direction == "input":
             return "date_input_field"
+        elif kind == "time" and direction == "input":
+            return "datetime_input_field"
+        elif kind == "datetime" and direction == "input":
+            return "datetime_input_field"
+        elif kind == "date-range" and direction == "input":
+            return "date_range_input_field"
+        elif kind == "time-range" and direction == "input":
+            return "datetime_range_input_field"
         elif kind == "file" and direction == "input":
             return "file_upload_field"
         elif kind == "user" and direction == "input":
@@ -1438,11 +1445,14 @@ class FlowPythonGenerator:
             if ui_title:
                 params['label'] = ui_title
         
-        # Required - check if field name is in input_schema.required
-        if hasattr(field, 'input_schema') and field.input_schema:
-            required_fields = safe_get(field.input_schema, 'required', [])
+        # Required - check if field name is in form's jsonSchema.required
+        if form_json_schema:
+            required_fields = safe_get(form_json_schema, 'required', [])
             if field.name in required_fields:
                 params['required'] = True
+            else:
+                # Explicitly set to False if not in required list
+                params['required'] = False
         
         # Help text
         if hasattr(field, 'uiSchema') and field.uiSchema:
@@ -1483,6 +1493,14 @@ class FlowPythonGenerator:
                 if label_option == False:
                     params['single_checkbox'] = True
             # TODO: Extract true_label and false_label if available
+        
+        elif method_name == "date_input_field":
+            # multiple_dates - check if default is an array type in form_json_schema
+            if field_json_schema:
+                # Check if the field's schema in the form has an array type
+                field_type = safe_get(field_json_schema, 'type')
+                if field_type == 'array':
+                    params['multiple_dates'] = True
         
         elif method_name == "text_input_field":
             # regex and regex_error_message
@@ -1566,6 +1584,45 @@ class FlowPythonGenerator:
                     params['multiple_users'] = True
                 else:
                     params['multiple_users'] = False
+        
+        elif method_name == "datetime_input_field":
+            # For time and datetime fields
+            # inputType parameter - determine from field kind
+            if field.kind == "time":
+                params['inputType'] = 'UserFieldKind.Time'
+            elif field.kind == "datetime":
+                params['inputType'] = 'UserFieldKind.DateTime'
+            
+            # min_time and max_time parameters
+            # These are extracted from input_map in the calling code
+        
+        elif method_name == "date_range_input_field":
+            # For date range fields
+            # Extract start_date_label and end_date_label from uiSchema
+            if hasattr(field, 'uiSchema') and field.uiSchema:
+                start_label = safe_get(field.uiSchema, 'ui:start_label')
+                if start_label:
+                    params['start_date_label'] = start_label
+                
+                end_label = safe_get(field.uiSchema, 'ui:end_label')
+                if end_label:
+                    params['end_date_label'] = end_label
+            
+            # default_start, default_end, min_date, max_date are extracted from input_map
+        
+        elif method_name == "datetime_range_input_field":
+            # For time range fields
+            # Extract start_date_label and end_date_label from uiSchema
+            if hasattr(field, 'uiSchema') and field.uiSchema:
+                start_label = safe_get(field.uiSchema, 'ui:start_label')
+                if start_label:
+                    params['start_date_label'] = start_label
+                
+                end_label = safe_get(field.uiSchema, 'ui:end_label')
+                if end_label:
+                    params['end_date_label'] = end_label
+            
+            # default_start, default_end, min_time, max_time are extracted from input_map
         
         elif method_name == "message_output_field":
             # message - TODO: extract from field metadata
@@ -1741,6 +1798,7 @@ class FlowPythonGenerator:
                 
                 # Generate the method call
                 out.write(f"    # Add form field: {field_name} (type: {method_name})\n")
+                print(f"DEBUG: About to write field {field_name}, field_params={field_params}")
                 out.write(f"    {user_node_var}.{method_name}(")
                 
                 # Write parameters
@@ -1748,6 +1806,9 @@ class FlowPythonGenerator:
                 for param_name, param_value in field_params.items():
                     if isinstance(param_value, str) and param_value in datamap_params:
                         # It's a DataMap variable, don't quote it
+                        param_strs.append(f"{param_name}={param_value}")
+                    elif isinstance(param_value, str) and param_value.startswith('UserFieldKind.'):
+                        # It's a UserFieldKind enum, don't quote it
                         param_strs.append(f"{param_name}={param_value}")
                     elif isinstance(param_value, bool):
                         param_strs.append(f"{param_name}={param_value}")
@@ -2142,6 +2203,22 @@ class FlowPythonGenerator:
         if handled_edges is None:
             handled_edges = set()
         
+        # Build a mapping of edge_id to button_label from form nodes
+        edge_button_labels = {}
+        if nodes:
+            for node_id, node_data in nodes.items():
+                # Check if this is a user node with a form
+                node_spec = safe_get(node_data, "spec")
+                if node_spec and safe_get(node_spec, "kind") == "user":
+                    form = safe_get(node_spec, "form")
+                    if form:
+                        buttons = safe_get(form, "buttons", [])
+                        for button in buttons:
+                            button_edge_id = safe_get(button, "edge_id")
+                            button_display_name = safe_get(button, "display_name")
+                            if button_edge_id and button_display_name:
+                                edge_button_labels[button_edge_id] = button_display_name
+        
         # Generate code for each edge
         for edge in edges:
             try:
@@ -2184,9 +2261,15 @@ class FlowPythonGenerator:
                 if (end_ref.endswith(END)):
                     end_ref = "END"
                 
+                # Check if this edge has a button label
+                button_label = edge_button_labels.get(edge_id) if edge_id else None
+                
                 # Generate edge connection (id is omitted as it will be auto-generated during flow import)
                 out.write(f"    # Connect: {start_ref} -> {end_ref}\n")
-                out.write(f"    {flow_var}.edge({start_ref}, {end_ref})\n")
+                if button_label:
+                    out.write(f"    {flow_var}.edge({start_ref}, {end_ref}, button_label={repr(button_label)})\n")
+                else:
+                    out.write(f"    {flow_var}.edge({start_ref}, {end_ref})\n")
             except Exception as e:
                 out.write(f"    # Error processing edge: {str(e)}\n")
 
