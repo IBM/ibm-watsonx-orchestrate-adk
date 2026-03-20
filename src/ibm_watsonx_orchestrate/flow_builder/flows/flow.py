@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from pydantic.main import BaseModel
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolSpec, WXOFile
-from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.flow_builder.types import BranchNodeSpec, BranchNodeSpec, Conditions, Expression, ForeachSpec, PromptNodeSpec
 from ibm_watsonx_orchestrate.flow_builder.node import Node, TimerNode
 import inspect

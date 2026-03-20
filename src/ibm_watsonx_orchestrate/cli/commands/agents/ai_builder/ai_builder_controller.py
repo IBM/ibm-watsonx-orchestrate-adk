@@ -18,7 +18,7 @@ from rich.json import JSON
 from rich.console import Group
 from requests import ConnectionError
 from typing import List, Dict, Any
-from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, get_agent_details

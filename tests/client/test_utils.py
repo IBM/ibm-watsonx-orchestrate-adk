@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import patch
-from ibm_watsonx_orchestrate.client import utils
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, instantiate_client
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
+from ibm_watsonx_orchestrate_clients.common import utils
+from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev, check_token_validity, instantiate_client
+from ibm_watsonx_orchestrate_clients.agents.agent_client import AgentClient
 # from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 # from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
-from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
-from ibm_watsonx_orchestrate.client.connections.connections_client import ConnectionsClient
+from ibm_watsonx_orchestrate_clients.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate_clients.connections.connections_client import ConnectionsClient
 
 class TestIsLocalDev:
     @pytest.mark.parametrize(
@@ -135,7 +135,7 @@ class TestInstantiateClient:
         ],
     )
     def test_no_active_environment(self, client, caplog):
-        with patch("ibm_watsonx_orchestrate.client.utils.yaml_safe_load") as mock:
+        with patch("ibm_watsonx_orchestrate_clients.common.utils.yaml_safe_load") as mock:
             mock.side_effect = self.mock_yaml_safe_loader_no_active_env
             with pytest.raises(SystemExit) as e:
                 instantiate_client(client)
@@ -156,7 +156,7 @@ class TestInstantiateClient:
         ],
     )
     def test_no_url_in_environment(self, client, caplog):
-        with patch("ibm_watsonx_orchestrate.client.utils.yaml_safe_load") as mock:
+        with patch("ibm_watsonx_orchestrate_clients.common.utils.yaml_safe_load") as mock:
             mock.side_effect = self.mock_yaml_safe_loader_no_url
             with pytest.raises(SystemExit) as e:
                 instantiate_client(client)
@@ -178,7 +178,7 @@ class TestInstantiateClient:
         ],
     )
     def test_missing_token(self, client, caplog):
-        with patch("ibm_watsonx_orchestrate.client.utils.yaml_safe_load") as mock:
+        with patch("ibm_watsonx_orchestrate_clients.common.utils.yaml_safe_load") as mock:
             mock.side_effect = self.mock_yaml_safe_loader_missing_token
             with pytest.raises(SystemExit) as e:
                 instantiate_client(client)
@@ -199,7 +199,7 @@ class TestInstantiateClient:
         ],
     )
     def test_invalid_token(self, client, caplog):
-        with patch("ibm_watsonx_orchestrate.client.utils.yaml_safe_load") as mock:
+        with patch("ibm_watsonx_orchestrate_clients.common.utils.yaml_safe_load") as mock:
             mock.side_effect = self.mock_yaml_safe_loader_invalid_token
             with pytest.raises(SystemExit) as e:
                 instantiate_client(client)

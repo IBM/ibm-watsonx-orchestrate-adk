@@ -17,7 +17,7 @@ from agentops.tool_planner import build_snapshot
 from agentops.analyze_run import run as run_analyze
 from agentops.batch_annotate import generate_test_cases_from_stories
 from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
-from agentops.record_chat import record_chats
+from agentops.record.record_chat import record_chats
 from agentops.external_agent.external_validate import ExternalAgentValidation
 from agentops.external_agent.performance_test import ExternalAgentPerformanceTest
 from agentops.red_teaming.attack_list import print_attacks
@@ -112,7 +112,6 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-405b-instruct",
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
             "langfuse_enabled": langfuse_enabled
@@ -266,13 +265,13 @@ class EvaluationsController:
         
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         else:
             provider = "gateway"
-            model_id = "meta-llama/llama-3-405b-instruct"
+            model_id = "meta-llama/llama-3-3-70b-instruct"
         
         logger.info(f"Using LLM provider: {provider}, model: {model_id}")
         
@@ -699,7 +698,7 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-405b-instruct",
+                model_id="meta-llama/llama-3-3-70b-instruct",
             ),
         }
 
