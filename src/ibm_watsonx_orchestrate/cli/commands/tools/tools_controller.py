@@ -173,14 +173,9 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
                 continue
 
-            # Validate that the connection is not key_value when the tool in openapi
+            # OpenAPI tools support all connection types - no validation needed
             case ToolKind.openapi:
-                permitted_connections_types.extend([
-                    ConnectionSecurityScheme.API_KEY_AUTH,
-                    ConnectionSecurityScheme.BASIC_AUTH,
-                    ConnectionSecurityScheme.BEARER_TOKEN,
-                    ConnectionSecurityScheme.OAUTH2
-                ])
+                continue
 
             # Validate that the connection is key_value when the tool in langflow
             case ToolKind.langflow:
