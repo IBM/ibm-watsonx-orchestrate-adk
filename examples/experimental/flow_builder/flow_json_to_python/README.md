@@ -96,13 +96,20 @@ Original flow (ZIP):     output/triage_issue_flow_original.zip
 ============================================================
 ```
 
-### Command-Line Mode
+### Non-Interactive Mode (Command-Line)
 
-Convert a JSON file directly:
+You can convert a JSON file directly without interactive prompts by providing the `-f` or `--file` argument:
+
+**Basic Usage:**
 
 ```bash
 python main.py -f input.json
 ```
+
+This will:
+- Read the flow definition from `input.json`
+- Generate Python code in the `output/` directory (default)
+- Create `<flow_name>_generated.py` and `<flow_name>.json` files
 
 **Common Options:**
 
@@ -110,18 +117,59 @@ python main.py -f input.json
 # Specify output directory
 python main.py -f input.json -o my_output/
 
-# Rename the flow
+# Rename the flow (must be a valid Python identifier)
 python main.py -f input.json -n my_custom_flow
 
-# Set display name
+# Set a custom display name (can be any string)
 python main.py -f input.json -d "My Custom Flow"
 
-# Remove tool UUIDs
+# Remove tool UUIDs to make the flow portable across tenants
 python main.py -f input.json --remove-tool-uuid
 
-# Verbose output
+# Enable verbose output for detailed progress information
 python main.py -f input.json -v
+
+# Combine multiple options
+python main.py -f input.json -o my_output/ -n my_flow -d "My Flow" --remove-tool-uuid -v
 ```
+
+**Additional Options:**
+
+```bash
+# Validate JSON without generating code
+python main.py -f input.json --validate-only
+
+# Enable debug output for troubleshooting
+python main.py -f input.json --debug
+
+# Show version information
+python main.py --version
+
+# Show help with all available options
+python main.py --help
+```
+
+**Example: Converting a specific flow file**
+
+```bash
+# Convert the date/time example flow
+python main.py -f output/user_flow_application_form_date_time.json -o output -v
+
+# Output:
+# Output directory: output
+# Python output: output/user_flow_application_form_date_time_generated.py
+# JSON output: output/user_flow_application_form_date_time.json
+# Copied JSON file to: output/user_flow_application_form_date_time.json
+#
+# ============================================================
+# Conversion completed successfully!
+# ============================================================
+# Flow model (JSON):       output/user_flow_application_form_date_time.json
+# Generated code (Python): output/user_flow_application_form_date_time_generated.py
+# ============================================================
+```
+
+**Note:** When using non-interactive mode with a JSON file, the tool will attempt to find a matching flow in your active wxO environment to export the original ZIP package. If found, it will also create a `<flow_name>_original.zip` file in the output directory.
 
 ## Output Files
 
@@ -168,6 +216,32 @@ compiled_flow = flow.compile()
 **"Invalid JSON":**
 - Ensure the JSON file is valid
 - Use `--debug` flag for details: `python main.py -f input.json --debug`
+
+**"Validation error for UserNodeSpec" or changes to source code not taking effect:**
+
+If you're developing and making changes to the source code in `src/`, you may encounter validation errors or find that your changes aren't being used. This happens because Python uses the installed package from `site-packages` instead of your local source code.
+
+**Solution 1: Use the provided shell script (Recommended)**
+```bash
+cd examples/experimental/flow_builder/flow_json_to_python
+./run_converter.sh -f /path/to/your/file.json -o output -v
+```
+
+The `run_converter.sh` script automatically sets `PYTHONPATH` to use your local source code.
+
+**Solution 2: Set PYTHONPATH manually**
+```bash
+cd examples/experimental/flow_builder/flow_json_to_python
+PYTHONPATH=/path/to/flow-converter/src:$PYTHONPATH python main.py -f input.json -o output -v
+```
+
+**Solution 3: Reinstall in editable mode**
+```bash
+cd /path/to/flow-converter
+pip install -e .
+```
+
+After reinstalling in editable mode, your changes to `src/` will be immediately reflected without needing to set PYTHONPATH.
 
 ## Getting Help
 
