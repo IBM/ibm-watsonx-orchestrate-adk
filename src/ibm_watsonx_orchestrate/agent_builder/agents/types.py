@@ -8,6 +8,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
 from pydantic import Field, AliasChoices, field_validator
 from typing import Annotated
@@ -32,14 +33,6 @@ def str_presenter(dumper, data):
 yaml.add_representer(str, str_presenter)
 yaml.representer.SafeRepresenter.add_representer(str, str_presenter) # to use with safe_dum
 
-class SpecVersion(str, Enum):
-    V1 = "v1"
-
-    def __str__(self):
-        return self.value 
-
-    def __repr__(self):
-        return repr(self.value)
 
 
 class AgentKind(str, Enum):
