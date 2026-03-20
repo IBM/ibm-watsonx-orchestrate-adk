@@ -193,7 +193,7 @@ class WorkspaceClient(BaseWXOClient):
             response = requests.get(endpoint, headers=headers, timeout=30)
             
             if response.status_code != 200:
-                logger.error(f"IBM Cloud User Management API returned {response.status_code}: {response.text}")
+                # Return None and let controller handle the error message
                 return None
             
             data = response.json()
@@ -207,15 +207,13 @@ class WorkspaceClient(BaseWXOClient):
                     iam_id = user.get("iam_id") or user.get("id") or user.get("user_id")
                     if iam_id:
                         return iam_id
-                    else:
-                        logger.warning(f"Found user with email {email} but no IAM ID field")
             
-            logger.warning(f"No user found with email {email} in account {account_id}")
+            # User not found - return None and let the controller handle the error message
             return None
                     
-        except requests.exceptions.RequestException as e:
-            logger.error(f"IBM Cloud User Management API request failed: {str(e)}")
+        except requests.exceptions.RequestException:
+            # Return None and let controller handle the error message
             return None
-        except Exception as e:
-            logger.error(f"Error resolving email to IAM ID: {str(e)}")
+        except Exception:
+            # Return None and let controller handle the error message
             return None
