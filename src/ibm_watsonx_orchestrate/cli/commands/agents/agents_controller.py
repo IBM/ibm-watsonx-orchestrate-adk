@@ -1581,39 +1581,45 @@ class AgentsController:
                 logger.error(f"Failed to create agent: {error_msg}")
                 sys.exit(1)
             
-            response = AgentUpsertResponse.model_validate(response_data)
-            _raise_guidelines_warning(response)
+            _raise_guidelines_warning(response_data)
 
             # Check if this is a custom agent - always upload if file path provided
-            if agent.style == AgentStyle.CUSTOM and isinstance(response_data, dict):
+            if agent.style == AgentStyle.CUSTOM:
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
 
                 if custom_agent_file_path:
-                    if response.id:
-                        # Upload artifact using helper
-                        upload_response, is_temp_file = self._upload_custom_agent_artifact(
-                            self.get_native_client(),
-                            response.id,
-                            custom_agent_file_path
+                    if not response_data.id:
+                        logger.error(
+                            f"Failed to create agent '{agent.name}': Backend did not return an agent ID. "
+                            f"Cannot upload custom agent package without an agent ID."
                         )
+                        sys.exit(1)
+                    
+                    logger.info(f"Uploading custom agent package for agent ID: {response_data.id}")
+                    # Upload artifact using helper
+                    upload_response, is_temp_file = self._upload_custom_agent_artifact(
+                        self.get_native_client(),
+                        response_data.id,
+                        custom_agent_file_path
+                    )
 
-                        # Display configuration if available
-                        if upload_response:
-                            try:
-                                response_model = CustomAgentUploadResponse.model_validate(upload_response)
-                                if response_model.config:
-                                    agent_name = response_model.config.agent_name or agent.name
-                                    self._display_custom_agent_config(response_model.config, response.id, agent_name, is_update=False)
-                                else:
-                                    logger.info(f"Agent '{agent.name}' imported successfully")
-                            except Exception as e:
-                                logger.warning(f"Could not parse upload response: {e}")
+                    # Display configuration if available
+                    if upload_response:
+                        try:
+                            response_model = CustomAgentUploadResponse.model_validate(upload_response)
+                            if response_model.config:
+                                agent_name = response_model.config.agent_name or agent.name
+                                self._display_custom_agent_config(response_model.config, response_data.id, agent_name, is_update=False)
+                            else:
                                 logger.info(f"Agent '{agent.name}' imported successfully")
-                        else:
+                        except Exception as e:
+                            logger.warning(f"Could not parse upload response: {e}")
                             logger.info(f"Agent '{agent.name}' imported successfully")
+                    else:
+                        logger.info(f"Agent '{agent.name}' imported successfully")
 
-                        # Clean up temporary file
-                        self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
+                    # Clean up temporary file
+                    self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
                 else:
                     logger.info(f"Agent '{agent.name}' imported successfully")
             else:
