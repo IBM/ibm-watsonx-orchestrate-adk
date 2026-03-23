@@ -37,7 +37,7 @@ import re
 logger = logging.getLogger(__name__)
 console = Console()
 
-GLOBAL_WORKSPACE_NAME = "Global Workspace"
+GLOBAL_WORKSPACE_NAME = "Global workspace"
 GLOBAL_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001"
 
 
@@ -297,15 +297,23 @@ class WorkspacesController:
         """
         Resolve workspace name to workspace ID.
         Uses active workspace if name not provided.
+        If no active workspace, defaults to global workspace.
         
         Returns:
             Tuple of (workspace_name, workspace_id)
         """
+        from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID, GLOBAL_WORKSPACE_NAME
+        
         if not workspace_name:
             workspace_name = self._get_active_workspace()
             if not workspace_name:
-                logger.error("No workspace specified and no active workspace. Use -n to specify a workspace or activate one first")
-                sys.exit(1)
+                # Default to global workspace when no workspace is active
+                workspace_name = GLOBAL_WORKSPACE_NAME
+                return workspace_name, GLOBAL_WORKSPACE_ID
+        
+        # Handle global workspace explicitly
+        if workspace_name == GLOBAL_WORKSPACE_NAME:
+            return workspace_name, GLOBAL_WORKSPACE_ID
         
         workspace_id = self.workspace_context._resolve_workspace_name_to_id(workspace_name)
         if not workspace_id:
@@ -396,9 +404,25 @@ class WorkspacesController:
                     console=console,
                 ) as progress:
                     progress.add_task(description="Updating member...", total=None)
-                    client.update_member(workspace_id, payload)
+                    response = client.update_member(workspace_id, payload)
                 
-                logger.info(f"Successfully updated member '{user_email}' to role '{role.value}' in workspace '{workspace_name}'")
+                # Check the batch operation response
+                if response and isinstance(response, dict):
+                    results = response.get("results", [])
+                    if results and len(results) > 0:
+                        result = results[0]
+                        if result.get("success"):
+                            logger.info(f"Successfully updated member '{user_email}' to role '{role.value}' in workspace '{workspace_name}'")
+                        else:
+                            error_msg = result.get("error", "Unknown error")
+                            logger.error(f"Failed to update member '{user_email}': {error_msg}")
+                            sys.exit(1)
+                    else:
+                        logger.error(f"Failed to update member '{user_email}': No results returned from API")
+                        sys.exit(1)
+                else:
+                    logger.error(f"Failed to update member '{user_email}': Invalid response from API")
+                    sys.exit(1)
             else:
                 # Add new member - batch format with members array
                 payload = {
@@ -414,9 +438,25 @@ class WorkspacesController:
                     console=console,
                 ) as progress:
                     progress.add_task(description="Adding member...", total=None)
-                    client.add_member(workspace_id, payload)
+                    response = client.add_member(workspace_id, payload)
                 
-                logger.info(f"Successfully added member '{user_email}' with role '{role.value}' to workspace '{workspace_name}'")
+                # Check the batch operation response
+                if response and isinstance(response, dict):
+                    results = response.get("results", [])
+                    if results and len(results) > 0:
+                        result = results[0]
+                        if result.get("success"):
+                            logger.info(f"Successfully added member '{user_email}' with role '{role.value}' to workspace '{workspace_name}'")
+                        else:
+                            error_msg = result.get("error", "Unknown error")
+                            logger.error(f"Failed to add member '{user_email}': {error_msg}")
+                            sys.exit(1)
+                    else:
+                        logger.error(f"Failed to add member '{user_email}': No results returned from API")
+                        sys.exit(1)
+                else:
+                    logger.error(f"Failed to add member '{user_email}': Invalid response from API")
+                    sys.exit(1)
                 
         except Exception as e:
             logger.error(f"Failed to add/update member: {str(e)}")
@@ -479,9 +519,25 @@ class WorkspacesController:
                 console=console,
             ) as progress:
                 progress.add_task(description="Removing member...", total=None)
-                client.remove_member(workspace_id, payload)
+                response = client.remove_member(workspace_id, payload)
             
-            logger.info(f"Successfully removed member '{user_email}' from workspace '{workspace_name}'")
+            # Check the batch operation response
+            if response and isinstance(response, dict):
+                results = response.get("results", [])
+                if results and len(results) > 0:
+                    result = results[0]
+                    if result.get("success"):
+                        logger.info(f"Successfully removed member '{user_email}' from workspace '{workspace_name}'")
+                    else:
+                        error_msg = result.get("error", "Unknown error")
+                        logger.error(f"Failed to remove member '{user_email}': {error_msg}")
+                        sys.exit(1)
+                else:
+                    logger.error(f"Failed to remove member '{user_email}': No results returned from API")
+                    sys.exit(1)
+            else:
+                logger.error(f"Failed to remove member '{user_email}': Invalid response from API")
+                sys.exit(1)
                 
         except Exception as e:
             logger.error(f"Failed to remove member: {str(e)}")

@@ -1,6 +1,6 @@
 from typing import Any, List, Literal
 from ibm_watsonx_orchestrate.agent_builder.voice_configurations import VoiceConfiguration
-from ibm_watsonx_orchestrate.agent_builder.voice_configurations.types import VoiceConfigurationListEntry
+from ibm_watsonx_orchestrate_core.types.voice_configurations.types import VoiceConfigurationListEntry
 from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller import VoiceConfigurationsController
 from ibm_watsonx_orchestrate.cli.common import ListFormats
 from ibm_watsonx_orchestrate_mcp_server.utils.common import silent_call

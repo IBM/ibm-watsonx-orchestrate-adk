@@ -16,7 +16,7 @@ from rich.console import Console
 
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
-from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -167,7 +167,29 @@ class KnowledgeBaseController:
                         'file_urls': json.dumps(file_urls)
                     }
 
-                    response = client.create_built_in(payload=data, files=files)
+                    try:
+                        response = client.create_built_in(payload=data, files=files)
+                    except ClientAPIException as e:
+                        error_msg = "Unknown error"
+                        try:
+                            # Don't rely on truthiness of response object - check if it's not None
+                            if e.response is not None and hasattr(e.response, 'text'):
+                                response_text = e.response.text
+                                if response_text:
+                                    try:
+                                        error_data = json.loads(response_text)
+                                        error_msg = error_data.get('detail', response_text)
+                                    except:
+                                        error_msg = response_text
+                                else:
+                                    error_msg = str(e)
+                            else:
+                                error_msg = str(e)
+                        except Exception:
+                            error_msg = str(e)
+                        
+                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        continue
                     
                     # Poll for import completion when documents are included
                     if response and 'knowledge_base' in response:
@@ -187,12 +209,52 @@ class KnowledgeBaseController:
                     kb.prioritize_built_in_index = False
                     data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
 
-                    client.create(payload=data)
+                    try:
+                        client.create(payload=data)
+                    except ClientAPIException as e:
+                        error_msg = "Unknown error"
+                        try:
+                            # Don't rely on truthiness of response object - check if it's not None
+                            if e.response is not None and hasattr(e.response, 'text'):
+                                response_text = e.response.text
+                                if response_text:
+                                    try:
+                                        error_data = json.loads(response_text)
+                                        error_msg = error_data.get('detail', response_text)
+                                    except:
+                                        error_msg = response_text
+                                else:
+                                    error_msg = str(e)
+                            else:
+                                error_msg = str(e)
+                        except Exception:
+                            error_msg = str(e)
+                        
+                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        continue
+                    
                     # No polling needed when no documents are included
                     logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                error_msg = e.response.json()["detail"] if e.response.json and "detail" in e.response.json() else e.response.text
-                logger.error(f"Error importing knowledge base '{kb.name}': {error_msg}")
+                # This catch block is for any other ClientAPIException not caught above
+                error_msg = "Unknown error"
+                try:
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create knowledge base: {error_msg}")
     
     def _poll_knowledge_base_status(
         self,

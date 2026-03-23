@@ -8,6 +8,7 @@ import sys
 import re
 import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
 from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
@@ -198,14 +199,36 @@ class ToolkitController:
                 # Create toolkit metadata
                 payload = spec.model_dump(exclude_unset=True)
 
-                with Progress(
-                    SpinnerColumn(spinner_name="dots"),
-                    TextColumn("[progress.description]{task.description}"),
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    progress.add_task(description="Creating toolkit...", total=None)
-                    new_toolkit = self.get_client().create_toolkit(payload)
+                try:
+                    with Progress(
+                        SpinnerColumn(spinner_name="dots"),
+                        TextColumn("[progress.description]{task.description}"),
+                        transient=True,
+                        console=console,
+                    ) as progress:
+                        progress.add_task(description="Creating toolkit...", total=None)
+                        new_toolkit = self.get_client().create_toolkit(payload)
+                except ClientAPIException as e:
+                    error_msg = "Unknown error"
+                    try:
+                        # Don't rely on truthiness of response object - check if it's not None
+                        if e.response is not None and hasattr(e.response, 'text'):
+                            response_text = e.response.text
+                            if response_text:
+                                try:
+                                    error_data = json.loads(response_text)
+                                    error_msg = error_data.get('detail', response_text)
+                                except:
+                                    error_msg = response_text
+                            else:
+                                error_msg = str(e)
+                        else:
+                            error_msg = str(e)
+                    except Exception:
+                        error_msg = str(e)
+                    
+                    logger.error(f"Failed to create toolkit: {error_msg}")
+                    sys.exit(1)
 
                 toolkit_id = new_toolkit["id"]
 
