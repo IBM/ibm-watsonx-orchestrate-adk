@@ -3,7 +3,7 @@ import re
 import pytest
 from requests import Response
 from ibm_watsonx_orchestrate.cli.commands.environment import environment_controller
-from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.cli.config import PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, \
     PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT
 
