@@ -40,7 +40,7 @@ text_to_speech:
   provider: deepgram_tts
   deepgram_tts_config:
     api_key: "your-deepgram-api-key"  # Required
-    api_url: "https://api.deepgram.com/v1/speak"  # Optional: Deepgram TTS API URL
+    api_url: "https://api.deepgram.com"  # Optional: Deepgram TTS API URL
     language: "en"  # Optional
     model: "example model"  # Optional, e.g. aura-2-thalia-en
     mip_opt_out: false  # Optional: opt out of model improvement program
