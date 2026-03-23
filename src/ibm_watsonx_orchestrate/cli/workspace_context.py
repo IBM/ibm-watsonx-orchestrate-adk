@@ -81,8 +81,8 @@ class WorkspaceContext:
         if not workspace_name:
             return None
         
-        # Handle global workspace
-        if workspace_name == GLOBAL_WORKSPACE_NAME:
+        # Handle global workspace (case-insensitive to handle legacy "Global Workspace")
+        if workspace_name.lower() == GLOBAL_WORKSPACE_NAME.lower():
             return GLOBAL_WORKSPACE_ID
         
         # For other workspaces, we need to resolve the name to ID
