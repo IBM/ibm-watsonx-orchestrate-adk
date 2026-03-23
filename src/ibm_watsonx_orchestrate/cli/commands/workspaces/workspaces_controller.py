@@ -206,7 +206,7 @@ class WorkspacesController:
                 if active_workspace:
                     logger.info(f"Active workspace: {active_workspace}")
                 else:
-                    logger.info(f"Active workspace: Global Workspace")
+                    logger.info(f"Active workspace: {GLOBAL_WORKSPACE_NAME}")
                     
         except Exception as e:
             logger.error(f"Failed to list workspaces: {str(e)}")
