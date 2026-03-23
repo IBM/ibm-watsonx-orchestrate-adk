@@ -346,5 +346,3 @@ class VoiceConfigurationListEntry(BaseModel):
     def get_row_details(self):
         attached_agents = ", ".join(self.attached_agents) if self.attached_agents else ""
         return [self.name, self.id, self.speech_to_text_provider, self.text_to_speech_provider, attached_agents]
-
-# Made with Bob
