@@ -1073,9 +1073,36 @@ class ToolsController:
                     self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
     def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
-        response = self.get_client().create(tool_spec)
+        try:
+            response = self.get_client().create(tool_spec)
+        except ClientAPIException as e:
+            # Extract error message from response
+            error_msg = "Unknown error"
+            
+            try:
+                # Don't rely on truthiness of response object - check if it's not None
+                if e.response is not None and hasattr(e.response, 'text'):
+                    response_text = e.response.text
+                    if response_text:
+                        try:
+                            error_data = json.loads(response_text)
+                            error_msg = error_data.get('detail', response_text)
+                        except:
+                            error_msg = response_text
+                    else:
+                        error_msg = str(e)
+                else:
+                    error_msg = str(e)
+            except Exception:
+                error_msg = str(e)
+            
+            logger.error(f"Failed to create tool: {error_msg}")
+            sys.exit(1)
+            
         tool_id = response.get("id")
 
         if tool_artifact is not None:
