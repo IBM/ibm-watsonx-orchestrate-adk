@@ -1559,10 +1559,37 @@ class AgentsController:
                 logger.warning(f"Failed to clean up temporary zip file: {e}")
 
     def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        
         if isinstance(agent, Agent):
             # Use the client's create method which handles workspace injection
             native_client = self.get_native_client()
-            response_data = native_client.create(agent.model_dump(exclude_none=True))
+            try:
+                response_data = native_client.create(agent.model_dump(exclude_none=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create agent: {error_msg}")
+                sys.exit(1)
+            
             response = AgentUpsertResponse.model_validate(response_data)
             _raise_guidelines_warning(response)
 
@@ -1602,10 +1629,59 @@ class AgentsController:
                 logger.info(f"Agent '{agent.name}' imported successfully")
 
         if isinstance(agent, ExternalAgent):
-            self.get_external_client().create(agent.model_dump(exclude_none=True))
+            try:
+                self.get_external_client().create(agent.model_dump(exclude_none=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create external agent: {error_msg}")
+                sys.exit(1)
             logger.info(f"External Agent '{agent.name}' imported successfully")
+            
         if isinstance(agent, AssistantAgent):
-            self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
+            try:
+                self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create assistant agent: {error_msg}")
+                sys.exit(1)
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
