@@ -79,9 +79,54 @@ The tester shows debug information for each tool call:
 
 ## Limitations
 
-- **No Elicitation Support**: The tester does not currently support interactive elicitation (human-in-the-loop) flows. Flows that require user input will pause and wait, but the tester cannot respond to elicitation requests.
-- **Synchronous Only**: The tester runs synchronously and cannot handle concurrent operations
+### Elicitation Handling with Interactive Menus
+
+The tester **does support elicitation** (user input requests from flows), but there's an important limitation when using the interactive menu:
+
+**The Issue:**
+- The interactive menu uses synchronous prompts (`Prompt.ask()`) that block the terminal
+- When an elicitation callback fires while you're at a menu prompt, the output is buffered
+- You won't see the elicitation request until after you respond to the current prompt
+
+**Workarounds:**
+1. **Recommended**: After calling a flow tool, **wait at the result screen** instead of navigating menus
+   - Elicitation requests will display immediately with a 🔔 bell notification
+   - You can respond to the elicitation
+   - The flow will continue and subsequent elicitations will appear
+
+2. **Listen for the bell**: A terminal bell (`\a`) sounds when elicitation arrives
+   - Even if you don't see the output, you'll hear/see the alert
+   - Press Enter at the current prompt to see the buffered elicitation
+
+3. **Check debug logs**: Elicitation callbacks are logged with timestamps
+   - Look for `DEBUG [timestamp]: Elicitation callback invoked` messages
+   - This confirms if callbacks are being received
+
+**Example - Correct Usage:**
+```
+1. Select tool: run_flow__my_flow
+2. Choose "Call tool"
+3. Enter arguments: {"input": "data"}
+4. [WAIT HERE - Don't navigate menus]
+5. 🔔 Elicitation request appears
+6. Respond to elicitation
+7. Flow continues, more elicitations may appear
+```
+
+**Example - Problematic Usage:**
+```
+1. Call flow tool
+2. Immediately press 'r' to refresh tool list  ← DON'T DO THIS
+3. While at "Your choice:" prompt, elicitation fires
+4. Output is buffered, you don't see it
+5. You're confused why nothing is happening
+```
+
+### Other Limitations
+
+- **Concurrent Operations**: The tester cannot handle multiple flows running simultaneously
 - **Basic Error Handling**: Complex error scenarios may not be fully handled
+- **Terminal-Based UI**: For better concurrent elicitation handling, consider a web-based UI
 
 ## Configuration
 
@@ -127,5 +172,4 @@ pip install ibm-watsonx-orchestrate[mcp]
 
 ## Related Documentation
 
-- [Flow MCP Architecture](../../../docs/flow-mcp.md)
-- [FlowMCPClient API](../../../src/ibm_watsonx_orchestrate/client/tools/flow_mcp_client.py)
+- [Flow MCP Support - Public Preview](https://developer.watson-orchestrate.ibm.com/tools/flows/mcp_workflows)
