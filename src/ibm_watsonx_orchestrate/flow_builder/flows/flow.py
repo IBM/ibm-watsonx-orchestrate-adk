@@ -419,7 +419,6 @@ class Flow(Node):
                     tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
                     if (tool_specs is None) or (len(tool_specs) == 0):
                         raise ValueError(f"tool '{tool_name}' not found")
-                    tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
                     
                 elif tool_spec is None:
                     raise ValueError(f"tool id '{tool_id}' not found")

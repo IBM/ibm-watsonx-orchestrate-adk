@@ -90,6 +90,7 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
+    memory_enabled: Optional[bool] = None
     workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     # Catalog Only
