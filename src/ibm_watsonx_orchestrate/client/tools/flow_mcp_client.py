@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Callable, Awaitable
 import asyncio
 from urllib.parse import urlparse
 
@@ -7,7 +7,7 @@ from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from ibm_cloud_sdk_core.authenticators import Authenticator
 
 try:
-    from mcp import ClientSession  # type: ignore[import-not-found]
+    from mcp import ClientSession, types  # type: ignore[import-not-found]
     from mcp.client.streamable_http import streamable_http_client  # type: ignore[import-not-found]
     import httpx  # type: ignore[import-not-found]
     HAS_MCP = True
@@ -17,6 +17,7 @@ except ImportError:
     ClientSession = Any  # type: ignore[misc,assignment]
     streamable_http_client = Any  # type: ignore[misc,assignment]
     httpx = Any  # type: ignore[misc,assignment]
+    types = Any  # type: ignore[misc,assignment]
 
 
 class FlowMCPClient(BaseWXOClient):
@@ -40,6 +41,7 @@ class FlowMCPClient(BaseWXOClient):
         is_local: bool = False,
         verify: Optional[str] = None,
         authenticator: Optional[Authenticator] = None,
+        elicitation_callback: Optional[Callable] = None,
         *args,
         **kwargs
     ):
@@ -52,6 +54,10 @@ class FlowMCPClient(BaseWXOClient):
             is_local: Whether this is a local deployment
             verify: SSL verification setting
             authenticator: Authenticator instance for authentication
+            elicitation_callback: Optional callback function to handle elicitation requests from flows.
+                The callback receives (context, params: types.ElicitRequestParams)
+                and should return types.ElicitResult or types.ErrorData.
+                When provided, the client will automatically handle elicitation requests during flow execution.
             *args: Additional positional arguments
             **kwargs: Additional keyword arguments
             
@@ -59,6 +65,18 @@ class FlowMCPClient(BaseWXOClient):
             Flow MCP server only supports SSE (Server-Sent Events) transport over HTTP.
             Use instantiate_client() from ibm_watsonx_orchestrate.client.utils to create
             instances with proper authentication configuration.
+            
+        Example with elicitation callback:
+            >>> async def handle_elicitation(context, params):
+            ...     # Handle the elicitation request
+            ...     return types.ElicitResult(action="accept", content={...})
+            >>>
+            >>> async with FlowMCPClient(
+            ...     base_url="https://api.example.com",
+            ...     api_key="your-key",
+            ...     elicitation_callback=handle_elicitation
+            ... ) as client:
+            ...     result = await client.run_flow("my_flow", {"input": "data"})
         """
         super().__init__(base_url=base_url, api_key=api_key, is_local=is_local, verify=verify, authenticator=authenticator, *args, **kwargs)  # type: ignore[arg-type]
         
@@ -83,6 +101,7 @@ class FlowMCPClient(BaseWXOClient):
         self._session: Optional[ClientSession] = None  # type: ignore[valid-type]
         self._context_manager = None
         self._http_client: Optional[httpx.AsyncClient] = None  # type: ignore[valid-type]
+        self._elicitation_callback = elicitation_callback
         
     def _get_auth_headers(self) -> Dict[str, str]:
         """
@@ -93,6 +112,35 @@ class FlowMCPClient(BaseWXOClient):
             Dictionary of headers including authorization
         """
         return self._get_headers()
+    
+    def set_elicitation_callback(self, callback: Optional[Callable] = None):
+        """
+        Set or update the elicitation callback handler.
+        
+        This method allows setting the elicitation callback after the client has been instantiated.
+        If a session is already active, you'll need to reconnect for the change to take effect.
+        
+        Args:
+            callback: Optional callback function to handle elicitation requests from flows.
+                The callback receives (context, params: types.ElicitRequestParams)
+                and should return types.ElicitResult or types.ErrorData.
+                Pass None to disable elicitation handling.
+        
+        Example:
+            >>> client = instantiate_client(FlowMCPClient)
+            >>> client.set_elicitation_callback(my_elicitation_handler)
+            >>> async with client:
+            ...     result = await client.run_flow("my_flow", {"input": "data"})
+        """
+        self._elicitation_callback = callback
+        if self._session is not None:
+            # Warn that reconnection is needed for the change to take effect
+            import warnings
+            warnings.warn(
+                "Elicitation callback updated, but session is already active. "
+                "Reconnect the client for the change to take effect.",
+                UserWarning
+            )
     
     async def _ensure_session(self) -> ClientSession:  # type: ignore[valid-type]
         """
@@ -109,6 +157,9 @@ class FlowMCPClient(BaseWXOClient):
         """
         Establish connection to the MCP server using streamable HTTP transport.
         Flow MCP server only supports streamable HTTP.
+        
+        If an elicitation_callback was provided during initialization, it will be
+        passed to the ClientSession to handle elicitation requests automatically.
         """
         # Create httpx.AsyncClient with authentication headers
         # Note: We create the client but pass it to streamable_http_client
@@ -130,7 +181,16 @@ class FlowMCPClient(BaseWXOClient):
         read_stream, write_stream, _get_session_id = await self._context_manager.__aenter__()
         
         # Create a session using the client streams
-        self._session = ClientSession(read_stream, write_stream)  # type: ignore[misc]
+        # Pass elicitation_callback if provided - MCP SDK will handle elicitation requests automatically
+        if self._elicitation_callback:
+            self._session = ClientSession(  # type: ignore[misc]
+                read_stream,
+                write_stream,
+                elicitation_callback=self._elicitation_callback
+            )
+        else:
+            self._session = ClientSession(read_stream, write_stream)  # type: ignore[misc]
+        
         await self._session.__aenter__()  # type: ignore[union-attr]
         
         # Initialize the connection
