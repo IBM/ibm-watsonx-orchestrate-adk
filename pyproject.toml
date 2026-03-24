@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ibm-watsonx-orchestrate"
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 description = "IBM watsonx.orchestrate ADK"
 authors = [
@@ -15,7 +15,12 @@ license = {text = "MIT License"}
 license-files = ["LICENSE"]
 requires-python = ">=3.11, <3.14"
 classifiers = []
-dependencies = [
+
+[tool.hatch.metadata.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.metadata.hooks.custom.options]
+base_dependencies = [
     "certifi>=2024.8.30",
     "charset_normalizer>=2",
     "click>=8.0.0,<8.2.0",
@@ -38,6 +43,10 @@ dependencies = [
     "pytz>=2025.2",
     "redis>=6.0.0",
     "websocket-client>=1.8.0,<2.0.0",
+]
+synced_packages = [
+    "ibm-watsonx-orchestrate-core",
+    "ibm-watsonx-orchestrate-clients"
 ]
 
 [project.optional-dependencies]
