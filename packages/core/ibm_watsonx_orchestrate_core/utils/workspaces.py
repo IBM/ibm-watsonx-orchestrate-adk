@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Global workspace ID constant
 GLOBAL_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001"
-GLOBAL_WORKSPACE_NAME = "Global Workspace"
+GLOBAL_WORKSPACE_NAME = "Global workspace"
 
 
 def is_ibm_cloud_platform(url: str) -> bool:

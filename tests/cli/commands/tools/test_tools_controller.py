@@ -127,6 +127,13 @@ class MockToolClient:
             ids.append({"name": agent, "id": str(uuid.uuid4())})
         return ids
     
+    def get_drafts_by_ids(self, tool_ids, workspace_id=None):
+        """Mock method for get_drafts_by_ids with optional workspace_id parameter"""
+        ids = []
+        for tool_id in tool_ids:
+            ids.append({"name": f"tool_{tool_id}", "id": tool_id})
+        return ids
+    
     def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
         if tool_id is None:
             return ""
