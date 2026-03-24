@@ -1042,6 +1042,102 @@ class TestAgentsControllerPublishAgent:
 
             assert f"Assistant Agent '{agent.name}' imported successfully" in captured
 
+    def test_publish_custom_agent_with_file(self, native_agent_content, caplog):
+        """Test that custom agents with file paths trigger upload correctly"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._upload_custom_agent_artifact") as upload_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._cleanup_temp_file") as cleanup_mock:
+            
+            # Create a custom agent
+            agent_data = native_agent_content.copy()
+            agent_data['style'] = AgentStyle.CUSTOM
+            agent = Agent(**agent_data)
+            
+            # Mock the client to return an AgentUpsertResponse with an ID
+            mock_client = MagicMock()
+            mock_client.create.return_value = AgentUpsertResponse(id="test-agent-id-123")
+            native_client_mock.return_value = mock_client
+            
+            # Mock upload response
+            upload_mock.return_value = ({"config": None}, False)
+            
+            # Call publish_agent with custom_agent_file_path
+            agents_controller.publish_agent(agent, custom_agent_file_path="/path/to/agent.zip")
+            
+            # Verify create was called
+            mock_client.create.assert_called_once()
+            
+            # Verify upload was called with the correct agent ID
+            upload_mock.assert_called_once_with(
+                mock_client,
+                "test-agent-id-123",
+                "/path/to/agent.zip"
+            )
+            
+            # Verify cleanup was called
+            cleanup_mock.assert_called_once_with("/path/to/agent.zip", False)
+            
+            captured = caplog.text
+            assert "Uploading custom agent package for agent ID: test-agent-id-123" in captured
+            assert f"Agent '{agent.name}' imported successfully" in captured
+
+    def test_publish_custom_agent_without_agent_id(self, native_agent_content, caplog):
+        """Test that custom agents fail gracefully when backend doesn't return an ID"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._upload_custom_agent_artifact") as upload_mock, \
+             pytest.raises(SystemExit) as exc_info:
+            
+            # Create a custom agent
+            agent_data = native_agent_content.copy()
+            agent_data['style'] = AgentStyle.CUSTOM
+            agent = Agent(**agent_data)
+            
+            # Mock the client to return an AgentUpsertResponse WITHOUT an ID
+            mock_client = MagicMock()
+            mock_client.create.return_value = AgentUpsertResponse(id=None)
+            native_client_mock.return_value = mock_client
+            
+            # Call publish_agent with custom_agent_file_path
+            agents_controller.publish_agent(agent, custom_agent_file_path="/path/to/agent.zip")
+            
+            # Verify upload was NOT called
+            upload_mock.assert_not_called()
+        
+        # Verify it exited with code 1
+        assert exc_info.value.code == 1
+        
+        captured = caplog.text
+        assert "Backend did not return an agent ID" in captured
+        assert "Cannot upload custom agent package without an agent ID" in captured
+
+    def test_publish_custom_agent_without_file_path(self, native_agent_content, caplog):
+        """Test that custom agents without file paths don't trigger upload"""
+        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController._upload_custom_agent_artifact") as upload_mock:
+            
+            # Create a custom agent
+            agent_data = native_agent_content.copy()
+            agent_data['style'] = AgentStyle.CUSTOM
+            agent = Agent(**agent_data)
+            
+            # Mock the client to return an AgentUpsertResponse with an ID
+            mock_client = MagicMock()
+            mock_client.create.return_value = AgentUpsertResponse(id="test-agent-id-123")
+            native_client_mock.return_value = mock_client
+            
+            # Call publish_agent WITHOUT custom_agent_file_path
+            agents_controller.publish_agent(agent)
+            
+            # Verify create was called
+            mock_client.create.assert_called_once()
+            
+            # Verify upload was NOT called
+            upload_mock.assert_not_called()
+            
+            captured = caplog.text
+            assert f"Agent '{agent.name}' imported successfully" in captured
+            assert "Uploading custom agent package" not in captured
+
 class TestAgentsControllerUpdateAgent:
     def test_update_native_agent(self, native_agent_content, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock:
