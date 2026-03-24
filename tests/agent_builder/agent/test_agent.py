@@ -13,6 +13,7 @@ def valid_native_agent_sample():
         "kind": AgentKind.NATIVE,
         "name": "test_native_agent",
         "description": "Test Object for native agent",
+        "memory_enabled": True,
         "llm": "test_llm",
         "style": AgentStyle.DEFAULT,
         "collaborators": [
@@ -41,6 +42,7 @@ def valid_native_agent_sample():
 def default_values():
     return {
         "kind": AgentKind.NATIVE,
+        "memory_enabled": None,
         "llm": DEFAULT_LLM,
         "collaborators": [],
         "tools": [],
@@ -48,7 +50,7 @@ def default_values():
         "guidelines": []
     }
 
-@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools', 'knowledge_base', 'guidelines'])
+@pytest.fixture(params=['kind', 'spec_version', 'llm', 'style', 'collaborators', 'tools', 'knowledge_base', 'guidelines', 'memory_enabled'])
 def native_agent_missing_optional_values(request, valid_native_agent_sample):
     native_spec_definition = valid_native_agent_sample
     native_spec_definition.pop(request.param, None)
@@ -106,6 +108,7 @@ class TestAgentInit:
             kind = native_spec_definition["kind"],
             name = native_spec_definition["name"],
             description = native_spec_definition["description"],
+            memory_enabled = native_spec_definition["memory_enabled"],
             llm = native_spec_definition["llm"],
             style = native_spec_definition["style"],
             collaborators = native_spec_definition["collaborators"],
@@ -118,6 +121,7 @@ class TestAgentInit:
         assert native_agent.kind == native_spec_definition["kind"]
         assert native_agent.name == native_spec_definition["name"]
         assert native_agent.description == native_spec_definition["description"]
+        assert native_agent.memory_enabled == native_spec_definition["memory_enabled"]
         assert native_agent.llm == native_spec_definition["llm"]
         assert native_agent.style == native_spec_definition["style"]
         assert native_agent.collaborators == native_spec_definition["collaborators"]
@@ -188,6 +192,7 @@ class TestAgentFromSpec:
             assert native_agent.kind == native_spec_definition["kind"]
             assert native_agent.name == native_spec_definition["name"]
             assert native_agent.description == native_spec_definition["description"]
+            assert native_agent.memory_enabled == native_spec_definition["memory_enabled"]
             assert native_agent.llm == native_spec_definition["llm"]
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
@@ -209,6 +214,7 @@ class TestAgentFromSpec:
             assert native_agent.kind == native_spec_definition["kind"]
             assert native_agent.name == native_spec_definition["name"]
             assert native_agent.description == native_spec_definition["description"]
+            assert native_agent.memory_enabled == native_spec_definition["memory_enabled"]
             assert native_agent.llm == native_spec_definition["llm"]
             assert native_agent.style == native_spec_definition["style"]
             assert native_agent.collaborators == native_spec_definition["collaborators"]
