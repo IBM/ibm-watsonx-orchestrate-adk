@@ -8,6 +8,7 @@ import sys
 import re
 import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
 from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
@@ -198,14 +199,36 @@ class ToolkitController:
                 # Create toolkit metadata
                 payload = spec.model_dump(exclude_unset=True)
 
-                with Progress(
-                    SpinnerColumn(spinner_name="dots"),
-                    TextColumn("[progress.description]{task.description}"),
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    progress.add_task(description="Creating toolkit...", total=None)
-                    new_toolkit = self.get_client().create_toolkit(payload)
+                try:
+                    with Progress(
+                        SpinnerColumn(spinner_name="dots"),
+                        TextColumn("[progress.description]{task.description}"),
+                        transient=True,
+                        console=console,
+                    ) as progress:
+                        progress.add_task(description="Creating toolkit...", total=None)
+                        new_toolkit = self.get_client().create_toolkit(payload)
+                except ClientAPIException as e:
+                    error_msg = "Unknown error"
+                    try:
+                        # Don't rely on truthiness of response object - check if it's not None
+                        if e.response is not None and hasattr(e.response, 'text'):
+                            response_text = e.response.text
+                            if response_text:
+                                try:
+                                    error_data = json.loads(response_text)
+                                    error_msg = error_data.get('detail', response_text)
+                                except:
+                                    error_msg = response_text
+                            else:
+                                error_msg = str(e)
+                        else:
+                            error_msg = str(e)
+                    except Exception:
+                        error_msg = str(e)
+                    
+                    logger.error(f"Failed to create toolkit: {error_msg}")
+                    sys.exit(1)
 
                 toolkit_id = new_toolkit["id"]
 
@@ -378,13 +401,15 @@ class ToolkitController:
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
     
-    def _fetch_and_parse_toolkits(self) -> Tuple[List[BaseToolkit], List[List[str]]]:
+    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None) -> Tuple[List[BaseToolkit], List[List[str]]]:
         parse_errors = []
         client = self.get_client()
-        response = client.get()
+        
+        # Use client method directly - it handles workspace_id parameter properly
+        response = client.get(workspace_id=workspace_id)
 
         toolkits = []
-        for toolkit in response:
+        for toolkit in (response or []):
             try:
                 spec = ToolkitSpec.model_validate(toolkit)
                 toolkits.append(BaseToolkit(spec=spec))
@@ -510,7 +535,8 @@ class ToolkitController:
             name: str,
             output_file: Path | str,
             zip_file_out: Optional[zipfile.ZipFile] = None,
-            connections_output_path: Path | str = "/connections") -> None:
+            connections_output_path: Path | str = "/connections",
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_file)
         connections_output_path = Path(connections_output_path)
@@ -523,7 +549,7 @@ class ToolkitController:
 
         client = self.get_client()
 
-        toolkit_specs = client.get_draft_by_name(toolkit_name=name)
+        toolkit_specs = client.get_draft_by_name(toolkit_name=name, workspace_id=workspace_id)
 
         if not toolkit_specs:
             BadRequest(f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`")

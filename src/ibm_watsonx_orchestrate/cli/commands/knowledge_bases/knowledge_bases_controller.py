@@ -167,7 +167,29 @@ class KnowledgeBaseController:
                         'file_urls': json.dumps(file_urls)
                     }
 
-                    response = client.create_built_in(payload=data, files=files)
+                    try:
+                        response = client.create_built_in(payload=data, files=files)
+                    except ClientAPIException as e:
+                        error_msg = "Unknown error"
+                        try:
+                            # Don't rely on truthiness of response object - check if it's not None
+                            if e.response is not None and hasattr(e.response, 'text'):
+                                response_text = e.response.text
+                                if response_text:
+                                    try:
+                                        error_data = json.loads(response_text)
+                                        error_msg = error_data.get('detail', response_text)
+                                    except:
+                                        error_msg = response_text
+                                else:
+                                    error_msg = str(e)
+                            else:
+                                error_msg = str(e)
+                        except Exception:
+                            error_msg = str(e)
+                        
+                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        continue
                     
                     # Poll for import completion when documents are included
                     if response and 'knowledge_base' in response:
@@ -187,12 +209,52 @@ class KnowledgeBaseController:
                     kb.prioritize_built_in_index = False
                     data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
 
-                    client.create(payload=data)
+                    try:
+                        client.create(payload=data)
+                    except ClientAPIException as e:
+                        error_msg = "Unknown error"
+                        try:
+                            # Don't rely on truthiness of response object - check if it's not None
+                            if e.response is not None and hasattr(e.response, 'text'):
+                                response_text = e.response.text
+                                if response_text:
+                                    try:
+                                        error_data = json.loads(response_text)
+                                        error_msg = error_data.get('detail', response_text)
+                                    except:
+                                        error_msg = response_text
+                                else:
+                                    error_msg = str(e)
+                            else:
+                                error_msg = str(e)
+                        except Exception:
+                            error_msg = str(e)
+                        
+                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        continue
+                    
                     # No polling needed when no documents are included
                     logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                error_msg = e.response.json()["detail"] if e.response.json and "detail" in e.response.json() else e.response.text
-                logger.error(f"Error importing knowledge base '{kb.name}': {error_msg}")
+                # This catch block is for any other ClientAPIException not caught above
+                error_msg = "Unknown error"
+                try:
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create knowledge base: {error_msg}")
     
     def _poll_knowledge_base_status(
         self,
@@ -293,7 +355,7 @@ class KnowledgeBaseController:
                     return
     
     def get_id(
-        self, id: str, name: str
+        self, id: str, name: str, workspace_id: Optional[str] = None
     ) -> str:
         if id:
             return id
@@ -302,7 +364,10 @@ class KnowledgeBaseController:
             logger.error("Either 'id' or 'name' is required")
             sys.exit(1)
 
-        response = self.get_client().get_by_name(name)
+        client = self.get_client()
+        
+        # Use client method directly - it handles workspace_id parameter
+        response = client.get_by_name(name, workspace_id=workspace_id)
 
         if not response:
             logger.warning(f"No knowledge base '{name}' found")
@@ -481,9 +546,10 @@ class KnowledgeBaseController:
     def knowledge_base_export(self,
             output_path: str,
             id: Optional[str] = None,
-            name: Optional[str] = None, 
+            name: Optional[str] = None,
             zip_file_out: Optional[ZipFile] = None,
-            connections_output_path: str = "/connections") -> None:
+            connections_output_path: str = "/connections",
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
@@ -491,7 +557,7 @@ class KnowledgeBaseController:
             logger.error(f"Output file must end with the extension '.yaml', '.yml' or '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
-        knowledge_base_id = self.get_id(id, name)
+        knowledge_base_id = self.get_id(id, name, workspace_id=workspace_id)
         logEnding = f"with ID '{id}'" if id else f"'{name}'"  
         
         logger.info(f"Exporting spec for knowledge base {logEnding}'")
