@@ -1,6 +1,8 @@
 from typing import Any, Optional, Dict
 import asyncio
 from urllib.parse import urlparse
+
+from pygments.lexer import include
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 from ibm_cloud_sdk_core.authenticators import Authenticator
 
@@ -159,20 +161,11 @@ class FlowMCPClient(BaseWXOClient):
             arguments: Dictionary of arguments to pass to the tool
             
         Returns:
-            Result from the tool execution
+            Raw MCP tool call response. Callers should access result.structuredContent
+            or result.content as needed.
         """
         session = await self._ensure_session()
         result = await session.call_tool(tool_name, arguments)
-        
-        # Extract content from result
-        if hasattr(result, 'content') and result.content:
-            # Return the first content item's text if available
-            if len(result.content) > 0:
-                content_item = result.content[0]
-                if hasattr(content_item, 'text'):
-                    return content_item.text
-                return content_item
-        
         return result
     
     async def run_flow(
@@ -234,13 +227,8 @@ class FlowMCPClient(BaseWXOClient):
         if context:
             arguments = {**arguments, "_context": context}
         
-        result = await self._call_tool(f"run_flow__{flow_name}", arguments)
-        
-        # Parse the result if it's a JSON string
-        if isinstance(result, str):
-            import json
-            return json.loads(result)
-        return result
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool(f"run_flow__{flow_name}", arguments)
 
     async def arun_flow(
         self,
@@ -285,13 +273,60 @@ class FlowMCPClient(BaseWXOClient):
         if context:
             arguments = {**arguments, "_context": context}
         
-        result = await self._call_tool(f"run_flow_async__{flow_name}", arguments)
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool(f"run_flow_async__{flow_name}", arguments)
         
-        # Parse the result if it's a JSON string
-        if isinstance(result, str):
-            import json
-            return json.loads(result)
-        return result
+    async def query_flow(self, flow_name: str, instance_id: str) -> Dict[str, Any]:
+        """
+        Query the status and output of a specific flow instance.
+        
+        This method calls the MCP tool `query_flow__<flow_name>` to retrieve the current
+        state and output (if completed) of a flow run.
+        
+        Args:
+            flow_name: The name of the flow model (without version suffix)
+            instance_id: The instance ID of the flow run to query
+        
+        Returns:
+            Dictionary with the following structure:
+            - output (optional): Flow-specific output (only present when flow completes successfully with output)
+            - status (required): Status information containing:
+                - instance_id: The instance ID of the flow run
+                - name: The flow name
+                - state: Current state ("working", "input_required", "completed", "failed")
+                - created_at: Creation timestamp (ISO 8601)
+                - updated_at: Last update timestamp (ISO 8601)
+        
+        Authorization:
+            User must have access to the flow (only returns data for flows initiated by the requesting user)
+        
+        Behavior:
+            - Queries database for flow instance by instance_id
+            - Validates that instance belongs to the expected flow model
+            - Returns current state and output (if completed)
+            - Only returns data for flows initiated by the requesting user
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     # Start a flow asynchronously
+            ...     result = await client.arun_flow("purchase_approval", {"item": "Laptop", "amount": 1500})
+            ...     instance_id = result["instance_id"]
+            ...     
+            ...     # Query the flow status
+            ...     status = await client.query_flow("purchase_approval", instance_id)
+            ...     print(f"Flow state: {status['status']['state']}")
+            ...     if status['status']['state'] == 'completed' and 'output' in status:
+            ...         print(f"Flow output: {status['output']}")
+        """
+        if not flow_name:
+            raise ValueError("flow_name is required")
+        if not instance_id:
+            raise ValueError("instance_id is required")
+        
+        arguments = {"instance_id": instance_id}
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool(f"query_flow__{flow_name}", arguments)
+
     async def cancel_flow(self, instance_id: str) -> Any:
         """
         Interrupt and stop a running flow instance.
@@ -327,16 +362,9 @@ class FlowMCPClient(BaseWXOClient):
             raise ValueError("instance_id is required")
         
         arguments = {"instance_id": instance_id}
-        result = await self._call_tool("cancel_flow", arguments)
-        
-        # Parse the result if it's a JSON string
-        if isinstance(result, str):
-            import json
-            try:
-                return json.loads(result)
-            except json.JSONDecodeError:
-                # Return as-is if not valid JSON (e.g., simple success message)
-                return result
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool("cancel_flow", arguments)
+
     async def replay_flow_pending_elicitation(self, instance_id: str) -> Dict[str, Any]:
         """
         Replay pending elicitation requests for a flow instance after reconnection.
@@ -402,13 +430,8 @@ class FlowMCPClient(BaseWXOClient):
             raise ValueError("instance_id is required")
         
         arguments = {"instance_id": instance_id}
-        result = await self._call_tool("replay_flow_pending_elicitation", arguments)
-        
-        # Parse the result if it's a JSON string
-        if isinstance(result, str):
-            import json
-            return json.loads(result)
-        return result
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool("replay_flow_pending_elicitation", arguments)
 
     async def submit_flow_elicitation(
         self,
@@ -498,19 +521,8 @@ class FlowMCPClient(BaseWXOClient):
             "elicitation_id": elicitation_id,
             "response": response
         }
-        result = await self._call_tool("submit_flow_elicitation", arguments)
-        
-        # Parse the result if it's a JSON string
-        if isinstance(result, str):
-            import json
-            try:
-                return json.loads(result)
-            except json.JSONDecodeError:
-                # Return as-is if not valid JSON (e.g., simple success message)
-                return result
-        return result
-
-        return result
+        # _call_tool already returns structured data from structuredContent
+        return await self._call_tool("submit_flow_elicitation", arguments)
 
 
     def get_mcp_endpoint(self) -> str:
@@ -597,7 +609,7 @@ class FlowMCPClient(BaseWXOClient):
             arguments['instance_id'] = instance_id
         if name is not None:
             arguments['name'] = name
-        if include_details is not None:
+        if include_details is not None and include_details:
             arguments['include_details'] = include_details
         if state is not None:
             # Validate state value
@@ -613,15 +625,11 @@ class FlowMCPClient(BaseWXOClient):
             arguments['updated_at_start'] = updated_at_start
         if updated_at_end is not None:
             arguments['updated_at_end'] = updated_at_end
-        
+
         # Call the list_flows tool via MCP
         result = await self._call_tool("list_flows", arguments)
         
-        # Parse the result - it should be a JSON string or already parsed list
-        if isinstance(result, str):
-            import json
-            return json.loads(result)
-        return result if isinstance(result, list) else []
+        return result
     
     
     def __enter__(self):
