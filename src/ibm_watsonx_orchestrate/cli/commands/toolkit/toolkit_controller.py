@@ -401,13 +401,15 @@ class ToolkitController:
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
     
-    def _fetch_and_parse_toolkits(self) -> Tuple[List[BaseToolkit], List[List[str]]]:
+    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None) -> Tuple[List[BaseToolkit], List[List[str]]]:
         parse_errors = []
         client = self.get_client()
-        response = client.get()
+        
+        # Use client method directly - it handles workspace_id parameter properly
+        response = client.get(workspace_id=workspace_id)
 
         toolkits = []
-        for toolkit in response:
+        for toolkit in (response or []):
             try:
                 spec = ToolkitSpec.model_validate(toolkit)
                 toolkits.append(BaseToolkit(spec=spec))
@@ -533,7 +535,8 @@ class ToolkitController:
             name: str,
             output_file: Path | str,
             zip_file_out: Optional[zipfile.ZipFile] = None,
-            connections_output_path: Path | str = "/connections") -> None:
+            connections_output_path: Path | str = "/connections",
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_file)
         connections_output_path = Path(connections_output_path)
@@ -546,7 +549,7 @@ class ToolkitController:
 
         client = self.get_client()
 
-        toolkit_specs = client.get_draft_by_name(toolkit_name=name)
+        toolkit_specs = client.get_draft_by_name(toolkit_name=name, workspace_id=workspace_id)
 
         if not toolkit_specs:
             BadRequest(f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`")
