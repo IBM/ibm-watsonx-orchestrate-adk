@@ -314,6 +314,10 @@ class TestWorkspaceExport:
         # Mock workspace resolution
         workspaces_controller.workspace_context._resolve_workspace_name_to_id = Mock(return_value="workspace-123")
         
+        # Mock workspace activation/deactivation methods
+        workspaces_controller.activate_workspace = Mock()
+        workspaces_controller.deactivate_workspace = Mock()
+        
         mock_agents_ctrl = Mock()
         mock_agents_ctrl._fetch_and_parse_agents.return_value = ([], None)
         mock_agents_controller.return_value = mock_agents_ctrl
