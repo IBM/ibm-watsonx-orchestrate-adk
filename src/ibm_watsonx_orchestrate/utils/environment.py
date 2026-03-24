@@ -384,7 +384,8 @@ class EnvService:
             "TAVILY_API_KEY", #May not be needed
             "RUNTIME_MANAGER_API_KEY",
             "DB_ENCRYPTION_KEY",
-            "AGENTOPS_API_KEY"
+            "AGENTOPS_API_KEY",
+            "MEMORY_SERVICE_API_KEY"
         ]
 
         username = service_credentials.get(EnvService._SERVICE_USERNAME_ENV_VAR)
