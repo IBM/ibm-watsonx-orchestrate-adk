@@ -354,14 +354,16 @@ class MockAgent:
                 ids.append({"name": agent, "id": str(uuid.uuid4())})
         return ids
 
-    def get_draft_by_name(self, agent):
+    def get_draft_by_name(self, agent, workspace_id=None):
+        """Mock method for get_draft_by_name with optional workspace_id parameter"""
         if self.get_draft_by_name_response:
             return self.get_draft_by_name_response
         if self.already_existing:
             return [{"name": agent, "id": str(uuid.uuid4())}]
         return []
 
-    def get_drafts_by_ids(self, agent_ids):
+    def get_drafts_by_ids(self, agent_ids, workspace_id=None):
+        """Mock method for get_drafts_by_ids with optional workspace_id parameter"""
         response = []
         if not self.return_get_drafts_by_ids:
             return response
@@ -369,7 +371,7 @@ class MockAgent:
             response.append({"id": id, "name": str(uuid.uuid4())})
         return response
 
-    def get_draft_by_id(self, agent_id):
+    def get_draft_by_id(self, agent_id, workspace_id=None):
         return self.fake_agent
     
     def get_by_id(self, knowledge_base_id):
