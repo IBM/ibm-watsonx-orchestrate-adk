@@ -175,6 +175,344 @@ class FlowMCPClient(BaseWXOClient):
         
         return result
     
+    async def run_flow(
+        self,
+        flow_name: str,
+        arguments: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute a flow synchronously and wait for completion or interruption.
+        
+        This method calls the MCP tool `run_flow__<flow_name>` to execute a flow
+        synchronously. The flow will run until it completes, fails, or is interrupted
+        (e.g., waiting for user input).
+        
+        Args:
+            flow_name: The name of the flow to execute (without version suffix)
+            arguments: Flow-specific input parameters matching the flow's input schema
+            context: Optional context parameters for flow execution:
+                - thread_id: The thread id of the agent initiating the tool
+                - environment_id: The environment id ("draft" or "live", default: "draft")
+                - channel_id: The channel id of the request channel
+                - channel_capabilities: Array of channel capabilities (e.g., ['form', 'form-table', 'file'])
+                - agent_id: The agent id initiating the flow
+                - agent_version: The caller agent version
+        
+        Returns:
+            Dictionary with the following structure:
+            - output (optional): Flow-specific output (only present when flow completes successfully with output)
+            - status (required): Status information containing:
+                - instance_id: The instance ID of the flow run
+                - name: The flow name
+                - state: Current state ("working", "input_required", "completed", "failed")
+                - created_at: Creation timestamp (ISO 8601)
+                - updated_at: Last update timestamp (ISO 8601)
+        
+        Behavior:
+            - Executes flow to completion or until interrupted (e.g., user node)
+            - Always returns a wrapper object with 'status' field
+            - 'output' field only included when flow completes successfully with output
+            - User interventions handled via MCP elicitation automatically
+            - When state is "input_required", flow is paused waiting for user intervention
+            - When state is "completed" and output is present, flow succeeded with results
+            - When state is "failed", represents actual execution errors
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     result = await client.run_flow(
+            ...         "purchase_approval",
+            ...         {"item": "Laptop", "amount": 1500},
+            ...         context={"thread_id": "thread-123", "environment_id": "draft"}
+            ...     )
+            ...     if result["status"]["state"] == "completed":
+            ...         print(f"Flow completed: {result.get('output')}")
+            ...     elif result["status"]["state"] == "input_required":
+            ...         print(f"Flow waiting for input: {result['status']['instance_id']}")
+        """
+        # Merge context into arguments if provided
+        if context:
+            arguments = {**arguments, "_context": context}
+        
+        result = await self._call_tool(f"run_flow__{flow_name}", arguments)
+        
+        # Parse the result if it's a JSON string
+        if isinstance(result, str):
+            import json
+            return json.loads(result)
+        return result
+
+    async def arun_flow(
+        self,
+        flow_name: str,
+        arguments: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, str]:
+        """
+        Start a flow asynchronously and return immediately with instance ID.
+        
+        This method calls the MCP tool `run_flow_async__<flow_name>` to start a flow
+        execution in the background. It returns immediately with an instance_id that
+        can be used to query the flow status later.
+        
+        Args:
+            flow_name: The name of the flow to execute (without version suffix)
+            arguments: Flow-specific input parameters matching the flow's input schema
+            context: Optional context parameters for flow execution (same as run_flow)
+        
+        Returns:
+            Dictionary containing:
+            - instance_id: The instance ID of the started flow (claim-check pattern)
+        
+        Behavior:
+            - Starts flow execution in background
+            - Returns instance_id immediately
+            - Flow continues executing asynchronously
+            - User interventions handled via MCP elicitation
+            - Client should poll using query_flow or list_flows to check status
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     result = await client.arun_flow(
+            ...         "purchase_approval",
+            ...         {"item": "Laptop", "amount": 1500}
+            ...     )
+            ...     instance_id = result["instance_id"]
+            ...     # Later, query the flow status
+            ...     flows = await client.list_flows(instance_id=instance_id)
+        """
+        # Merge context into arguments if provided
+        if context:
+            arguments = {**arguments, "_context": context}
+        
+        result = await self._call_tool(f"run_flow_async__{flow_name}", arguments)
+        
+        # Parse the result if it's a JSON string
+        if isinstance(result, str):
+            import json
+            return json.loads(result)
+        return result
+    async def cancel_flow(self, instance_id: str) -> Any:
+        """
+        Interrupt and stop a running flow instance.
+        
+        This method calls the MCP tool `cancel_flow` to abort a flow execution.
+        The flow will be stopped and its state will be updated accordingly.
+        
+        Args:
+            instance_id: The unique instance ID of the flow run to cancel
+        
+        Returns:
+            Success message if flow was aborted, or error message if flow not found
+            or user not authorized
+        
+        Authorization:
+            User must have access to the flow (regular users can only cancel flows
+            they initiated; administrators can cancel any flow in the tenant)
+        
+        Raises:
+            May raise exceptions if the flow is not found or user lacks authorization
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     # Start a flow
+            ...     result = await client.arun_flow("purchase_approval", {"item": "Laptop", "amount": 1500})
+            ...     instance_id = result["instance_id"]
+            ...     
+            ...     # Cancel the flow
+            ...     cancel_result = await client.cancel_flow(instance_id)
+            ...     print(cancel_result)
+        """
+        if not instance_id:
+            raise ValueError("instance_id is required")
+        
+        arguments = {"instance_id": instance_id}
+        result = await self._call_tool("cancel_flow", arguments)
+        
+        # Parse the result if it's a JSON string
+        if isinstance(result, str):
+            import json
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError:
+                # Return as-is if not valid JSON (e.g., simple success message)
+                return result
+    async def replay_flow_pending_elicitation(self, instance_id: str) -> Dict[str, Any]:
+        """
+        Replay pending elicitation requests for a flow instance after reconnection.
+        
+        This tool returns immediately with the count of pending elicitations, then replays
+        them asynchronously in the background. This non-blocking design allows the tool to
+        be called multiple times safely, even if the client disconnects during replay.
+        
+        Args:
+            instance_id: The unique instance ID of the flow run
+        
+        Returns:
+            Dictionary containing:
+            - pending_count: Number of pending elicitations found (will be replayed asynchronously)
+            - message: Status message describing the result
+        
+        Requirements:
+            - Client must be actively subscribed to the flow (use subscribe_flow first)
+            - Only the subscribed session can replay elicitations
+            - User must have access to the flow
+        
+        Behavior:
+            1. Verifies client is subscribed to the flow instance
+            2. Queries Redis stream for all events related to the flow
+            3. Identifies ON_TASK_WAIT events without corresponding ON_TASK_RESUME or ON_TASK_CALLBACK
+            4. Returns immediately with count of pending elicitations
+            5. Asynchronously regenerates and sends elicitation requests for each pending task
+            6. Tracks sent elicitations to prevent duplicates to the same session
+            7. Client receives elicitations and can respond normally
+        
+        Key Features:
+            - Non-Blocking: Returns immediately, doesn't wait for replay to complete
+            - Idempotent: Can be called multiple times safely (deterministic elicitation IDs prevent duplicates)
+            - Duplicate Prevention: Tracks which elicitations have been sent to each session
+            - Resilient: If client disconnects during replay, can call again to retry
+            - Background Processing: Replay happens asynchronously without blocking the caller
+        
+        Use Cases:
+            1. After Reconnection: Client disconnected and missed elicitation requests
+            2. Server Restart: Flow server restarted while flow was waiting for user input
+            3. Session Recovery: Recover from network interruptions without losing flow state
+            4. Retry on Failure: If client disconnects during replay, call again after reconnecting
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     # After reconnection
+            ...     await client.subscribe_flow(instance_id)
+            ...     result = await client.replay_flow_pending_elicitation(instance_id)
+            ...     print(f"Replaying {result['pending_count']} elicitation(s)")
+            ...     # Client will receive elicitations asynchronously
+        
+        Reconnection Workflow:
+            1. Client disconnects (loses elicitation)
+            2. Flow continues running, waiting at user node
+            3. Client reconnects
+            4. Client calls: subscribe_flow(instance_id)
+            5. Client calls: replay_flow_pending_elicitation(instance_id)
+            6. Client receives missed elicitation(s) asynchronously
+            7. Client responds normally
+            8. Flow continues execution
+        """
+        if not instance_id:
+            raise ValueError("instance_id is required")
+        
+        arguments = {"instance_id": instance_id}
+        result = await self._call_tool("replay_flow_pending_elicitation", arguments)
+        
+        # Parse the result if it's a JSON string
+        if isinstance(result, str):
+            import json
+            return json.loads(result)
+        return result
+
+    async def submit_flow_elicitation(
+        self,
+        instance_id: str,
+        elicitation_id: str,
+        response: Dict[str, Any]
+    ) -> Any:
+        """
+        Submit an elicitation response offline when the client was disconnected during an elicitation request.
+        
+        When a client disconnects during an active elicitation, they can reconnect and submit
+        the response later using this tool. The tool looks up the original ON_TASK_WAIT event
+        from the Redis stream and posts the response to the callback queue to resume the flow.
+        
+        Args:
+            instance_id: The unique instance ID of the flow run
+            elicitation_id: The elicitation ID from the original elicitation request (this is the task_id)
+            response: The elicitation response with the following structure:
+                - action (required): One of "accept", "decline", or "cancel"
+                - content (optional): The form data content (required for "accept" action)
+        
+        Returns:
+            Success message with elicitation ID and action taken, or error message if:
+            - Flow instance not found
+            - User not authorized
+            - Flow already completed or failed
+            - Elicitation not found or already resolved
+        
+        Authorization:
+            User must have access to the flow
+        
+        Response Handling:
+            | Response Type | Action         | Behavior |
+            |--------------|----------------|----------|
+            | Form         | Accept         | Posts form data with form_operation: 'submit'. Flow resumes. |
+            | Form         | Cancel/Decline | Posts form_operation: 'cancel' with empty form_data. Flow handles cancellation. |
+            | Non-Form     | Accept         | Posts callback content items. Flow resumes. |
+            | Non-Form     | Cancel/Decline | Elicitation remains open - no callback posted. Returns can_retry: true. |
+        
+        Key Points:
+            - Form cancellations are communicated to the flow engine via form_operation: 'cancel'
+            - Non-form cancellations leave the elicitation open for retry
+            - The tool validates that the elicitation is still pending before submission
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     # After reconnection and replay
+            ...     response = {
+            ...         "action": "accept",
+            ...         "content": {
+            ...             "name": "user_input",
+            ...             "text": '{"movie":"Inception","time":"7:00 PM"}',
+            ...             "form_data": {"movie": "Inception", "time": "7:00 PM"},
+            ...             "response_type": "form_operation",
+            ...             "form_operation": "submit"
+            ...         }
+            ...     }
+            ...     result = await client.submit_flow_elicitation(
+            ...         instance_id="flow-abc123",
+            ...         elicitation_id="task-789",
+            ...         response=response
+            ...     )
+        
+        Workflow:
+            1. Client disconnects during an active elicitation
+            2. Client reconnects and calls subscribe_flow(instance_id)
+            3. Client calls replay_flow_pending_elicitation(instance_id)
+            4. Client submits response using submit_flow_elicitation
+            5. Flow resumes processing with the submitted response
+        """
+        if not instance_id:
+            raise ValueError("instance_id is required")
+        if not elicitation_id:
+            raise ValueError("elicitation_id is required")
+        if not response:
+            raise ValueError("response is required")
+        if "action" not in response:
+            raise ValueError("response must contain 'action' field")
+        
+        # Validate action value
+        valid_actions = ["accept", "decline", "cancel"]
+        if response["action"] not in valid_actions:
+            raise ValueError(f"Invalid action '{response['action']}'. Must be one of: {', '.join(valid_actions)}")
+        
+        arguments = {
+            "instance_id": instance_id,
+            "elicitation_id": elicitation_id,
+            "response": response
+        }
+        result = await self._call_tool("submit_flow_elicitation", arguments)
+        
+        # Parse the result if it's a JSON string
+        if isinstance(result, str):
+            import json
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError:
+                # Return as-is if not valid JSON (e.g., simple success message)
+                return result
+        return result
+
+        return result
+
+
     def get_mcp_endpoint(self) -> str:
         """
         Returns the MCP endpoint URL.
@@ -194,6 +532,97 @@ class FlowMCPClient(BaseWXOClient):
         session = await self._ensure_session()
         result = await session.list_tools()
         return result.tools if hasattr(result, 'tools') else []
+        
+    async def list_flows(
+        self,
+        instance_id: Optional[str] = None,
+        name: Optional[str] = None,
+        include_details: bool = False,
+        state: Optional[str] = None,
+        max_instances: Optional[int] = None,
+        updated_at_start: Optional[str] = None,
+        updated_at_end: Optional[str] = None
+    ) -> list:
+        """
+        Query and retrieve information about flow instances with flexible filtering options.
+        
+        Authorization:
+            - Regular users see only flows they initiated
+            - Administrators (TODO) will see all flows across all users in the tenant
+        
+        Args:
+            instance_id: The unique instance ID of the flow run
+            name: The unique name of the flow model
+            include_details: Include detailed information about each flow instance (default: False)
+            state: Filter by flow run state. Values: "working", "input_required", "completed", "failed"
+            max_instances: Maximum number of instances to return (positive integer)
+            updated_at_start: Filter by updated_at >= this timestamp (ISO 8601 format)
+            updated_at_end: Filter by updated_at <= this timestamp (ISO 8601 format)
+        
+        Returns:
+            List of flow instances with the following structure:
+            - instance_id: Unique instance ID
+            - tenant_id: Tenant ID
+            - name: Flow model display name
+            - model_id: Flow model ID
+            - model_version: Flow model version
+            - state: Current state ("working", "input_required", "completed", "failed")
+            - metadata: Additional metadata (LLM model, environment ID, agent info, trace settings)
+            - input: Input data for the flow run
+            - output: Output data from the flow run (if completed)
+            - private: Private data for the flow run
+            - execution_summary: Summary of the execution
+            - sequence: Execution sequence information with steps
+            - initiators: List of users who started this flow run
+            - error: Error message if the flow failed
+            - trace_context: Distributed tracing information (traceparent, duration)
+            - children: Child flow runs (if any)
+            - tasks: List of tasks executed in this flow run with detailed state
+            - created_at: Creation timestamp (ISO 8601)
+            - updated_at: Last update timestamp (ISO 8601)
+        
+        Example:
+            >>> async with FlowMCPClient(base_url, api_key) as client:
+            ...     flows = await client.list_flows(
+            ...         name="purchase_approval_flow",
+            ...         state="working",
+            ...         include_details=True,
+            ...         max_instances=10
+            ...     )
+        """
+        # Build arguments dictionary, only including non-None values
+        arguments: Dict[str, Any] = {}
+        
+        if instance_id is not None:
+            arguments['instance_id'] = instance_id
+        if name is not None:
+            arguments['name'] = name
+        if include_details is not None:
+            arguments['include_details'] = include_details
+        if state is not None:
+            # Validate state value
+            valid_states = ["working", "input_required", "completed", "failed"]
+            if state not in valid_states:
+                raise ValueError(f"Invalid state '{state}'. Must be one of: {', '.join(valid_states)}")
+            arguments['state'] = state
+        if max_instances is not None:
+            if not isinstance(max_instances, int) or max_instances <= 0:
+                raise ValueError("max_instances must be a positive integer")
+            arguments['max_instances'] = max_instances
+        if updated_at_start is not None:
+            arguments['updated_at_start'] = updated_at_start
+        if updated_at_end is not None:
+            arguments['updated_at_end'] = updated_at_end
+        
+        # Call the list_flows tool via MCP
+        result = await self._call_tool("list_flows", arguments)
+        
+        # Parse the result - it should be a JSON string or already parsed list
+        if isinstance(result, str):
+            import json
+            return json.loads(result)
+        return result if isinstance(result, list) else []
+    
     
     def __enter__(self):
         """
@@ -233,7 +662,7 @@ class FlowMCPClient(BaseWXOClient):
     # Required abstract methods from BaseAPIClient
     def create(self, *args, **kwargs):
         """Not implemented for MCP client. Use create_update_flow_model instead."""
-        raise NotImplementedError("Use create_update_flow_model for creating flow models")
+        raise NotImplementedError("Create operation not supported via MCP client")
     
     def delete(self, *args, **kwargs):
         """Not implemented for MCP client."""
@@ -241,10 +670,8 @@ class FlowMCPClient(BaseWXOClient):
     
     def update(self, *args, **kwargs):
         """Not implemented for MCP client. Use create_update_flow_model instead."""
-        raise NotImplementedError("Use create_update_flow_model for updating flow models")
+        raise NotImplementedError("Update operation not supported via MCP client")
     
     def get(self, *args, **kwargs):
         """Not implemented for MCP client. Use get_flow_model instead."""
-        raise NotImplementedError("Use get_flow_model for retrieving flow models")
-
-# Made with Bob
+        raise NotImplementedError("Get operation not supported via MCP client")
