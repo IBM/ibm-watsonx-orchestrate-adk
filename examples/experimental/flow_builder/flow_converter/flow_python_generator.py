@@ -768,7 +768,6 @@ class FlowPythonGenerator:
         
         # Try to get the evaluator expression
         evaluator = safe_getattr(node.spec, "evaluator")
-        has_edge_conditions = False
         
         if evaluator:
             expression = safe_getattr(evaluator, "expression")
@@ -777,84 +776,37 @@ class FlowPythonGenerator:
                 FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
                 FlowPythonGenerator._generate_node_field(node, var_name, ["evaluator"], schema_class_map, out, declare_spec=False)
             else:
-                # Complex expression with conditions - check if we have EdgeIdConditions
+                # Complex expression with conditions - use fluent API
                 conditions = safe_getattr(evaluator, "conditions")
                 if conditions:
-                    # Check if any condition is an EdgeIdCondition
-                    has_edge_conditions = any(isinstance(c, EdgeIdCondition) for c in conditions)
+                    # Use the new fluent API with .condition() calls for both NodeIdCondition and EdgeIdCondition
+                    out.write(f"    # Create branch with conditions using fluent API\n")
+                    out.write(f"    {var_name}: Branch = {flow_var}.conditions(\n")
+                    out.write(f"        name={repr(node.spec.name)},\n")
+                    if node.spec.display_name:
+                        out.write(f"        display_name={repr(node.spec.display_name)}\n")
+                    out.write(f"    )\n")
+                    out.write(f"    \n")
                     
-                    if has_edge_conditions and edge_map:
-                        # Use the new fluent API with .condition() calls
-                        out.write(f"    # Create branch with conditions using fluent API\n")
-                        out.write(f"    {var_name}: Branch = {flow_var}.conditions(\n")
-                        out.write(f"        name={repr(node.spec.name)},\n")
-                        if node.spec.display_name:
-                            out.write(f"        display_name={repr(node.spec.display_name)}\n")
-                        out.write(f"    )\n")
-                        out.write(f"    \n")
-                        
-                        # Store conditions for later generation (after all nodes are defined)
-                        if not hasattr(FlowPythonGenerator, '_branch_conditions'):
-                            FlowPythonGenerator._branch_conditions = {}
-                        FlowPythonGenerator._branch_conditions[var_name] = (conditions, edge_map)
-                        
-                        # Generate spec configuration
-                        out.write(f"\n")
-                        out.write(f"    {var_name}_spec: BranchNodeSpec = {var_name}.get_spec()\n")
-                        
-                        # Generate other spec attributes (position, dimensions, match_policy, etc.)
-                        if hasattr(node.spec, "position") and node.spec.position:
-                            pos = node.spec.position
-                            out.write(f"    {var_name}_spec.position = Position(x={pos.x}, y={pos.y})\n")
-                        if hasattr(node.spec, "dimensions") and node.spec.dimensions:
-                            dims = node.spec.dimensions
-                            out.write(f"    {var_name}_spec.dimensions = Dimensions(width={dims.width}, height={dims.height})\n")
-                        if hasattr(node.spec, "match_policy") and node.spec.match_policy:
-                            out.write(f"    {var_name}_spec.match_policy = MatchPolicy.{node.spec.match_policy.name}\n")
-                        out.write(f"\n")
-                    else:
-                        # Fall back to old approach for NodeIdCondition or when no edge_map
-                        FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
-                        
-                        # Generate code for conditions
-                        comment_name = node.spec.display_name if node.spec.display_name else var_name
-                        out.write(f"    # Create branch conditions for node: {comment_name}\n")
-                        out.write(f"    {var_name}_conditions = Conditions(conditions=[\n")
-                        
-                        for condition in conditions:
-                            if isinstance(condition, NodeIdCondition):
-                                out.write(f"        NodeIdCondition(\n")
-                                condition_buffer = []
-                                if hasattr(condition, "expression") and condition.expression:
-                                    condition_buffer.append(f'            expression={repr(condition.expression)}')
-                                condition_buffer.append(f'            node_id={repr(condition.node_id)}')
-                                condition_buffer.append(f'            default={bool(condition.default)}')
-                                if hasattr(condition, "metadata") and condition.metadata:
-                                    metadata = condition.metadata
-                                    if isinstance(metadata, dict):
-                                        python_code = repr(metadata)
-                                        condition_buffer.append(f'            metadata={python_code}')
-                                out.write(",\n".join(condition_buffer))
-                                out.write(f"\n        ),\n")
-                            elif isinstance(condition, EdgeIdCondition):
-                                out.write(f"        EdgeIdCondition(\n")
-                                condition_buffer = []
-                                if hasattr(condition, "expression") and condition.expression:
-                                    condition_buffer.append(f'            expression={repr(condition.expression)}')
-                                condition_buffer.append(f'            edge_id={repr(condition.edge_id)}')
-                                condition_buffer.append(f'            default={bool(condition.default)}')
-                                if hasattr(condition, "metadata") and condition.metadata:
-                                    metadata = condition.metadata
-                                    if isinstance(metadata, dict):
-                                        python_code = repr(metadata)
-                                        condition_buffer.append(f'            metadata={python_code}')
-                                out.write(",\n".join(condition_buffer))
-                                out.write(f"\n        ),\n")
-                            else:
-                                raise ValueError(f"Unknown condition type: {type(condition)}")
-                        
-                        out.write(f"    ])\n")
-                        out.write(f"    {var_name}_spec.evaluator = {var_name}_conditions\n\n")
+                    # Store conditions for later generation (after all nodes are defined)
+                    if not hasattr(FlowPythonGenerator, '_branch_conditions'):
+                        FlowPythonGenerator._branch_conditions = {}
+                    FlowPythonGenerator._branch_conditions[var_name] = (conditions, edge_map)
+                    
+                    # Generate spec configuration
+                    out.write(f"\n")
+                    out.write(f"    {var_name}_spec: BranchNodeSpec = {var_name}.get_spec()\n")
+                    
+                    # Generate other spec attributes (position, dimensions, match_policy, etc.)
+                    if hasattr(node.spec, "position") and node.spec.position:
+                        pos = node.spec.position
+                        out.write(f"    {var_name}_spec.position = Position(x={pos.x}, y={pos.y})\n")
+                    if hasattr(node.spec, "dimensions") and node.spec.dimensions:
+                        dims = node.spec.dimensions
+                        out.write(f"    {var_name}_spec.dimensions = Dimensions(width={dims.width}, height={dims.height})\n")
+                    if hasattr(node.spec, "match_policy") and node.spec.match_policy:
+                        out.write(f"    {var_name}_spec.match_policy = MatchPolicy.{node.spec.match_policy.name}\n")
+                    out.write(f"\n")
                 else:
                     # No conditions, use standard node generation
                     FlowPythonGenerator._generate_any_node(node, var_name, flow_var, schema_class_map, out)
@@ -929,6 +881,8 @@ class FlowPythonGenerator:
         
         first_condition = True
         for condition in conditions:
+            target_var = None
+            
             if isinstance(condition, EdgeIdCondition):
                 edge_id = condition.edge_id
                 target_node_id = edge_map.get(edge_id)
@@ -945,25 +899,42 @@ class FlowPythonGenerator:
                         # Normalize the node ID by replacing spaces with underscores to match node.spec.name
                         normalized_id = target_node_id.replace(" ", "_")
                         target_var = node_vars.get(normalized_id, node_vars.get(target_node_id, f'"{target_node_id}"'))
-                    
-                    if first_condition:
-                        out.write(f"    {var_name}.condition(\n")
-                        first_condition = False
+            
+            elif isinstance(condition, NodeIdCondition):
+                # Handle NodeIdCondition - get target node directly
+                target_node_id = condition.node_id
+                
+                if target_node_id:
+                    # Handle START/END special cases first
+                    if target_node_id == "__end__":
+                        target_var = node_vars.get("__end__", "END")
+                    elif target_node_id == "__start__":
+                        target_var = node_vars.get("__start__", "START")
                     else:
-                        out.write(f"    ).condition(\n")
-                    
-                    # Add expression if present
-                    if hasattr(condition, "expression") and condition.expression:
-                        out.write(f"        expression={repr(condition.expression)},\n")
-                    
-                    # Add to_node
-                    out.write(f"        to_node={target_var}")
-                    
-                    # Add default if true
-                    if hasattr(condition, "default") and condition.default:
-                        out.write(f",\n        default=True")
-                    
-                    out.write(f"\n")
+                        # Normalize the node ID by replacing spaces with underscores to match node.spec.name
+                        normalized_id = target_node_id.replace(" ", "_")
+                        target_var = node_vars.get(normalized_id, node_vars.get(target_node_id, f'"{target_node_id}"'))
+            
+            # Generate the condition call if we have a target
+            if target_var:
+                if first_condition:
+                    out.write(f"    {var_name}.condition(\n")
+                    first_condition = False
+                else:
+                    out.write(f"    ).condition(\n")
+                
+                # Add expression if present
+                if hasattr(condition, "expression") and condition.expression:
+                    out.write(f"        expression={repr(condition.expression)},\n")
+                
+                # Add to_node
+                out.write(f"        to_node={target_var}")
+                
+                # Add default if true
+                if hasattr(condition, "default") and condition.default:
+                    out.write(f",\n        default=True")
+                
+                out.write(f"\n")
         
         if not first_condition:
             out.write(f"    )\n\n")

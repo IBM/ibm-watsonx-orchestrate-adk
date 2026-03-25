@@ -30,7 +30,7 @@ import os
 import shutil
 from pathlib import Path
 
-from flow_model_converter import convert
+from flow_converter import convert
 
 
 # Version information
