@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Optional
 from typing_extensions import List
 
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, ClientAPIException
@@ -15,9 +16,15 @@ class ToolKitClient(BaseWXOClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get(self) -> List[dict]:
-        # Add workspace_id query parameter if active workspace exists
-        params = add_workspace_query_param()
+    def get(self, workspace_id: Optional[str] = None) -> List[dict]:
+        params = {}
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+        
         if params:
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             toolkits = self._get(f"/toolkits?{query_string}")
@@ -92,14 +99,20 @@ class ToolKitClient(BaseWXOClient):
         return self._delete(f"/toolkits/{toolkit_id}")
 
 
-    def get_draft_by_name(self, toolkit_name: str) -> List[dict]:
-        return self.get_drafts_by_names([toolkit_name])
+    def get_draft_by_name(self, toolkit_name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        return self.get_drafts_by_names([toolkit_name], workspace_id=workspace_id)
 
-    def get_drafts_by_names(self, toolkit_names: List[str]) -> List[dict]:
+    def get_drafts_by_names(self, toolkit_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_toolkit_names = [f"names={x}" for x in toolkit_names]
         params = {}
-        # Add workspace filtering if applicable
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            # Add workspace filtering if applicable
+            params = add_workspace_query_param(params)
+        
         # Build query string with names and other params
         query_parts = formatted_toolkit_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"/toolkits?{'&'.join(query_parts)}")
