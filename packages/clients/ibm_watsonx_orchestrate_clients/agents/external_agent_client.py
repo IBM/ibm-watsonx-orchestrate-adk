@@ -1,4 +1,4 @@
-from typing_extensions import List
+from typing_extensions import List, Optional
 
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, ClientAPIException
 from ibm_watsonx_orchestrate_core.utils.workspaces import (
@@ -17,9 +17,8 @@ class ExternalAgentClient(BaseWXOClient):
         payload = resolve_and_inject_workspace(payload)
         return self._post("/agents/external-chat", data=payload)
 
-    def get(self) -> dict:
+    def get(self, workspace_id: Optional[str] = None) -> dict:
         params = {'include_hidden': 'true'}
-        # Add workspace filtering if applicable
         params = add_workspace_query_param(params)
         query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
         agents = self._get(f"/agents/external-chat?{query_string}")
@@ -40,10 +39,10 @@ class ExternalAgentClient(BaseWXOClient):
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"/agents/external-chat/{agent_id}")
     
-    def get_draft_by_name(self, agent_name: str) -> List[dict]:
-        return self.get_drafts_by_names([agent_name])
+    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id)
 
-    def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
+    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         params = {'include_hidden': 'true'}
         # Add workspace filtering if applicable
@@ -52,7 +51,7 @@ class ExternalAgentClient(BaseWXOClient):
         query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"/agents/external-chat?{'&'.join(query_parts)}")
     
-    def get_draft_by_id(self, agent_id: str) -> List[dict]:
+    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None) -> List[dict]:
         if agent_id is None:
             return ""
         else:
@@ -64,10 +63,9 @@ class ExternalAgentClient(BaseWXOClient):
                     return ""
                 raise(e)
 
-    def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
+    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
-        # Add workspace filtering if applicable
         params = add_workspace_query_param(params)
         # Build query string with ids and other params
         query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]

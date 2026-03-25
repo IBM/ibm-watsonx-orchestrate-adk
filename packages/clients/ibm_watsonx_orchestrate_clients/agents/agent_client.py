@@ -129,9 +129,15 @@ class AgentClient(BaseWXOClient):
         response = self._post(self.base_endpoint, data=transformed_payload)
         return AgentUpsertResponse.model_validate(response)
 
-    def get(self) -> dict:
-        # Add workspace_id query parameter if active workspace exists
-        params = add_workspace_query_param({'include_hidden': 'true'})
+    def get(self, workspace_id: Optional[str] = None) -> dict:
+        params = {'include_hidden': 'true'}
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+        
         query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
         agents = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{query_string}"))
         
@@ -156,35 +162,52 @@ class AgentClient(BaseWXOClient):
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"{self.base_endpoint}/{agent_id}")
     
-    def get_draft_by_name(self, agent_name: str) -> List[dict]:
-        return self.get_drafts_by_names([agent_name])
+    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id)
 
-    def get_drafts_by_names(self, agent_names: List[str]) -> List[dict]:
+    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         params = {'include_hidden': 'true'}
-        # Add workspace filtering if applicable
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            # Add workspace filtering if applicable
+            params = add_workspace_query_param(params)
+        
         # Build query string with names and other params
         query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
         return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}"))
     
-    def get_draft_by_id(self, agent_id: str) -> dict | str:
+    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None) -> dict | str:
         if agent_id is None:
             return ""
         else:
             try:
-                agent = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}/{agent_id}"))
+                # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+                if workspace_id is not None:
+                    params = {'workspace_id': workspace_id}
+                    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+                    agent = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}/{agent_id}?{query_string}"))
+                else:
+                    agent = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}/{agent_id}"))
                 return agent
             except ClientAPIException as e:
                 if e.response.status_code == 404 and ("not found with the given name" in e.response.text or ("Agent" in e.response.text and "not found" in e.response.text)):
                     return ""
                 raise(e)
     
-    def get_drafts_by_ids(self, agent_ids: List[str]) -> List[dict]:
+    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
-        # Add workspace filtering if applicable
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+        
         # Build query string with ids and other params
         query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]
         return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}"))

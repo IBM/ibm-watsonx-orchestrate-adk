@@ -269,7 +269,7 @@ class WorkspacesController:
             
             # Set as active
             self._set_active_workspace(name)
-            logger.info(f"Activated workspace: {name}")
+            logger.info(f"Activated workspace '{name}'")
             
         except Exception as e:
             logger.error(f"Failed to activate workspace: {str(e)}")
@@ -572,136 +572,167 @@ class WorkspacesController:
             
             output_file_name = output_file.stem
             
+            # Save the current active workspace and temporarily activate the target workspace
+            # This ensures all API calls during export use the target workspace context
+            from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name
+            original_active_workspace = get_active_workspace_name()
+            
+            # Temporarily activate the target workspace
+            if original_active_workspace != workspace_name:
+                self.activate_workspace(workspace_name)
+            
             with zipfile.ZipFile(output_path, "w") as zip_file:
-                # Track exported resources
-                exported_agents = set()
-                standalone_tool_count = 0
-                standalone_toolkit_count = 0
-                
-                # Export all agents in the workspace
-                # Note: Agent export automatically includes their attached tools, toolkits, and collaborators
-                # Lazy import to avoid circular dependency
-                from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
-                agents_controller = AgentsController()
-                
-                # Get all agent types
-                for agent_kind in [AgentKind.NATIVE, AgentKind.EXTERNAL, AgentKind.ASSISTANT]:
-                    try:
-                        # Fetch agents directly from client
-                        agents, _ = agents_controller._fetch_and_parse_agents(agent_kind)
-                        
-                        for agent in agents:
-                            agent_name = agent.name
-                            if agent_name and agent_name not in exported_agents:
-                                logger.info(f"Exporting {agent_kind.value} agent: {agent_name}")
-                                # Pass output_path directly - agent export will use its stem as folder prefix
-                                agents_controller.export_agent(
-                                    name=agent_name,
-                                    kind=agent_kind,
-                                    output_path=output_path,
-                                    zip_file_out=zip_file
-                                )
-                                exported_agents.add(agent_name)
-                                
-                    except Exception as e:
-                        logger.warning(f"Could not export {agent_kind.value} agents: {str(e)}")
-                
-                # Export standalone tools (tools not attached to any agent)
                 try:
-
-                    tools_controller = ToolsController()
+                    # Track exported resources
+                    exported_agents = set()
+                    standalone_tool_count = 0
+                    standalone_toolkit_count = 0
                     
-                    # Get all tools
-                    response = tools_controller.get_client().get()
+                    # Export all agents in the workspace
+                    # Note: Agent export automatically includes their attached tools, toolkits, and collaborators
+                    # Lazy import to avoid circular dependency
+                    from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
+                    agents_controller = AgentsController()
                     
-                    for tool_spec in response:
-                        tool_name = tool_spec.get('name')
-                        if tool_name:
-                            # Check if tool was already exported with an agent
-                            tool_path = f"{output_file_name}/tools/{tool_name}/"
-                            if check_file_in_zip(file_path=tool_path, zip_file=zip_file):
+                    # Get all agent types
+                    for agent_kind in [AgentKind.NATIVE, AgentKind.EXTERNAL, AgentKind.ASSISTANT]:
+                        try:
+                            # Fetch agents from the target workspace (not active workspace)
+                            agents, parse_errors = agents_controller._fetch_and_parse_agents(agent_kind, workspace_id=workspace_id)
+                            
+                            # Log any parse errors
+                            if parse_errors:
+                                for error in parse_errors:
+                                    logger.warning(f"Failed to parse {agent_kind.value} agent: {error[0]}")
+                            
+                            for agent in agents:
+                                agent_name = agent.name
+                                if agent_name and agent_name not in exported_agents:
+                                    try:
+                                        logger.info(f"Exporting {agent_kind.value} agent: {agent_name}")
+                                        # Pass output_path directly - agent export will use its stem as folder prefix
+                                        agents_controller.export_agent(
+                                            name=agent_name,
+                                            kind=agent_kind,
+                                            output_path=output_path,
+                                            zip_file_out=zip_file,
+                                            workspace_id=workspace_id
+                                        )
+                                        exported_agents.add(agent_name)
+                                    except Exception as e:
+                                        logger.warning(f"Could not export {agent_kind.value} agent '{agent_name}': {str(e)}")
+                                    
+                        except Exception as e:
+                            logger.warning(f"Could not fetch {agent_kind.value} agents: {str(e)}")
+                
+                    # Export standalone tools (tools not attached to any agent)
+                    standalone_tool_count = 0
+                    try:
+                        tools_controller = ToolsController()
+                        
+                        # Get all tools from the target workspace (not active workspace)
+                        tool_client = tools_controller.get_client()
+                        response = tool_client.get(workspace_id=workspace_id)
+                        
+                        for tool_spec in (response or []):
+                            tool_name = tool_spec.get('name')
+                            if tool_name:
+                                # Check if tool was already exported with an agent
+                                tool_path = f"{output_file_name}/tools/{tool_name}/"
+                                if check_file_in_zip(file_path=tool_path, zip_file=zip_file):
+                                    continue
+                                    
+                                try:
+                                    logger.info(f"Exporting standalone tool: {tool_name}")
+                                    tools_controller.export_tool(
+                                        name=tool_name,
+                                        output_path=tool_path,
+                                        zip_file_out=zip_file,
+                                        spec=tool_spec,
+                                        connections_output_path=f"{output_file_name}/connections/"
+                                    )
+                                    standalone_tool_count += 1
+                                except Exception as e:
+                                    logger.warning(f"Could not export tool '{tool_name}': {str(e)}")
+                                    
+                    except Exception as e:
+                        logger.warning(f"Could not export standalone tools: {str(e)}")
+                    
+                    # Export standalone toolkits
+                    standalone_toolkit_count = 0
+                    try:
+                        toolkit_controller = ToolkitController()
+                        
+                        # Get all toolkits from the target workspace (not active workspace)
+                        toolkits, _ = toolkit_controller._fetch_and_parse_toolkits(workspace_id=workspace_id)
+                        
+                        for toolkit in toolkits:
+                            toolkit_name = toolkit.__toolkit_spec__.name
+                            if not toolkit_name:
                                 continue
                                 
-                            try:
-                                logger.info(f"Exporting standalone tool: {tool_name}")
-                                tools_controller.export_tool(
-                                    name=tool_name,
-                                    output_path=tool_path,
-                                    zip_file_out=zip_file,
-                                    spec=tool_spec,
-                                    connections_output_path=f"{output_file_name}/connections/"
-                                )
-                                standalone_tool_count += 1
-                            except Exception as e:
-                                logger.warning(f"Could not export tool '{tool_name}': {str(e)}")
-                                
-                except Exception as e:
-                    logger.warning(f"Could not export standalone tools: {str(e)}")
-                
-                try:
-                    toolkit_controller = ToolkitController()
-                    
-                    # Get all toolkits
-                    toolkits, _ = toolkit_controller._fetch_and_parse_toolkits()
-                    
-                    for toolkit in toolkits:
-                        toolkit_name = toolkit.__toolkit_spec__.name
-                        if not toolkit_name:
-                            continue
+                            # Check if toolkit was already exported
+                            toolkit_path = f"{output_file_name}/toolkits/{toolkit_name}.yaml"
+                            if check_file_in_zip(file_path=toolkit_path, zip_file=zip_file):
+                                continue
                             
-                        # Check if toolkit was already exported
-                        toolkit_path = f"{output_file_name}/toolkits/{toolkit_name}.yaml"
-                        if check_file_in_zip(file_path=toolkit_path, zip_file=zip_file):
-                            continue
-                        
-                        try:
-                            logger.info(f"Exporting standalone toolkit: {toolkit_name}")
-                            toolkit_controller.export_toolkit(
-                                name=toolkit_name,
-                                output_file=toolkit_path,
-                                zip_file_out=zip_file,
-                                connections_output_path=f"{output_file_name}/connections/"
-                            )
-                            standalone_toolkit_count += 1
-                        except Exception as e:
-                            logger.warning(f"Could not export toolkit '{toolkit_name}': {str(e)}")
-                                
-                except Exception as e:
-                    logger.warning(f"Could not export standalone toolkits: {str(e)}")
-                
-                # Export knowledge bases
-                knowledge_base_count = 0
-                try:
-                    kb_controller = KnowledgeBaseController()
-                    
-                    # Get all knowledge bases
-                    knowledge_bases = kb_controller.get_client().get()
-                    
-                    for kb in knowledge_bases:
-                        kb_name = kb.get('name')
-                        kb_id = kb.get('id')
-                        if kb_name and kb_id:
                             try:
-                                logger.info(f"Exporting knowledge base: {kb_name}")
-                                kb_path = f"{output_file_name}/knowledge_bases/"
-                                kb_controller.knowledge_base_export(
-                                    output_path=kb_path,
-                                    id=kb_id,
+                                logger.info(f"Exporting standalone toolkit: {toolkit_name}")
+                                toolkit_controller.export_toolkit(
+                                    name=toolkit_name,
+                                    output_file=toolkit_path,
                                     zip_file_out=zip_file,
                                     connections_output_path=f"{output_file_name}/connections/"
                                 )
-                                knowledge_base_count += 1
+                                standalone_toolkit_count += 1
                             except Exception as e:
-                                logger.warning(f"Could not export knowledge base '{kb_name}': {str(e)}")
-                                
-                except Exception as e:
-                    logger.warning(f"Could not export knowledge bases: {str(e)}")
-            
-            logger.info(f"Successfully exported workspace '{workspace_name}' to '{output_path}'")
-            logger.info(f"Agents exported: {len(exported_agents)}")
-            logger.info(f"Standalone tools exported: {standalone_tool_count}")
-            logger.info(f"Standalone toolkits exported: {standalone_toolkit_count}")
-            logger.info(f"Knowledge bases exported: {knowledge_base_count}")
+                                logger.warning(f"Could not export toolkit '{toolkit_name}': {str(e)}")
+                                    
+                    except Exception as e:
+                        logger.warning(f"Could not export standalone toolkits: {str(e)}")
+                    
+                    # Export knowledge bases
+                    knowledge_base_count = 0
+                    try:
+                        kb_controller = KnowledgeBaseController()
+                        
+                        # Get all knowledge bases from the target workspace (not active workspace)
+                        kb_client = kb_controller.get_client()
+                        knowledge_bases = kb_client.get(workspace_id=workspace_id)
+                        
+                        for kb in (knowledge_bases or []):
+                            kb_name = kb.get('name')
+                            kb_id = kb.get('id')
+                            if kb_name and kb_id:
+                                try:
+                                    logger.info(f"Exporting knowledge base: {kb_name}")
+                                    kb_path = f"{output_file_name}/knowledge_bases/"
+                                    kb_controller.knowledge_base_export(
+                                        output_path=kb_path,
+                                        id=kb_id,
+                                        zip_file_out=zip_file,
+                                        connections_output_path=f"{output_file_name}/connections/"
+                                    )
+                                    knowledge_base_count += 1
+                                except Exception as e:
+                                    logger.warning(f"Could not export knowledge base '{kb_name}': {str(e)}")
+                                    
+                    except Exception as e:
+                        logger.warning(f"Could not export knowledge bases: {str(e)}")
+                    
+                    logger.info(f"Successfully exported workspace '{workspace_name}' to '{output_path}'")
+                    logger.info(f"Agents exported: {len(exported_agents)}")
+                    logger.info(f"Standalone tools exported: {standalone_tool_count}")
+                    logger.info(f"Standalone toolkits exported: {standalone_toolkit_count}")
+                    logger.info(f"Knowledge bases exported: {knowledge_base_count}")
+                
+                finally:
+                    # Restore the original active workspace
+                    if original_active_workspace and original_active_workspace != workspace_name:
+                        self.activate_workspace(original_active_workspace)
+                    elif not original_active_workspace:
+                        # If there was no active workspace, deactivate
+                        self.deactivate_workspace()
             
         except Exception as e:
             logger.error(f"Failed to export workspace: {str(e)}")
