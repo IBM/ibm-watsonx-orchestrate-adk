@@ -1,4 +1,4 @@
-# Flow JSON to Python Converter - User Guide
+# Flow Converter - From Flow JSON to Flow Python - User Guide
 
 A tool to convert IBM watsonx Orchestrate flow definitions (JSON) into Python code.
 

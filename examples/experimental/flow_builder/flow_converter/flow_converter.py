@@ -1,8 +1,8 @@
 """
-Flow Model Converter
+Flow JSON Reader
 
-This module handles the conversion of JSON Flow models to Flow objects and Python code.
-It includes JSON preprocessing, Flow object construction, and Python code generation.
+This module handles the conversion of JSON Flow models to Flow objects.
+It includes JSON preprocessing, Flow object construction.
 """
 
 import json
@@ -26,7 +26,7 @@ from ibm_watsonx_orchestrate.flow_builder.types import (
 from ibm_watsonx_orchestrate.flow_builder.flows import Branch
 from ibm_watsonx_orchestrate.flow_builder.flows.flow import FlowEdge
 
-from flow_to_python import (
+from flow_python_generator import (
     FlowPythonGenerator, generate_flow_py_code, generate_schema_classes, 
     get_meaningful_classname
 )
