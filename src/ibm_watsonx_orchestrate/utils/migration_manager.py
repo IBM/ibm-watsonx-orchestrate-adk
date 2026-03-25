@@ -109,9 +109,13 @@ class MigrationsManager:
     self.compose_file = VmAccessibleFile(compose_path)
     self._context_vars = context or {}
     
-    # copy files if mount is unsuccessful
+    # Always copy migration files to ensure latest changes are reflected
+    # Check if mount exists, if not copy files
     if not self._check_for_migration_files():
       self._copy_migration_files()
+    else:
+      # Force update of migration files to pick up any script changes
+      self._update_migration_files()
 
 
   def migrations_source_path(self):
@@ -235,6 +239,53 @@ class MigrationsManager:
     return files
 
   
+  def _update_migration_files(self):
+    """Force update migration files to pick up any script changes"""
+    files = self._cache_migration_files()
+
+    logger.info(f"Updating migrations in {DB_CONTAINER_LABEL}:{self.container_mount_path()}")
+    
+    # Remove existing migration files in container
+    remove_command = f"rm -rf {self.container_mount_path()}"
+    compose_remove_command = [
+      "compose",
+      "-f", str(self.compose_file.vm_path),
+      "--env-file", str(self.env_file.vm_path),
+      "exec",
+      "-u", "root",
+      DB_SERVICE_LABEL,
+      "bash",
+      "-c",
+      remove_command
+    ]
+    self.vm_manager.run_docker_command(compose_remove_command, check=False)
+    
+    # Copy fresh migration files
+    command = f"cp {path_for_vm(self.migrations_adk_path())} {DB_CONTAINER_LABEL}:{self.container_mount_path()}"
+    result = self.vm_manager.run_docker_command(command)
+
+    # manually cleanup
+    del files
+
+    if result.returncode == 0:
+      command = f"chmod 755 -R {self.container_mount_path()}"
+
+      compose_command = [
+        "compose",
+        "-f", str(self.compose_file.vm_path),
+        "--env-file", str(self.env_file.vm_path),
+        "exec",
+        "-u", "root",
+        DB_SERVICE_LABEL,
+        "bash",
+        "-c",
+        command
+      ]
+
+      self.vm_manager.run_docker_command(compose_command)
+    else:
+      raise BadRequest(f"Failed to update migration files")
+
   def _copy_migration_files(self):
 
     files = self._cache_migration_files()
