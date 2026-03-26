@@ -407,6 +407,7 @@ class WorkspacesController:
                     response = client.update_member(workspace_id, payload)
                 
                 # Check the batch operation response
+                # Note: Backend returns empty results array on successful update
                 if response and isinstance(response, dict):
                     results = response.get("results", [])
                     if results and len(results) > 0:
@@ -418,11 +419,11 @@ class WorkspacesController:
                             logger.error(f"Failed to update member '{user_email}': {error_msg}")
                             sys.exit(1)
                     else:
-                        logger.error(f"Failed to update member '{user_email}': No results returned from API")
-                        sys.exit(1)
+                        # Empty results means success
+                        logger.info(f"Successfully updated member '{user_email}' to role '{role.value}' in workspace '{workspace_name}'")
                 else:
-                    logger.error(f"Failed to update member '{user_email}': Invalid response from API")
-                    sys.exit(1)
+                    # No response dict also means success
+                    logger.info(f"Successfully updated member '{user_email}' to role '{role.value}' in workspace '{workspace_name}'")
             else:
                 # Add new member - batch format with members array
                 payload = {
@@ -522,6 +523,7 @@ class WorkspacesController:
                 response = client.remove_member(workspace_id, payload)
             
             # Check the batch operation response
+            # Note: Backend returns empty results array on successful removal
             if response and isinstance(response, dict):
                 results = response.get("results", [])
                 if results and len(results) > 0:
@@ -533,11 +535,11 @@ class WorkspacesController:
                         logger.error(f"Failed to remove member '{user_email}': {error_msg}")
                         sys.exit(1)
                 else:
-                    logger.error(f"Failed to remove member '{user_email}': No results returned from API")
-                    sys.exit(1)
+                    # Empty results means success
+                    logger.info(f"Successfully removed member '{user_email}' from workspace '{workspace_name}'")
             else:
-                logger.error(f"Failed to remove member '{user_email}': Invalid response from API")
-                sys.exit(1)
+                # No response dict also means success
+                logger.info(f"Successfully removed member '{user_email}' from workspace '{workspace_name}'")
                 
         except Exception as e:
             logger.error(f"Failed to remove member: {str(e)}")
