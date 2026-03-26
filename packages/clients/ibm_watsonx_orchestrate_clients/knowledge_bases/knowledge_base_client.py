@@ -39,15 +39,13 @@ class KnowledgeBaseClient(BaseWXOClient):
             payload['knowledge_base'] = json.dumps(kb_data)
         return self._post_form_data(f"{self.base_endpoint}/documents", data=payload, files=files)
 
-    def get(self, workspace_id: Optional[str] = None, include_global: bool = True) -> dict:
+    def get(self, workspace_id: Optional[str] = None) -> dict:
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
         params = {}
         if workspace_id is not None:
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
-        if include_global:
-            params['include'] = "global"
         
         if params:
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
@@ -63,22 +61,20 @@ class KnowledgeBaseClient(BaseWXOClient):
         
         return kbs
     
-    def get_by_name(self, name: str, workspace_id: Optional[str] = None, include_global : bool = True) -> List[dict]:
-        kbs = self.get_by_names([name], workspace_id=workspace_id, include_global=include_global)
+    def get_by_name(self, name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        kbs = self.get_by_names([name], workspace_id=workspace_id)
         return None if len(kbs) == 0 else kbs[0]
     
-    def get_by_id(self, knowledge_base_id: str, workspace_id: str = None, include_global: bool = True) -> dict:
+    def get_by_id(self, knowledge_base_id: str, workspace_id: str = None) -> dict:
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
         if workspace_id is not None:
             params = {'workspace_id': workspace_id}
-            if include_global:
-                params["include"] = "global"
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             return self._get(f"{self.base_endpoint}/{knowledge_base_id}?{query_string}")
         else:
             return self._get(f"{self.base_endpoint}/{knowledge_base_id}")
 
-    def get_by_names(self, names: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
+    def get_by_names(self, names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_names = [f"names={x}" for x in names]
         params = {}
         
@@ -88,20 +84,15 @@ class KnowledgeBaseClient(BaseWXOClient):
         else:
             params = add_workspace_query_param(params)
         
-        if include_global:
-            params["include"] = "global"
-        
         # Build query string with names and other params
         query_parts = formatted_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}")
     
-    def get_by_ids(self, ids: List[str], include_global : bool = True) -> List[dict]:
+    def get_by_ids(self, ids: List[str]) -> List[dict]:
         formatted_ids = [f"ids={x}" for x in ids]
         params = {}
         # Add workspace filtering if applicable
         params = add_workspace_query_param(params)
-        if include_global:
-            params["include"] = "global"
         # Build query string with ids and other params
         query_parts = formatted_ids + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}")
