@@ -1208,7 +1208,8 @@ class ToolsController:
                     logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
                     return None
                 else:
-                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
+                    logger.warning(f"Could not find tool artifacts for tool '{name}'") # changed this from a bad request else the whole exporting of a workspace stops.
+                    return None
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
@@ -1250,13 +1251,17 @@ class ToolsController:
                 BadRequest(f"The tool '{name}' does not match the naming scheme expected of an MCP tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
             tc = ToolkitController()
-            tc.export_toolkit(
-                name=toolkit_name,
-                output_file=toolkit_output_file or output_file,
-                zip_file_out=zip_file_out,
-                connections_output_path=connections_output_path,
-                workspace_id=workspace_id
-            )
+            try:
+                tc.export_toolkit(
+                    name=toolkit_name,
+                    output_file=toolkit_output_file or output_file,
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path,
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - toolkit may not exist or may have been renamed - needed when exporting a workspace  
+                logger.warning(f"Could not export toolkit '{toolkit_name}' for MCP tool '{name}': {str(e)}")
             return
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
@@ -1266,7 +1271,8 @@ class ToolsController:
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
-        app_ids = [conn.app_id for conn in connections]
+        # Fix NoneType error: connections can be None
+        app_ids = [conn.app_id for conn in (connections or [])]
 
         if not tool_artifact or not tool_artifact.content:
             return
@@ -1298,7 +1304,9 @@ class ToolsController:
                 flow_data = json.loads(flow_definition_content)
                 tools_in_flow = get_all_tools_in_flow(flow_data)
 
-                for t in tools_in_flow:
+                # Fix NoneType error: tools_in_flow can be None
+                # fixes [WARNING] - Could not export tool 'collaborator_agents_flow': 'NoneType' object is not iterable
+                for t in (tools_in_flow or []):
                     self.export_tool(
                         name=t,
                         output_path=f"{output_file.parent}/{t}",
@@ -1308,6 +1316,9 @@ class ToolsController:
                     )
             except Exception as e:
                 logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
+        
+        # Return True to indicate successful export
+        return True
 
     def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
         
