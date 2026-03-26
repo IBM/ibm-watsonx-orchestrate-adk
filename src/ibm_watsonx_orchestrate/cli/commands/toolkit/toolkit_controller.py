@@ -552,10 +552,14 @@ class ToolkitController:
         toolkit_specs = client.get_draft_by_name(toolkit_name=name, workspace_id=workspace_id)
 
         if not toolkit_specs:
-            BadRequest(f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`")
+            error_msg = f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`"
+            logger.warning(error_msg)
+            return  # Return early instead of raising exception - exporting of workspaces stops otherwise
         
         if len(toolkit_specs) > 1:
-            BadRequest(f"Multiple toolkits named '{name}' found. Unable to export due to ambiguity")
+            error_msg = f"Multiple toolkits named '{name}' found. Unable to export due to ambiguity"
+            logger.warning(error_msg)
+            return  # Return early instead of raising exception - exporting of workspaces stops otherwise
         
         toolkit_spec = toolkit_specs[0]
 
