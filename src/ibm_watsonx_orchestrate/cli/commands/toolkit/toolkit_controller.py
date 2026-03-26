@@ -18,7 +18,6 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_z
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
-from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_ID
 import typer
 import json
 from rich.console import Console
@@ -402,12 +401,12 @@ class ToolkitController:
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
     
-    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None, include_global: bool = True) -> Tuple[List[BaseToolkit], List[List[str]]]:
+    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None) -> Tuple[List[BaseToolkit], List[List[str]]]:
         parse_errors = []
         client = self.get_client()
         
         # Use client method directly - it handles workspace_id parameter properly
-        response = client.get(workspace_id=workspace_id, include_global=include_global)
+        response = client.get(workspace_id=workspace_id)
 
         toolkits = []
         for toolkit in (response or []):
@@ -453,14 +452,8 @@ class ToolkitController:
                 "Tools": {},
                 "App ID": {"overflow": "fold"}
             }
-
-            is_private_workspace = not is_global_workspace_active()
-
             for column in column_args:
                 table.add_column(column,**column_args[column])
-            
-            if is_private_workspace:
-                table.add_column("Global", {} )
 
             connections_client = get_connections_client()
             connections = connections_client.list()
@@ -489,8 +482,6 @@ class ToolkitController:
                     tools = toolkit.__toolkit_spec__.tools,
                     app_ids = app_ids
                 )
-                if is_private_workspace:
-                    entry.is_global = toolkit.__toolkit_spec__.workspace_id == GLOBAL_WORKSPACE_ID
                 if format == ListFormats.JSON:
                     toolkit_details.append(entry)
                 else:
