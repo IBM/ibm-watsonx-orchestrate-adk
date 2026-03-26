@@ -454,10 +454,14 @@ class ToolListEntry(BaseModel):
     type: Optional[str] = Field(description="The type of the tool"),
     toolkit: Optional[str] = Field(description="The name of the Toolkit the tool belongs. Empty if the tool is not from a Toolkit"),
     app_ids: Optional[List[str]] = Field(description="A list of app_ids that show what connections are bound to a tool")
+    is_global: Optional[bool] = Field(default=None, description="Is the tool present in the global workspace")
 
     def get_row_details(self):
         app_ids = ", ".join(self.app_ids) if self.app_ids else ""
-        return [self.name, self.description, self.type, self.toolkit, app_ids]
+        row = [self.name, self.description, self.type, self.toolkit, app_ids]
+        if self.is_global is not None:
+            row.append("✅" if self.is_global else "❌")
+        return row
     
 # ---------------------------------------------------------------------------
 # Plugin Tools Models
