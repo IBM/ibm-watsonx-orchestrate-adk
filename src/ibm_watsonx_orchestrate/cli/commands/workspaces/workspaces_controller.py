@@ -591,7 +591,7 @@ class WorkspacesController:
                 for agent_kind in [AgentKind.NATIVE, AgentKind.EXTERNAL, AgentKind.ASSISTANT]:
                     try:
                         # Fetch agents from the target workspace (not active workspace)
-                        agents, parse_errors = agents_controller._fetch_and_parse_agents(agent_kind, workspace_id=workspace_id)
+                        agents, parse_errors = agents_controller._fetch_and_parse_agents(agent_kind, workspace_id=workspace_id, include_global=False)
                         
                         # Log any parse errors
                         if parse_errors:
@@ -624,7 +624,7 @@ class WorkspacesController:
                         
                         # Get all tools from the target workspace (not active workspace)
                         tool_client = tools_controller.get_client()
-                        response = tool_client.get(workspace_id=workspace_id)
+                        response = tool_client.get(workspace_id=workspace_id, include_global=False)
                         
                         for tool_spec in (response or []):
                             tool_name = tool_spec.get('name')
@@ -655,7 +655,7 @@ class WorkspacesController:
                     toolkit_controller = ToolkitController()
                     
                     # Get all toolkits from the target workspace (not active workspace)
-                    toolkits, _ = toolkit_controller._fetch_and_parse_toolkits(workspace_id=workspace_id)
+                    toolkits, _ = toolkit_controller._fetch_and_parse_toolkits(workspace_id=workspace_id, include_global=False)
                     
                     for toolkit in toolkits:
                         toolkit_name = toolkit.__toolkit_spec__.name
@@ -689,7 +689,7 @@ class WorkspacesController:
                         
                         # Get all knowledge bases from the target workspace (not active workspace)
                         kb_client = kb_controller.get_client()
-                        knowledge_bases = kb_client.get(workspace_id=workspace_id)
+                        knowledge_bases = kb_client.get(workspace_id=workspace_id, include_global=False)
                         
                         for kb in (knowledge_bases or []):
                             kb_name = kb.get('name')

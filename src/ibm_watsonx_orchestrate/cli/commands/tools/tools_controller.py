@@ -52,6 +52,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 import yaml
 
 from  ibm_watsonx_orchestrate import __version__
@@ -845,8 +846,14 @@ class ToolsController:
                 "Toolkit": {}, 
                 "App ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
+
             for column in column_args:
                 table.add_column(column,**column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", {} )
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
@@ -895,6 +902,9 @@ class ToolsController:
                     toolkit=toolkit_name,
                     app_ids=app_ids
                 )
+
+                if is_private_workspace:
+                    entry.is_global = tool.__tool_spec__.workspace == GLOBAL_WORKSPACE_NAME
 
                 if format == ListFormats.JSON:
                     tool_details.append(entry)
