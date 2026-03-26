@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate_core.utils.workspaces import (
     resolve_and_inject_workspace,
     convert_workspace_id_to_name
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID
 
 class AssistantAgentClient(BaseWXOClient):
     """
@@ -52,10 +53,10 @@ class AssistantAgentClient(BaseWXOClient):
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-        if workspace_id is not None:
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
             params['workspace_id'] = workspace_id
-        else:
-            # Add workspace filtering if applicable
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
             params = add_workspace_query_param(params)
         
         # Build query string with names and other params
@@ -80,14 +81,15 @@ class AssistantAgentClient(BaseWXOClient):
                     return ""
                 raise(e)
     
-    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:  
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-        if workspace_id is not None:
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
             params['workspace_id'] = workspace_id
-        else:
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
             params = add_workspace_query_param(params)
         
         # Build query string with ids and other params
