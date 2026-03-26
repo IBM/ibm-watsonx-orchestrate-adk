@@ -2411,7 +2411,7 @@ class AgentsController:
             logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
             sys.exit(1)
 
-        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude)
+        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude, workspace_id=workspace_id)
         
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
