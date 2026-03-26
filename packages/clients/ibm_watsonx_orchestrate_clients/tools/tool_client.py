@@ -20,13 +20,16 @@ class ToolClient(BaseWXOClient):
         payload = resolve_and_inject_workspace(payload)
         return self._post("/tools", data=payload)
 
-    def get(self, workspace_id: Optional[str] = None) -> dict:
+    def get(self, workspace_id: Optional[str] = None, include_global: bool = True) -> dict:
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
         params = {}
         if workspace_id is not None:
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         if params:
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
@@ -60,10 +63,10 @@ class ToolClient(BaseWXOClient):
     def download_tools_json(self, tool_id: str) -> dict:
         return self.download_tools_artifact(tool_id)
 
-    def get_draft_by_name(self, tool_name: str) -> List[dict]:
-        return self.get_drafts_by_names([tool_name])
+    def get_draft_by_name(self, tool_name: str, include_global: bool = True) -> List[dict]:
+        return self.get_drafts_by_names([tool_name], include_global=include_global)
 
-    def get_drafts_by_names(self, tool_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_names(self, tool_names: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         formatted_tool_names = [f"names={x}" for x in tool_names]
         params = {}
         
@@ -73,6 +76,9 @@ class ToolClient(BaseWXOClient):
         else:
             # Add workspace filtering if applicable
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         # Build query string with names and other params
         query_parts = formatted_tool_names + [f"{k}={v}" for k, v in params.items()]
@@ -90,7 +96,7 @@ class ToolClient(BaseWXOClient):
                     return ""
                 raise(e)
     
-    def get_drafts_by_ids(self, tool_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_ids(self, tool_ids: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         formatted_tool_ids = [f"ids={x}" for x in tool_ids]
         params = {}
         
@@ -100,6 +106,8 @@ class ToolClient(BaseWXOClient):
         else:
             # Add workspace filtering if applicable
             params = add_workspace_query_param(params)
+        
+        params["include"] = "global"
         
         # Build query string with ids and other params
         query_parts = formatted_tool_ids + [f"{k}={v}" for k, v in params.items()]
