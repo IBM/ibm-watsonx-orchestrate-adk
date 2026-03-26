@@ -73,7 +73,7 @@ class MockToolkitsClient(MagicMock):
     def list_tools(self, zip_file_path: str, command: str, args: List[str]) -> str:
         return self.list_tools_res
     
-    def get(self, workspace_id=None, include_global=True):
+    def get(self, workspace_id=None):
         return self.get_res
 
 class TestGetConnectionId:

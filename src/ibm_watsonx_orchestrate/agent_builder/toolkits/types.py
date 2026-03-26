@@ -216,7 +216,6 @@ class ToolkitSpec(BaseModel):
     created_by: Optional[str] = None
     created_by_username: Optional[str] = None
     tools: Optional[List[str]] = []
-    workspace_id: Optional[str] = None
     mcp: McpModel
     
     @staticmethod
@@ -262,16 +261,11 @@ class ToolkitListEntry(BaseModel):
     type: str = Field(default="MCP", description="The type of Toolkit.")
     tools: Optional[List[str]] = Field(description = "A list of tool names for every tool in the Toolkit")
     app_ids: Optional[List[str]] = Field(description = "A list of connection app_ids showing every connection bound to the Toolkit")
-    is_global: Optional[bool] = Field(default=None, description="Is the toolkit present in the global workspace")
 
     def get_row_details(self):
         tools = ", ".join(self.tools) if self.tools else ""
         app_ids = ", ".join(self.app_ids) if self.app_ids else ""
-        row = [self.name, self.description, self.type, tools, app_ids]
-
-        if self.is_global is not None:
-            row.append("✅" if self.is_global else "❌")
-        return row
+        return [self.name, self.description, self.type, tools, app_ids]
 
 
         
