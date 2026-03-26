@@ -24,7 +24,6 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUplo
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
-from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -486,14 +485,9 @@ class KnowledgeBaseController:
                 "App ID": {},
                 "ID": {"overflow": "fold"}
             }
-
-            is_private_workspace = not is_global_workspace_active()
             
             for column in column_args:
                 table.add_column(column, **column_args[column])
-            
-            if is_private_workspace:
-                table.add_column("Global", {} )
             
             connections_dict = build_connections_map("connection_id")
             
@@ -509,10 +503,8 @@ class KnowledgeBaseController:
                     name=kb.name,
                     id=str(kb.id),
                     description=kb.description,
-                    app_id=app_id,
+                    app_id=app_id
                 )
-                if is_private_workspace:
-                    entry.is_global = kb.workspace == GLOBAL_WORKSPACE_NAME
                 if format == ListFormats.JSON:
                     knowledge_base_details.append(entry)
                 else:

@@ -137,10 +137,6 @@ class WorkspaceContext:
         except Exception as e:
             logger.error(f"Error resolving workspace ID to name: {e}")
             return None
-    
-    def is_global_workspace_active(self) -> bool:
-        active = self.get_active_workspace_name()
-        return active == GLOBAL_WORKSPACE_NAME or active == None
 
 
 
@@ -168,13 +164,6 @@ def get_active_workspace_name() -> Optional[str]:
 
     context = WorkspaceContext()
     return context.get_active_workspace_name()
-
-# Convenience functions for common operations
-def is_global_workspace_active() -> Optional[str]:
-    """Check is the current active workspace is the global workspace"""
-
-    context = WorkspaceContext()
-    return context.is_global_workspace_active()
 
 
 # Payload manipulation functions for API clients
