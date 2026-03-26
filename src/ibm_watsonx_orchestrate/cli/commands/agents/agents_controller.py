@@ -60,7 +60,6 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
-from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -1817,7 +1816,7 @@ class AgentsController:
                 knowledge_bases.append(id)
         return knowledge_bases
     
-    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind, workspace_id: Optional[str] = None, include_global: bool = True) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
+    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind, workspace_id: Optional[str] = None) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
         parse_errors = []
         target_kind_display_name = None
         target_kind_class = None
@@ -1840,7 +1839,7 @@ class AgentsController:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
         # Use client method directly - it handles workspace_id parameter 
-        response = agent_client.get(workspace_id=workspace_id, include_global=include_global)
+        response = agent_client.get(workspace_id=workspace_id)
         
         agents = []
         for agent in response:
@@ -2078,8 +2077,6 @@ class AgentsController:
                 "external": None 
         }
 
-        is_private_workspace = not is_global_workspace_active()
-
         if kind == AgentKind.NATIVE or kind is None:
             native_agents, new_parse_errors = self._fetch_and_parse_agents(AgentKind.NATIVE)
             parse_errors += new_parse_errors
@@ -2121,12 +2118,8 @@ class AgentsController:
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
                     }
-
                     for column in column_args:
                         native_table.add_column(column, **column_args[column])
-
-                    if is_private_workspace:
-                        native_table.add_column("Global", {} )
 
                     for agent in resolved_native_agents:
                         # If agent.plugins might be a list of tuples
@@ -2148,7 +2141,7 @@ class AgentsController:
                                     elif isinstance(p, str):
                                         plugin_strings.append(p)
                         agent_name = self._format_agent_display_name(agent)
-                        row = [
+                        native_table.add_row(
                             agent_name,
                             agent.description,
                             agent.llm,
@@ -2158,10 +2151,7 @@ class AgentsController:
                             ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
-                        ]
-                        if is_private_workspace:
-                            row.append("✅" if agent.workspace == GLOBAL_WORKSPACE_NAME else "❌",)
-                        native_table.add_row(*row)
+                        )
                     if format == ListFormats.Table:
                         output_dictionary["native"] = rich_table_to_markdown(native_table)
                     else:
@@ -2208,13 +2198,9 @@ class AgentsController:
                     for column in column_args:
                         external_table.add_column(column, **column_args[column])
                     
-                    if is_private_workspace:
-                        external_table.add_column("Global", {} )
-                    
-
                     for agent in resolved_external_agents:
                         agent_name = self._format_agent_display_name(agent)
-                        row = [
+                        external_table.add_row(
                             agent_name,
                             agent.title,
                             agent.description,
@@ -2224,12 +2210,8 @@ class AgentsController:
                             str(agent.config),
                             agent.nickname,
                             agent.app_id,
-                            agent.id,
-                        ]
-                        if is_private_workspace:
-                            row.append("✅" if agent.workspace == GLOBAL_WORKSPACE_NAME else "❌")
-                        external_table.add_row(*row)
-
+                            agent.id
+                        )
                     if format == ListFormats.Table:
                         output_dictionary["external"] = rich_table_to_markdown(external_table)
                     else:
@@ -2271,17 +2253,13 @@ class AgentsController:
                         "Environment ID": {"overflow": "fold"},
                         "ID": {"overflow": "fold"}
                     }
-
+                    
                     for column in column_args:
                         assistants_table.add_column(column, **column_args[column])
                     
-                    if is_private_workspace:
-                        assistants_table.add_column("Global", {} )
-                    
-
                     for agent in resolved_assistant_agents:
                         agent_name = self._format_agent_display_name(agent)
-                        row = [
+                        assistants_table.add_row(
                             agent_name,
                             agent.title,
                             agent.description,
@@ -2291,12 +2269,8 @@ class AgentsController:
                             agent.config.service_instance_url,
                             agent.config.assistant_id,
                             agent.config.environment_id,
-                            agent.id,
-                        ]
-                        if is_private_workspace:
-                            row.append("✅" if agent.workspace == GLOBAL_WORKSPACE_NAME else "❌")
-                        assistants_table.add_row(*row)
-
+                            agent.id
+                        )
                     if format == ListFormats.Table:
                         output_dictionary["assistant"] = rich_table_to_markdown(assistants_table)
                     else:

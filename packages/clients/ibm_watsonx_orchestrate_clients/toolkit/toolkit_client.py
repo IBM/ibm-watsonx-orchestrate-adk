@@ -16,7 +16,7 @@ class ToolKitClient(BaseWXOClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get(self, workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
+    def get(self, workspace_id: Optional[str] = None) -> List[dict]:
         params = {}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
@@ -24,9 +24,6 @@ class ToolKitClient(BaseWXOClient):
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
-        
-        if include_global:
-            params["include"] = "global"
         
         if params:
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
@@ -102,10 +99,10 @@ class ToolKitClient(BaseWXOClient):
         return self._delete(f"/toolkits/{toolkit_id}")
 
 
-    def get_draft_by_name(self, toolkit_name: str, workspace_id: Optional[str] = None, include_global : bool = True) -> List[dict]:
-        return self.get_drafts_by_names([toolkit_name], workspace_id=workspace_id, include_global=include_global)
+    def get_draft_by_name(self, toolkit_name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        return self.get_drafts_by_names([toolkit_name], workspace_id=workspace_id)
 
-    def get_drafts_by_names(self, toolkit_names: List[str], workspace_id: Optional[str] = None, include_global : bool = True) -> List[dict]:
+    def get_drafts_by_names(self, toolkit_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_toolkit_names = [f"names={x}" for x in toolkit_names]
         params = {}
         
@@ -115,9 +112,6 @@ class ToolKitClient(BaseWXOClient):
         else:
             # Add workspace filtering if applicable
             params = add_workspace_query_param(params)
-        
-        if include_global:
-            params["include"] = "global"
         
         # Build query string with names and other params
         query_parts = formatted_toolkit_names + [f"{k}={v}" for k, v in params.items()]
