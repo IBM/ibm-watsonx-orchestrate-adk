@@ -23,6 +23,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     BYPASS_SSL, VERIFY,
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_NAME
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
@@ -168,9 +169,9 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
         # When just refreshing token for same environment, preserve the active workspace
         if is_switching_env:
             # Reset active workspace when switching environments since workspaces are environment-specific
-            # For IBM Cloud environments, set to "Global Workspace", for local set to None
+            # For IBM Cloud environments, set to global workspace, for local set to None
             if is_ibm_cloud_platform(url):
-                cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, "Global Workspace")
+                cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, GLOBAL_WORKSPACE_NAME)
             else:
                 cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, None)
         if registry is not None:
