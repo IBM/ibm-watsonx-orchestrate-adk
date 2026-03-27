@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate_core.utils.workspaces import (
     resolve_and_inject_workspace,
     convert_workspace_id_to_name
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID
 
 class ExternalAgentClient(BaseWXOClient):
     """
@@ -19,7 +20,13 @@ class ExternalAgentClient(BaseWXOClient):
 
     def get(self, workspace_id: Optional[str] = None) -> dict:
         params = {'include_hidden': 'true'}
-        params = add_workspace_query_param(params)
+
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+            
         query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
         agents = self._get(f"/agents/external-chat?{query_string}")
         
@@ -45,8 +52,14 @@ class ExternalAgentClient(BaseWXOClient):
     def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         params = {'include_hidden': 'true'}
-        # Add workspace filtering if applicable
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
+            params['workspace_id'] = workspace_id
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
+            params = add_workspace_query_param(params)
+        
         # Build query string with names and other params
         query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"/agents/external-chat?{'&'.join(query_parts)}")
@@ -56,7 +69,22 @@ class ExternalAgentClient(BaseWXOClient):
             return ""
         else:
             try:
-                agent = self._get(f"/agents/external-chat/{agent_id}")
+                params = {}
+                
+                # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+                if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
+                    params['workspace_id'] = workspace_id
+                elif workspace_id is None:
+                    # Add workspace filtering if applicable (only when not explicitly set)
+                    params = add_workspace_query_param(params)
+                
+                # Build query string if params exist
+                if params:
+                    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+                    agent = self._get(f"/agents/external-chat/{agent_id}?{query_string}")
+                else:
+                    agent = self._get(f"/agents/external-chat/{agent_id}")
+                
                 return agent
             except ClientAPIException as e:
                 if e.response.status_code == 404 and ("not found with the given name" in e.response.text or "Assistant not found" in e.response.text):
@@ -66,7 +94,14 @@ class ExternalAgentClient(BaseWXOClient):
     def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
+            params['workspace_id'] = workspace_id
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
+            params = add_workspace_query_param(params)
+        
         # Build query string with ids and other params
         query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"/agents/external-chat?{'&'.join(query_parts)}")
