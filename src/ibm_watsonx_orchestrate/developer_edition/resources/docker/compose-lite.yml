@@ -85,6 +85,22 @@ services:
     networks:
       - default
 
+  wxo-knowledge-mcp-server:
+    image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      WXO_SERVER_BASE_URL: http://wxo-server:4321
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - default
+
   ai-gateway:
     image: ${AI_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/ai-gateway:${AI_GATEWAY_TAG:-latest}
     platform: linux/amd64
@@ -655,6 +671,7 @@ services:
       MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -804,6 +821,7 @@ services:
       MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
 
   opensearch:
@@ -894,6 +912,7 @@ services:
     networks:
       - default
       - memory-network
+
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
