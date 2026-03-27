@@ -1010,8 +1010,9 @@ class AgentsController:
         for tid in agent.tools:
             name = id_name_lookup.get(tid)
             if not name:
-                logger.error(f"Failed to find tool. No tools found with the id '{tid}'")
-                sys.exit(1)
+                error_msg = f"Failed to find tool. No tools found with the id '{tid}'"
+                logger.warning(error_msg)
+                continue  # Skip this tool and continue with others, otherwise exporting workspace fails
             ref_tools.append(name)
         ref_agent.tools = ref_tools
 
@@ -1019,11 +1020,12 @@ class AgentsController:
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
             join_tool_name = id_name_lookup.get(agent.custom_join_tool)
             if not join_tool_name:
-                logger.error(
-                    f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'"
-                )
-                sys.exit(1)
-            ref_agent.custom_join_tool = join_tool_name
+                error_msg = f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'"
+                logger.warning(error_msg)
+                # Set to None if not found, agent export will continue
+                ref_agent.custom_join_tool = None
+            else:
+                ref_agent.custom_join_tool = join_tool_name
 
         # resolve plugin tools
         if agent.plugins:
@@ -2403,7 +2405,7 @@ class AgentsController:
             logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
             sys.exit(1)
 
-        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude)
+        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude, workspace_id=workspace_id)
         
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
@@ -2473,14 +2475,19 @@ class AgentsController:
                 if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
                     continue
 
-            tools_controller.export_tool(
-                name=tool_name,
-                output_path=base_tool_file_path,
-                zip_file_out=zip_file_out,
-                spec=current_spec,
-                connections_output_path=f"{output_file_name}/connections/",
-                workspace_id=workspace_id
-            )
+            try:
+                tools_controller.export_tool(
+                    name=tool_name,
+                    output_path=base_tool_file_path,
+                    zip_file_out=zip_file_out,
+                    spec=current_spec,
+                    connections_output_path=f"{output_file_name}/connections/",
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - tool/toolkit may not exist or may have been renamed - needed for workspaces
+                logger.warning(f"Could not export tool '{tool_name}': {str(e)}")
+                continue
 
             if with_tool_spec_file and tool_specs:
                 zip_file_out.writestr(
@@ -2526,7 +2533,7 @@ class AgentsController:
         # Export Knowledge Bases
         knowledge_base_controller = KnowledgeBaseController()
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
-            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/"
+            knowledge_base_file_path = f"{output_file_name}/knowledge_bases/"
             try:
                 knowledge_base_controller.knowledge_base_export(
                     name=kb_name,
@@ -2723,30 +2730,14 @@ class AgentsController:
             logger.error(f"Cannot copy agent to the same workspace. Source and destination workspaces are both '{source_workspace}'")
             sys.exit(1)
         
-        # Save the current active workspace and temporarily activate source workspace
-        # This ensures get_draft_by_name() queries the correct workspace
-        from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name
-        original_active_workspace = get_active_workspace_name()
+        # Get agent by name from source workspace using workspace_id parameter
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
         
-        try:
-            # Temporarily activate source workspace if different from current
-            if original_active_workspace != source_workspace:
-                workspace_controller.activate_workspace(source_workspace)
-            
-            # Get agent by name from source workspace
-            # The API will filter by workspace_id query parameter automatically
-            native_client = self.get_native_client()
-            external_client = self.get_external_client()
-            assistant_client = self.get_assistant_client()
-            
-            # Query agents from source workspace and track which client found it
-            existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_external_agents = external_client.get_draft_by_name(agent_name)
-            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
-        finally:
-            # Restore original workspace
-            if original_active_workspace and original_active_workspace != source_workspace:
-                workspace_controller.activate_workspace(original_active_workspace)
+        existing_native_agents = native_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
+        existing_external_agents = external_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
+        existing_assistant_agents = assistant_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
         
         # Determine which type of agent was found
         agent = None
@@ -2794,8 +2785,7 @@ class AgentsController:
             status_endpoint = response.get("status_endpoint")
             
             logger.info(f"Agent copy initiated successfully")
-            logger.info(f"  New agent ID: {new_agent_id}")
-            logger.info(f"  {message}")
+            logger.info(f"{message}")
             
         except Exception as e:
             logger.error(f"Failed to copy agent: {str(e)}")
