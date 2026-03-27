@@ -348,15 +348,6 @@ class AgentsController:
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
-            
-            # Validate app_id resolves to a valid connection for External and Assistant agents
-            if hasattr(agent, 'app_id') and agent.app_id:
-                connections_client = get_connections_client()
-                connection = connections_client.get_draft_by_app_id(app_id=agent.app_id)
-                if not connection:
-                    logger.error(f"No connection exists with app-id '{agent.app_id}' for agent '{agent.name}'")
-                    sys.exit(1)
-                logger.info(f"Validated connection '{agent.app_id}' for agent '{agent.name}'")
 
         return agents
     @staticmethod
