@@ -127,6 +127,13 @@ class MockToolClient:
             ids.append({"name": agent, "id": str(uuid.uuid4())})
         return ids
     
+    def get_drafts_by_ids(self, tool_ids, workspace_id=None):
+        """Mock method for get_drafts_by_ids with optional workspace_id parameter"""
+        ids = []
+        for tool_id in tool_ids:
+            ids.append({"name": f"tool_{tool_id}", "id": tool_id})
+        return ids
+    
     def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
         if tool_id is None:
             return ""
@@ -300,13 +307,14 @@ def test_openapi_multiple_app_ids():
     assert "Kind 'openapi' can only take one app-id" in str(e)
 
 def test_openapi_app_id_key_value(caplog):
+    """Test that OpenAPI tools now accept key_value connections"""
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
          mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev,\
          mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
         mock_is_local_dev.return_value = False
         mock_client.return_value = MockConnectionClient(
             get_response=MockConnection(appid="test", connection_type="key_value"),
-            get_by_id_response=[MockConnection(appid="test", connection_type="key_value")],
+            get_by_id_response=MockConnection(appid="test", connection_type="key_value"),
             list_conn_response=[ListConfigsResponse(**{
                     "connection_id": "12345",
                     "app_id": "test",
@@ -316,13 +324,16 @@ def test_openapi_app_id_key_value(caplog):
             })]
         )
 
-        with pytest.raises(SystemExit) as e:
-            tools_controller = ToolsController()
-            tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",  app_id="test")
-            list(tools)
-
+        # OpenAPI tools should now accept key_value connections without error
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",  app_id="test")
+        tools_list = list(tools)
+        
+        # Verify that tools were imported successfully
+        assert len(tools_list) > 0
+        # Verify no error message about key_value connections
         captured = caplog.text
-        assert "key_value_creds application connections can not be bound to openapi tools" in captured
+        assert "key_value_creds application connections can not be bound to openapi tools" not in captured
 
 
 def test_openapi_no_file():
