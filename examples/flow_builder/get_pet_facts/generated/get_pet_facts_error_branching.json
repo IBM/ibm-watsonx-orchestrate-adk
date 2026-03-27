@@ -1,0 +1,128 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "get_pet_facts_error_branching",
+    "display_name": "get_pet_facts_error_branching",
+    "description": "Demonstrates error branching - shows user message if dog facts fail",
+    "output_schema": {
+      "$ref": "#/schemas/PetFacts"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "getDogFact": {
+      "spec": {
+        "kind": "tool",
+        "name": "getDogFact",
+        "display_name": "getDogFact",
+        "tool": "getDogFact",
+        "error_handler_config": {
+          "error_message": "Failed to get dog facts, showing error message to user",
+          "max_retries": 0,
+          "retry_interval": 1000,
+          "on_error": "branch",
+          "error_edge_id": "dog_error_to_user_message"
+        }
+      }
+    },
+    "userflow_1": {
+      "spec": {
+        "kind": "userflow",
+        "name": "userflow_1",
+        "display_name": "userflow_1"
+      },
+      "nodes": {
+        "error_display": {
+          "spec": {
+            "kind": "user_field",
+            "name": "error_display",
+            "display_name": "Error Message",
+            "direction": "output",
+            "field_kind": "text",
+            "text": "Sorry, we couldn't fetch dog facts at this time. Please try again later."
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "error_display"
+        },
+        {
+          "start": "error_display",
+          "end": "__end__"
+        }
+      ]
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "getDogFact"
+    },
+    {
+      "id": "dog_error_to_user_message",
+      "start": "getDogFact",
+      "end": "userflow_1"
+    },
+    {
+      "start": "getDogFact",
+      "end": "__end__"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "PetFacts": {
+      "type": "object",
+      "title": "PetFacts",
+      "required": [
+        "facts"
+      ],
+      "properties": {
+        "facts": {
+          "type": "array",
+          "title": "Facts",
+          "description": "A list of facts about the pet",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2026-03-23T08:51:00.000000+00:00"
+  }
+}
