@@ -246,6 +246,7 @@ class UserNode(Node):
             
         Raises:
             ValueError: If the form has not been created. Call form() method first.
+            ValueError: If field references are invalid.
         """
         if self.get_spec().form is None:
             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
@@ -307,7 +308,9 @@ class UserNode(Node):
                                 start_date_label: str | None = None,
                                 end_date_label: str | None = None,
                                 default_start: Any| None = None,
-                                default_end: Any| None = None
+                                default_end: Any| None = None,
+                                min_date: Any | None = None,
+                                max_date: Any | None = None
         ) -> UserField:
             """
             Creates a date range input field in the form with start and end date pickers.
@@ -318,8 +321,10 @@ class UserNode(Node):
                 required: Whether the field is required. Defaults to False.
                 start_date_label: Optional label for the start date field.
                 end_date_label: Optional label for the end date field.
-                default_start: Optional default value for the start date, passed as DataMap.
-                default_end: Optional default value for the end date, passed as DataMap.
+                default_start: Optional DataMap for default start value (maps to self.input.default_start).
+                default_end: Optional DataMap for default end value (maps to self.input.default_end).
+                min_date: Optional DataMap for minimum date constraint (maps to self.input.min_date).
+                max_date: Optional DataMap for maximum date constraint (maps to self.input.max_date).
 
             Returns:
                 UserField: The created date range input field.
@@ -337,7 +342,9 @@ class UserNode(Node):
                 start_date_label = start_date_label,
                 end_date_label = end_date_label,
                 default_start = default_start,
-                default_end = default_end
+                default_end = default_end,
+                min_date = min_date,
+                max_date = max_date
             )
     def date_input_field(
             self,
@@ -347,6 +354,7 @@ class UserNode(Node):
             default: Any| None=None,
             min_date: Any | None = None,
             max_date: Any | None = None,
+            multiple_dates: bool = False,
     ) -> UserField:
          """
          Creates a date input field in the form.
@@ -358,6 +366,7 @@ class UserNode(Node):
              default: Optional default value for the field, passed as DataMap.
              min_date: Optional DataMap for the minimum date value (start of allowed date range).
              max_date: Optional DataMap for the maximum date value (end of allowed date range).
+             multiple_dates: If True, allows selection of multiple dates. Defaults to False.
 
          Returns:
              UserField: The created date input field.
@@ -369,13 +378,106 @@ class UserNode(Node):
              raise ValueError("Form has not been created. Please call the form() method before adding fields.")
          
          return self.get_spec().form.date_input_field(
-                name = name,
-                label = label,
-                required = required,
-                initial_value = default,
-                min_date = min_date,
-                max_date = max_date,
+                name=name,
+                label=label,
+                required=required,
+                initial_value=default,
+                min_date=min_date,
+                max_date=max_date,
+                multiple_dates=multiple_dates
+             )
+    def datetime_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            default: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None,
+            inputType: UserFieldKind = UserFieldKind.DateTime,
+    ) -> UserField:
+         """
+         Creates a datetime or time input field in the form.
+
+         Args:
+             name: The internal name of the field.
+             label: Optional display label for the field.
+             required: Whether the field is required. Defaults to False.
+             default: Optional default value for the field, passed as DataMap.
+             min_time: Optional minimum datetime/time value.
+             max_time: Optional maximum datetime/time value.
+             inputType: Type of field (DateTime or Time). Defaults to DateTime.
+
+         Returns:
+             UserField: The created datetime/time input field.
+
+         Raises:
+             ValueError: If the form has not been created. Call form() method first.
+             ValueError: If inputType is not DateTime or Time.
+         """
+         valid_types = [UserFieldKind.DateTime, UserFieldKind.Time]
+         if inputType not in valid_types:
+             raise ValueError(f"inputType must be one of DateTime or Time, got {inputType}")
+
+         if self.get_spec().form is None:
+             raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+
+         return self.get_spec().form.datetime_input_field(
+                name=name,
+                label=label,
+                required=required,
+                initial_value=default,
+                min_time=min_time,
+                max_time=max_time,
+                inputType=inputType
             )
+
+    def datetime_range_input_field(self,
+                                    name: str,
+                                    label: str | None = None,
+                                    required: bool = False,
+                                    start_date_label: str | None = None,
+                                    end_date_label: str | None = None,
+                                    default_start: Any | None = None,
+                                    default_end: Any | None = None,
+                                    min_time: Any | None = None,
+                                    max_time: Any | None = None
+        ) -> UserField:
+            """
+            Creates a datetime (time) range input field in the form with start and end time pickers.
+
+            Args:
+                name: The internal name of the field.
+                label: Optional display label for the field.
+                required: Whether the field is required. Defaults to False.
+                start_date_label: Optional label for the start time field.
+                end_date_label: Optional label for the end time field.
+                default_start: Optional DataMap for default start value (maps to self.input.default_start).
+                default_end: Optional DataMap for default end value (maps to self.input.default_end).
+                min_time: Optional DataMap for minimum time constraint (maps to self.input.min_time).
+                max_time: Optional DataMap for maximum time constraint (maps to self.input.max_time).
+
+            Returns:
+                UserField: The created datetime/time range input field.
+
+            Raises:
+                ValueError: If the form has not been created. Call form() method first.
+            """
+            if self.get_spec().form is None:
+                raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+
+            return self.get_spec().form.datetime_range_input_field(
+                name=name,
+                label=label,
+                required=required,
+                start_date_label=start_date_label,
+                end_date_label=end_date_label,
+                default_start=default_start,
+                default_end=default_end,
+                min_time=min_time,
+                max_time=max_time
+            )
+
     def number_input_field(
             self,
             name: str,
@@ -770,6 +872,221 @@ class UserNode(Node):
             multiple_users=multiple_users,
             min_num_users=min_num_users,
             max_num_users=max_num_users,
+        )
+
+    def visibility_behaviour_field(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> Any:
+        """
+        Add a visibility behaviour to control field visibility based on conditions.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of visibility rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
+        """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
+        # Validate that on_change_to_field exists (trigger field must exist)
+        # Note: impacted_field can be added after the behaviour is defined
+        form_fields = [field.name for field in self.get_spec().form.fields]
+
+        if on_change_to_field not in form_fields:
+            raise ValueError(
+                f"Validation error: on_change_to_field '{on_change_to_field}' does not exist in form. "
+                f"The trigger field must be created before adding behaviours."
+            )
+        return self.get_spec().form.add_visibility_behaviour(
+            name=name,
+            on_change_to_field=on_change_to_field,
+            rules=rules,
+            display_name=display_name
+        )
+    
+    def label_behaviour_field(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> Any:
+        """
+        Add a label behaviour to change field labels based on conditions.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of label rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Raises:
+            ValueError: If the form has not been created. Call form() method first.
+            ValueError: If field references are invalid.
+        """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
+        # Validate that on_change_to_field exists (trigger field must exist)
+        # Note: impacted_field can be added after the behaviour is defined
+        form_fields = [field.name for field in self.get_spec().form.fields]
+
+        if on_change_to_field not in form_fields:
+            raise ValueError(
+                f"Validation error: on_change_to_field '{on_change_to_field}' does not exist in form. "
+                f"The trigger field must be created before adding behaviours."
+            )
+        return self.get_spec().form.add_label_behaviour(
+            name=name,
+            on_change_to_field=on_change_to_field,
+            rules=rules,
+            display_name=display_name
+        )
+    
+    def value_source_behaviour_field(
+            self,
+            name: str,
+            on_change_to_field: str,
+            impacted_field: str,
+            tool: str | None = None,
+            tool_input_schema: dict[str, Any] | None = None,
+            tool_input_map: dict[str, Any] | None = None,
+            tool_name: str | None = None,
+            tool_id: str | None = None,
+            field_mappings: dict[str, str] | None = None,
+            client: Any | None = None,
+            display_name: str | None = None
+    ) -> Any:
+        """
+        Add a value source behaviour to populate field values from a tool.
+        
+        Supports two usage modes:
+        
+        1. SIMPLIFIED API (Recommended):
+           Provide tool_name, tool_id, and field_mappings. The tool schema will be
+           auto-fetched from the API if a client is provided.
+           
+        2. Call by providing all tool details:
+           Provide tool, tool_input_schema, and tool_input_map manually.
+        
+        Args:
+            name:                   Unique identifier for this behaviour
+            on_change_to_field:     The field that triggers this behaviour when changed
+            impacted_field:         The dropdown field to populate with tool results
+            
+            # Simplified API parameters:
+            tool_name:              Name of the tool (e.g., "get_states_or_provinces")
+            tool_id:                UUID of the tool (e.g., "9f0ecb53-dbd9-4e41-be46-29c8d47d6df8")
+            field_mappings:         Dictionary mapping tool parameters to form field expressions
+                                        Format: {"tool_param": "parent.field.form_field"}
+            client:                 Optional client instance to auto-fetch tool schema (e.g., WxOClient().tools)
+            
+            # Manual API parameters (for backward compatibility):
+            tool:                   Tool identifier in format "name:uuid"
+            tool_input_schema:      JSON schema for tool inputs
+            tool_input_map:         Data map for tool input parameters
+            
+            display_name:           Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Raises:
+            ValueError: If the form has not been created or if invalid parameters provided.
+            
+        Example (Simplified API):
+            from ibm_watsonx_orchestrate.client import WxOClient
+            
+            client = WxOClient()
+            form_node.value_source_behaviour_field(
+                name="value_source_behaviour",
+                on_change_to_field="country",
+                impacted_field="region",
+                tool_name="get_states_or_provinces",
+                tool_id="9f0ecb53-dbd9-4e41-be46-29c8d47d6df8",
+                field_mappings={"country": "parent.field.country"},
+                client=client.tools,
+                display_name="Region Selector"
+            )
+            
+        Example (Manual API):
+            form_node.value_source_behaviour_field(
+                name="value_source_behaviour",
+                on_change_to_field="country",
+                impacted_field="region",
+                tool="get_states_or_provinces:9f0ecb53-dbd9-4e41-be46-29c8d47d6df8",
+                tool_input_schema={...},
+                tool_input_map=create_tool_input_map([...]),
+                display_name="Region Selector"
+            )
+        """
+        if self.get_spec().form is None:
+            raise ValueError("Form has not been created. Please call the form() method before adding fields.")
+        
+        # New simplified API mode
+        if tool_name and tool_id and field_mappings is not None:
+            from .utils import create_value_source_config
+            
+            config = create_value_source_config(
+                tool_name=tool_name,
+                tool_id=tool_id,
+                field_mappings=field_mappings,
+                client=client
+            )
+            tool = config["tool"]
+            # Only use config schema if not manually provided
+            if tool_input_schema is None:
+                tool_input_schema = config["tool_input_schema"]
+            tool_input_map = config["tool_input_map"]
+            
+        # Validate that on_change_to_field exists (trigger field must exist)
+        # Note: impacted_field can be added after the behaviour is defined
+        from .utils import validate_tool_format
+
+        form_fields = [field.name for field in self.get_spec().form.fields]
+
+        if on_change_to_field not in form_fields:
+            raise ValueError(
+                f"Validation error: on_change_to_field '{on_change_to_field}' does not exist in form. "
+                f"The trigger field must be created before adding behaviours."
+            )
+        
+        # Validate that we have the required parameters
+        if not tool:
+            raise ValueError(
+                "Either provide (tool_name, tool_id, field_mappings) for simplified API "
+                "or (tool) for manual API"
+            )
+        
+        # Validate tool format
+        if not validate_tool_format(tool):
+            raise ValueError(f"Invalid tool format: '{tool}'. Expected format: 'name:uuid'")
+        
+        # tool_input_schema is optional when using simplified API
+        # If not provided and no client, it will be None (backend may handle it)
+        
+        return self.get_spec().form.add_value_source_behaviour(
+            name=name,
+            on_change_to_field=on_change_to_field,
+            impacted_field=impacted_field,
+            tool=tool,
+            tool_input_schema=tool_input_schema,
+            tool_input_map=tool_input_map,
+            display_name=display_name
         )
 
 

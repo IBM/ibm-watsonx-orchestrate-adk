@@ -8,6 +8,7 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
 from pydantic import Field, AliasChoices, field_validator
 from typing import Annotated
@@ -32,14 +33,6 @@ def str_presenter(dumper, data):
 yaml.add_representer(str, str_presenter)
 yaml.representer.SafeRepresenter.add_representer(str, str_presenter) # to use with safe_dum
 
-class SpecVersion(str, Enum):
-    V1 = "v1"
-
-    def __str__(self):
-        return self.value 
-
-    def __repr__(self):
-        return repr(self.value)
 
 
 class AgentKind(str, Enum):
@@ -97,6 +90,8 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
+    memory_enabled: Optional[bool] = None
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     # Catalog Only
     publisher: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
@@ -415,3 +410,26 @@ def validate_assistant_agent_fields(values: dict) -> dict:
                 raise ValueError("All context_variables must be non-empty strings")
 
     return values
+
+
+# ==================== AGENT COPY TYPES ====================
+
+class AgentCopyRequest(BaseModel):
+    """Request model for copying an agent to a workspace.
+    
+    Note: Currently copies all agent dependencies (tools, collaborators) automatically.
+    """
+    destination_workspace_id: str = Field(
+        ...,
+        description="Destination workspace ID where the agent will be copied. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+    source_workspace_id: str = Field(
+        ...,
+        description="Source workspace ID where the agent currently exists. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+
+class AgentCopyResponse(BaseModel):
+    """Response model for agent copy operation."""
+    id: str = Field(..., description="UUID of the newly created agent copy")
+    message: str = Field(..., description="Status message indicating the copy operation has been initiated")
+    status_endpoint: str = Field(..., description="Endpoint to check the status of the copy operation")
