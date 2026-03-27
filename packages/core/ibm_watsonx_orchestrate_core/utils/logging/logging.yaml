@@ -16,3 +16,9 @@ loggers:
   ibm_watsonx_orchestrate:
     level: DEBUG
     handlers: [console]
+  ibm_watsonx_orchestrate_clients:
+    level: DEBUG
+    handlers: [console]
+  ibm_watsonx_orchestrate_core:
+    level: DEBUG
+    handlers: [console]

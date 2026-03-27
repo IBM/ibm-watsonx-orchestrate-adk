@@ -14,7 +14,7 @@ def knowledge_base_import(
     app_id: Annotated[
         str, typer.Option(
             '--app-id', '-a',
-            help='The app id of the connection to associate with this knowledge base. A application connection represents the authentication credentials needed to connection to the external Milvus or Elasticsearch instance (for example Api Keys, Basic, Bearer or OAuth credentials).'
+            help='The app id of the connection to associate with this knowledge base. A application connection represents the authentication credentials needed to connection to the external knowledge source instance (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
     ] = None,
 ):

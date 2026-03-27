@@ -10,4 +10,4 @@ orchestrate agents import -f ${SCRIPT_DIR}/agents/channel_agent.yaml;
 orchestrate channels import \
   --agent-name "channel_agent" \
   --env draft \
-  -f ${SCRIPT_DIR}/channels/twilio_whatsapp_example.yaml;
+  -f ${SCRIPT_DIR}/channels/slack_example.yaml;

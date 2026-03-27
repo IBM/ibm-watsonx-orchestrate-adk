@@ -13,6 +13,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     AUTH_MCSP_TOKEN_OPT,
     AUTH_MCSP_TOKEN_EXPIRY_OPT,
     CONTEXT_ACTIVE_ENV_OPT,
+    CONTEXT_ACTIVE_WORKSPACE_OPT,
     CONTEXT_SECTION_HEADER,
     ENV_WXO_URL_OPT,
     ENV_IAM_URL_OPT,
@@ -22,12 +23,14 @@ from ibm_watsonx_orchestrate.cli.config import (
     BYPASS_SSL, VERIFY,
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_NAME
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
-from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient, ClientAPIException
+from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 
 logger = logging.getLogger(__name__)
@@ -50,7 +53,7 @@ def _validate_token_functionality(token: str, url: str, auth_type: str | None = 
     '''
     Validates a token by making a request to GET /agents
 
-    Args: 
+    Args:
         token: A JWT token
         url: WXO instance URL
     '''
@@ -62,7 +65,10 @@ def _validate_token_functionality(token: str, url: str, auth_type: str | None = 
     knowledge_base_client.api_key = token
 
     try:
-        knowledge_base_client.get()
+        # Use _get directly to bypass workspace context resolution during env activation
+        # This prevents trying to resolve workspace names using the old environment's token
+        base_endpoint = knowledge_base_client.base_endpoint
+        knowledge_base_client._get(base_endpoint)
     except ClientAPIException as e:
         if e.response.status_code >= 400:
             reason = e.response.reason
@@ -153,7 +159,21 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
         _login(name=name, apikey=apikey, username=username, password=password)
 
     with lock:
+        # Check if we're switching to a different environment or just refreshing token
+        current_active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+        is_switching_env = current_active_env != name
+        
         cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, name)
+        
+        # Only reset active workspace when switching to a different environment
+        # When just refreshing token for same environment, preserve the active workspace
+        if is_switching_env:
+            # Reset active workspace when switching environments since workspaces are environment-specific
+            # For IBM Cloud environments, set to global workspace, for local set to None
+            if is_ibm_cloud_platform(url):
+                cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, GLOBAL_WORKSPACE_NAME)
+            else:
+                cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, None)
         if registry is not None:
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, str(registry))
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, test_package_version_override)
@@ -164,6 +184,13 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
             cfg.write(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT, skip_version_check)
 
     logger.info(f"Environment '{name}' is now active")
+    
+    # Display active workspace for IBM Cloud environments
+    if is_ibm_cloud_platform(url):
+        active_workspace = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT)
+        if active_workspace:
+            logger.info(f"Active workspace: {active_workspace}")
+    
     is_cpd = is_cpd_env(url)
     if is_cpd:
         logger.warning("Support for CPD clusters is currently an early access preview")

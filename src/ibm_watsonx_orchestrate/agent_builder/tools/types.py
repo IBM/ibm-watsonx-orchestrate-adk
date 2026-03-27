@@ -261,6 +261,7 @@ class ToolSpec(BaseModel):
     toolkit_id: str | None = None
     is_async: bool = False
     response_format: ToolResponseFormat = ToolResponseFormat.CONTENT
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     def is_custom_join_tool(self) -> bool:
         if self.binding.python is None:
