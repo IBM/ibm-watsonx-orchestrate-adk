@@ -312,6 +312,11 @@ class ToolSpec(BaseModel):
 CONNECTION_TIMEOUT_SECONDS = 30
 READ_TIMEOUT_SECONDS = 30
 X_AMZ_META_HEADER_PREFIX = os.getenv("X_AMZ_META_HEADER_PREFIX", "x-amz-meta-")
+SECURE_FILE_DOWNLOAD = os.getenv("SECURE_FILE_DOWNLOAD", "false").lower() == "true"
+WXO_PATH_PREFIX = os.getenv("WXO_PATH_PREFIX", "v1/files/")
+INTERNAL_REQUEST_IDENTIFIER = os.getenv("INTERNAL_REQUEST_IDENTIFIER")
+INTERNAL_REQUEST_HEADER_KEY = os.getenv("INTERNAL_REQUEST_HEADER_KEY", "x-watson-service-key")
+INTERNAL_REQUEST_HEADER_VALUE = os.getenv("INTERNAL_REQUEST_HEADER_VALUE", "internal")
 
 
 class WXOFile(str):
@@ -342,7 +347,21 @@ class WXOFile(str):
     def get_content(cls, url: str) -> bytes:
         """Retuns the contents"""
         try:
-            res = requests.get(url)
+            # Build headers dictionary
+            headers = {}
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+            res = requests.get(url, headers=headers if headers else None)
             return res.content
         except Exception as e:
             raise e
@@ -350,8 +369,22 @@ class WXOFile(str):
     @classmethod
     def _get_headers(cls, url: str) -> dict:
         try:
-            res = requests.get(url, 
-                               headers={'Range': 'bytes=0-0'}, 
+            # Build headers dictionary
+            headers = {'Range': 'bytes=0-0'}
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+            res = requests.get(url,
+                               headers=headers,
                                timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
             return res.headers
         except Exception as e:

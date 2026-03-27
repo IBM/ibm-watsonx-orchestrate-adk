@@ -332,6 +332,7 @@ class TestWorkspaceExport:
         
         # Mock zipfile
         mock_zip = Mock()
+        mock_zip.namelist.return_value = []  # Mock namelist() to return empty list
         mock_zipfile.return_value.__enter__.return_value = mock_zip
 
         workspaces_controller.export_workspace(

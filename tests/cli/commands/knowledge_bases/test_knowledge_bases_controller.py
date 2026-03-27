@@ -152,7 +152,7 @@ class MockClient:
         assert knowledge_base_id == self.expected_id
         return self.fake_status
 
-    def get_by_name(self, name):
+    def get_by_name(self, name, workspace_id=None):
         if self.already_existing:
             return {"name": name, "id": self.mock_id}
         return []
