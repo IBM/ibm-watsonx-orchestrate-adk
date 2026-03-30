@@ -21,24 +21,11 @@ class TestVoiceConfigurationRemove:
 
   def test_remove_by_name(self):
     with patch("ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller.VoiceConfigurationsController.remove_voice_config_by_name") as remove_mock:
-      voice_configurations_command.remove_voice_config(config_id=None, config_name="test_name")
+      voice_configurations_command.remove_voice_config(voice_config_name="test_name")
       remove_mock.assert_called_once_with("test_name")
 
-  def test_remove_by_id(self):
-    with patch("ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller.VoiceConfigurationsController.remove_voice_config_by_id") as remove_mock:
-      voice_configurations_command.remove_voice_config(config_id="test_id", config_name=None)
-      remove_mock.assert_called_once_with("test_id")
-
-  def test_remove_id_takes_precedence(self):
-    with patch("ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller.VoiceConfigurationsController.remove_voice_config_by_id") as remove_id_mock, \
-         patch("ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_controller.VoiceConfigurationsController.remove_voice_config_by_name") as remove_name_mock:
-      voice_configurations_command.remove_voice_config(config_id="test_id", config_name="test_name")
-      remove_id_mock.assert_called_once_with("test_id")
-      remove_name_mock.assert_not_called()
-
   def test_remove_invalid(self):
-    with pytest.raises(SystemExit):
-      voice_configurations_command.remove_voice_config(config_id=None, config_name=None)
+    TestCase().assertRaises(TypeError, voice_configurations_command.remove_voice_config)
 
 
 class TestVoiceConfigurationList:
