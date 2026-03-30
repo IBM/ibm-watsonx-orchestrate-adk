@@ -4,9 +4,9 @@ name: elevenlabs_tts_config
 speech_to_text:
   provider: watson_stt
   watson_stt_config:
-    api_url: "example-stt-url"
-    api_key: "example-stt-key"
-    model: "example model" # "en-US"
+    api_url: "example-stt.url"
+    api_key: "example stt key"
+    model: "example model"
 text_to_speech:
   provider: elevenlabs_tts
   elevenlabs_tts_config:
