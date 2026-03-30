@@ -10,15 +10,15 @@ speech_to_text:
     model: "en-US"  # Required, e.g., en-US_BroadbandModel
     background_audio_suppression: 0  # Optional: 0.0-1.0, background noise suppression level
     language_customization_id: null  # Optional: Language customization ID
-    inactivity_timeout: 30  # Optional: Seconds of inactivity before stopping (-1 for no timeout)
+    inactivity_timeout: null  # Optional: Seconds of inactivity before stopping (-1 for no timeout)
     profanity_filter: false  # Optional: filter profanity in transcript
-    smart_formatting: true  # Optional: enable smart formatting (converts dates, currency, etc. to readable format)
+    smart_formatting: false  # Optional: enable smart formatting (converts dates, currency, etc. to readable format)
     speaker_labels: null  # Optional: Enable speaker labels (beta)
     redaction: false  # Optional: Numbers with three or more consecutive digits are redacted
-    low_latency: false  # Optional: Enable low latency mode. Available only for some next-generation models (https://cloud.ibm.com/docs/speech-to-text?topic=speech-to-text-models-ng).
+    low_latency: false  # Optional: enable low latency mode
     learning_opt_out: true  # Optional: opt out of data collection for learning
     watson_metadata: null  # Optional: Value for x-watson-metadata header
-    smart_formatting_version: null # Optional: Version of smart formatting to use
+    smart_formatting_version: null  # Optional: Version of smart formatting to use
     customization_weight: null  # Optional: Weight for custom language model (0.0 to 1.0)
     character_insertion_bias: null  # Optional: Bias for character insertion (-1.0 to 1.0)
     end_of_phrase_silence_time: 0.8  # Optional: seconds of silence indicating end of phrase
@@ -31,8 +31,8 @@ text_to_speech:
     language: "en-US"  # Optional: language code
     rate_percentage: 0  # Optional: rate percentage for speech synthesis
     pitch_percentage: 0  # Optional: pitch percentage for speech synthesis
-    customization_id: null  # Optional: Custom ID for the Watson TTS service
-    meta_id: null  # Optional: Meta ID for the Watson TTS service
+    customization_id: null  # Optional: (Advanced option) Custom ID for the Watson TTS service
+    meta_id: null  # Optional: (Advanced option) Meta ID for the Watson TTS service
     learning_opt_out: true  # Optional: opt out of data collection for learning
 language: "en-us"  # Optional: default language for the voice configuration (default: en-us)
 

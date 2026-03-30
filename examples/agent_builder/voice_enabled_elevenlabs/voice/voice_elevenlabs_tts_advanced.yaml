@@ -11,16 +11,18 @@ speech_to_text:
 text_to_speech:
   provider: elevenlabs_tts
   elevenlabs_tts_config:
-    api_url: "https://api.elevenlabs.io"  # Optional: ElevenLabs API URL
+    api_url: null  # Optional: ElevenLabs API URL
     api_key: "your-elevenlabs-api-key"
     model_id: "example model" # e.g. eleven_turbo_v2_5
     voice_id: "example voice" # e.g. CwhRBWXzGAHq8TQ4Fs17
     language_code: "en" # Optional: Language code for the voice
     apply_text_normalization: "auto" # Optional: Apply text normalization
-    optimize_streaming_latency: 3  # Optional: Optimize streaming latency (0-4)
-    apply_language_text_normalization: false  # Optional: Apply language-specific text normalization. Currently only supported for Japanese.
-    pronunciation_dictionary_locators: null # Optional: List of pronunciation dictionary locators
-    seed: 42  # Optional: Seed for deterministic audio generation
+    optimize_streaming_latency: null  # Optional: Optimize streaming latency (0-4)
+    apply_language_text_normalization: null  # Optional: Apply language-specific text normalization
+    pronunciation_dictionary_locators: null  # Optional: List of pronunciation dictionary locators
+    seed: null  # Optional: Seed for deterministic audio generation
+    previous_text: null  # Optional: Previous text for context
+    next_text: null  # Optional: Next text for context
     voice_settings: # All optional voice settings
       speed: 1.0  # Speech speed. Defaults to 1.0
       stability: 0.5  # Stability: how stable the voice is and the randomness between each generation. Defaults to 0.5
