@@ -1,38 +1,14 @@
 name: deepgram_voice_config
-llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for additional transcription content
 speech_to_text:
   provider: deepgram_stt
   deepgram_stt_config:
     api_url: "wss://api.deepgram.com/v1/listen"  # Required
     api_key: "your-deepgram-api-key"  # Required
     model: "example model"  # Required, e.g. nova-2
+    language: "en-US"  # Optional
+    numerals: true  # Optional: convert numbers to numerals
     keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition
     mip_opt_out: false  # Optional: opt out of model improvement program
-    # v1/listen endpoint parameters
-    channels: null  # Optional: Number of audio channels
-    diarize: null  # Optional: Enable speaker diarization
-    dictation: null  # Optional: Enable dictation mode
-    endpointing: null  # Optional: Endpointing silence duration in seconds
-    extra: null  # Optional: Extra parameters to pass to Deepgram
-    interim_results: null  # Optional: Enable interim results
-    keywords: null  # Optional: Keywords to detect
-    language: "en-US"  # Optional: BCP-47 language tag
-    multichannel: null  # Optional: Transcribe each audio channel independently
-    numerals: true  # Optional: convert numbers to numerals
-    profanity_filter: null  # Optional: Filter profanity
-    punctuate: null  # Optional: Add punctuation and capitalization
-    redact: null  # Optional: Redact sensitive information
-    replace: null  # Optional: Replace specified terms
-    search: null  # Optional: Search for specific terms
-    smart_format: null  # Optional: Apply smart formatting to the transcript
-    tag: null  # Optional: Tag for the request
-    utterance_end_ms: null  # Optional: How long Deepgram will wait to send UtteranceEnd message
-    vad_events: null  # Optional: Enable Deepgram's voice activity detection events
-    version: null  # Optional: API version
-    # v2/listen endpoint parameters
-    eager_eot_threshold: null  # Optional: End-of-turn confidence for eager EOT (0.3-0.9)
-    eot_threshold: null  # Optional: End-of-turn confidence to finish turn (0.5-0.9)
-    eot_timeout_ms: null  # Optional: Time after speech to finish turn regardless of EOT confidence
 text_to_speech:
   provider: deepgram_tts
   deepgram_tts_config:
@@ -41,7 +17,7 @@ text_to_speech:
     language: "en"  # Optional
     model: "example model"  # Optional, e.g. aura-2-thalia-en
     mip_opt_out: false  # Optional: opt out of model improvement program
-language: "en-us"  # Optional: default language (default: en-us)
+language: "en-US"
 
 
 # Optional Advanced Settings
