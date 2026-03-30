@@ -8,23 +8,23 @@ speech_to_text:
     api_url: "wss://api.deepgram.com/v1/listen"  # Required
     api_key: "your-deepgram-api-key"  # Required
     model: "nova-3"  # Required, e.g. nova-2, nova-3
-    keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition. Only supported for nova-3 models.
+    keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition. Only supported for Nova 3+ models.
     mip_opt_out: false  # Optional: opt out of model improvement program
     # v1/listen endpoint parameters
     channels: 1  # Optional: Number of audio channels
     diarize: true  # Optional: Enable speaker diarization
     dictation: false  # Optional: Enable dictation mode
     endpointing: 10  # Optional: Endpointing silence duration in seconds
-    extra: null  # Optional: Extra parameters to pass to Deepgram (e.g. ["custom_param1:value1", "custom_param2:value2"])
+    extra: ["custom_param=value"]  # Optional: Extra parameters to pass to Deepgram
     interim_results: true  # Optional: Enable interim results
-    keywords: ["snuffleupagus:5", "monster", "cookie:-2"]  # Optional: Keywords to detect for boost or suppression (only supported for nova-2 models)
+    keywords: ["urgent", "important", "priority"]  # Optional: Keywords to detect
     language: "en-US"  # Optional: BCP-47 language tag
     multichannel: false  # Optional: Transcribe each audio channel independently
     numerals: true  # Optional: convert numbers to numerals
     profanity_filter: false  # Optional: Filter profanity
     punctuate: true  # Optional: Add punctuation and capitalization
     redact: null  # Optional: Redact sensitive information (e.g., ["pci", "pii"])
-    replace: ["apple:orange", "orange:apple"]  # Optional: Replace specified terms
+    replace: ["hmm:um", "uh:um"]  # Optional: Replace specified terms
     search: ["action item", "follow up"]  # Optional: Search for specific terms
     smart_format: true  # Optional: Apply smart formatting to the transcript
     tag: ["customer_service", "sales_call"]  # Optional: Tag for the request
