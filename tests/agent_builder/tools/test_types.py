@@ -454,3 +454,237 @@ class TestWXOFileSecureDownload:
             assert headers['x-watson-service-key'] == 'internal'
             assert headers['Authorization'] == 'Bearer test-identifier-789'
             assert headers['X-Tenant-ID'] == 'test-tenant-456'
+
+
+class TestWXOFile302Redirect:
+    """Test cases for WXO URL 302 redirect handling"""
+
+    def test_get_headers_with_302_redirect(self, monkeypatch):
+        """Test that _get_headers follows 302 redirect and returns S3 headers"""
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "true")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        monkeypatch.setenv("INTERNAL_REQUEST_IDENTIFIER", "test-token")
+        monkeypatch.setenv("INTERNAL_REQUEST_HEADER_KEY", "x-watson-service-key")
+        monkeypatch.setenv("INTERNAL_REQUEST_HEADER_VALUE", "internal")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        s3_url = "https://s3.amazonaws.com/bucket/file.pdf?signature=xyz"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            # First call returns 302 with Location header
+            redirect_response = MagicMock()
+            redirect_response.status_code = 302
+            redirect_response.headers = {
+                'Location': s3_url,
+                'x-amz-meta-filename': 'test.pdf'
+            }
+            
+            # Second call returns actual S3 headers
+            s3_response = MagicMock()
+            s3_response.headers = {
+                'x-amz-id-2': 'test-id-2',
+                'x-amz-request-id': 'test-request-id',
+                'Date': 'Sat, 28 Mar 2026 04:59:33 GMT',
+                'Last-Modified': 'Sat, 28 Mar 2026 04:38:15 GMT',
+                'ETag': '"test-etag"',
+                'Content-Type': 'application/pdf',
+                'Content-Length': '1024'
+            }
+            
+            mock_get.side_effect = [redirect_response, s3_response]
+            
+            headers = types.WXOFile._get_headers(wxo_url)
+            
+            # Verify two calls were made
+            assert mock_get.call_count == 2
+            
+            # First call should be to WXO URL with auth headers and no redirects
+            first_call = mock_get.call_args_list[0]
+            assert first_call[0][0] == wxo_url
+            assert first_call[1]['allow_redirects'] == False
+            assert 'Authorization' in first_call[1]['headers']
+            
+            # Second call should be to S3 URL with Range header only
+            second_call = mock_get.call_args_list[1]
+            assert second_call[0][0] == s3_url
+            assert second_call[1]['headers']['Range'] == 'bytes=0-0'
+            
+            # Returned headers should be from S3 response
+            assert headers['x-amz-id-2'] == 'test-id-2'
+            assert headers['x-amz-request-id'] == 'test-request-id'
+            assert headers['Content-Type'] == 'application/pdf'
+
+    def test_get_headers_without_302_redirect(self, monkeypatch):
+        """Test that _get_headers returns WXO headers when no redirect occurs"""
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "true")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        monkeypatch.setenv("INTERNAL_REQUEST_IDENTIFIER", "test-token")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            # Response with 200 status (no redirect)
+            response = MagicMock()
+            response.status_code = 200
+            response.headers = {
+                'x-amz-meta-filename': 'test.pdf',
+                'Content-Type': 'application/pdf'
+            }
+            
+            mock_get.return_value = response
+            
+            headers = types.WXOFile._get_headers(wxo_url)
+            
+            # Only one call should be made
+            assert mock_get.call_count == 1
+            
+            # Returned headers should be from the original response
+            assert headers['x-amz-meta-filename'] == 'test.pdf'
+            assert headers['Content-Type'] == 'application/pdf'
+
+    def test_get_headers_direct_s3_url(self, monkeypatch):
+        """Test that direct S3 URLs use default behavior with auto-redirects"""
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "true")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        s3_url = "https://s3.amazonaws.com/bucket/file.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {
+                'x-amz-id-2': 'test-id',
+                'Content-Type': 'application/pdf'
+            }
+            
+            mock_get.return_value = response
+            
+            headers = types.WXOFile._get_headers(s3_url)
+            
+            # Only one call should be made
+            assert mock_get.call_count == 1
+            
+            # Should NOT have allow_redirects=False (uses default True)
+            call_args = mock_get.call_args
+            assert 'allow_redirects' not in call_args[1] or call_args[1].get('allow_redirects') != False
+            
+            # Should NOT have auth headers
+            assert 'Authorization' not in call_args[1]['headers']
+
+
+class TestWXOFileMisconfigurationWarning:
+    """Test cases for misconfiguration warning when SECURE_FILE_DOWNLOAD is false but URL is WXO"""
+
+    def test_get_headers_warns_on_misconfiguration(self, monkeypatch, caplog):
+        """Test that warning is logged when WXO URL is used without SECURE_FILE_DOWNLOAD"""
+        import logging
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "false")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {'Content-Type': 'application/pdf'}
+            mock_get.return_value = response
+            
+            with caplog.at_level(logging.WARNING):
+                types.WXOFile._get_headers(wxo_url)
+            
+            # Check that warning was logged
+            assert any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
+            assert any("v1/files/" in record.message for record in caplog.records)
+
+    def test_get_content_warns_on_misconfiguration(self, monkeypatch, caplog):
+        """Test that warning is logged in get_content when WXO URL is used without SECURE_FILE_DOWNLOAD"""
+        import logging
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "false")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.content = b"test content"
+            mock_get.return_value = response
+            
+            with caplog.at_level(logging.WARNING):
+                types.WXOFile.get_content(wxo_url)
+            
+            # Check that warning was logged
+            assert any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
+            assert any("401 Unauthorized" in record.message for record in caplog.records)
+
+    def test_no_warning_for_s3_url(self, monkeypatch, caplog):
+        """Test that no warning is logged for direct S3 URLs even when SECURE_FILE_DOWNLOAD is false"""
+        import logging
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "false")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        s3_url = "https://s3.amazonaws.com/bucket/file.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.headers = {'Content-Type': 'application/pdf'}
+            mock_get.return_value = response
+            
+            with caplog.at_level(logging.WARNING):
+                types.WXOFile._get_headers(s3_url)
+            
+            # No warning should be logged for S3 URLs
+            assert not any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
+
+    def test_no_warning_when_properly_configured(self, monkeypatch, caplog):
+        """Test that no warning is logged when SECURE_FILE_DOWNLOAD is true"""
+        import logging
+        monkeypatch.setenv("SECURE_FILE_DOWNLOAD", "true")
+        monkeypatch.setenv("WXO_PATH_PREFIX", "v1/files/")
+        monkeypatch.setenv("INTERNAL_REQUEST_IDENTIFIER", "test-token")
+        
+        # Reload module to pick up env vars
+        import importlib
+        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        importlib.reload(types)
+        
+        wxo_url = "https://app-server.com/v1/files/document.pdf"
+        
+        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+            response = MagicMock()
+            response.status_code = 200
+            response.headers = {'Content-Type': 'application/pdf'}
+            mock_get.return_value = response
+            
+            with caplog.at_level(logging.WARNING):
+                types.WXOFile._get_headers(wxo_url)
+            
+            # No warning should be logged when properly configured
+            assert not any("SECURE_FILE_DOWNLOAD is disabled" in record.message for record in caplog.records)
