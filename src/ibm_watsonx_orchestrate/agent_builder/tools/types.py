@@ -312,6 +312,11 @@ class ToolSpec(BaseModel):
 CONNECTION_TIMEOUT_SECONDS = 30
 READ_TIMEOUT_SECONDS = 30
 X_AMZ_META_HEADER_PREFIX = os.getenv("X_AMZ_META_HEADER_PREFIX", "x-amz-meta-")
+SECURE_FILE_DOWNLOAD = os.getenv("SECURE_FILE_DOWNLOAD", "false").lower() == "true"
+WXO_PATH_PREFIX = os.getenv("WXO_PATH_PREFIX", "v1/files/")
+INTERNAL_REQUEST_IDENTIFIER = os.getenv("INTERNAL_REQUEST_IDENTIFIER")
+INTERNAL_REQUEST_HEADER_KEY = os.getenv("INTERNAL_REQUEST_HEADER_KEY", "x-watson-service-key")
+INTERNAL_REQUEST_HEADER_VALUE = os.getenv("INTERNAL_REQUEST_HEADER_VALUE", "internal")
 
 
 class WXOFile(str):
@@ -342,7 +347,29 @@ class WXOFile(str):
     def get_content(cls, url: str) -> bytes:
         """Retuns the contents"""
         try:
-            res = requests.get(url)
+            # Build headers dictionary
+            headers = {}
+
+            # Check for misconfiguration: WXO URL without SECURE_FILE_DOWNLOAD enabled
+            if not SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                logger.warning(
+                    f"Detected WXO URL (contains '{WXO_PATH_PREFIX}') but SECURE_FILE_DOWNLOAD is disabled. "
+                    "This may result in 401 Unauthorized errors. "
+                    "Set SECURE_FILE_DOWNLOAD=true to enable authentication for WXO URLs."
+                )
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+            res = requests.get(url, headers=headers if headers else None)
             return res.content
         except Exception as e:
             raise e
@@ -350,10 +377,53 @@ class WXOFile(str):
     @classmethod
     def _get_headers(cls, url: str) -> dict:
         try:
-            res = requests.get(url, 
-                               headers={'Range': 'bytes=0-0'}, 
-                               timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
-            return res.headers
+            # Build headers dictionary
+            headers = {'Range': 'bytes=0-0'}
+
+            # Check for misconfiguration: WXO URL without SECURE_FILE_DOWNLOAD enabled
+            if not SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                logger.warning(
+                    f"Detected WXO URL (contains '{WXO_PATH_PREFIX}') but SECURE_FILE_DOWNLOAD is disabled. "
+                    "This may result in 401 Unauthorized errors. "
+                    "Set SECURE_FILE_DOWNLOAD=true to enable authentication for WXO URLs."
+                )
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+                # For WXO URLs, disable automatic redirects to capture metadata headers
+                # from the initial response before the 302 redirect to S3
+                res = requests.get(url,
+                                   headers=headers,
+                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+                                   allow_redirects=False)
+
+                # If we get a redirect response (302), follow it manually to get S3 headers
+                if res.status_code == 302 and 'Location' in res.headers:
+                    # Follow the redirect to get the actual S3 URL
+                    s3_url = res.headers['Location']
+                    s3_res = requests.get(s3_url,
+                                          headers={'Range': 'bytes=0-0'},
+                                          timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+
+                    # Return S3 headers
+                    return s3_res.headers
+
+                return res.headers
+            else:
+                # For direct S3 URLs, use default behavior with automatic redirects
+                res = requests.get(url,
+                                   headers=headers,
+                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+                return res.headers
         except Exception as e:
             raise e
 
