@@ -1,0 +1,66 @@
+# Advanced example with all advanced optional fields
+
+name: elevenlabs_tts_config
+llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for additional transcription content
+speech_to_text:
+  provider: watson_stt
+  watson_stt_config:
+    api_url: "example-stt-url"
+    api_key: "example-stt-key"
+    model: "example model"
+text_to_speech:
+  provider: elevenlabs_tts
+  elevenlabs_tts_config:
+    api_url: "https://api.elevenlabs.io/v1/text-to-speech"  # Optional: ElevenLabs API URL
+    api_key: "your-elevenlabs-api-key"
+    model_id: "example model" # e.g. eleven_turbo_v2_5
+    voice_id: "example voice" # e.g. CwhRBWXzGAHq8TQ4Fs17
+    language_code: "en" # Optional: Language code for the voice
+    apply_text_normalization: "auto" # Optional: Apply text normalization
+    optimize_streaming_latency: 3  # Optional: Optimize streaming latency (0-4)
+    apply_language_text_normalization: false  # Optional: Apply language-specific text normalization. Currently only supported for Japanese.
+    pronunciation_dictionary_locators: null # Optional: List of pronunciation dictionary locators
+    seed: 42  # Optional: Seed for deterministic audio generation
+    voice_settings: # All optional voice settings
+      speed: 1.0  # Speech speed. Defaults to 1.0
+      stability: 0.5  # Stability: how stable the voice is and the randomness between each generation. Defaults to 0.5
+      style: 0.0  # Style exaggeration: the higher the value, the more computational resources are used. Defaults to 0.0
+      similarity_boost: 0.75  # Similarity boost: how closely the AI should adhere to the original voice. Defaults to 0.75
+      use_speaker_boost: true  # Whether to use speaker boost. Defaults to true
+language: "en-us"  # Optional: default language (default: en-us)
+
+
+# Optional top-level voice configuration advanced settings
+# Voice Activity Detection (VAD)
+vad:
+  enabled: true  # Enable Voice Activity Detection, default is true
+  provider: "silero_vad"
+  silero_vad_config:
+    confidence: 0.7  # The confidence threshold for speech detection (between 0.0 and 1.0), default is 0.7
+    start_seconds: 0.2  # The time in seconds speech must be detected before transitioning to SPEAKING state, default is 0.2
+    stop_seconds: 0.8  # The time in seconds silence must be detected before transitioning to QUIET state, default is 0.8
+    min_volume: 0.6  # The minimum audio volume threshold for speech detection (between 0.0 and 1.0), default is 0.6
+
+# Dual-Tone Multi-Frequency (DTMF)
+dtmf_input:
+  inter_digit_timeout_ms: 2500  # The amount of time (ms) to wait for a new DTMF digit, default is 2500 ms
+  termination_key: "#"  # The DTMF termination key that signals the end of DTMF input
+  maximum_count: 10  # Maximum number of digits a user can enter
+  ignore_speech: true  # Disable speech recognition during collection of DTMF digits, default is true
+
+# User Idle Handler
+user_idle_handler:
+  enabled: true  # Enable idle handling. If false, we disconnect on timeout without playing a prompt
+  idle_timeout: 7  # Idle timeout in seconds before triggering the handler (default 7s)
+  idle_max_reprompts: 2  # How many times to replay before ending the session (0 = end immediately)
+  idle_timeout_message: "Are you still there? Please let me know if you need any help."  # Message to play on idle; language-specific variants may override this
+  idle_hangup_message: ""  # Final message to play before disconnecting after idle reprompts are exhausted
+
+# Agent Idle Handler (Audio Cues & Hold Music)
+agent_idle_handler:
+  typing_enabled: true  # Enable typing indicator
+  typing_duration_seconds: 5  # Duration of typing indicator in seconds (0-30)
+  audio_clip_id: "guitar_1"  # Audio clip to play during hold
+  hold_audio_seconds: 15  # Duration of hold audio in seconds (0-120)
+  pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"  # The text to play for the user before playing on-hold audio
+  hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."  # The text to play to the user periodically while on hold
