@@ -10,13 +10,14 @@ speech_to_text:
     model: "nova-3"  # Required, e.g. nova-2, nova-3
     keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition. Only supported for nova-3 models.
     mip_opt_out: false  # Optional: opt out of model improvement program
+    # v1/listen endpoint parameters
     channels: 1  # Optional: Number of audio channels
     diarize: true  # Optional: Enable speaker diarization
     dictation: false  # Optional: Enable dictation mode
     endpointing: 10  # Optional: Endpointing silence duration in seconds
     extra: null  # Optional: Extra parameters to pass to Deepgram (e.g. ["custom_param1:value1", "custom_param2:value2"])
     interim_results: true  # Optional: Enable interim results
-    keywords: null  # Optional: Keywords to detect for boost or suppression; only supported for nova-2 models. (e.g. ["snuffleupagus:5", "monster", "cookie:-2"])
+    keywords: ["snuffleupagus:5", "monster", "cookie:-2"]  # Optional: Keywords to detect for boost or suppression (only supported for nova-2 models)
     language: "en-US"  # Optional: BCP-47 language tag
     multichannel: false  # Optional: Transcribe each audio channel independently
     numerals: true  # Optional: convert numbers to numerals
@@ -30,12 +31,10 @@ speech_to_text:
     utterance_end_ms: 1000  # Optional: How long Deepgram will wait to send UtteranceEnd message
     vad_events: true  # Optional: Enable Deepgram's voice activity detection events
     version: "latest"  # Optional: API version
-    
     # v2/listen endpoint parameters
     eager_eot_threshold: null  # Optional: End-of-turn confidence for eager EOT (0.3-0.9)
     eot_threshold: null  # Optional: End-of-turn confidence to finish turn (0.5-0.9)
     eot_timeout_ms: null  # Optional: Time (ms) after speech to finish turn regardless of EOT confidence
-
 text_to_speech:
   provider: deepgram_tts
   deepgram_tts_config:
