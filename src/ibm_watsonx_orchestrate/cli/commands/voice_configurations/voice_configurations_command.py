@@ -27,22 +27,21 @@ def import_voice_config(
 
 @voice_configurations_app.command(name="remove", help="Remove a voice configuration from the active environment")
 def remove_voice_config(
-  config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Voice config ID to remove"),
-  config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Voice config name to remove"),
+  voice_config_name: Annotated[
+    str,
+    typer.Option(
+      "--name",
+      "-n",
+      help="name of the voice configuration to remove"
+    )
+  ] = None,
 ):
-  """Remove a voice configuration by ID or name. If both are provided, ID takes precedence."""
   voice_config_controller = VoiceConfigurationsController()
-
-  # Validate that at least one option is provided
-  if not config_id and not config_name:
-    logger.error("Please specify either --id or --name")
-    sys.exit(1)
-
-  # Remove by ID or name
-  if config_id:
-    voice_config_controller.remove_voice_config_by_id(config_id)
+  if voice_config_name:
+    voice_config_controller.remove_voice_config_by_name(voice_config_name)
   else:
-    voice_config_controller.remove_voice_config_by_name(config_name)
+    raise TypeError("You must specify the name of a voice configuration")
+    
     
 
 @voice_configurations_app.command(name="list", help="List all voice configurations in the active environment")
