@@ -1,13 +1,80 @@
-# Simple example with minimal fields for proper functionality
-
 name: deepgram_voice_config
+llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for additional transcription content
 speech_to_text:
   provider: deepgram_stt
   deepgram_stt_config:
-    api_url: "Deepram-api-url" # "wss://api.deepgram.com/v1/listen"
-    api_key: "your-deepgram-api-key"
-    model: "example model" # "nova-2"
+    api_url: "wss://api.deepgram.com/v1/listen"  # Required
+    api_key: "your-deepgram-api-key"  # Required
+    model: "example model"  # Required, e.g. nova-2
+    keyterm: ["help", "search", "Mr. Smith"]  # Optional: list of keywords to boost recognition
+    mip_opt_out: false  # Optional: opt out of model improvement program
+    # v1/listen endpoint parameters
+    channels: null  # Optional: Number of audio channels
+    diarize: null  # Optional: Enable speaker diarization
+    dictation: null  # Optional: Enable dictation mode
+    endpointing: null  # Optional: Endpointing silence duration in seconds
+    extra: null  # Optional: Extra parameters to pass to Deepgram
+    interim_results: null  # Optional: Enable interim results
+    keywords: null  # Optional: Keywords to detect
+    language: "en-US"  # Optional: BCP-47 language tag
+    multichannel: null  # Optional: Transcribe each audio channel independently
+    numerals: true  # Optional: convert numbers to numerals
+    profanity_filter: null  # Optional: Filter profanity
+    punctuate: null  # Optional: Add punctuation and capitalization
+    redact: null  # Optional: Redact sensitive information
+    replace: null  # Optional: Replace specified terms
+    search: null  # Optional: Search for specific terms
+    smart_format: null  # Optional: Apply smart formatting to the transcript
+    tag: null  # Optional: Tag for the request
+    utterance_end_ms: null  # Optional: How long Deepgram will wait to send UtteranceEnd message
+    vad_events: null  # Optional: Enable Deepgram's voice activity detection events
+    version: null  # Optional: API version
+    # v2/listen endpoint parameters
+    eager_eot_threshold: null  # Optional: End-of-turn confidence for eager EOT (0.3-0.9)
+    eot_threshold: null  # Optional: End-of-turn confidence to finish turn (0.5-0.9)
+    eot_timeout_ms: null  # Optional: Time after speech to finish turn regardless of EOT confidence
 text_to_speech:
   provider: deepgram_tts
   deepgram_tts_config:
-    api_key: "your-deepgram-api-key"
+    api_key: "your-deepgram-api-key"  # Required
+    api_url: null  # Optional
+    language: "en"  # Optional
+    model: "example model"  # Optional, e.g. aura-2-thalia-en
+    mip_opt_out: false  # Optional: opt out of model improvement program
+language: "en-us"  # Optional: default language (default: en-us)
+
+
+# Optional Advanced Settings
+# Voice Activity Detection (VAD)
+vad:
+  enabled: true
+  provider: "silero_vad"
+  silero_vad_config:
+    confidence: 0.7
+    start_seconds: 0.2
+    stop_seconds: 0.8
+    min_volume: 0.6
+
+# Dual-Tone Multi-Frequency (DTMF)
+dtmf_input:
+  inter_digit_timeout_ms: 2500
+  termination_key: "#"
+  maximum_count: 10
+  ignore_speech: true
+
+# User Idle Handler
+user_idle_handler:
+  enabled: true
+  idle_timeout: 7
+  idle_max_reprompts: 2
+  idle_timeout_message: "Are you still there? Please let me know if you need any help."
+  idle_hangup_message: ""  # Optional: message to play before hanging up
+
+# Agent Idle Handler (Audio Cues & Hold Music)
+agent_idle_handler:
+  typing_enabled: true
+  typing_duration_seconds: 5
+  audio_clip_id: "guitar_1"
+  hold_audio_seconds: 15
+  pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"
+  hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."
