@@ -27,8 +27,8 @@ def import_voice_config(
 
 @voice_configurations_app.command(name="remove", help="Remove a voice configuration from the active environment")
 def remove_voice_config(
-  config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Voice config ID to remove (Either ID or name is required)"),
-  config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Voice config name to remove (Either ID or name is required)"),
+  config_id: Optional[str] = typer.Option(None, "--id", "-i", help="Voice config ID to remove"),
+  config_name: Optional[str] = typer.Option(None, "--name", "-n", help="Voice config name to remove"),
 ):
   """Remove a voice configuration by ID or name. If both are provided, ID takes precedence."""
   voice_config_controller = VoiceConfigurationsController()
