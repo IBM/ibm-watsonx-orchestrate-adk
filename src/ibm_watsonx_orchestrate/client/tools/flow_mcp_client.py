@@ -67,15 +67,17 @@ class FlowMCPClient(BaseWXOClient):
             instances with proper authentication configuration.
             
         Example with elicitation callback:
+            >>> from ibm_watsonx_orchestrate.client.utils import instantiate_client
+            >>>
             >>> async def handle_elicitation(context, params):
             ...     # Handle the elicitation request
             ...     return types.ElicitResult(action="accept", content={...})
             >>>
-            >>> async with FlowMCPClient(
-            ...     base_url="https://api.example.com",
-            ...     api_key="your-key",
-            ...     elicitation_callback=handle_elicitation
-            ... ) as client:
+            >>> # Create client with authentication from active environment
+            >>> client = instantiate_client(FlowMCPClient)
+            >>> client.set_elicitation_callback(handle_elicitation)
+            >>>
+            >>> async with client:
             ...     result = await client.run_flow("my_flow", {"input": "data"})
         """
         super().__init__(base_url=base_url, api_key=api_key, is_local=is_local, verify=verify, authenticator=authenticator, *args, **kwargs)  # type: ignore[arg-type]
@@ -125,12 +127,6 @@ class FlowMCPClient(BaseWXOClient):
                 The callback receives (context, params: types.ElicitRequestParams)
                 and should return types.ElicitResult or types.ErrorData.
                 Pass None to disable elicitation handling.
-        
-        Example:
-            >>> client = instantiate_client(FlowMCPClient)
-            >>> client.set_elicitation_callback(my_elicitation_handler)
-            >>> async with client:
-            ...     result = await client.run_flow("my_flow", {"input": "data"})
         """
         self._elicitation_callback = callback
         if self._session is not None:
@@ -270,18 +266,6 @@ class FlowMCPClient(BaseWXOClient):
             - When state is "input_required", flow is paused waiting for user intervention
             - When state is "completed" and output is present, flow succeeded with results
             - When state is "failed", represents actual execution errors
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     result = await client.run_flow(
-            ...         "purchase_approval",
-            ...         {"item": "Laptop", "amount": 1500},
-            ...         context={"thread_id": "thread-123", "environment_id": "draft"}
-            ...     )
-            ...     if result["status"]["state"] == "completed":
-            ...         print(f"Flow completed: {result.get('output')}")
-            ...     elif result["status"]["state"] == "input_required":
-            ...         print(f"Flow waiting for input: {result['status']['instance_id']}")
         """
         # Merge context into arguments if provided
         if context:
@@ -318,16 +302,6 @@ class FlowMCPClient(BaseWXOClient):
             - Flow continues executing asynchronously
             - User interventions handled via MCP elicitation
             - Client should poll using query_flow or list_flows to check status
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     result = await client.arun_flow(
-            ...         "purchase_approval",
-            ...         {"item": "Laptop", "amount": 1500}
-            ...     )
-            ...     instance_id = result["instance_id"]
-            ...     # Later, query the flow status
-            ...     flows = await client.list_flows(instance_id=instance_id)
         """
         # Merge context into arguments if provided
         if context:
@@ -365,18 +339,6 @@ class FlowMCPClient(BaseWXOClient):
             - Validates that instance belongs to the expected flow model
             - Returns current state and output (if completed)
             - Only returns data for flows initiated by the requesting user
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     # Start a flow asynchronously
-            ...     result = await client.arun_flow("purchase_approval", {"item": "Laptop", "amount": 1500})
-            ...     instance_id = result["instance_id"]
-            ...     
-            ...     # Query the flow status
-            ...     status = await client.query_flow("purchase_approval", instance_id)
-            ...     print(f"Flow state: {status['status']['state']}")
-            ...     if status['status']['state'] == 'completed' and 'output' in status:
-            ...         print(f"Flow output: {status['output']}")
         """
         if not flow_name:
             raise ValueError("flow_name is required")
@@ -407,16 +369,6 @@ class FlowMCPClient(BaseWXOClient):
         
         Raises:
             May raise exceptions if the flow is not found or user lacks authorization
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     # Start a flow
-            ...     result = await client.arun_flow("purchase_approval", {"item": "Laptop", "amount": 1500})
-            ...     instance_id = result["instance_id"]
-            ...     
-            ...     # Cancel the flow
-            ...     cancel_result = await client.cancel_flow(instance_id)
-            ...     print(cancel_result)
         """
         if not instance_id:
             raise ValueError("instance_id is required")
@@ -467,14 +419,6 @@ class FlowMCPClient(BaseWXOClient):
             2. Server Restart: Flow server restarted while flow was waiting for user input
             3. Session Recovery: Recover from network interruptions without losing flow state
             4. Retry on Failure: If client disconnects during replay, call again after reconnecting
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     # After reconnection
-            ...     await client.subscribe_flow(instance_id)
-            ...     result = await client.replay_flow_pending_elicitation(instance_id)
-            ...     print(f"Replaying {result['pending_count']} elicitation(s)")
-            ...     # Client will receive elicitations asynchronously
         
         Reconnection Workflow:
             1. Client disconnects (loses elicitation)
@@ -535,25 +479,6 @@ class FlowMCPClient(BaseWXOClient):
             - Form cancellations are communicated to the flow engine via form_operation: 'cancel'
             - Non-form cancellations leave the elicitation open for retry
             - The tool validates that the elicitation is still pending before submission
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     # After reconnection and replay
-            ...     response = {
-            ...         "action": "accept",
-            ...         "content": {
-            ...             "name": "user_input",
-            ...             "text": '{"movie":"Inception","time":"7:00 PM"}',
-            ...             "form_data": {"movie": "Inception", "time": "7:00 PM"},
-            ...             "response_type": "form_operation",
-            ...             "form_operation": "submit"
-            ...         }
-            ...     }
-            ...     result = await client.submit_flow_elicitation(
-            ...         instance_id="flow-abc123",
-            ...         elicitation_id="task-789",
-            ...         response=response
-            ...     )
         
         Workflow:
             1. Client disconnects during an active elicitation
@@ -652,15 +577,6 @@ class FlowMCPClient(BaseWXOClient):
             - tasks: List of tasks executed in this flow run with detailed state
             - created_at: Creation timestamp (ISO 8601)
             - updated_at: Last update timestamp (ISO 8601)
-        
-        Example:
-            >>> async with FlowMCPClient(base_url, api_key) as client:
-            ...     flows = await client.list_flows(
-            ...         name="purchase_approval_flow",
-            ...         state="working",
-            ...         include_details=True,
-            ...         max_instances=10
-            ...     )
         """
         # Build arguments dictionary, only including non-None values
         arguments: Dict[str, Any] = {}

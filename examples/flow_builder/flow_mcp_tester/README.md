@@ -14,7 +14,7 @@ The Flow MCP Interactive Tester (`flow_mcp_tester.py`) provides a user-friendly 
 
 1. **Install MCP SDK**:
    ```bash
-   pip install ibm-watsonx-orchestrate[mcp]
+   pip install mcp
    ```
 
 2. **Activate Environment**:
@@ -132,13 +132,7 @@ The tester **does support elicitation** (user input requests from flows), but th
 
 ### Environment File
 
-Create a `.env` file in this directory with your configuration:
-
-```bash
-# Example .env file
-WXO_BASE_URL=https://your-server.com
-WXO_API_KEY=your-api-key
-```
+Create a `.env` file in this directory with your configuration.
 
 ### VS Code Debugging
 
@@ -157,7 +151,7 @@ A debug configuration is available in `.vscode/launch.json`:
 
 ### "MCP SDK not installed"
 ```bash
-pip install ibm-watsonx-orchestrate[mcp]
+pip install mcp
 ```
 
 ### "Connection Error"
