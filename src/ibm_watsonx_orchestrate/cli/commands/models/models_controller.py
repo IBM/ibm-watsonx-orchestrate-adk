@@ -15,11 +15,13 @@ import requests
 import rich
 import rich.highlighter
 
+from ibm_watsonx_orchestrate.agent_builder.model_selection.types import ModelSelectionSettings, ModelSelectionPatch
 from ibm_watsonx_orchestrate.cli.config import Config
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
+from ibm_watsonx_orchestrate.client.model_selection.model_selection_client import ModelSelectionClient
 from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
@@ -28,11 +30,21 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
 
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
+from ibm_watsonx_orchestrate_clients.models.models_client import CUSTOM_MODEL_TAG, DEFAULT_MODEL_TAG, \
+    LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG
 
 logger = logging.getLogger(__name__)
 
 WATSONX_URL = os.getenv("WATSONX_URL")
+
+
+MODEL_MARKER_ANNOTATION = """[green]✔[/] [italic dim]indicates the default model[/italic dim]\n"""\
+                """[yellow]★[/] [italic dim]indicates a supported and preferred model[/italic dim]\n"""\
+                """[bold cyan]◆[/] [italic dim]indicates a model from a custom provider[/italic dim]\n"""\
+                """[red]✖[/] [italic dim]indicates a model disallowed by tenant admin[/italic dim]"""\
+
+
 
 class ModelHighlighter(rich.highlighter.RegexHighlighter):
     base_style = "model."
@@ -149,10 +161,25 @@ def extract_model_names_from_policy_inner(policy_inner: ModelPolicyInner) -> Lis
 def get_model_names_from_policy(policy: ModelPolicy) -> List[str]:
     return extract_model_names_from_policy_inner(policy_inner=policy.policy)
 
+
+def parse_model_selection_file(file: str) -> ModelSelectionSettings:
+    if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
+        with safe_open(file, 'r') as f:
+            if file.endswith(".json"):
+                content = json.load(f)
+            else:
+                content = yaml.load(f, Loader=yaml.SafeLoader)
+        validate_spec_content(content)
+        return ModelSelectionSettings(**content)
+    else:
+        raise ValueError("file must end in .json, .yaml or .yml")
+
+
 class ModelsController:
     def __init__(self):
         self.models_client = None
         self.model_policies_client = None
+        self.model_selection_client = None
 
     def get_models_client(self) -> ModelsClient:
         if not self.models_client:
@@ -163,138 +190,75 @@ class ModelsController:
         if not self.model_policies_client:
             self.model_policies_client = instantiate_client(ModelPoliciesClient)
         return self.model_policies_client
+
+    def get_model_selection_client(self) -> ModelSelectionClient:
+        if not self.model_selection_client:
+            self.model_selection_client = instantiate_client(ModelSelectionClient)
+        return self.model_selection_client
+
+    def format_models_client_list_all_response(self, original_response):
+        return [ModelListEntry(
+            name=conn.get("id"),
+            description=conn.get("description"),
+            is_custom=CUSTOM_MODEL_TAG in conn.get("tags", []),
+            is_default=DEFAULT_MODEL_TAG in conn.get("tags", []),
+            is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
+            recommended=RECOMMENDED_LLM_TAG in conn.get("tags", []),
+        ) for conn in original_response]
+
+    def formatted_list_all(self) -> List[ModelListEntry]:
+        models_client: ModelsClient = self.get_models_client()
+        res = models_client.list_all()
+        return self.format_models_client_list_all_response(res)
     
     def does_model_exist(self, model_name: str) -> bool:
         models = self.list_models(format=ListFormats.JSON)
         model_names = {model.name for model in models}
         return model_name in model_names
 
-    def list_models(self, print_raw: bool = False, format: Optional[ListFormats] = None) -> List[ModelListEntry] | str |None:
-        models_client: ModelsClient = self.get_models_client()
+    def list_models(self, print_raw: bool = False, format: Optional[ListFormats] = None, show_all_models=False) -> List[ModelListEntry] | str |None:
+        # Model policy has no UI support as of now(not in the dropdown), therefore it still needs to be a separate API call
         model_policies_client: ModelPoliciesClient = self.get_model_policies_client()
-        global WATSONX_URL
-        default_env_path = EnvService.get_default_env_file()
-        merged_env_dict = EnvService.merge_env(default_env_path, None)
-        env_service = EnvService(Config())
-        user_env = env_service.get_user_env(None)
-        merged_env_dict.update(user_env)
-        is_local = is_local_dev()
-        is_saas = is_saas_env()
-        LLM_HAS_WATSONX_APIKEY = merged_env_dict.get('LLM_HAS_WATSONX_APIKEY', False)
-        LLM_HAS_WO_INSTANCE = merged_env_dict.get('LLM_HAS_WO_INSTANCE', False)
-        LLM_HAS_GROQ_API_KEY = merged_env_dict.get('LLM_HAS_GROQ_API_KEY', False)
-        LLM_HAS_AWS_CREDS = merged_env_dict.get('LLM_HAS_AWS_CREDS', False)
 
-        if 'WATSONX_URL' in merged_env_dict and merged_env_dict.get('WATSONX_URL', None):
-            WATSONX_URL = merged_env_dict['WATSONX_URL']
-
-        watsonx_url = merged_env_dict.get("WATSONX_URL", None)
-        if LLM_HAS_WATSONX_APIKEY and not watsonx_url:
-            logger.error("Error: WATSONX_URL is required in the environment.")
-            sys.exit(1)
-
-    
-        logger.info("Retrieving virtual-model models list...")
-        virtual_models = models_client.list()
+        logger.info("Retrieving llm models list...")
+        llm_models = self.formatted_list_all()
 
         logger.info("Retrieving virtual-policies models list...")
         virtual_model_policies = model_policies_client.list()
-
-        if not is_local or (LLM_HAS_WATSONX_APIKEY or LLM_HAS_WO_INSTANCE) and watsonx_url is not None:
-            logger.info("Retrieving watsonx.ai models list...")
-            found_models = _get_wxai_foundational_models()
-        else:
-            found_models = {}
-
-
-        preferred_str = merged_env_dict.get('PREFERRED_MODELS', '')
-        incompatible_str = merged_env_dict.get('INCOMPATIBLE_MODELS', '') 
-
-        preferred_list = _string_to_list(preferred_str)
-        incompatible_list = _string_to_list(incompatible_str)
-
-        wxai_models = found_models.get("resources", [])
-        for model in wxai_models:
-            if "model_id" in model:
-                model["model_id"] = "watsonx/" + model["model_id"]
-        # Remove incompatible models
-        filtered_models = []
-        groq_models = [
-            {
-                "model_id": "groq/openai/gpt-oss-120b",
-                "short_description": "openai/gpt-oss-120b is an OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases."
-             }
-        ] if is_saas or (is_local and (LLM_HAS_GROQ_API_KEY or LLM_HAS_WO_INSTANCE)) else []
-        bedrock_models = [
-            {
-                "model_id": "bedrock/openai.gpt-oss-120b-1:0",
-                "short_description": "openai/gpt-oss-120b is an OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases."
-             }
-        ] if is_saas or (is_local and (LLM_HAS_AWS_CREDS or LLM_HAS_WO_INSTANCE)) else []
-
-        for model in wxai_models + groq_models + bedrock_models:
-            model_id = model.get("model_id", "")
-            short_desc = model.get("short_description", "")
-            if any(incomp in model_id.lower() for incomp in incompatible_list):
-                continue
-            if any(incomp in short_desc.lower() for incomp in incompatible_list):
-                continue
-            filtered_models.append(model)
-
-        # Sort to put the preferred first
-        def sort_key(model):
-            model_id = model.get("model_id", "").lower()
-            is_preferred = any(pref in model_id for pref in preferred_list)
-            return (0 if is_preferred else 1, model_id)
-        
-        sorted_models = sorted(filtered_models, key=sort_key)
-
+        if virtual_model_policies:
+            for policy in virtual_model_policies:
+                llm_models.append(ModelListEntry(
+                        name=policy.name,
+                        description=policy.description,
+                        is_custom=True
+                    ))
+        if not show_all_models:
+            logger.warning("watsonx.ai models that are not recommended will be hidden from this command, specify `-a` to see all available models")
+            llm_models = [m for m in llm_models if m.should_display()]
+        llm_models = sorted(llm_models, key = lambda x: (not x.is_custom, not x.is_default, not x.recommended, x.is_denied))
         if print_raw:
             theme = rich.theme.Theme({"model.name": "bold cyan"})
             console = rich.console.Console(highlighter=ModelHighlighter(), theme=theme)
             console.print("[bold]Available Models:[/bold]")
 
-            for model in (virtual_models + virtual_model_policies):
-                console.print(f"- ✨️ {model.name}:", model.description or 'No description provided.')
-
-            for model in sorted_models:
-                model_id = model.get("model_id", "N/A")
-                short_desc = model.get("short_description", "No description provided.")
-                full_model_name = f"{model_id}: {short_desc}"
-                marker = "★ " if any(pref in model_id.lower() for pref in preferred_list) else ""
-                console.print(f"- [yellow]{marker}[/yellow]{full_model_name}")
-
-            console.print("[yellow]★[/yellow] [italic dim]indicates a supported and preferred model[/italic dim]\n[blue dim]✨️[/blue dim] [italic dim]indicates a model from a custom provider[/italic dim]" )
+            for model in llm_models:
+                name, description = model.get_row_details()
+                console.print(f"- {name}:", description)
+            console.print(MODEL_MARKER_ANNOTATION)
         else:
             model_details = []
             table = rich.table.Table(
                 show_header=True,
                 title="[bold]Available Models[/bold]",
-                caption="[yellow]★ [/yellow] indicates a supported and preferred model from watsonx\n[blue]✨️[/blue] indicates a model from a custom provider",
+                caption=MODEL_MARKER_ANNOTATION,
                 show_lines=True)
             columns = ["Model", "Description"]
             for col in columns:
                 table.add_column(col)
 
-            for model in (virtual_models + virtual_model_policies):
-                entry = ModelListEntry(
-                    name=model.name,
-                    description=model.description,
-                    is_custom=True
-                )
-                model_details.append(entry)
-                table.add_row(*entry.get_row_details())
-
-            for model in sorted_models:
-                name = model.get("model_id", "N/A")
-                entry = ModelListEntry(
-                    name=name,
-                    description=model.get("short_description"),
-                    is_custom=False,
-                    recommended=any(pref in name.lower() for pref in preferred_list)
-                )
-                model_details.append(entry)
-                table.add_row(*entry.get_row_details())
+            for model in llm_models:
+                model_details.append(model)
+                table.add_row(*model.get_row_details())
 
             match format:
                 case ListFormats.JSON:
@@ -628,3 +592,74 @@ class ModelsController:
 
         model_policies_client.delete(model_policy_id=policy.id)
         logger.info(f"Successfully removed the policy '{name}'")
+
+    def list_model_selection(self):
+        model_selection_client = self.get_model_selection_client()
+        model_selection_settings = model_selection_client.get().model_selection_settings.model_dump()
+        logger.info(json.dumps(model_selection_settings, indent=4))
+
+    def export_model_selection(self, output_path: str):
+        output_file = Path(output_path)
+        output_file_extension = output_file.suffix
+
+        if output_file_extension != ".yaml":
+            logger.error(f"Output file must end with the extension '.yaml'. Provided file '{output_path}' ends with '{output_file_extension}'")
+            sys.exit(1)
+
+        model_selection_client = self.get_model_selection_client()
+        model_selection_settings = model_selection_client.get().model_selection_settings.model_dump()
+        model_selection_settings["spec_version"] = SpecVersion.V1.value
+        model_selection_settings["kind"] = "model_selection"
+        with open(output_path, "w") as f:
+            yaml.dump(model_selection_settings, f, sort_keys=False, default_flow_style=False, allow_unicode=True)
+
+    def import_model_selection(self, file):
+        settings = parse_model_selection_file(file)
+        model_selection_client = self.get_model_selection_client()
+        existing_models = [model.name for model in self.formatted_list_all()]
+        if settings.default_llm and settings.default_llm not in existing_models:
+            logger.error(
+                f"You are trying to set a model name {settings.default_llm} that does not exist as default"
+                )
+            sys.exit(1)
+        if settings.llm_denylist:
+            non_existing_llms = [m for m in settings.llm_denylist if m not in existing_models]
+            if non_existing_llms:
+                logger.warning(
+                    f"You are trying to configure models {','.join(non_existing_llms)} that do not exist as denied"
+                )
+        warnings = model_selection_client.replace(settings)
+
+        for msg in warnings:
+            logger.warning(msg)
+
+    def patch_model_selection_config(self,
+                                     default_llm=None,
+                                     add_to_llm_denylist: list[str] | None = None,
+                                     remove_from_llm_denylist: list[str] | None = None,
+                                     ):
+        existing_models = [m.name for m in self.formatted_list_all()]
+        if default_llm and default_llm not in existing_models:
+            logger.error(
+                f"You are trying to set a model name {default_llm} that does not exist as default"
+            )
+            sys.exit(1)
+        if add_to_llm_denylist:
+            non_existing_llms = [m for m in add_to_llm_denylist if m not in existing_models]
+            if non_existing_llms:
+                logger.warning(
+                    f"You are trying to configure models {','.join(non_existing_llms)} that do not exist as denied"
+                )
+        model_selection_client = self.get_model_selection_client()
+        warnings = model_selection_client.update(
+            ModelSelectionPatch(
+                default_llm=default_llm,
+                add_to_llm_denylist=add_to_llm_denylist,
+                remove_from_llm_denylist=remove_from_llm_denylist,
+            )
+        )
+        for msg in warnings:
+            logger.warning(msg)
+
+    def reset_model_selection_config(self):
+        self.get_model_selection_client().delete()

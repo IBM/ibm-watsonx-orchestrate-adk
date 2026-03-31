@@ -2,7 +2,7 @@ import pytest
 import json
 from pydantic_core import ValidationError
 from ibm_watsonx_orchestrate.agent_builder.phone import GenesysAudioConnectorChannel
-from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.phone.types import PhoneChannelKind
 
 
