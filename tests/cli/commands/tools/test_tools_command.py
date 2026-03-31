@@ -14,6 +14,7 @@ def test_tool_import_call_no_params():
             requirements_file=None,
             package_root=None,
             name=None,
+            save_flow_json=None,
         )
 
 
@@ -27,6 +28,7 @@ def test_tool_import_call_python():
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
             package_root=None,
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_openapi():
@@ -39,6 +41,7 @@ def test_tool_import_call_openapi():
             requirements_file=None,
             package_root=None,
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_flow():
@@ -51,6 +54,7 @@ def test_tool_import_call_flow():
             requirements_file=None,
             package_root=None,
             name=None,
+            save_flow_json=None,
         )
 
 # def test_tool_import_call_skill():
@@ -81,6 +85,7 @@ def test_tool_import_call_langflow_with_file():
             requirements_file="tests/cli/resources/langflow_samples/requirements.txt",
             package_root=None,
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_langflow_with_name():
@@ -95,6 +100,7 @@ def test_tool_import_call_langflow_with_name():
             requirements_file=None,
             package_root=None,
             name="test_flow",
+            save_flow_json=None,
         )
 
 def test_tool_remove():
@@ -142,6 +148,7 @@ def test_tool_import_call_python_with_package_root():
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
             package_root="tests/cli/resources/python_samples",
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_python_with_package_root_as_empty_string():
@@ -157,6 +164,7 @@ def test_tool_import_call_python_with_package_root_as_empty_string():
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
             package_root="",
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_python_with_package_root_as_whitespace():
@@ -172,6 +180,7 @@ def test_tool_import_call_python_with_package_root_as_whitespace():
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
             package_root="    ",
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_import_call_python_with_package_root_includes_whitespace_at_start_and_end():
@@ -187,6 +196,7 @@ def test_tool_import_call_python_with_package_root_includes_whitespace_at_start_
             requirements_file="tests/cli/resources/python_samples/requirements.txt",
             package_root="  tests/cli/resources/python_samples  ",
             name=None,
+            save_flow_json=None,
         )
 
 def test_tool_export_call():
