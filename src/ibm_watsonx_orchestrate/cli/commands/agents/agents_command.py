@@ -1,7 +1,8 @@
 import typer
 from typing_extensions import Annotated, List, Optional
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
-from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, AgentKind, AgentStyle, ExternalAgentAuthScheme, AgentProvider
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentKind, AgentStyle, \
+    ExternalAgentAuthScheme, AgentProvider, get_default_llm
 from ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_command import ai_builder_app
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 import json
@@ -180,7 +181,7 @@ def agent_create(
             "--llm",
             help="The LLM used by the agent",
         ),
-    ] = DEFAULT_LLM,
+    ] = None,
     style: Annotated[
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
@@ -244,7 +245,8 @@ def agent_create(
         ),
     ] = None,
 ):
-    
+    if llm is None:
+        llm = get_default_llm()
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
     auth_config_dict = json.loads(auth_config) if auth_config else {}

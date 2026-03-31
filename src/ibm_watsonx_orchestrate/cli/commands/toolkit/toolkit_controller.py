@@ -12,7 +12,7 @@ from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIExceptio
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
 from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
-from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_zip
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest

@@ -10,7 +10,7 @@ import sys
 import typer
 
 from typing import List, Optional, Any
-from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.agent_builder.connections.types import (

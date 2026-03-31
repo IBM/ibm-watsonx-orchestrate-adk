@@ -4,7 +4,7 @@ from ibm_watsonx_orchestrate.agent_builder.toolkits.types import RemoteMcpModel,
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
-from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from typing import List
 from typer import BadParameter
 from pathlib import Path

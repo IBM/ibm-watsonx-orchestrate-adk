@@ -13,7 +13,7 @@ from ibm_watsonx_orchestrate.agent_builder.channels import (
     FacebookChannel,
     TeamsChannel
 )
-from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.channels.types import ChannelKind
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
