@@ -9,7 +9,6 @@ from ibm_watsonx_orchestrate.agent_builder.agents.types import (
     ExternalAgentAuthScheme,
     AgentProvider,
     AgentStyle,
-    DEFAULT_LLM
 )
 
 from typing_extensions import Optional, List
@@ -91,8 +90,7 @@ class CreateAgentOptions(BaseModel):
         description="The name of a connection that contains authentication secrets. Used for external and assistant agents only"
     )
     llm: str = Field(
-        default=DEFAULT_LLM,
-        description="The LLM model to use for this agent. If not specified, the default will be used. The value provided must be a model in the watsonx Orchestrate platform"
+        description="The LLM model to use for this agent. The value provided must be a model in the watsonx Orchestrate platform"
     )
     style: AgentStyle = Field(
         default=AgentStyle.DEFAULT,

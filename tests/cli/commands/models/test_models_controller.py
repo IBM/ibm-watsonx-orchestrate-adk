@@ -1,4 +1,5 @@
 import json
+import unittest
 from pathlib import Path
 import logging
 import pytest
@@ -12,19 +13,25 @@ from ibm_watsonx_orchestrate.cli.commands.models import models_controller
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController, create_model_from_spec, create_policy_from_spec, import_python_model, import_python_policy, parse_model_file, parse_policy_file, extract_model_names_from_policy_inner, get_model_names_from_policy
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
-from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ModelType, ProviderConfig
+from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ModelType, ProviderConfig, ModelListEntry
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicyInner, ModelPolicyStrategyMode, ModelPolicy, ModelPolicyStrategy, ModelPolicyRetry, ModelPolicyTarget
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
+from ibm_watsonx_orchestrate_core.types.model_selection import GetModelSelectionResponse, ModelSelectionSettings
 
 
 class MockModelsClient():
-    def __init__(self, list_response=[], get_draft_by_name_response=[]):
-        self.list_response = list_response
-        self.get_draft_by_name_response = get_draft_by_name_response
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+        self.list_response = list_response or []
+        self.get_draft_by_name_response = get_draft_by_name_response or []
+        self.list_all_response = list_all_response or []
         self.base_url = 'http://localhost:4321'
 
     def list(self):
         return self.list_response
+
+    def list_all(self):
+        return self.list_all_response
     
     def create(self, model):
         assert isinstance(model, VirtualModel)
@@ -57,6 +64,33 @@ class MockModelPoliciesClient():
 
     def get_draft_by_name(self, policy_name):
         return self.get_draft_by_name_response
+
+
+class MockModelSelectionClient:
+    def __init__(self, default_llm=None, llm_denylist=None, warnings=None):
+        self.default_llm = default_llm or 'llm1'
+        self.llm_denylist = llm_denylist or ['llm2', 'llm3']
+        self.warnings = warnings or ['warnings-abc']
+
+    def get(self):
+        return GetModelSelectionResponse(
+            model_selection_settings=ModelSelectionSettings(
+                default_llm=self.default_llm,
+                llm_denylist=self.llm_denylist,
+            )
+        )
+
+    def replace(self, settings):
+        return self.warnings
+
+    def update(self, settings_patch):
+        return self.warnings
+
+    def delete(self, *args, **kwargs):
+        pass
+
+
+
 
 class MockModel():
     name=""
@@ -97,7 +131,7 @@ class MockConnectionClient:
     def get_draft_by_app_id(self, app_id):
         return self.get_draft_by_app_id_reponse
 
-def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None) -> MockModelsClient | MockModelPoliciesClient:
+def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient | ModelSelectionClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None, mock_model_selection_client: MockModelSelectionClient=None) -> MockModelsClient | MockModelPoliciesClient | MockModelSelectionClient:
     if client == ModelsClient:
         if mock_models_client:
              return mock_models_client
@@ -106,6 +140,8 @@ def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient, mock_mod
         if mock_policies_client:
             return mock_policies_client
         return MockModelPoliciesClient()
+    if client == ModelSelectionClient:
+        return mock_model_selection_client or MockModelSelectionClient()
     
 def dummy_requests_get(url):
         return DummyResponse(200, {"resources": [
@@ -396,22 +432,50 @@ class TestGetModelNamesFromPolicy:
         assert "test_model_name_1" in model_names
         assert "test_model_name_2" in model_names
 
+MOCK_MODEL_LIST_RESPONSE = [
+    {
+        "id": "watsonx/default/llm",
+        "label": "some-label",
+        "lifecycle": [],
+        "type": "some-type",
+        "tags": [
+            "recommended",
+            "default"
+        ],
+        "description": "123"
+    },
+    {
+        "id": "virtual/watsonx/xxx/yyy",
+        "label": "some-label",
+        "lifecycle": [],
+        "type": "some-type",
+        "tags": [
+            "third party",
+        ],
+        "description": "456"
+    },
+    {
+        "id": "openai/gpt6",
+        "label": "some-label",
+        "lifecycle": [],
+        "type": "some-type",
+        "tags": [
+            "recommended",
+            "wxo-reserved-tag-admin-disallowed"
+        ],
+        "description": "789"
+    }
+]
+
 class TestListModels:
     def test_list_models(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
-        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
-        monkeypatch.setattr(requests, "get", dummy_requests_get)
 
-        mock_models_client = MockModelsClient(list_response=[MockModel])
+        mock_models_client = MockModelsClient(
+            list_all_response=MOCK_MODEL_LIST_RESPONSE
+        )
         mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
-            is_local_dev_mock.return_value = True
-            is_saas_env_mock.return_value = False
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
@@ -419,36 +483,49 @@ class TestListModels:
         
         captured = caplog.text
 
-        assert "Retrieving virtual-model models list..." in captured
+        assert "Retrieving llm models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
-        assert "Retrieving watsonx.ai models list..." in captured
-    
+
     def test_list_models_print_raw(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
-        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
-        monkeypatch.setattr(requests, "get", dummy_requests_get)
+        mock_models_client = MockModelsClient(
+            list_all_response=MOCK_MODEL_LIST_RESPONSE
+        )
+        mock_policies_client = MockModelPoliciesClient()
 
-        mock_models_client = MockModelsClient(list_response=[MockModel])
-        mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
-
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
-            is_local_dev_mock.return_value = True
-            is_saas_env_mock.return_value = False
-            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_models_client,
+                                                                                    mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
             mc.list_models(print_raw=True)
-        
+
         captured = caplog.text
 
-        assert "Retrieving virtual-model models list..." in captured
+        assert "Retrieving llm models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
-        assert "Retrieving watsonx.ai models list..." in captured
-    
+
+    def test_list_models_show_all(self, monkeypatch, caplog):
+        mock_models_client = MockModelsClient()
+        mock_policies_client = MockModelPoliciesClient()
+
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_models_client,
+                                                                                    mock_policies_client=mock_policies_client)
+
+            mc = ModelsController()
+            mc.list_models(show_all_models=True)
+
+        captured = caplog.text
+
+        assert "Retrieving llm models list..." in captured
+        assert "Retrieving virtual-policies models list..." in captured
+
+    @unittest.skip("models list command no longer requires making calls to wx.ai on ADK side. In case of dev edition,"
+                   " there may still be a call from local container to wx.ai, but this call can fail within runtime as it's wrapped with try-except")
     def test_list_models_missing_watsonx_url(self, monkeypatch, caplog):
         fake_env = {'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
@@ -475,20 +552,11 @@ class TestListModels:
             assert "Error: WATSONX_URL is required in the environment." in captured
     
     def test_list_models_no_models(self, monkeypatch, caplog):
-        fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True}
-        monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
-        monkeypatch.setattr(EnvService, "get_default_env_file", lambda: Path("dummy.env"))
-        monkeypatch.setattr(EnvService, 'get_user_env', lambda self, fallback_to_persisted_env: {})
-        monkeypatch.setattr(requests, "get", empty_dummy_requests_get)
 
-        mock_models_client = MockModelsClient(list_response=[MockModel])
-        mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
+        mock_models_client = MockModelsClient()
+        mock_policies_client = MockModelPoliciesClient()
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_local_dev") as is_local_dev_mock, \
-                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.is_saas_env") as is_saas_env_mock:
-            is_local_dev_mock.return_value = True
-            is_saas_env_mock.return_value = False
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x, mock_models_client=mock_models_client, mock_policies_client=mock_policies_client)
 
             mc = ModelsController()
@@ -496,10 +564,10 @@ class TestListModels:
         
         captured = caplog.text
 
-        assert "Retrieving virtual-model models list..." in captured
+        assert "Retrieving llm models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
-        assert "Retrieving watsonx.ai models list..." in captured
-    
+
+    @unittest.skip("no longer needed, models/list endpoint returns chat models only")
     def test_list_models_incompatible_models(self, monkeypatch, caplog):
         fake_env = {"WATSONX_URL": "http://dummy", 'LLM_HAS_WATSONX_APIKEY': True, 'LLM_HAS_WO_INSTANCE': True, 'LLM_HAS_GROQ_API_KEY': True, "INCOMPATIBLE_MODELS": "1234"}
         monkeypatch.setattr(EnvService, "merge_env", lambda default, user: fake_env)
@@ -1215,3 +1283,217 @@ class TestRemovePolicy:
 
         assert f"Successfully removed the policy '{self.mock_policy_name}'" not in captured
         assert f"Multiple model policies with the name '{self.mock_policy_name}' found. Failed to remove model policy" in captured
+
+
+class TestListModelSelection:
+    def test_list_model_selection(self, caplog):
+        mock_model_selection_client = MockModelSelectionClient()
+
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_model_selection_client=mock_model_selection_client)
+
+
+            mc = ModelsController()
+            mc.list_model_selection()
+
+        captured = caplog.text
+
+        assert "llm1" in captured
+        assert "llm2" in captured
+        assert "llm3" in captured
+
+
+class TestExportModelSelection:
+    mock_output_path = "test_output.yaml"
+
+    def test_export_model_selection(self):
+        mock_model_selection_client = MockModelSelectionClient()
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.dump", wraps = yaml.dump) as yaml_dump_spy:
+            instantiate_client_mock.return_value = mock_model_selection_client
+
+            mc = ModelsController()
+            mc.export_model_selection(output_path=self.mock_output_path)
+
+        yaml_dump_spy.assert_called_once()
+
+
+class TestImportModelSelection:
+    mock_filename = "mock_file"
+    mock_selection_spec = {
+        "spec_version": "v1",
+        "default_llm": "llm-a",
+        "llm_denylist": ["llm-b"]
+    }
+
+    def test_import_model_selection(self, caplog):
+        mock_model_selection_client = MockModelSelectionClient()
+        mock_model_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "llm-a",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "default"
+                    ],
+                    "description": "123"
+                },
+                {
+                    "id": "llm-b",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "third party",
+                    ],
+                    "description": "456"
+                },
+                {
+                    "id": "llm-c",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "third party",
+                    ],
+                    "description": "789"
+                }]
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
+                patch(
+                    "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_model_client,
+                                                                                    mock_model_selection_client=mock_model_selection_client)
+            mock_loader.return_value = self.mock_selection_spec
+
+            mc = ModelsController()
+            mc.import_model_selection(
+                file=f"{self.mock_filename}.yaml",
+            )
+
+            mock_file.assert_called_once_with(f"{self.mock_filename}.yaml", "r")
+            mock_loader.assert_called_once()
+
+            captured = caplog.text
+            assert "warnings-abc" in captured
+
+    def test_import_model_selection_adding_nonexisting_model_as_default(self, caplog):
+        mock_model_selection_client = MockModelSelectionClient()
+        mock_model_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "llm",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "default"
+                    ],
+                    "description": "123"
+                },
+                        ]
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
+                patch(
+                    "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_model_client,
+                                                                                    mock_model_selection_client=mock_model_selection_client)
+            mock_loader.return_value = self.mock_selection_spec
+
+            mc = ModelsController()
+            with pytest.raises(SystemExit) as e:
+                mc.import_model_selection(
+                    file=f"{self.mock_filename}.yaml",
+                )
+            assert "You are trying to set a model name llm-a that does not exist as default" in caplog.text
+
+
+class TestPatchModelSelection:
+
+    def test_patch_model_selection(self, caplog):
+        mock_model_selection_client = MockModelSelectionClient()
+        mock_model_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "llm-a",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "default"
+                    ],
+                    "description": "123"
+                },
+                {
+                    "id": "llm-b",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "third party",
+                    ],
+                    "description": "456"
+                },
+                {
+                    "id": "llm-c",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "third party",
+                    ],
+                    "description": "789"
+                }]
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_model_client,
+                                                                                    mock_model_selection_client=mock_model_selection_client)
+            mc = ModelsController()
+            mc.patch_model_selection_config(
+                default_llm="llm-c",
+                add_to_llm_denylist=["llm-a"],
+                remove_from_llm_denylist=["llm-b"]
+            )
+
+            captured = caplog.text
+            assert "warnings-abc" in captured
+
+    def test_patch_model_selection_adding_nonexisting_model_as_default(self, caplog):
+        mock_model_selection_client = MockModelSelectionClient()
+        mock_model_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "llm",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "default", "recommended"
+                    ],
+                    "description": "123"
+                }
+            ]
+        )
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_model_client,
+                                                                                    mock_model_selection_client=mock_model_selection_client)
+            mc = ModelsController()
+            with pytest.raises(SystemExit) as e:
+                mc.patch_model_selection_config(
+                    default_llm="llm-a",
+                )
+            assert "You are trying to set a model name llm-a that does not exist as default" in caplog.text

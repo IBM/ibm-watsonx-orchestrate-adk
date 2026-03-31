@@ -1,4 +1,6 @@
 import json
+import sys
+
 import yaml
 import logging
 from enum import Enum
@@ -8,6 +10,9 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController
+from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client
+from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
 from pydantic import Field, AliasChoices, field_validator
@@ -18,10 +23,24 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
-# TO-DO: this is just a placeholder. Will update this later to align with backend
-DEFAULT_LLM = "groq/openai/gpt-oss-120b"
 
 logger = logging.getLogger(__name__)
+
+
+def get_default_llm():
+    controller = ModelsController()
+    all_models = controller.formatted_list_all()
+    default_model = None
+    for m in all_models:
+        if m.is_default:
+            default_model = m
+            break
+    if default_model is None:
+        logger.error("Current tenant does not have a default model, please provide `llm` field in your agent spec")
+        sys.exit(1)
+    return default_model.name
+
+
 
 # Handles yaml formatting for multiline strings to improve readability
 def str_presenter(dumper, data):
@@ -164,7 +183,7 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str = DEFAULT_LLM
+    llm: str = Field(default_factory=get_default_llm)
     style: AgentStyle = AgentStyle.DEFAULT
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
