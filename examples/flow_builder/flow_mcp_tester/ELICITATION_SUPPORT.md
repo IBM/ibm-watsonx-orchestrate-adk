@@ -26,6 +26,7 @@ Elicitation is the MCP protocol's mechanism for requesting user interaction duri
 ### Basic Example
 
 ```python
+from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.tools.flow_mcp_client import FlowMCPClient
 from mcp import types
 import json
@@ -67,12 +68,14 @@ async def handle_elicitation(
             message=f"Unsupported mode: {params.mode}"
         )
 
-# Create client with callback
-async with FlowMCPClient(
-    base_url="https://api.example.com",
-    api_key="your-key",
-    elicitation_callback=handle_elicitation
-) as client:
+# Create client with authentication from active environment
+client = instantiate_client(FlowMCPClient)
+
+# Set elicitation callback before connecting
+client.set_elicitation_callback(handle_elicitation)
+
+# Use the client within async context manager
+async with client:
     # Run flow - elicitations handled automatically
     result = await client.run_flow("my_flow", {"input": "data"})
 ```
@@ -191,6 +194,45 @@ To use `FlowMCPClient` with elicitation support and credentials from your active
 ```python
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.tools.flow_mcp_client import FlowMCPClient
+from mcp import types
+import json
+
+async def handle_elicitation(
+    context,
+    params: types.ElicitRequestParams,
+) -> types.ElicitResult | types.ErrorData:
+    """Handle elicitation requests from flows."""
+    
+    if params.mode == "form":
+        # Collect form data from user
+        form_data = {"field1": "value1", "field2": "value2"}
+        
+        return types.ElicitResult(
+            action="accept",
+            content={
+                "form_data": json.dumps(form_data),  # Must be JSON string
+                "response_type": "form_operation",
+                "form_operation": "submit"
+            }
+        )
+    
+    elif params.mode == "url":
+        # Handle URL navigation
+        url = getattr(params, "url", None)
+        print(f"Please visit: {url}")
+        
+        # Wait for user confirmation
+        response = input("Completed? (y/n): ")
+        if response.lower() == 'y':
+            return types.ElicitResult(action="accept")
+        else:
+            return types.ElicitResult(action="decline")
+    
+    else:
+        return types.ErrorData(
+            code=types.INVALID_REQUEST,
+            message=f"Unsupported mode: {params.mode}"
+        )
 
 # Create client with authentication from active environment
 client = instantiate_client(FlowMCPClient)
@@ -198,6 +240,7 @@ client = instantiate_client(FlowMCPClient)
 # Set elicitation callback before connecting
 client.set_elicitation_callback(handle_elicitation)
 
+# Use the client within async context manager
 async with client:
     result = await client.run_flow("my_flow", {"input": "data"})
 ```
@@ -208,14 +251,7 @@ async with client:
 
 2. **Set Callback Before Connecting**: Call `set_elicitation_callback()` before entering the async context manager. If you set it after the session is established, you'll need to reconnect for the change to take effect.
 
-3. **Alternative Approach**: You can also pass `elicitation_callback` during initialization if creating the client manually:
-   ```python
-   client = FlowMCPClient(
-       base_url="https://your-server.com",
-       api_key="your-api-key",
-       elicitation_callback=handle_elicitation
-   )
-   ```
+3. **Active Environment Required**: The `instantiate_client()` function reads authentication from your active orchestrate environment. Make sure you have activated an environment using `orchestrate env activate <env_name>` before running your code.
 
 ## Offline Elicitation Handling
 
@@ -327,8 +363,6 @@ When using synchronous CLI prompts (like `input()` or `Prompt.ask()`):
 - See `README.md` for detailed workarounds
 
 ## See Also
-
-- `elicitation_example.py` - Complete working example
 - `flow_mcp_tester.py` - Interactive MCP client tester with elicitation support
 - `README.md` - Usage guide and limitations
 - MCP SDK Documentation - For detailed protocol information
