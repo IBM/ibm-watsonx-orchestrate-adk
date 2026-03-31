@@ -508,7 +508,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     
 
 
-async def import_flow_tool(file: str, save_flow_json: str = None) -> None:
+async def import_flow_tool(file: str, save_flow_json: str | None = None) -> None:
     
     '''
     Import a flow tool from a file. The file can be either a python file or a json file.
