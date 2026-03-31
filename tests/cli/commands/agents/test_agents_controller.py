@@ -949,12 +949,14 @@ class TestAgentsControllerPublishOrUpdateAgents:
             update_mock.assert_called_once()
             sys_exit_mock.assert_not_called()
 
-    def test_publish_or_update_assistant_agent_publish(self, assistant_agent_content):
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
+    def test_publish_or_update_assistant_agent_publish(self, mock_get_conn_id, assistant_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_agent") as publish_mock:
 
+            mock_get_conn_id.return_value = "mocked_connection_id"
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             external_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             assistant_client_mock.return_value = MockAgent()
