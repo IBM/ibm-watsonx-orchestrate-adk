@@ -34,6 +34,67 @@ from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import
 
 from cli.commands.tools.test_tools_controller import MockToolClient
 
+from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import ModelPoliciesClient
+from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
+from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
+from ibm_watsonx_orchestrate_core.types.models.types import ModelListEntry
+from tests.cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
+
+
+class MockModelsClient():
+
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+        self.list_response = list_response or []
+        self.get_draft_by_name_response = get_draft_by_name_response or []
+        self.list_all_response = list_all_response or []
+        self.base_url = 'http://localhost:4321'
+
+    def list(self):
+        return self.list_response
+
+    def list_all(self):
+        return self.list_all_response
+
+
+MOCK_MODEL_LIST_RESPONSE = [
+    ModelListEntry(
+        name='watsonx/default/llm',
+        description="123",
+        is_default=True,
+        recommended=True
+    ),
+    ModelListEntry(
+        name='virtual/watsonx/xxx/yyy',
+        description="456",
+        is_custom=True,
+    ),
+    ModelListEntry(
+        name='openai/gpt6',
+        description="789",
+        recommended=True,
+        is_denied=True,
+    )
+]
+
+
+def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient | ModelSelectionClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None, mock_model_selection_client: MockModelSelectionClient=None) -> MockModelsClient | MockModelPoliciesClient | MockModelSelectionClient:
+    if client == ModelsClient:
+        if mock_models_client:
+             return mock_models_client
+        return MockModelsClient()
+    if client == ModelPoliciesClient:
+        if mock_policies_client:
+            return mock_policies_client
+        return MockModelPoliciesClient()
+    if client == ModelSelectionClient:
+        return mock_model_selection_client or MockModelSelectionClient()
+
+
+mock_models_client = MockModelsClient(
+            list_all_response=MOCK_MODEL_LIST_RESPONSE
+        )
+
+
 agents_controller = AgentsController()
 
 
@@ -870,7 +931,12 @@ class TestAgentsControllerPublishOrUpdateAgents:
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
             patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_tool_client") as tool_client_mock, \
-            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.update_agent") as update_mock:
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.update_agent") as update_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client, \
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
 
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[{
                 "name": "test_native_agent",
@@ -949,12 +1015,14 @@ class TestAgentsControllerPublishOrUpdateAgents:
             update_mock.assert_called_once()
             sys_exit_mock.assert_not_called()
 
-    def test_publish_or_update_assistant_agent_publish(self, assistant_agent_content):
+    @patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.get_conn_id_from_app_id")
+    def test_publish_or_update_assistant_agent_publish(self, mock_get_conn_id, assistant_agent_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_native_client") as native_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_assistant_client") as assistant_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.get_external_client") as external_client_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.AgentsController.publish_agent") as publish_mock:
 
+            mock_get_conn_id.return_value = "mocked_connection_id"
             native_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             external_client_mock.return_value = MagicMock(get_draft_by_name=MagicMock(return_value=[]))
             assistant_client_mock.return_value = MockAgent()
