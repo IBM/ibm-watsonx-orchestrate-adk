@@ -9,14 +9,21 @@ class TestModelList:
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.list_models") as list_models_mock:
             models_command.model_list()
             list_models_mock.assert_called_once_with(
-                print_raw=False
+                print_raw=False, show_all_models=False
+            )
+
+    def test_model_list_show_all(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.list_models") as list_models_mock:
+            models_command.model_list(show_all_models=True)
+            list_models_mock.assert_called_once_with(
+                print_raw=False, show_all_models=True
             )
     
     def test_model_list_print_raw(self):
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.list_models") as list_models_mock:
             models_command.model_list(print_raw=True)
             list_models_mock.assert_called_once_with(
-                print_raw=True
+                print_raw=True, show_all_models=False
             )
 
 class TestModelsImport:
