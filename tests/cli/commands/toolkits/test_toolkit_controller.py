@@ -770,7 +770,7 @@ class TestToolkitControllerPublishOrUpdateToolkits:
             expected_payload = {
                 "name": self.mock_name,
                 "description": self.mock_description,
-                "mcp": mcp_spec.model_dump(exclude_none=True)
+                "mcp": mcp_spec.model_dump(exclude_unset=True)
             }
 
             mock_client.create_toolkit.assert_called_once_with(expected_payload)
@@ -1045,6 +1045,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
@@ -1073,6 +1074,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
@@ -1154,6 +1156,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
