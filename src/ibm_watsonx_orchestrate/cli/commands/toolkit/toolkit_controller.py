@@ -1,23 +1,29 @@
 import os
 import zipfile
 import tempfile
+import shutil
 from typing import List, Optional, Any, Tuple, Dict
 from pydantic import BaseModel
+from io import BytesIO
 import logging
 import sys
 import re
 import requests
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools,get_formated_requirements_lines, get_package_root
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, ToolkitPythonInputSpec, ToolkitDeploymentTiers, RemoteMcpModel, LocalMcpModel, ToolkitSource, PythonModel, ToolkitPythonTool, validate_context
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_zip
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.agent_builder.toolkits.utils import extract_python_toolkit_tools_from_folder
 import typer
 import json
 from rich.console import Console
@@ -69,6 +75,12 @@ class ToolkitController:
 
         return str(folder / package_root)
     
+    def __extract_python_tools_from_folder(self, folder_path: Path, app_ids: Optional[List[str]] = None) -> List[BaseTool]:
+            tools = extract_python_toolkit_tools_from_folder(folder_path=folder_path, app_ids=app_ids)
+            toolkit_tools = [ToolkitPythonTool.create_from_base_tool_spec(tool) for tool in tools]
+            return toolkit_tools
+
+    
     def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None, allowed_context: Optional[List[str]] = None) -> List[BaseToolkit]:
         file = Path(file)
 
@@ -83,15 +95,26 @@ class ToolkitController:
         if app_id and isinstance(app_id, str):
                 app_id = [app_id]
 
+
         for toolkit in toolkits:
+            kind = self.__get_kind_from_spec(toolkit.__toolkit_spec__)
+            config = self.__get_toolkit_config_from_spec(toolkit.__toolkit_spec__, kind)
+
             if app_id:
-                toolkit.__toolkit_spec__.mcp.connections = app_id
-            if allowed_context and isinstance(toolkit.__toolkit_spec__.mcp, RemoteMcpModel):
+                config.connections = app_id
+            if allowed_context and isinstance(config, RemoteMcpModel):
                 # Validate allowed_context values for remote mcp server
                 validate_context(allowed_context)
                 toolkit.__toolkit_spec__.mcp.metadata = {"allowed_context": allowed_context}
-            if isinstance(toolkit.__toolkit_spec__.mcp, LocalMcpModel) and toolkit.__toolkit_spec__.mcp.package_root:
-                toolkit.__toolkit_spec__.mcp.package_root = self.__resolve_package_root_path(toolkit.__toolkit_spec__.mcp.package_root, file)
+            if isinstance(config, LocalMcpModel) and config.package_root:
+                config.package_root = self.__resolve_package_root_path(config.package_root, file)
+            if isinstance(config, PythonModel) :
+                config.package_root = self.__resolve_package_root_path(config.package_root, file)
+                if not config.tools:
+                    tools = extract_python_toolkit_tools_from_folder(folder_path=config.package_root, app_ids=app_id)
+                    python_toolkit_tools = [ToolkitPythonTool.create_from_base_tool_spec(tool) for tool in tools]
+                    config.tools =[tool.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True) for tool in python_toolkit_tools]
+
         return toolkits
 
 
@@ -108,30 +131,62 @@ class ToolkitController:
         url: Optional[str] = None,
         tools: Optional[str] = None,
         app_id: Optional[List[str] | str] = None,
-        allowed_context: Optional[List[str]] = None
+        allowed_context: Optional[List[str]] = None,
+        tier: Optional[ToolkitDeploymentTiers] = None
     ) -> BaseToolkit:
 
         if app_id and isinstance(app_id, str):
             app_id = [app_id]
         
-        toolkit_input = ToolkitMCPInputSpec(
-            kind=kind,
-            name=name,
-            description=description,
-            transport=transport,
-            package=package,
-            package_root=package_root,
-            language=language,
-            command=command,
-            url=url,
-            tools=tools,
-            connections=app_id,
-            allowed_context=allowed_context
-        )
+        match kind:
+            case ToolkitKind.MCP:
+                toolkit_input = ToolkitMCPInputSpec(
+                    kind=kind,
+                    name=name,
+                    description=description,
+                    transport=transport,
+                    package=package,
+                    package_root=package_root,
+                    language=language,
+                    command=command,
+                    url=url,
+                    tools=tools,
+                    connections=app_id,
+                    allowed_context=allowed_context
+                )
+            case ToolkitKind.PYTHON:
+                python_tool_bundle_path = Path(package_root)
+                python_tools = self.__extract_python_tools_from_folder(folder_path=python_tool_bundle_path, app_ids=app_id)
+                toolkit_input = ToolkitPythonInputSpec(
+                    kind=kind,
+                    name=name,
+                    description=description,
+                    connections=app_id,
+                    deployment_tier=tier,
+                    tools=python_tools,
+                    package_root=package_root,
+                )
+            case _:
+                raise BadRequest(f"Unexpected toolkit kind '{kind}'. Failed to import")
 
         toolkit_spec = ToolkitSpec.generate_toolkit_spec(toolkit_input)
 
         return BaseToolkit(spec=toolkit_spec)
+    
+    def __get_kind_from_spec(self, spec: ToolkitSpec) -> ToolkitKind:
+        if spec.mcp:
+            return ToolkitKind.MCP
+        if spec.python:
+            return ToolkitKind.PYTHON
+    
+    def __get_toolkit_config_from_spec(self, spec: ToolkitSpec, kind: ToolkitKind) -> LocalMcpModel | RemoteMcpModel | PythonModel:
+        match kind:
+            case ToolkitKind.MCP:
+                return spec.mcp
+            case ToolkitKind.PYTHON:
+                return spec.python
+            case _:
+                raise ValueError(f"Unrecoginsed toolkit kind '{kind}'")
     
     def publish_or_update_toolkits(self, toolkits: List[BaseToolkit]) -> None:
         for toolkit in toolkits:
@@ -143,12 +198,13 @@ class ToolkitController:
                 logger.error(f"Existing toolkit found with name '{spec.name}'. Failed to create toolkit.")
                 sys.exit(1)
             
-            mcp_config = spec.mcp
+            kind = self.__get_kind_from_spec(spec)
+            toolkit_config = self.__get_toolkit_config_from_spec(spec, kind)
             
-            if isinstance(mcp_config.connections, List):
-                mcp_config.connections = self.__remap_connections(mcp_config.connections)
+            if isinstance(toolkit_config.connections, List):
+                toolkit_config.connections = self.__remap_connections(toolkit_config.connections)
             
-            package_root = getattr(mcp_config, "package_root", None)
+            package_root = getattr(toolkit_config, "package_root", None)
             if package_root:
                 is_folder = os.path.isdir(package_root)
                 is_zip_file = os.path.isfile(package_root) and zipfile.is_zipfile(package_root)
@@ -167,37 +223,57 @@ class ToolkitController:
                     else:
                         zip_file_path = os.path.join(tmpdir, os.path.basename(f"{package_root.rstrip(os.sep)}.zip"))
                         with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as mcp_zip_tool_artifacts:
-                            self._populate_zip(package_root, mcp_zip_tool_artifacts)
+                            if kind==ToolkitKind.PYTHON:
+                                self._populate_zip(package_root, mcp_zip_tool_artifacts, location="tools", ignore=["requirements.txt", "bundle-format"])
+                            else:
+                                self._populate_zip(package_root, mcp_zip_tool_artifacts)
 
                     # List tools if not provided
-                    if spec.mcp.tools is None:
-                        with Progress(
-                            SpinnerColumn(spinner_name="dots"),
-                            TextColumn("[progress.description]{task.description}"),
-                            transient=True,
-                            console=console,
-                        ) as progress:
-                            progress.add_task(description="No tools specified, retrieving all tools from provided MCP server", total=None)
-                            tools = self.get_client().list_tools(
-                                zip_file_path=zip_file_path,
-                                command=getattr(mcp_config, "command", None),
-                                args=getattr(mcp_config, "args", []),
-                            )
-                        
-                        spec.mcp.tools = [
-                            tool["name"] if isinstance(tool, dict) and "name" in tool else tool
-                            for tool in tools
-                        ]
+                    if kind == ToolkitKind.MCP:
+                        if spec.mcp.tools is None:
+                            with Progress(
+                                SpinnerColumn(spinner_name="dots"),
+                                TextColumn("[progress.description]{task.description}"),
+                                transient=True,
+                                console=console,
+                            ) as progress:
+                                progress.add_task(description="No tools specified, retrieving all tools from provided MCP server", total=None)
+                                tools = self.get_client().list_tools(
+                                    zip_file_path=zip_file_path,
+                                    command=getattr(toolkit_config, "command", None),
+                                    args=getattr(toolkit_config, "args", []),
+                                )
+                            
+                            spec.mcp.tools = [
+                                tool["name"] if isinstance(tool, dict) and "name" in tool else tool
+                                for tool in tools
+                            ]
 
-                        logger.info("✅ The following tools will be imported:")
-                        for tool in spec.mcp.tools:
-                            console.print(f"  • {tool}")
-                elif spec.mcp.tools is None:
-                    logger.info("No tools specified, retrieving all tools from provided MCP server")
-                    spec.mcp.tools = ['*']
+                            logger.info("✅ The following tools will be imported:")
+                            for tool in spec.mcp.tools:
+                                console.print(f"  • {tool}")
+                        elif spec.mcp.tools is None:
+                            logger.info("No tools specified, retrieving all tools from provided MCP server")
+                            spec.mcp.tools = ['*']
+                    elif kind == ToolkitKind.PYTHON:
+                        with tempfile.TemporaryDirectory() as tmpdir, \
+                        zipfile.ZipFile(zip_file_path, "a", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
+                            
+                            requirements_file = os.path.join(package_root, 'requirements.txt')
+                            requirements_lines = get_formated_requirements_lines(requirements_file)
+                            
+                            temp_requirements_file = os.path.join(tmpdir, 'requirements.txt')
+
+
+                            with safe_open(temp_requirements_file, 'w') as fp:
+                                fp.writelines(requirements_lines)
+                            zip_tool_artifacts.write(temp_requirements_file, arcname='requirements.txt')
+                            zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
+
 
                 # Create toolkit metadata
                 payload = spec.model_dump(exclude_unset=True)
+
 
                 try:
                     with Progress(
@@ -245,11 +321,15 @@ class ToolkitController:
 
             logger.info(f"Successfully imported tool kit {spec.name}")
 
-    def _populate_zip(self, package_root: str, zipfile: zipfile.ZipFile) -> str:
+    def _populate_zip(self, package_root: str, zipfile: zipfile.ZipFile, location: Optional[str] = None, ignore: List[str] = []) -> str:
         for root, _, files in os.walk(package_root):
             for file in files:
                 full_path = os.path.join(root, file)
                 relative_path = os.path.relpath(full_path, start=package_root)
+                if relative_path in ignore:
+                    continue
+                if location:
+                    relative_path = os.path.join(location, relative_path)
                 zipfile.write(full_path, arcname=relative_path)
         return zipfile
 
@@ -464,7 +544,9 @@ class ToolkitController:
 
             for toolkit in resolved_toolkits:
                 app_ids = []
-                connection_ids = toolkit.__toolkit_spec__.mcp.connections.values()
+                toolkit_kind = self.__get_kind_from_spec(toolkit.__toolkit_spec__)
+                toolkit_config = self.__get_toolkit_config_from_spec(toolkit.__toolkit_spec__, toolkit_kind)
+                connection_ids = toolkit_config.connections.values()
 
                 for connection_id in connection_ids:
                     connection = connections_dict.get(connection_id)
@@ -479,6 +561,7 @@ class ToolkitController:
                 entry = ToolkitListEntry(
                     name = toolkit.__toolkit_spec__.name,
                     description = toolkit.__toolkit_spec__.description,
+                    type = toolkit_kind,
                     tools = toolkit.__toolkit_spec__.tools,
                     app_ids = app_ids
                 )
@@ -500,7 +583,7 @@ class ToolkitController:
             
             return response
     
-    def __convert_spec_to_input_spec(self, spec: ToolkitSpec, connections: Optional[List[str]] = None, package_root: Optional[str] = None) -> ToolkitMCPInputSpec:
+    def __convert_mcp_spec_to_input_spec(self, spec: ToolkitSpec, connections: Optional[List[str]] = None, package_root: Optional[str] = None) -> ToolkitMCPInputSpec:
         input_spec_details = {
             "name": spec.name,
             "description": spec.description,
@@ -525,9 +608,28 @@ class ToolkitController:
         
         input_spec_details.update(mcp_details)
 
-        input_spec = ToolkitMCPInputSpec.model_validate(input_spec_details)
+        return ToolkitMCPInputSpec.model_validate(input_spec_details)
 
-        return input_spec
+    def __convert_python_spec_to_input_spec(self, spec: ToolkitSpec, connections: Optional[List[str]] = None, package_root: Optional[str] = None) -> ToolkitPythonInputSpec:
+        input_spec_details = {
+            "name": spec.name,
+            "description": spec.description,
+            "connections": connections,
+            "python_version": spec.python.python_version,
+            "environment": spec.python.env,
+            "package_root": package_root
+        }
+
+
+        return ToolkitPythonInputSpec.model_validate(input_spec_details)
+        
+
+    def __convert_spec_to_input_spec(self, spec: ToolkitSpec, connections: Optional[List[str]] = None, package_root: Optional[str] = None, kind: ToolkitKind = ToolkitKind.MCP) -> ToolkitMCPInputSpec | ToolkitPythonInputSpec:
+        match kind:
+            case ToolkitKind.MCP:
+                return self.__convert_mcp_spec_to_input_spec(spec=spec, connections=connections, package_root=package_root)
+            case ToolkitKind.PYTHON:
+                return self.__convert_python_spec_to_input_spec(spec=spec, connections=connections, package_root=package_root)
 
     
     def export_toolkit(
@@ -566,9 +668,12 @@ class ToolkitController:
         toolkit = BaseToolkit(spec=ToolkitSpec.model_validate(toolkit_spec))
         spec = toolkit.__toolkit_spec__
 
+        kind = self.__get_kind_from_spec(spec)
+        config = self.__get_toolkit_config_from_spec(spec, kind)
+
         package_root = name
-        app_ids = [] if not spec.mcp.connections else get_app_ids(spec.mcp.connections.values())
-        toolkit_input_spec = self.__convert_spec_to_input_spec(spec, app_ids, package_root)
+        app_ids = [] if not config.connections else get_app_ids(config.connections.values())
+        toolkit_input_spec = self.__convert_spec_to_input_spec(spec, app_ids, package_root, kind)
 
         content = toolkit_input_spec.model_dump(export_format=True, mode="json", exclude_none=True)
         content["spec_version"] = SpecVersion.V1.value
@@ -591,9 +696,9 @@ class ToolkitController:
         
         for app_id in app_ids:
             export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
-        
+
         # Export supporting artifacts
-        if toolkit_spec.get("mcp", {}).get("source") == ToolkitSource.FILES and toolkit.__toolkit_spec__.id is not None:
+        if (kind == ToolkitKind.PYTHON or toolkit_spec.get("mcp", {}).get("source") == ToolkitSource.FILES) and toolkit.__toolkit_spec__.id is not None:
             toolkit_artifact_bytes = None
             try:
                 downloaded_bytes = client.download_artifact(toolkit.__toolkit_spec__.id)
