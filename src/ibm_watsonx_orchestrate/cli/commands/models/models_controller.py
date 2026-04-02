@@ -15,6 +15,8 @@ import requests
 import rich
 import rich.highlighter
 
+
+from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.agent_builder.model_selection.types import ModelSelectionSettings, ModelSelectionPatch
 from ibm_watsonx_orchestrate.cli.config import Config
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
@@ -22,7 +24,7 @@ from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPoli
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
 from ibm_watsonx_orchestrate.client.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate.client.model_selection.model_selection_client import ModelSelectionClient
-from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry
+from ibm_watsonx_orchestrate.agent_builder.models.types import VirtualModel, ProviderConfig, ModelType, ANTHROPIC_DEFAULT_MAX_TOKENS, ModelListEntry, ModelProvider
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev, is_saas_env
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
@@ -33,6 +35,7 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate_clients.models.models_client import CUSTOM_MODEL_TAG, DEFAULT_MODEL_TAG, \
     LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG
+
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +292,10 @@ class ModelsController:
                     model.config["max_tokens"] = ANTHROPIC_DEFAULT_MAX_TOKENS
 
             if app_id:
-                model.connection_id = get_connection_id(app_id, supported_schemas={ConnectionType.KEY_VALUE})
+                supported_schemas = {ConnectionType.KEY_VALUE}
+                if provider == ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS:
+                    supported_schemas = {ConnectionSecurityScheme.OAUTH2}
+                model.connection_id = get_connection_id(app_id, supported_schemas=supported_schemas)
             validate_ProviderConfig(model.provider_config, app_id=app_id)
         return models
 
@@ -316,6 +322,9 @@ class ModelsController:
                 "max_tokens": ANTHROPIC_DEFAULT_MAX_TOKENS
             }
 
+        supported_schemas = {ConnectionType.KEY_VALUE}
+        if provider == ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS:
+            supported_schemas = {ConnectionSecurityScheme.OAUTH2}
         model = VirtualModel(
             name=name,
             display_name=display_name,
@@ -324,7 +333,7 @@ class ModelsController:
             provider_config=provider_config,
             config=config,
             model_type=model_type,
-            connection_id=get_connection_id(app_id, supported_schemas={ConnectionType.KEY_VALUE})
+            connection_id=get_connection_id(app_id, supported_schemas=supported_schemas)
         )
 
         return model
