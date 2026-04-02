@@ -322,7 +322,8 @@ class ToolkitSpec(BaseModel):
         return ToolkitSpec(
             name=input_spec.name,
             description=input_spec.description,
-            python=python_config
+            python=python_config,
+            deployment_tier=input_spec.deployment_tier
         )
 
     
