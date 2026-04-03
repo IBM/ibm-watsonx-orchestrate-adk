@@ -832,7 +832,7 @@ services:
       EXECUTION_TYPE: direct
 
   opensearch:
-    image: ${OPENSEARCH_IMAGE:-opensearchproject/opensearch:2.11.0}
+    image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
     restart: unless-stopped
     environment:
       - discovery.type=single-node
