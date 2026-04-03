@@ -1,6 +1,7 @@
 ---
 name: customercare-mcp-builder
-description: Build MCP servers for customer care agents following Watson Orchestrate specifications. Guides agents through tool creation, transaction patterns, authentication, widgets, and context management with strict adherence to reference specifications. Use when creating customer care MCP servers.
+description: >-
+  Build MCP servers for customer care agents following Watson Orchestrate specifications. Guides through tool creation, transaction patterns, authentication, widgets, and context management with strict adherence to reference specs. Use when creating customer care MCP servers, building Watson Orchestrate tools, implementing MCP transaction patterns, or when the user says "create MCP server", "Watson Orchestrate tool", "customer care agent".
 ---
 
 # CustomerCare MCP Server Builder
