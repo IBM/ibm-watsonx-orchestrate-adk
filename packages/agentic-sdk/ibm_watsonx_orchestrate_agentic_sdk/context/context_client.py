@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 from ibm_watsonx_orchestrate_agentic_sdk.common.base_client import BaseAgenticClient
+from ibm_watsonx_orchestrate_agentic_sdk.common.session import AgenticSession
 
 
 class OpenAIMessage(BaseModel):
@@ -32,8 +33,8 @@ class ContextClient(BaseAgenticClient):
     Client to handle operations for the Context service endpoint
     """
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, session: AgenticSession):
+        super().__init__(session)
         self.base_endpoint = "/context"
     
     def summarize(self, messages: List[Dict[str, Any]], model: Optional[str] = None) -> SummarizationResponse:
@@ -61,3 +62,6 @@ class ContextClient(BaseAgenticClient):
         endpoint = f"{self.base_endpoint}/summarize"
         response = self._post(endpoint, data=payload)
         return SummarizationResponse.model_validate(response)
+
+    def compress(self, messages: List[Dict[str, Any]], model: Optional[str] = None) -> SummarizationResponse:
+        return self.summarize(messages=messages, model=model)
