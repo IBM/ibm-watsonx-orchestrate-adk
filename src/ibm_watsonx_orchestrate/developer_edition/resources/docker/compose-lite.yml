@@ -167,7 +167,7 @@ services:
       '
 
   ui:
-    image: us.icr.io/watson-orchestrate/development/wxo-chat:20260320-workflow_view-3194-991c126-amd64
+    image: us.icr.io/watson-orchestrate/development/wxo-chat:20260406-agent_architect_phase_2-3490-f1987a9-amd64
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -213,7 +213,7 @@ services:
       - ui-data:/data
 
   wxo-builder:
-    image: us.icr.io/watson-orchestrate/development/wxo-builder:20260318-agent_architect_phase_2-5414-af9167c-amd64
+    image: us.icr.io/watson-orchestrate/development/wxo-builder:20260402-develop-6020-b980b68
     platform: linux/amd64
     restart: unless-stopped
     environment:
