@@ -1,5 +1,3 @@
-__all__ = ["ContextClient"]
+__all__ = ["ContextClient", "SummarizationResponse"]
 
-from ibm_watsonx_orchestrate_agentic_sdk.context.context_client import ContextClient
-
-# Made with Bob
+from ibm_watsonx_orchestrate_agentic_sdk.context.context_client import ContextClient, SummarizationResponse
