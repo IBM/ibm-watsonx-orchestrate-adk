@@ -21,8 +21,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate-private/wxo-server-db:25-03-2026-bwAI
-    pull_policy: if_not_present
+    image: ${DB_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
