@@ -12,6 +12,7 @@ from ibm_watsonx_orchestrate_agentic_sdk.common.session import (
     build_local_session,
     build_runs_elsewhere_session,
     build_runs_on_session,
+    get_agentic_mode_hint,
 )
 from ibm_watsonx_orchestrate_agentic_sdk.context.context_client import ContextClient
 from ibm_watsonx_orchestrate_agentic_sdk.memory.memory_client import MemoryClient
@@ -45,12 +46,19 @@ class Client:
         execution_context: Optional[ExecutionContext | Mapping[str, Any]] = None,
         session: Optional[AgenticSession] = None,
     ):
+        mode_hint = get_agentic_mode_hint()
+
         if session is not None:
             self._session = session
         elif execution_context is not None:
             self._session = build_runs_on_session(execution_context, verify=verify)
         else:
             use_env_auth = api_key is None and instance_url is None and authenticator is None
+            if use_env_auth and mode_hint == "runs-on":
+                raise ValueError(
+                    "runs-on mode requires request-scoped execution_context. "
+                    "Use Client(execution_context=...) or Client.from_runnable_config(config)."
+                )
             if use_env_auth:
                 env_token = os.environ.get("WXO_USER_TOKEN")
                 env_url = os.environ.get("WXO_AUTH_URL")
@@ -134,7 +142,7 @@ class Client:
         execution_context = configurable.get("execution_context")
         if not isinstance(execution_context, Mapping):
             raise ValueError("RunnableConfig is missing configurable.execution_context")
-        return cls.from_execution_context(execution_context, verify=verify)
+        return cls(execution_context=execution_context, verify=verify)
 
     @property
     def session(self) -> AgenticSession:

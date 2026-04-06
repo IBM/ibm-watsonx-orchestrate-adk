@@ -16,8 +16,8 @@ TEST_TOKEN = (
 
 
 def test_from_execution_context_hydrates_identity_from_jwt():
-    client = Client.from_execution_context(
-        {
+    client = Client(
+        execution_context={
             "access_token": TEST_TOKEN,
             "api_proxy_url": "http://example.local/api/v1",
             "thread_id": "thread-123",
@@ -64,8 +64,8 @@ def test_memory_client_uses_managed_routes_and_run_context(monkeypatch):
 
     monkeypatch.setattr(BaseAgenticClient, "_post", fake_post, raising=False)
 
-    client = Client.from_execution_context(
-        {
+    client = Client(
+        execution_context={
             "access_token": TEST_TOKEN,
             "api_proxy_url": "http://example.local/api/v1",
             "thread_id": "thread-123",
@@ -101,8 +101,8 @@ def test_memory_type_alias_is_normalized(monkeypatch):
 
     monkeypatch.setattr(BaseAgenticClient, "_post", fake_post, raising=False)
 
-    client = Client.from_execution_context(
-        {
+    client = Client(
+        execution_context={
             "access_token": TEST_TOKEN,
             "api_proxy_url": "http://example.local/api/v1",
             "thread_id": "thread-123",
@@ -119,3 +119,35 @@ def test_memory_type_alias_is_normalized(monkeypatch):
         "messages": [{"role": "user", "content": "I prefer coffee"}],
         "memory_type": "conversational",
     }
+
+
+def test_runs_on_constructor_uses_env_defaults(monkeypatch):
+    monkeypatch.setenv("WXO_AGENTIC_MODE", "runs-on")
+    monkeypatch.setenv("WXO_API_PROXY_URL", "http://env.example.local/api/v1")
+    monkeypatch.setenv("DEPLOYMENT_PLATFORM", "lite-laptop")
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "thread_id": "thread-456",
+        }
+    )
+
+    assert client.session.mode == "runs-on"
+    assert client.session.base_url == "http://env.example.local/api/v1"
+    assert client.session.identity is not None
+    assert client.session.identity.thread_id == "thread-456"
+    assert client.session.identity.deployment_platform == "lite-laptop"
+
+
+def test_runs_on_without_execution_context_has_clear_error(monkeypatch):
+    monkeypatch.setenv("WXO_AGENTIC_MODE", "runs-on")
+    monkeypatch.delenv("WXO_USER_TOKEN", raising=False)
+    monkeypatch.delenv("WXO_AUTH_URL", raising=False)
+
+    try:
+        Client()
+    except ValueError as exc:
+        assert "runs-on mode requires request-scoped execution_context" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError when runs-on mode lacks execution_context")

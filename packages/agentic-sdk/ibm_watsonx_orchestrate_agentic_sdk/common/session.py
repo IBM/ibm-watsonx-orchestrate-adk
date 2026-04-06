@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any, Literal, Mapping, Optional, TypedDict
 
 import jwt
@@ -49,6 +50,22 @@ class _DummyClient:
         self.token = None
 
 
+def get_agentic_mode_hint() -> AgenticMode | None:
+    mode_hint = str(os.environ.get("WXO_AGENTIC_MODE") or "").strip()
+    if mode_hint in {"runs-on", "runs-elsewhere", "local"}:
+        return mode_hint  # type: ignore[return-value]
+    return None
+
+
+def get_runs_on_default_api_proxy_url() -> str:
+    return str(os.environ.get("WXO_API_PROXY_URL") or "").rstrip("/")
+
+
+def get_runs_on_default_deployment_platform() -> str | None:
+    deployment_platform = str(os.environ.get("DEPLOYMENT_PLATFORM") or "").strip()
+    return deployment_platform or None
+
+
 def normalize_access_token(token: str) -> str:
     if not token:
         raise ValueError("access token is required")
@@ -81,10 +98,17 @@ def build_runs_on_session(
     verify: str | bool | None = None,
 ) -> AgenticSession:
     access_token = normalize_access_token(str(execution_context.get("access_token") or ""))
-    api_proxy_url = str(execution_context.get("api_proxy_url") or "").rstrip("/")
+    api_proxy_url = str(
+        execution_context.get("api_proxy_url") or get_runs_on_default_api_proxy_url()
+    ).rstrip("/")
     thread_id = str(execution_context.get("thread_id") or "").strip()
+    mode_hint = get_agentic_mode_hint()
 
     if not api_proxy_url:
+        if mode_hint == "runs-on":
+            raise ValueError(
+                "runs-on mode requires execution_context.api_proxy_url or WXO_API_PROXY_URL"
+            )
         raise ValueError("execution_context.api_proxy_url is required")
     if not thread_id:
         raise ValueError("execution_context.thread_id is required")
@@ -101,7 +125,9 @@ def build_runs_on_session(
         or ""
     ).strip() or None
     run_id = str(execution_context.get("run_id") or "").strip() or None
-    deployment_platform = str(execution_context.get("deployment_platform") or "").strip() or None
+    deployment_platform = str(
+        execution_context.get("deployment_platform") or get_runs_on_default_deployment_platform() or ""
+    ).strip() or None
 
     return AgenticSession(
         mode="runs-on",
