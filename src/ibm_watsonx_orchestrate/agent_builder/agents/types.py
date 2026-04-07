@@ -323,7 +323,7 @@ class ExternalAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.EXTERNAL
-    title: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    title: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     tags: Optional[List[str]] = None
     api_url: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
     auth_scheme: ExternalAgentAuthScheme = ExternalAgentAuthScheme.NONE
@@ -387,7 +387,7 @@ class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.ASSISTANT
-    title: Annotated[str, Field(json_schema_extra={"min_length_str":1})]
+    title: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     tags: Optional[List[str]] = None
     config: AssistantAgentConfig = AssistantAgentConfig()
     nickname: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None

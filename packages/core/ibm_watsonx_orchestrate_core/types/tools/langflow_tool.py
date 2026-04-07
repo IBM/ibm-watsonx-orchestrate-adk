@@ -127,20 +127,21 @@ def create_langflow_tool(
   
   # find all the component in Langflow and display its credential
   langflow_spec = parse_langflow_model(tool_definition)
+  requirements = set()
+
   if langflow_spec:
+    components = get_langflow_component_details(langflow_spec)
+    requirements = [ x for item in components for x in item.get("requirements") ]
 
     if show_details:
       rich_print(f"[bold white]Langflow version used: {langflow_version}[/bold white]")
       rich_print("Please ensure this flow is compatible with the Langflow version bundled in ADK.")
 
-      components = get_langflow_component_details(langflow_spec)
-      requirements = [ x for item in components for x in item.get("requirements") ]
-
-
       show_langflow_tool_component_details(components)
-        
-      for connection in connections:
-        rich_print(f"* Connection: {connection} → Suggested naming: {connection}_<variable>")
+      
+      if connections:
+        for connection in connections:
+          rich_print(f"* Connection: {connection} → Suggested naming: {connection}_<variable>")
 
   spec = ToolSpec(
     name=name,

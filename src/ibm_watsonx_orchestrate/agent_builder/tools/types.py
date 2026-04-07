@@ -203,7 +203,7 @@ class McpToolBinding(BaseModel):
     connections: Dict[str, str] | None
 
 class FlowToolBinding(BaseModel):
-    flow_id: str
+    flow_id: Optional[str] = None
     model: Optional[dict] = None
 
 class LangflowToolBinding(BaseModel):
@@ -255,8 +255,8 @@ class ToolSpec(BaseModel):
     display_name: str | None = None
     description: str
     permission: ToolPermission
-    input_schema: ToolRequestBody = None
-    output_schema: ToolResponseBody = None
+    input_schema: Optional[ToolRequestBody] = None
+    output_schema: Optional[ToolResponseBody] = None
     binding: ToolBinding = None
     toolkit_id: str | None = None
     is_async: bool = False
@@ -524,10 +524,14 @@ class ToolListEntry(BaseModel):
     type: Optional[str] = Field(description="The type of the tool"),
     toolkit: Optional[str] = Field(description="The name of the Toolkit the tool belongs. Empty if the tool is not from a Toolkit"),
     app_ids: Optional[List[str]] = Field(description="A list of app_ids that show what connections are bound to a tool")
+    is_global: Optional[bool] = Field(default=None, description="Is the tool present in the global workspace")
 
     def get_row_details(self):
         app_ids = ", ".join(self.app_ids) if self.app_ids else ""
-        return [self.name, self.description, self.type, self.toolkit, app_ids]
+        row = [self.name, self.description, self.type, self.toolkit, app_ids]
+        if self.is_global is not None:
+            row.append("[green bold]✔[/green bold]" if self.is_global else "[red bold]x[/red bold]")
+        return row
     
 # ---------------------------------------------------------------------------
 # Plugin Tools Models
