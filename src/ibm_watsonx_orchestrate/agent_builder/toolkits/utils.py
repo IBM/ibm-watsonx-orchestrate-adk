@@ -19,8 +19,7 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
             raise BadRequest("The package root for python toolkits must be a valid folder")
         
         with tempfile.TemporaryDirectory(prefix=f"{folder_path.stem}_", dir='/tmp') as temp_dir:
-            tools_dir = os.path.join(temp_dir, "tools")
-            shutil.copytree(folder_path, tools_dir, dirs_exist_ok=True)
+            shutil.copytree(folder_path, temp_dir, dirs_exist_ok=True)
             sys.path.insert(0, temp_dir)
             temp_path = Path(temp_dir)
             tools = []
