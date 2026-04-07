@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 import json
 from enum import Enum
 
-from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 
 
 class PhoneChannelType(str, Enum):
