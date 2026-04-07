@@ -29,9 +29,9 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_de
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connection_id, ConnectionType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id
-
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate_clients.models.models_client import CUSTOM_MODEL_TAG, DEFAULT_MODEL_TAG, \
     LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG
@@ -423,15 +423,20 @@ class ModelsController:
             zip_file_out = zipfile.ZipFile(output_path, "w")
 
         model_name = model_spec.get('name')
+        model_file_name = model_name.rsplit('/', 1)[-1]
+        model_file_path = f"{output_file_name}/models/{model_file_name}.yaml"
+
+        # Check if model was already exported
+        if check_file_in_zip(file_path=model_file_path, zip_file=zip_file_out):
+            logger.warning(f"Skipping {model_name}, model with that name already exists in the output folder")
+            return
+
         logger.info(f"Exporting model for '{model_name}'")
 
         model_spec_yaml = yaml.dump(model_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
 
         model_spec_yaml_bytes = model_spec_yaml.encode("utf-8")
         model_spec_yaml_file = io.BytesIO(model_spec_yaml_bytes)
-
-        model_file_name = model_name.rsplit('/', 1)[-1]
-        model_file_path = f"{output_file_name}/models/{model_file_name}.yaml"
 
         zip_file_out.writestr(
             model_file_path,
@@ -494,14 +499,19 @@ class ModelsController:
             zip_file_out = zipfile.ZipFile(output_path, "w")
 
         model_policy_name = model_policy_spec.get('name')
+        model_policy_file_name = model_policy_name.rsplit('/', 1)[-1]
+        model_policy_file_path = f"{output_file_name}/models/{model_policy_file_name}.yaml"
+
+        # Check if model policy was already exported
+        if check_file_in_zip(file_path=model_policy_file_path, zip_file=zip_file_out):
+            logger.warning(f"Skipping {model_policy_name}, model policy with that name already exists in the output folder")
+            return
+
         logger.info(f"Exporting model policy for '{model_policy_name}'")
 
         model_policy_spec_yaml = yaml.dump(model_policy_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
         model_policy_spec_yaml_bytes = model_policy_spec_yaml.encode("utf-8")
         model_policy_spec_yaml_file = io.BytesIO(model_policy_spec_yaml_bytes)
-
-        model_policy_file_name = model_policy_name.rsplit('/', 1)[-1]
-        model_policy_file_path = f"{output_file_name}/models/{model_policy_file_name}.yaml"
 
         zip_file_out.writestr(
             model_policy_file_path,
