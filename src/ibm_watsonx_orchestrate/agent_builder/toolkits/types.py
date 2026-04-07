@@ -1,8 +1,11 @@
 from typing import List, Dict, Optional, Union, Tuple
 from enum import Enum
 import json
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
+from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolBinding, ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.toolkits.utils import extract_python_toolkit_tools_from_folder
 import logging
 import sys
 
@@ -10,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ToolkitKind(str, Enum):
     MCP = "mcp"
+    PYTHON = "python"
 
 class ToolkitSource(str, Enum):
     FILES = "files"
@@ -27,6 +31,11 @@ class Language(str, Enum):
 class AllowedContext(str, Enum):
     TENANT_ID = "tenant_id"
     AGENT_ID = "agent_id"
+
+class ToolkitDeploymentTiers(str, Enum):
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
 
 def validate_context(metadata: List[str]) -> None:
     """Validate that metadata values are only 'tenant_id' or 'agent_id'."""
@@ -58,10 +67,38 @@ class RemoteMcpModel(BaseMcpModel):
 
 McpModel = Union[LocalMcpModel, RemoteMcpModel]
 
-class ToolkitMCPInputSpec(BaseModel):
-    kind: ToolkitKind = ToolkitKind.MCP
+class PythonModel(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    tools: Optional[List[dict]] = None
+    python_version: Optional[str] = None
+    env: Optional[dict] = None
+    connections: Dict[str, str] | List[str] = {}
+    requirements: Optional[List[str]] = None
+    package_root: Optional[str] = None
+
+class BaseToolkitInputSpec(BaseModel):
+    kind: ToolkitKind
     name: str
     description: str
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
+    deployment_tier: Optional[ToolkitDeploymentTiers] = None
+    connections: Optional[List[str]] = None
+
+class ToolkitPythonTool(ToolSpec):
+    binding: PythonToolBinding
+
+    @staticmethod
+    def create_from_base_tool_spec(tool: BaseTool) -> 'ToolkitPythonTool':
+        attrs = vars(tool.__tool_spec__).copy()
+        python_binding = attrs.get("binding").python
+        attrs["binding"] = python_binding
+    
+        return ToolkitPythonTool(**attrs)
+
+
+class ToolkitMCPInputSpec(BaseToolkitInputSpec):
+    kind: ToolkitKind = ToolkitKind.MCP
     transport: Optional[ToolkitTransportKind] = None
     package: Optional[str] = None
     package_root: Optional[str] = None
@@ -70,9 +107,7 @@ class ToolkitMCPInputSpec(BaseModel):
     args: Optional[List[str]] = None
     url: Optional[str] = None
     tools: Optional[List[str]] = None
-    connections: Optional[List[str]] = None
     source: Optional[ToolkitSource] = None
-    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
     allowed_context: Optional[List[str]] = None
 
     def __parse_tool_string(tool_string: str) -> List[str]:
@@ -205,6 +240,26 @@ class ToolkitMCPInputSpec(BaseModel):
         content.pop("source", None)
         return content
 
+class ToolkitPythonInputSpec(BaseToolkitInputSpec):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    kind: ToolkitKind = ToolkitKind.PYTHON
+    tools: Optional[List[ToolkitPythonTool]] = None
+    python_version: Optional[str] = None
+    environment: Optional[dict] = None
+    package_root: Optional[str] = None
+
+    
+    @model_validator(mode="after")
+    def post_validate_mcp(self):
+        if self.kind != ToolkitKind.PYTHON:
+            raise BadRequest(f"Unsupported toolkit kind: {self.kind}")
+        return self
+
+    def model_dump(self, export_format: bool = False, *args, **kwargs) -> str:
+        content = super().model_dump(*args, **kwargs)
+        return content
+
 # Remove generate from class into controller
 class ToolkitSpec(BaseModel):
     id: Optional[str] = None
@@ -216,14 +271,13 @@ class ToolkitSpec(BaseModel):
     created_by: Optional[str] = None
     created_by_username: Optional[str] = None
     tools: Optional[List[str]] = []
-    mcp: McpModel
-    
+    workspace_id: Optional[str] = None
+    mcp: Optional[McpModel] = None
+    python: Optional[PythonModel] = None
+    deployment_tier: Optional[ToolkitDeploymentTiers] = None
+
     @staticmethod
-    def generate_toolkit_spec(input_spec: ToolkitMCPInputSpec) -> 'ToolkitSpec':
-
-        if not input_spec.connections:
-            input_spec.connections = {}
-
+    def generate_toolkit_spec_from_mcp_input(input_spec: ToolkitMCPInputSpec) -> 'ToolkitSpec':
         mcp_config = None
         if input_spec.source == ToolkitSource.REMOTE:
             metadata_dict = None
@@ -253,6 +307,37 @@ class ToolkitSpec(BaseModel):
             description=input_spec.description,
             mcp=mcp_config
         )
+
+    @staticmethod
+    def generate_toolkit_spec_from_python_input(input_spec: ToolkitPythonInputSpec) -> 'ToolkitSpec':
+        tools = [tool.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True) for tool in input_spec.tools] if input_spec.tools else None
+        python_config = PythonModel(
+            tools = tools,
+            python_version = input_spec.python_version,
+            env = input_spec.environment,
+            connections=input_spec.connections,
+            package_root=input_spec.package_root
+        )
+
+        return ToolkitSpec(
+            name=input_spec.name,
+            description=input_spec.description,
+            python=python_config,
+            deployment_tier=input_spec.deployment_tier
+        )
+
+    
+    @staticmethod
+    def generate_toolkit_spec(input_spec: ToolkitMCPInputSpec | ToolkitPythonInputSpec) -> 'ToolkitSpec':
+
+        if not input_spec.connections:
+            input_spec.connections = {}
+        
+        match input_spec.kind:
+            case ToolkitKind.MCP:
+                return ToolkitSpec.generate_toolkit_spec_from_mcp_input(input_spec)
+            case ToolkitKind.PYTHON:
+                return ToolkitSpec.generate_toolkit_spec_from_python_input(input_spec)
 
 
 class ToolkitListEntry(BaseModel):

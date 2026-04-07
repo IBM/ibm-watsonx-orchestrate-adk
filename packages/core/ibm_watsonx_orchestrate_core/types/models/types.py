@@ -2,8 +2,10 @@ from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from pydantic import Field, BaseModel, ConfigDict, model_validator
 
-class  ModelProvider(str, Enum):
+
+class ModelProvider(str, Enum):
     OPENAI = 'openai'
+    OPENAI_OAUTH2_CLIENT_CREDS = 'openai-oauth2-client-creds'
     A21 = 'a21'
     ANTHROPIC = 'anthropic'
     ANYSCALE = 'anyscale'
@@ -23,19 +25,20 @@ class  ModelProvider(str, Enum):
     STABILITY_AI = 'stability-ai'
     TOGETHER_AI = 'together-ai'
     WATSONX = 'watsonx'
-    X_AI='x-ai'
+    X_AI = 'x-ai'
 
     def __str__(self):
         return self.value
 
     def __repr__(self):
         return self.value
-    
+
     @classmethod
     def has_value(cls, value):
-        return value in cls._value2member_map_ 
+        return value in cls._value2member_map_
 
-class  ModelType(str, Enum):
+
+class ModelType(str, Enum):
     CHAT = 'chat'
     CHAT_VISION = 'chat_vision'
     COMPLETION = 'completion'
@@ -46,8 +49,9 @@ class  ModelType(str, Enum):
 
     def __repr__(self):
         return self.value
-    
-class  ModelType(str, Enum):
+
+
+class ModelType(str, Enum):
     CHAT = 'chat'
     CHAT_VISION = 'chat_vision'
     COMPLETION = 'completion'
@@ -58,11 +62,11 @@ class  ModelType(str, Enum):
 
     def __repr__(self):
         return self.value
+
 
 class ProviderConfig(BaseModel):
     # Required fields
-    provider: Optional[str]=''
-
+    provider: Optional[str] = ''
 
     api_key: Optional[str] = None
     url_to_fetch: Optional[str] = Field(None, alias="urlToFetch")
@@ -93,10 +97,8 @@ class ProviderConfig(BaseModel):
     azure_inference_extra_params: Optional[str] = Field(None, alias="azureExtraParams")
     azure_inference_foundry_url: Optional[str] = Field(None, alias="azureFoundryUrl")
 
-
     # Workers AI specific
     workers_ai_account_id: Optional[str] = Field(None, alias="workersAiAccountId")
-
 
     # AWS
     aws_secret_access_key: Optional[str] = Field(None, alias="awsSecretAccessKey")
@@ -173,13 +175,13 @@ class ProviderConfig(BaseModel):
     watsonx_space_id: Optional[str] = Field(None, alias="watsonxSpaceId")
     watsonx_project_id: Optional[str] = Field(None, alias="watsonxProjectId")
     watsonx_deployment_id: Optional[str] = Field(None, alias="watsonxDeploymentId")
-    watsonx_cpd_url:Optional[str] = Field(None, alias="watsonxCpdUrl")
-    watsonx_cpd_username:Optional[str] = Field(None, alias="watsonxCpdUsername")
-    watsonx_cpd_password:Optional[str] = Field(None, alias="watsonxCpdPassword")
+    watsonx_cpd_url: Optional[str] = Field(None, alias="watsonxCpdUrl")
+    watsonx_cpd_username: Optional[str] = Field(None, alias="watsonxCpdUsername")
+    watsonx_cpd_password: Optional[str] = Field(None, alias="watsonxCpdPassword")
 
     model_config = {
         "populate_by_name": True,  # Replaces allow_population_by_field_name
-        "extra": "forbid",         # Same as before
+        "extra": "forbid",  # Same as before
         "json_schema_extra": lambda schema: schema.get("properties", {}).pop("provider", None)
     }
 
@@ -187,7 +189,7 @@ class ProviderConfig(BaseModel):
         old_config_dict = dict(self)
         new_config_dict = dict(new_config)
 
-        new_config_dict = {k:v for k, v in new_config_dict.items() if v is not None}
+        new_config_dict = {k: v for k, v in new_config_dict.items() if v is not None}
         old_config_dict.update(new_config_dict)
 
         return ProviderConfig.model_validate(old_config_dict)
@@ -211,8 +213,9 @@ class VirtualModel(BaseModel):
             values["display_name"] = values.get("name")
         if not values.get("description"):
             values["description"] = values.get("name")
-        
+
         return values
+
 
 class ListVirtualModel(BaseModel):
     model_config = ConfigDict(extra='allow')
@@ -239,16 +242,27 @@ class ModelConfig(BaseModel):
 class ModelListEntry(BaseModel):
     name: Optional[str] = Field(default=None, description="Name of the model")
     description: Optional[str] = Field(default=None, description="A description of the model")
-    is_custom: bool = Field(default=False, description="Is the model a third party model imported into Orchestrate")
-    recommended: bool = Field(default=False, description="Is the model a reccomended model in watsonx. Non-custom models only")
+    is_custom: bool = Field(default=False, description="Is the model a virtual party model imported into Orchestrate")
+    is_default: bool = Field(default=False, description="Is the model default")
+    is_denied: bool = Field(default=False, description="Is the model in denylist")
+    recommended: bool = Field(default=False,
+                              description="Is the model a recommended model in watsonx Orchestrate. Non-custom models only")
+
+    def should_display(self):
+        return any([
+            self.is_custom,  # virtual models
+            self.is_default,  # default model
+            self.is_denied,  # show model if it's in denylist as well
+            self.recommended,  # model recommended by wxO
+        ])
 
     def get_row_details(self):
         description = self.description or 'No description provided.'
-        if self.is_custom:
-            return [f"✨️ {self.name}", description]
-        else:
-            name = self.name or "N/A"
-            marker = "★ " if self.recommended else ""
-            return [f"[yellow]{marker}[/yellow]{name}", description]
+        name = self.name or "N/A"
+        # emojis don't work well with rich
+        marker = "[green]✔[/]" * int(self.is_default) + "[yellow]★[/] " * int(
+            self.recommended) + "[bold cyan]◆[/]" * int(self.is_custom) + "[red]✖[/]" * int(self.is_denied)
+        return [f"{marker} {name}", description]
+
 
 ANTHROPIC_DEFAULT_MAX_TOKENS = 4096

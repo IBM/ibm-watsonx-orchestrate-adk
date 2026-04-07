@@ -106,6 +106,7 @@ PROVIDER_REQUIRED_FIELDS.update({
     ModelProvider.WATSONX: PROVIDER_REQUIRED_FIELDS[ModelProvider.WATSONX] + [{'watsonx_space_id', 'watsonx_project_id', 'watsonx_deployment_id'}],
     ModelProvider.OLLAMA: PROVIDER_REQUIRED_FIELDS[ModelProvider.OLLAMA] + ['custom_host'],
     ModelProvider.BEDROCK: [{'api_key', ('aws_secret_access_key', 'aws_access_key_id')}],
+    ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS: ['custom_host'],
 })
 
 # def env_file_to_model_ProviderConfig(model_name: str, env_file_path: str) -> ProviderConfig | None:
@@ -188,6 +189,14 @@ def _validate_requirements(provider: ModelProvider, cfg: ProviderConfig, app_id:
         else:
             if not _check_credential_provided(cred, provided_credentials):
                 missing_credentials.append(cred)
+
+    if provider == ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS:
+        if missing_credentials:
+            logger.error(f"Please provide these values in the provider config: {', '.join(missing_credentials)}")
+        if not app_id:
+            logger.error("Please create an oauth2 client credentials connection then bind it to the model with `--app-id`")
+        if missing_credentials or (not app_id):
+            sys.exit(1)
 
     if len(missing_credentials) > 0:
         if not app_id:
