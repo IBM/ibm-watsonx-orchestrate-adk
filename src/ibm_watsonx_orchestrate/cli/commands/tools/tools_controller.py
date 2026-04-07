@@ -48,7 +48,8 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
-from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 import yaml
 from  ibm_watsonx_orchestrate import __version__
 
@@ -547,8 +548,14 @@ class ToolsController:
                 "Toolkit": {}, 
                 "App ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
+
             for column in column_args:
                 table.add_column(column,**column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", justify="center" )
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
@@ -598,6 +605,9 @@ class ToolsController:
                     app_ids=app_ids
                 )
 
+                if is_private_workspace:
+                    entry.is_global = tool.__tool_spec__.workspace == GLOBAL_WORKSPACE_NAME
+
                 if format == ListFormats.JSON:
                     tool_details.append(entry)
                 else:
@@ -626,6 +636,8 @@ class ToolsController:
             for tool in tools:
                 exist = False
                 tool_id = None
+                existing_tool_workspace_id = None
+                cross_workspace_update = False
 
                 existing_tools = self.get_client().get_draft_by_name(tool.__tool_spec__.name)
                 if len(existing_tools) > 1:
@@ -636,6 +648,20 @@ class ToolsController:
                     existing_tool = existing_tools[0]
                     exist = True
                     tool_id = existing_tool.get("id")
+                    # Store the workspace_id of the existing tool for update operations
+                    existing_tool_workspace_id = existing_tool.get("workspace_id")
+                    
+                    # Check if tool is in a different workspace
+                    workspace_context = WorkspaceContext()
+                    active_workspace_id = workspace_context.get_active_workspace_id()
+                    
+                    if existing_tool_workspace_id and active_workspace_id and existing_tool_workspace_id != active_workspace_id:
+                        cross_workspace_update = True
+                        # Get workspace names for info message
+                        tool_workspace_name = GLOBAL_WORKSPACE_NAME if existing_tool_workspace_id == GLOBAL_WORKSPACE_ID else f"workspace {existing_tool_workspace_id}"
+                        active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
+                        
+                        logger.info(f"Tool '{tool.__tool_spec__.name}' belongs to {tool_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
@@ -730,7 +756,8 @@ class ToolsController:
 
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
                 if exist:
-                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
+                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact,
+                                   skip_workspace_param=cross_workspace_update)
                 else:
                     self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
@@ -776,12 +803,13 @@ class ToolsController:
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
-    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str) -> None:
+    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str, skip_workspace_param: bool = False) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
         logger.info(f"Existing Tool '{tool.__tool_spec__.name}' found. Updating...")
 
-        self.get_client().update(tool_id, tool_spec)
+        # For cross-workspace updates, skip workspace injection in the client
+        self.get_client().update(tool_id, tool_spec, skip_workspace_injection=skip_workspace_param)
 
         if tool_artifact is not None:
             match self.tool_kind:

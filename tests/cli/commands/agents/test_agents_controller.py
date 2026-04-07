@@ -397,7 +397,7 @@ class MockAgent:
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
 
-    def update(self, agent_id, agent_spec):
+    def update(self, agent_id, agent_spec, skip_workspace_injection=False):
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
     
