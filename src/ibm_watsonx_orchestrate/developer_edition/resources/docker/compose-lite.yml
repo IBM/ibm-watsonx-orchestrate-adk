@@ -21,7 +21,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: ${DB_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
+    image: us.icr.io/watson-orchestrate/development/wxo-server-db:07-04-2026-bwAI
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -247,6 +247,7 @@ services:
       AGENT_ARCHITECT_ENDPOINT: http://wxo-agent-architect-server:4321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+      THREAD_ENCODER_SECRET: 'asdsd'
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
