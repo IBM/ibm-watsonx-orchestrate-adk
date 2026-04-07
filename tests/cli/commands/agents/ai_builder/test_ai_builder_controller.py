@@ -22,7 +22,7 @@ from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import
 from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
 from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.models.types import ModelListEntry
-from tests.cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
+from cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
 
 
 class MockModelsClient():
