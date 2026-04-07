@@ -40,7 +40,8 @@ class TestAddToolkit:
                 transport=None,
                 tools=None,
                 app_id=None,
-                allowed_context=None
+                allowed_context=None,
+                tier=None
             )
             mock_publish_or_update_toolits.assert_called_once()
 
