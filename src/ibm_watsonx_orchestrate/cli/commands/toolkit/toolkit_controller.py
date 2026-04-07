@@ -223,10 +223,7 @@ class ToolkitController:
                     else:
                         zip_file_path = os.path.join(tmpdir, os.path.basename(f"{package_root.rstrip(os.sep)}.zip"))
                         with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as mcp_zip_tool_artifacts:
-                            if kind==ToolkitKind.PYTHON:
-                                self._populate_zip(package_root, mcp_zip_tool_artifacts, location="tools", ignore=["requirements.txt", "bundle-format"])
-                            else:
-                                self._populate_zip(package_root, mcp_zip_tool_artifacts)
+                            self._populate_zip(package_root, mcp_zip_tool_artifacts)
 
                     # List tools if not provided
                     if kind == ToolkitKind.MCP:
