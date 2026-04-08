@@ -16,6 +16,7 @@ class MemoryRequestBuilder:
     def build_add_messages_request(
         *,
         messages: List[Dict[str, Any] | MemoryMessage],
+        infer: Optional[bool] = None,
         memory_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         agent_id: Optional[str] = None,
@@ -29,6 +30,7 @@ class MemoryRequestBuilder:
         ]
         return CreateMemoriesRequest(
             messages=normalized_messages,
+            infer=infer,
             memory_type=memory_type,
             metadata=metadata,
             agent_id=agent_id,

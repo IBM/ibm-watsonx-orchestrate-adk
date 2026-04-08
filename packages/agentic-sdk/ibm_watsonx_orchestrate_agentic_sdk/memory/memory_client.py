@@ -25,6 +25,7 @@ class MemoryClient:
         self,
         *,
         messages: List[Dict[str, Any] | MemoryMessage],
+        infer: Optional[bool] = None,
         memory_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         agent_id: Optional[str] = None,
@@ -34,6 +35,7 @@ class MemoryClient:
     ) -> CreateMemoriesResponse:
         request = MemoryRequestBuilder.build_add_messages_request(
             messages=messages,
+            infer=infer,
             memory_type=memory_type,
             metadata=metadata,
             agent_id=agent_id,
@@ -65,6 +67,7 @@ class MemoryClient:
     def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> CreateMemoriesResponse:
         return self.add_messages(
             messages=[{"role": "user", "content": content}],
+            infer=False,
             metadata=metadata,
         )
 
