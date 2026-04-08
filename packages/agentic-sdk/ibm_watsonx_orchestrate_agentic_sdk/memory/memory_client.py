@@ -1,71 +1,75 @@
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
 
 from ibm_watsonx_orchestrate_agentic_sdk.common.base_client import BaseAgenticClient
+from ibm_watsonx_orchestrate_agentic_sdk.common.session import AgenticSession
+from ibm_watsonx_orchestrate_agentic_sdk.memory.models import (
+    CreateMemoriesResponse,
+    MemoryMessage,
+    SearchMemoriesResponse,
+)
+from ibm_watsonx_orchestrate_agentic_sdk.memory.request_builders import MemoryRequestBuilder
+from ibm_watsonx_orchestrate_agentic_sdk.memory.request_propagator import MemoryRequestPropagator
 
 
-class MemoryEntry(BaseModel):
-    """Represents a memory entry"""
-    id: str = Field(..., description="Unique identifier for the memory entry")
-    content: str = Field(..., description="Memory content")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
+class MemoryClient:
+    """Facade for the managed memory APIs exposed by wxo-server."""
 
+    def __init__(self, session: AgenticSession):
+        self._session = session
+        self._transport = BaseAgenticClient(session)
+        self._propagator = MemoryRequestPropagator(self._transport)
 
-class MemoryClient(BaseAgenticClient):
-    """
-    Client to handle operations for the Memory service endpoint
-    
-    Example usage for future implementation:
-        ```python
-        from ibm_watsonx_orchestrate_agentic_sdk import AgenticSDK
-        
-        sdk = AgenticSDK(api_key="...", instance_url="...")
-        
-        # Store memory
-        sdk.memory.store(content="User prefers dark mode")
-        
-        # Retrieve memories
-        memories = sdk.memory.retrieve(query="user preferences")
-        ```
-    """
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.base_endpoint = "/memory"
-    
-    def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> MemoryEntry:
-        """
-        Store a memory entry
-        
-        Args:
-            content: The content to store
-            metadata: Optional metadata associated with the memory
-        
-        Returns:
-            MemoryEntry containing the stored memory details
-        """
-        payload: Dict[str, Any] = {"content": content}
-        if metadata is not None:
-            payload["metadata"] = metadata
-        
-        endpoint = f"{self.base_endpoint}/store"
-        response = self._post(endpoint, data=payload)
-        return MemoryEntry.model_validate(response)
-    
-    def retrieve(self, query: str, limit: int = 10) -> List[MemoryEntry]:
-        """
-        Retrieve memory entries based on a query
-        
-        Args:
-            query: Search query for retrieving relevant memories
-            limit: Maximum number of memories to retrieve
-        
-        Returns:
-            List of MemoryEntry objects matching the query
-        """
-        endpoint = f"{self.base_endpoint}/retrieve"
-        params = {"query": query, "limit": limit}
-        response = self._get(endpoint, params=params)
-        return [MemoryEntry.model_validate(entry) for entry in response.get("memories", [])]
+    def add_messages(
+        self,
+        *,
+        messages: List[Dict[str, Any] | MemoryMessage],
+        infer: Optional[bool] = None,
+        memory_type: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        agent_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        sensitivity_classification: Optional[str] = None,
+        source_reference: Optional[str] = None,
+    ) -> CreateMemoriesResponse:
+        request = MemoryRequestBuilder.build_add_messages_request(
+            messages=messages,
+            infer=infer,
+            memory_type=memory_type,
+            metadata=metadata,
+            agent_id=agent_id,
+            run_id=run_id or (self._session.identity.run_id if self._session.identity else None),
+            sensitivity_classification=sensitivity_classification,
+            source_reference=source_reference,
+        )
+        return self._propagator.add_messages(request)
 
-# Made with Bob
+    def search(
+        self,
+        *,
+        query: str,
+        limit: int = 10,
+        memory_type: Optional[str] = None,
+        expanded_query: Optional[str] = None,
+        recall: Optional[bool] = None,
+    ) -> SearchMemoriesResponse:
+        request = MemoryRequestBuilder.build_search_request(
+            query=query,
+            limit=limit,
+            memory_type=memory_type,
+            expanded_query=expanded_query,
+            recall=recall,
+        )
+        return self._propagator.search(request)
+
+    # Compatibility helpers for the previous placeholder API.
+    def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> CreateMemoriesResponse:
+        return self.add_messages(
+            messages=[{"role": "user", "content": content}],
+            infer=False,
+            metadata=metadata,
+        )
+
+    def retrieve(self, query: str, limit: int = 10) -> SearchMemoriesResponse:
+        return self.search(query=query, limit=limit)
