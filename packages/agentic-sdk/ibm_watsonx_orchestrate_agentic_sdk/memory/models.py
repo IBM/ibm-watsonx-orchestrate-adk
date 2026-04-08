@@ -34,6 +34,7 @@ class MemoryItem(BaseModel):
 
 class CreateMemoriesRequest(BaseModel):
     messages: List[MemoryMessage] = Field(..., min_length=1)
+    infer: Optional[bool] = None
     memory_type: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     agent_id: Optional[str] = None
