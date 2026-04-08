@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from typing_extensions import List
 
 from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
@@ -38,9 +39,14 @@ class KnowledgeBaseClient(BaseWXOClient):
             payload['knowledge_base'] = json.dumps(kb_data)
         return self._post_form_data(f"{self.base_endpoint}/documents", data=payload, files=files)
 
-    def get(self) -> dict:
-        # Add workspace_id query parameter if active workspace exists
-        params = add_workspace_query_param()
+    def get(self, workspace_id: Optional[str] = None) -> dict:
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        params = {}
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+        
         if params:
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
             kbs = self._get(f"{self.base_endpoint}?{query_string}")
@@ -55,18 +61,29 @@ class KnowledgeBaseClient(BaseWXOClient):
         
         return kbs
     
-    def get_by_name(self, name: str) -> List[dict]:
-        kbs = self.get_by_names([name])
+    def get_by_name(self, name: str, workspace_id: Optional[str] = None) -> List[dict]:
+        kbs = self.get_by_names([name], workspace_id=workspace_id)
         return None if len(kbs) == 0 else kbs[0]
     
-    def get_by_id(self, knowledge_base_id: str) -> dict:
-        return self._get(f"{self.base_endpoint}/{knowledge_base_id}")
+    def get_by_id(self, knowledge_base_id: str, workspace_id: str = None) -> dict:
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params = {'workspace_id': workspace_id}
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            return self._get(f"{self.base_endpoint}/{knowledge_base_id}?{query_string}")
+        else:
+            return self._get(f"{self.base_endpoint}/{knowledge_base_id}")
 
-    def get_by_names(self, names: List[str]) -> List[dict]:
+    def get_by_names(self, names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
         formatted_names = [f"names={x}" for x in names]
         params = {}
-        # Add workspace filtering if applicable
-        params = add_workspace_query_param(params)
+        
+        # If workspace_id is explicitly provided, use it; otherwise use active workspace context
+        if workspace_id is not None:
+            params['workspace_id'] = workspace_id
+        else:
+            params = add_workspace_query_param(params)
+        
         # Build query string with names and other params
         query_parts = formatted_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}")

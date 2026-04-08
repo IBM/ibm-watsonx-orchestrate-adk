@@ -355,7 +355,7 @@ class KnowledgeBaseController:
                     return
     
     def get_id(
-        self, id: str, name: str
+        self, id: str, name: str, workspace_id: Optional[str] = None
     ) -> str:
         if id:
             return id
@@ -364,7 +364,10 @@ class KnowledgeBaseController:
             logger.error("Either 'id' or 'name' is required")
             sys.exit(1)
 
-        response = self.get_client().get_by_name(name)
+        client = self.get_client()
+        
+        # Use client method directly - it handles workspace_id parameter
+        response = client.get_by_name(name, workspace_id=workspace_id)
 
         if not response:
             logger.warning(f"No knowledge base '{name}' found")
@@ -543,9 +546,10 @@ class KnowledgeBaseController:
     def knowledge_base_export(self,
             output_path: str,
             id: Optional[str] = None,
-            name: Optional[str] = None, 
+            name: Optional[str] = None,
             zip_file_out: Optional[ZipFile] = None,
-            connections_output_path: str = "/connections") -> None:
+            connections_output_path: str = "/connections",
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
@@ -553,7 +557,7 @@ class KnowledgeBaseController:
             logger.error(f"Output file must end with the extension '.yaml', '.yml' or '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
-        knowledge_base_id = self.get_id(id, name)
+        knowledge_base_id = self.get_id(id, name, workspace_id=workspace_id)
         logEnding = f"with ID '{id}'" if id else f"'{name}'"  
         
         logger.info(f"Exporting spec for knowledge base {logEnding}'")

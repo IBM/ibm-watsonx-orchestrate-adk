@@ -7,6 +7,8 @@ including workspace ID resolution, active workspace tracking, and environment de
 
 import logging
 from typing import Optional
+from contextlib import contextmanager
+import threading
 
 from ibm_watsonx_orchestrate.cli.config import (
     Config,
@@ -75,14 +77,19 @@ class WorkspaceContext:
     
     def get_active_workspace_id(self) -> Optional[str]:
         """Get the ID of the currently active workspace."""
+        
+        # Check for temporary override first
+        override = get_workspace_id_override()
+        if override is not None:
+            return override
 
         workspace_name = self.get_active_workspace_name()
         
         if not workspace_name:
             return None
         
-        # Handle global workspace
-        if workspace_name == GLOBAL_WORKSPACE_NAME:
+        # Handle global workspace (case-insensitive to handle legacy "Global Workspace")
+        if workspace_name.lower() == GLOBAL_WORKSPACE_NAME.lower():
             return GLOBAL_WORKSPACE_ID
         
         # For other workspaces, we need to resolve the name to ID
@@ -296,3 +303,33 @@ def add_workspace_query_param(params: Optional[dict] = None) -> dict:
         # just return params unchanged
         logger.debug(f"Could not add workspace query param: {e}")
         return params
+
+
+# Thread-local storage for temporary workspace override
+
+_thread_local = threading.local()
+
+
+@contextmanager
+def temporary_workspace_context(workspace_id: Optional[str]):
+    """
+    Temporarily override the active workspace context for the duration of the context.
+    
+    useful for operations like workspace export where we want all API calls
+    to use a specific workspace context regardless of the currently active workspace.
+    """
+    # Save the current override (if any)
+    previous_override = getattr(_thread_local, 'workspace_id_override', None)
+    
+    try:
+        # Set the new override
+        _thread_local.workspace_id_override = workspace_id
+        yield
+    finally:
+        # Restore the previous override
+        _thread_local.workspace_id_override = previous_override
+
+
+def get_workspace_id_override() -> Optional[str]:
+    """Get the current workspace ID override from thread-local storage."""
+    return getattr(_thread_local, 'workspace_id_override', None)
