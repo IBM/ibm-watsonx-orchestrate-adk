@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ibm_watsonx_orchestrate_agentic_sdk import Client
-from ibm_watsonx_orchestrate_agentic_sdk.common.base_client import BaseAgenticClient
+from ibm_watsonx_orchestrate_sdk import Client
+from ibm_watsonx_orchestrate_sdk.common.base_client import BaseAgenticClient
 
 
 TEST_TOKEN = (
