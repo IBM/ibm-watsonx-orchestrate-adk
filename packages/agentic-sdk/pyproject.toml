@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ibm-watsonx-orchestrate-agentic-sdk"
+name = "ibm-watsonx-orchestrate-sdk"
 dynamic = ["version"]
 description = "IBM watsonx Orchestrate Agentic SDK - Advanced AI capabilities and services"
 authors = [
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["ibm_watsonx_orchestrate_sdk"]
 package-data = true
 
 [tool.hatch.build]
