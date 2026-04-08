@@ -132,6 +132,7 @@ services:
       LOG_LEVEL: DEBUG
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -191,6 +192,7 @@ services:
       VCAP_APP_HOST: localhost
       DEPLOYMENT_PLATFORM: laptop
       CONNECTION_MANAGER_URL: http://localhost:3001
+      ENABLE_AGENT_MEMORY: "true"
       DISMISS_NOTIFICATION_TIMEOUT: 10000
       STANDALONE: "true"
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-120000}
@@ -618,6 +620,39 @@ services:
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
       MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
+      MEMORY_FOUNDATION_ENABLED: ${MEMORY_FOUNDATION_ENABLED:-false}
+      MEMORY_INGEST_ENABLED: ${MEMORY_INGEST_ENABLED:-false}
+      MEMORY_SERVICE_URL: ${MEMORY_SERVICE_URL:-http://wxo-agentic-memory:7999/api/v1}
+      MEMORY_SERVICE_API_KEY: ${MEMORY_SERVICE_API_KEY}
+      MEMORY_SERVICE_TIMEOUT_MS: ${MEMORY_SERVICE_TIMEOUT_MS:-5000}
+      MEMORY_SERVICE_REDIS_URL: ${MEMORY_SERVICE_REDIS_URL:-redis://wxo-server-redis:6379/0}
+      MEMORY_SERVICE_REDIS_CHANNEL: ${MEMORY_SERVICE_REDIS_CHANNEL:-memory:add}
+      MEMORY_SERVICE_RESPONSE_CHANNEL: ${MEMORY_SERVICE_RESPONSE_CHANNEL:-}
+      MEMORY_L2_REDIS_URL: ${MEMORY_L2_REDIS_URL:-redis://wxo-server-redis:6379/7}
+      MEMORY_L2_CRITICAL_QUERY: ${MEMORY_L2_CRITICAL_QUERY:-user profile facts personal details long term history background preferences name age birthday family marital status location work role health conditions allergies}
+      MEMORY_L2_CRITICAL_PROFILE_QUERY: ${MEMORY_L2_CRITICAL_PROFILE_QUERY:-user full name name date of birth dob birthday email phone contact details relationship preferences profile facts}
+      MEMORY_L2_CRITICAL_TYPES: ${MEMORY_L2_CRITICAL_TYPES:-preference,profile_fact}
+      MEMORY_L2_CRITICAL_LIMIT: ${MEMORY_L2_CRITICAL_LIMIT:-50}
+      MEMORY_L2_CRITICAL_RECALL: ${MEMORY_L2_CRITICAL_RECALL:-true}
+      MEMORY_L2_CRITICAL_CACHE_TTL_SECONDS: ${MEMORY_L2_CRITICAL_CACHE_TTL_SECONDS:-1800}
+      MEMORY_L2_CRITICAL_CACHE_STORE_TTL_SECONDS: ${MEMORY_L2_CRITICAL_CACHE_STORE_TTL_SECONDS:-86400}
+      MEMORY_L2_CRITICAL_CACHE_PREFIX: ${MEMORY_L2_CRITICAL_CACHE_PREFIX:-memory:l2:critical}
+      MEMORY_L2_CRITICAL_META_TTL_SECONDS: ${MEMORY_L2_CRITICAL_META_TTL_SECONDS:-604800}
+      MEMORY_L2_CRITICAL_SPARSE_COUNT_THRESHOLD: ${MEMORY_L2_CRITICAL_SPARSE_COUNT_THRESHOLD:-4}
+      MEMORY_L2_CRITICAL_EVENT_MIN_REFRESH_SECONDS: ${MEMORY_L2_CRITICAL_EVENT_MIN_REFRESH_SECONDS:-90}
+      MEMORY_L2_CRITICAL_ALLOW_STALE_ON_EMPTY_REFRESH: ${MEMORY_L2_CRITICAL_ALLOW_STALE_ON_EMPTY_REFRESH:-false}
+      MEMORY_L2_CRITICAL_INGEST_TAGS: ${MEMORY_L2_CRITICAL_INGEST_TAGS:-profile_fact,preference,identity,personal_info,contact_info,health,allergy,dob,name}
+      MEMORY_L2_CRITICAL_INGEST_KEYWORDS: ${MEMORY_L2_CRITICAL_INGEST_KEYWORDS:-my name is,i am ,i'm ,call me ,my email,my phone,my birthday,my dob,i prefer,allergy,medical condition,i live in,i work at}
+      MEMORY_INGEST_CONTEXT_WINDOW_SIZE: ${MEMORY_INGEST_CONTEXT_WINDOW_SIZE:-10}
+      MEMORY_TOOL_PREFETCH_ENABLED: ${MEMORY_TOOL_PREFETCH_ENABLED:-true}
+      MEMORY_TOOL_PREFETCH_QUERY: ${MEMORY_TOOL_PREFETCH_QUERY:-}
+      MEMORY_TOOL_PREFETCH_LIMIT: ${MEMORY_TOOL_PREFETCH_LIMIT:-6}
+      MEMORY_TOOL_PREFETCH_HISTORY_WINDOW: ${MEMORY_TOOL_PREFETCH_HISTORY_WINDOW:-4}
+      MEMORY_TOOL_PREFETCH_MIN_QUERY_TOKENS: ${MEMORY_TOOL_PREFETCH_MIN_QUERY_TOKENS:-12}
+      MEMORY_ROUTER_RECALL_MIN_LIMIT: ${MEMORY_ROUTER_RECALL_MIN_LIMIT:-10}
+      MEMORY_SEND_AGENT_ID_ON_RETRIEVAL: ${MEMORY_SEND_AGENT_ID_ON_RETRIEVAL:-false}
+      MEMORY_POST_RETRIEVAL_CLASSIFICATION_ENABLED: ${MEMORY_POST_RETRIEVAL_CLASSIFICATION_ENABLED:-false}
+      MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
@@ -734,8 +769,131 @@ services:
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       MCP_CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444/
       MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
+      MEMORY_FOUNDATION_ENABLED: ${MEMORY_FOUNDATION_ENABLED:-false}
+      MEMORY_INGEST_ENABLED: ${MEMORY_INGEST_ENABLED:-false}
+      MEMORY_SERVICE_URL: ${MEMORY_SERVICE_URL:-http://wxo-agentic-memory:7999/api/v1}
+      MEMORY_SERVICE_API_KEY: ${MEMORY_SERVICE_API_KEY}
+      MEMORY_SERVICE_TIMEOUT_MS: ${MEMORY_SERVICE_TIMEOUT_MS:-5000}
+      MEMORY_SERVICE_REDIS_URL: ${MEMORY_SERVICE_REDIS_URL:-redis://wxo-server-redis:6379/0}
+      MEMORY_SERVICE_REDIS_CHANNEL: ${MEMORY_SERVICE_REDIS_CHANNEL:-memory:add}
+      MEMORY_SERVICE_RESPONSE_CHANNEL: ${MEMORY_SERVICE_RESPONSE_CHANNEL:-}
+      MEMORY_L2_REDIS_URL: ${MEMORY_L2_REDIS_URL:-redis://wxo-server-redis:6379/7}
+      MEMORY_L2_CRITICAL_QUERY: ${MEMORY_L2_CRITICAL_QUERY:-user profile facts personal details long term history background preferences name age birthday family marital status location work role health conditions allergies}
+      MEMORY_L2_CRITICAL_PROFILE_QUERY: ${MEMORY_L2_CRITICAL_PROFILE_QUERY:-user full name name date of birth dob birthday email phone contact details relationship preferences profile facts}
+      MEMORY_L2_CRITICAL_TYPES: ${MEMORY_L2_CRITICAL_TYPES:-preference,profile_fact}
+      MEMORY_L2_CRITICAL_LIMIT: ${MEMORY_L2_CRITICAL_LIMIT:-50}
+      MEMORY_L2_CRITICAL_RECALL: ${MEMORY_L2_CRITICAL_RECALL:-true}
+      MEMORY_L2_CRITICAL_CACHE_TTL_SECONDS: ${MEMORY_L2_CRITICAL_CACHE_TTL_SECONDS:-1800}
+      MEMORY_L2_CRITICAL_CACHE_STORE_TTL_SECONDS: ${MEMORY_L2_CRITICAL_CACHE_STORE_TTL_SECONDS:-86400}
+      MEMORY_L2_CRITICAL_CACHE_PREFIX: ${MEMORY_L2_CRITICAL_CACHE_PREFIX:-memory:l2:critical}
+      MEMORY_L2_CRITICAL_META_TTL_SECONDS: ${MEMORY_L2_CRITICAL_META_TTL_SECONDS:-604800}
+      MEMORY_L2_CRITICAL_SPARSE_COUNT_THRESHOLD: ${MEMORY_L2_CRITICAL_SPARSE_COUNT_THRESHOLD:-4}
+      MEMORY_L2_CRITICAL_EVENT_MIN_REFRESH_SECONDS: ${MEMORY_L2_CRITICAL_EVENT_MIN_REFRESH_SECONDS:-90}
+      MEMORY_L2_CRITICAL_ALLOW_STALE_ON_EMPTY_REFRESH: ${MEMORY_L2_CRITICAL_ALLOW_STALE_ON_EMPTY_REFRESH:-false}
+      MEMORY_L2_CRITICAL_INGEST_TAGS: ${MEMORY_L2_CRITICAL_INGEST_TAGS:-profile_fact,preference,identity,personal_info,contact_info,health,allergy,dob,name}
+      MEMORY_L2_CRITICAL_INGEST_KEYWORDS: ${MEMORY_L2_CRITICAL_INGEST_KEYWORDS:-my name is,i am ,i'm ,call me ,my email,my phone,my birthday,my dob,i prefer,allergy,medical condition,i live in,i work at}
+      MEMORY_INGEST_CONTEXT_WINDOW_SIZE: ${MEMORY_INGEST_CONTEXT_WINDOW_SIZE:-10}
+      MEMORY_TOOL_PREFETCH_ENABLED: ${MEMORY_TOOL_PREFETCH_ENABLED:-true}
+      MEMORY_TOOL_PREFETCH_QUERY: ${MEMORY_TOOL_PREFETCH_QUERY:-}
+      MEMORY_TOOL_PREFETCH_LIMIT: ${MEMORY_TOOL_PREFETCH_LIMIT:-6}
+      MEMORY_TOOL_PREFETCH_HISTORY_WINDOW: ${MEMORY_TOOL_PREFETCH_HISTORY_WINDOW:-4}
+      MEMORY_TOOL_PREFETCH_MIN_QUERY_TOKENS: ${MEMORY_TOOL_PREFETCH_MIN_QUERY_TOKENS:-12}
+      MEMORY_ROUTER_RECALL_MIN_LIMIT: ${MEMORY_ROUTER_RECALL_MIN_LIMIT:-10}
+      MEMORY_SEND_AGENT_ID_ON_RETRIEVAL: ${MEMORY_SEND_AGENT_ID_ON_RETRIEVAL:-false}
+      MEMORY_POST_RETRIEVAL_CLASSIFICATION_ENABLED: ${MEMORY_POST_RETRIEVAL_CLASSIFICATION_ENABLED:-false}
+      MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      EXECUTION_TYPE: direct
+
+  opensearch:
+    image: ${OPENSEARCH_IMAGE:-opensearchproject/opensearch:2.11.0}
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - cluster.blocks.create_index=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${OPENSEARCH_HOST_PORT:-9203}:9200"
+      - "${OPENSEARCH_METRICS_HOST_PORT:-9601}:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - memory-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  wxo-agentic-memory:
+    image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "7999:7999"
+    environment:
+      API_KEYS: ${MEMORY_SERVICE_API_KEY}
+      POSTGRES_HOST: ${MEMORY_POSTGRES_HOST:-wxo-server-db}
+      POSTGRES_PORT: ${MEMORY_POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MEMORY_POSTGRES_DB:-postgres}
+      POSTGRES_SSL_MODE: ${MEMORY_POSTGRES_SSL_MODE:-disable}
+      POSTGRES_SSL_ROOT_CERT: ${MEMORY_POSTGRES_SSL_ROOT_CERT:-}
+      POSTGRES_SSL_CERT: ${MEMORY_POSTGRES_SSL_CERT:-}
+      POSTGRES_SSL_KEY: ${MEMORY_POSTGRES_SSL_KEY:-}
+      REDIS_HOST: ${MEMORY_REDIS_HOST:-wxo-server-redis}
+      REDIS_PORT: ${MEMORY_REDIS_PORT:-6379}
+      REDIS_DB: ${MEMORY_REDIS_DB:-0}
+      OPENSEARCH_HOST: ${MEMORY_OPENSEARCH_HOST:-opensearch}
+      OPENSEARCH_PORT: ${MEMORY_OPENSEARCH_PORT:-9200}
+      OPENSEARCH_COLLECTION_NAME: ${MEMORY_OPENSEARCH_COLLECTION:-memories}
+      OPENSEARCH_EMBEDDING_DIMS: ${MEMORY_OPENSEARCH_EMBEDDING_DIMS:-1536}
+      OPENSEARCH_RECREATE_INDEX_ON_MISMATCH: ${MEMORY_OPENSEARCH_RECREATE_INDEX_ON_MISMATCH:-true}
+      OPENSEARCH_USE_SSL: ${MEMORY_OPENSEARCH_USE_SSL:-false}
+      OPENSEARCH_VERIFY_CERTS: ${MEMORY_OPENSEARCH_VERIFY_CERTS:-false}
+      AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
+      AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
+      AI_GATEWAY_LLM_PROVIDER: ${MEMORY_AI_GATEWAY_LLM_PROVIDER:-groq}
+      AI_GATEWAY_LLM_MODEL: ${MEMORY_AI_GATEWAY_LLM_MODEL:-openai/gpt-oss-120b}
+      AI_GATEWAY_EMBEDDING_PROVIDER: ${MEMORY_AI_GATEWAY_EMBEDDING_PROVIDER:-watsonx}
+      AI_GATEWAY_EMBEDDING_MODEL: ${MEMORY_AI_GATEWAY_EMBEDDING_MODEL:-ibm/granite-embedding-278m-multilingual}
+      AI_GATEWAY_API_KEY: ${MEMORY_AI_GATEWAY_API_KEY:-gateway}
+      AI_GATEWAY_REQUEST_TIMEOUT: ${MEMORY_AI_GATEWAY_REQUEST_TIMEOUT:-60000}
+      AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS:-}
+      WO_INSTANCE: ${WO_INSTANCE:-}
+      WO_API_KEY: ${WO_API_KEY:-}
+      WO_AUTH_TYPE: ${WO_AUTH_TYPE:-}
+      WO_USERNAME: ${WO_USERNAME:-}
+      WO_PASSWORD: ${WO_PASSWORD:-}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL:-}
+      WATSONX_SPACE_ID: ${WATSONX_SPACE_ID:-}
+      LLM_PROVIDER: ${MEMORY_LLM_PROVIDER:-${LLM_PROVIDER:-openai}}
+      AWS_REGION: ${MEMORY_AWS_REGION:-${AWS_REGION:-us-east-1}}
+      AWS_ACCESS_KEY_ID: ${MEMORY_AWS_ACCESS_KEY_ID:-${AWS_ACCESS_KEY_ID:-}}
+      AWS_SECRET_ACCESS_KEY: ${MEMORY_AWS_SECRET_ACCESS_KEY:-${AWS_SECRET_ACCESS_KEY:-}}
+      AWS_SESSION_TOKEN: ${MEMORY_AWS_SESSION_TOKEN:-${AWS_SESSION_TOKEN:-}}
+      BEDROCK_LLM_MODEL: ${MEMORY_BEDROCK_LLM_MODEL:-${BEDROCK_LLM_MODEL:-anthropic.claude-3-sonnet-20240229-v1:0}}
+      BEDROCK_EMBEDDING_MODEL: ${MEMORY_BEDROCK_EMBEDDING_MODEL:-${BEDROCK_EMBEDDING_MODEL:-amazon.titan-embed-text-v2:0}}
+      OPENAI_API_KEY: ${MEMORY_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
+      OPENAI_MODEL: ${MEMORY_OPENAI_MODEL:-${OPENAI_MODEL:-gpt-4o-mini}}
+      OPENAI_EMBEDDING_MODEL: ${MEMORY_OPENAI_EMBEDDING_MODEL:-${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}}
+      DEFAULT_MEMORY_TTL_DAYS: ${MEMORY_DEFAULT_TTL_DAYS:-365}
+      MAX_SEARCH_RESULTS: ${MEMORY_MAX_SEARCH_RESULTS:-100}
+      DEBUG: ${MEMORY_SERVICE_DEBUG:-false}
+    depends_on:
+      wxo-server-db:
+        condition: service_healthy
+      wxo-server-redis:
+        condition: service_started
+      opensearch:
+        condition: service_healthy
+    networks:
+      - default
+      - memory-network
   tools-runtime-manager:
     image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
@@ -1527,12 +1685,15 @@ volumes:
   wdu-models:
     driver: local
   es_data:
+  opensearch_data:
   langflow-data:
 
 networks:
   default:
     name: wxo-server
   jaeger-network:
+    driver: bridge
+  memory-network:
     driver: bridge
 
 configs:

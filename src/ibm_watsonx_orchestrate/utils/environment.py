@@ -260,8 +260,11 @@ class EnvService:
         )
 
     def __get_persisted_user_env (self) -> dict | None:
-        user_env = self.__config.get(USER_ENV_CACHE_HEADER) if self.__config.get(USER_ENV_CACHE_HEADER) else None
-        return user_env
+        try:
+            user_env = self.__config.get(USER_ENV_CACHE_HEADER) if self.__config.get(USER_ENV_CACHE_HEADER) else None
+            return user_env
+        except:
+            return None
 
     def set_compose_file_path_in_env (self, path: str = None) -> None:
         self.__config.save(
@@ -384,7 +387,8 @@ class EnvService:
             "TAVILY_API_KEY", #May not be needed
             "RUNTIME_MANAGER_API_KEY",
             "DB_ENCRYPTION_KEY",
-            "AGENTOPS_API_KEY"
+            "AGENTOPS_API_KEY",
+            "MEMORY_SERVICE_API_KEY"
         ]
 
         username = service_credentials.get(EnvService._SERVICE_USERNAME_ENV_VAR)
