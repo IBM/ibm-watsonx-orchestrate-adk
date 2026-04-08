@@ -1,5 +1,21 @@
-__all__ = ["MemoryClient"]
+__all__ = [
+    "CreateMemoriesRequest",
+    "CreateMemoriesResponse",
+    "MemoryClient",
+    "MemoryItem",
+    "MemoryMessage",
+    "SearchMemoriesRequest",
+    "SearchMemoriesResponse",
+    "SearchMemoryItem",
+]
 
 from ibm_watsonx_orchestrate_agentic_sdk.memory.memory_client import MemoryClient
-
-# Made with Bob
+from ibm_watsonx_orchestrate_agentic_sdk.memory.models import (
+    CreateMemoriesRequest,
+    CreateMemoriesResponse,
+    MemoryItem,
+    MemoryMessage,
+    SearchMemoriesRequest,
+    SearchMemoriesResponse,
+    SearchMemoryItem,
+)
