@@ -1165,25 +1165,31 @@ class ToolsController:
     
         return zip_in_memory.getvalue()
 
-    def download_tool(self, name: str) -> DownloadResult | None:
+    def download_tool(self, name: str, tool_id: Optional[str] = None, tool_spec: Optional[dict] = None) -> DownloadResult | None:
         tool_client = self.get_client()
-        draft_tools = tool_client.get_draft_by_name(tool_name=name)
-        if len(draft_tools) > 1:
-            logger.error(f"Multiple existing tools found with name '{name}'. Failed to get tool")
-            sys.exit(1)
-        if len(draft_tools) == 0:
-            logger.error(f"No tool named '{name}' found")
-            sys.exit(1)
-
-        draft_tool = draft_tools[0]
+        
+        # If tool_spec is provided, use it directly
+        if tool_spec:
+            draft_tool = tool_spec
+            tool_id = tool_id or draft_tool.get("id")
+        else:
+            # Otherwise, look up the tool by name (uses active workspace context)
+            draft_tools = tool_client.get_draft_by_name(tool_name=name)
+            if len(draft_tools) > 1:
+                logger.error(f"Multiple existing tools found with name '{name}'. Failed to get tool")
+                sys.exit(1)
+            if len(draft_tools) == 0:
+                logger.error(f"No tool named '{name}' found")
+                sys.exit(1)
+            draft_tool = draft_tools[0]
+            tool_id = draft_tool.get("id")
+        
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
         supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow, ToolKind.openapi]
         if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
-
-        tool_id = draft_tool.get("id")
         
         # Initialize tool_artifacts_bytes with an empty bytes object as default
         tool_artifacts_bytes = b''
@@ -1202,7 +1208,8 @@ class ToolsController:
                     logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
                     return None
                 else:
-                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
+                    logger.warning(f"Could not find tool artifacts for tool '{name}'") # changed this from a bad request else the whole exporting of a workspace stops.
+                    return None
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
@@ -1213,11 +1220,12 @@ class ToolsController:
     def export_tool(
             self,
             name: str,
-            output_path: str, 
+            output_path: str,
             zip_file_out: Optional[zipfile.ZipFile] = None,
             toolkit_output_file: Optional[str] = None,
-            connections_output_path: str = "/connections", 
-            spec: dict | None = None) -> None:
+            connections_output_path: str = "/connections",
+            spec: dict | None = None,
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
@@ -1243,22 +1251,28 @@ class ToolsController:
                 BadRequest(f"The tool '{name}' does not match the naming scheme expected of an MCP tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
             tc = ToolkitController()
-            tc.export_toolkit(
-                name=toolkit_name,
-                output_file=toolkit_output_file or output_file,
-                zip_file_out=zip_file_out,
-                connections_output_path=connections_output_path
-            )
+            try:
+                tc.export_toolkit(
+                    name=toolkit_name,
+                    output_file=toolkit_output_file or output_file,
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path,
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - toolkit may not exist or may have been renamed - needed when exporting a workspace  
+                logger.warning(f"Could not export toolkit '{toolkit_name}' for MCP tool '{name}': {str(e)}")
             return
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
-        tool_artifact: DownloadResult | None = self.download_tool(name)
+        tool_artifact: DownloadResult | None = self.download_tool(name, tool_spec=spec)
 
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
-        app_ids = [conn.app_id for conn in connections]
+        # Fix NoneType error: connections can be None
+        app_ids = [conn.app_id for conn in (connections or [])]
 
         if not tool_artifact or not tool_artifact.content:
             return
@@ -1269,29 +1283,42 @@ class ToolsController:
         else:
             zip_file_out = zipfile.ZipFile(output_path, "w")
         
+        flow_definition_content = None
         with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
           
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
                     zip_file_out.writestr(f"{zip_file_root_folder}/{item.filename}", buffer)
+                    # For flow tools, preserve the flow definition content
+                    if tool_artifact.kind == ToolKind.flow and item.filename.endswith('.json'):
+                        flow_definition_content = buffer
         
         for app_id in app_ids:
             export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
         
         logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")
 
-        if tool_artifact.kind == ToolKind.flow:
-            tools_in_flow = get_all_tools_in_flow(json.loads(buffer))
+        if tool_artifact.kind == ToolKind.flow and flow_definition_content:
+            try:
+                flow_data = json.loads(flow_definition_content)
+                tools_in_flow = get_all_tools_in_flow(flow_data)
 
-            for t in tools_in_flow:
-                self.export_tool(
-                    name=t,
-                    output_path=f"{output_file.parent}/{t}",
-                    toolkit_output_file=f"{output_file.parent.parent}/toolkits",
-                    zip_file_out=zip_file_out,
-                    connections_output_path=connections_output_path
-                )
+                # Fix NoneType error: tools_in_flow can be None
+                # fixes [WARNING] - Could not export tool 'collaborator_agents_flow': 'NoneType' object is not iterable
+                for t in (tools_in_flow or []):
+                    self.export_tool(
+                        name=t,
+                        output_path=f"{output_file.parent}/{t}",
+                        toolkit_output_file=f"{output_file.parent.parent}/toolkits",
+                        zip_file_out=zip_file_out,
+                        connections_output_path=connections_output_path
+                    )
+            except Exception as e:
+                logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
+        
+        # Return True to indicate successful export
+        return True
 
     def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
         

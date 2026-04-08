@@ -1,6 +1,6 @@
-# watsonx Orchestrate Claude Skills
+# watsonx Orchestrate Skills
 
-This directory contains Claude Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for building watsonx Orchestrate solutions, customer care MCP servers, and business documentation.
+This directory contains Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for building watsonx Orchestrate solutions, customer care MCP servers, and business documentation.
 
 ## Available Skills
 
@@ -73,7 +73,7 @@ fetch_skill("customercare-mcp-builder", "./my_skills")
 
 ## Skill Structure
 
-The skill follows the Claude Skills format:
+The skill follows the Skills format:
 - **SKILL.md**: Main skill file with frontmatter (name, description)
 - **examples.md**: Complete reference implementations and code examples
 - **Frontmatter**: Contains skill metadata
