@@ -36,7 +36,7 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
                 # Get all Python files
                 python_files = python_files = list(temp_path.rglob('*.py'))
                 for file in python_files:
-                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path))
+                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False))
             finally:
                 # Remove temp directory from path
                 if temp_dir in sys.path:
