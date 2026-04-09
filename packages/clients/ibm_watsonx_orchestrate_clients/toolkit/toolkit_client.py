@@ -85,6 +85,19 @@ class ToolKitClient(BaseWXOClient):
                 )
             raise(e)
     
+    # PATCH /api/v1/orchestrate/toolkits/{id}
+    def update_toolkit(self, id: str, payload: dict) -> str:
+        """
+        Updates toolkit metadata
+        """
+        try:
+            # Resolve workspace field and inject active workspace context
+            payload = resolve_and_inject_workspace(payload)
+            return self._patch(f"/toolkits/{id}", data=payload)
+
+        except ClientAPIException as e:
+            raise(e)
+    
     # POST /toolkits/{toolkit-id}/upload
     def upload(self, toolkit_id: str, zip_file_path: str) -> dict:
         """

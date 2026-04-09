@@ -795,7 +795,7 @@ class TestToolkitControllerPublishOrUpdateToolkits:
         
         captured = caplog.text
 
-        assert "Existing toolkit found with name" in str(captured)
+        assert "Existing MCP toolkit found with name" in str(captured)
     
     def test_publish_or_update_toolkits_local_invalid_folder(self, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client, \
