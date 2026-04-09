@@ -93,17 +93,22 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exc
 
     return requirements
 
-def get_requirements(tool_file: str, requirements_file: Optional[str] = None, package_root: Optional[str] = None) -> List[str]:
+def get_requirements(tool_file: str, requirements_file: Optional[str] = None, package_root: Optional[str] = None, log_requirements_path: bool = True, requirements_file_required: bool = True) -> List[str]:
     resolved_requirements_file = get_resolved_py_tool_reqs_file(tool_file=tool_file, requirements_file=requirements_file,
                                                                 package_root=package_root)
 
-    if resolved_requirements_file is not None:
+    if resolved_requirements_file is not None and log_requirements_path:
         logger.info(f"Using requirement file: \"{resolved_requirements_file}\"")
 
     if resolved_requirements_file is not None:
         try:
             requirements = get_requirement_lines(resolved_requirements_file)
-
+        
+        except FileNotFoundError as e:
+            if requirements_file_required:
+                raise typer.BadParameter(f"Failed to read file {resolved_requirements_file} {e}")
+            else:
+                pass
         except Exception as e:
             raise typer.BadParameter(f"Failed to read file {resolved_requirements_file} {e}")
     
@@ -302,7 +307,7 @@ def __get_python_tools_from_file(
     
     return tools
 
-def extract_python_tools(file: str, requirements_file: Optional[str] = None, app_ids: Optional[List[str]] = None, package_root: Optional[str] = None) -> List[BaseTool]:
+def extract_python_tools(file: str, requirements_file: Optional[str] = None, app_ids: Optional[List[str]] = None, package_root: Optional[str] = None, log_requirements_path: bool = True, requirements_file_required: bool = True) -> List[BaseTool]:
     try:
 
         # standard file import
@@ -337,7 +342,7 @@ def extract_python_tools(file: str, requirements_file: Optional[str] = None, app
         raise typer.BadParameter(f"Failed to load python module from file {file}: {e}")
 
     requirements = get_requirements(tool_file=file, requirements_file=requirements_file,
-                                                                package_root=resolved_package_root)
+                                                                package_root=resolved_package_root, log_requirements_path=log_requirements_path, requirements_file_required=requirements_file_required)
 
     tools = __get_python_tools_from_file(
         module=module,
