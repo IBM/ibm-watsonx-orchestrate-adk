@@ -16,6 +16,7 @@ requires-python = ">=3.11, <3.14"
 dependencies = [
     "ibm-watsonx-orchestrate-core",
     "ibm-watsonx-orchestrate-clients",
+    "langchain-openai>=1.1.0,<2.0.0"
 ]
 
 [tool.hatch.build.targets.wheel]
