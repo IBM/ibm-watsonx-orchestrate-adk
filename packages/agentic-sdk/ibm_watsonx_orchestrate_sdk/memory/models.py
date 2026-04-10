@@ -53,6 +53,17 @@ class CreateMemoriesResponse(BaseModel):
     count: int
 
 
+class ListMemoriesResponse(BaseModel):
+    memories: List[MemoryItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class DeleteAllMemoriesResponse(BaseModel):
+    deleted_count: int
+
+
 class SearchMemoriesRequest(BaseModel):
     query: str = Field(..., min_length=1)
     limit: int = Field(default=10, ge=1, le=100)
