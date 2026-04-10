@@ -91,6 +91,57 @@ def test_memory_client_uses_managed_routes_and_run_context(monkeypatch):
     assert search_response.total == 1
 
 
+def test_memory_client_supports_list_and_delete_routes(monkeypatch):
+    captured: list[tuple[str, str, object]] = []
+
+    def fake_get(self, path: str, params=None, data=None, return_raw=False):
+        captured.append(("get", path, params))
+        return {
+            "memories": [
+                {
+                    "mem0_id": "mem-1",
+                    "content": "prefers coffee",
+                    "memory_type": "preference",
+                }
+            ],
+            "total": 1,
+            "limit": params["limit"],
+            "offset": params["offset"],
+        }
+
+    def fake_delete(self, path: str, data=None):
+        captured.append(("delete", path, data))
+        if path == "/memories/user":
+            return {"deleted_count": 3}
+        return {}
+
+    monkeypatch.setattr(BaseAgenticClient, "_get", fake_get, raising=False)
+    monkeypatch.setattr(BaseAgenticClient, "_delete", fake_delete, raising=False)
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "http://example.local/api/v1",
+            "thread_id": "thread-123",
+        }
+    )
+
+    list_response = client.memory.list(limit=20, offset=5)
+    assert captured[0] == ("get", "/memories/user", {"limit": 20, "offset": 5})
+    assert list_response.total == 1
+    assert list_response.limit == 20
+    assert list_response.offset == 5
+    assert list_response.memories[0].mem0_id == "mem-1"
+
+    delete_all_response = client.memory.delete_all()
+    assert captured[1] == ("delete", "/memories/user", None)
+    assert delete_all_response.deleted_count == 3
+
+    delete_response = client.memory.delete(memory_id="mem-1")
+    assert captured[2] == ("delete", "/memories/mem-1", None)
+    assert delete_response is True
+
+
 def test_memory_type_alias_is_normalized(monkeypatch):
     captured: dict[str, object] = {}
 
