@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 from ibm_cloud_sdk_core.authenticators import Authenticator
 from ibm_watsonx_orchestrate_sdk.client import Client
 from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, ExecutionContext
-from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
 from langchain_openai import ChatOpenAI
 
 
@@ -176,6 +175,8 @@ class ChatWxO(ChatOpenAI):
         client_instance = Client(
             api_key=api_key,
             instance_url=instance_url,
+            # iam_url=iam_url,
+            # auth_type=auth_type,
             verify=verify,
             authenticator=authenticator,
             local=local,
