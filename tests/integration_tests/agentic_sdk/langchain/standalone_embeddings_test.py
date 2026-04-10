@@ -74,7 +74,7 @@ def test_embed_query(environment: str, api_key: str, base_url: str,
         embeddings = WxOEmbeddings(
             model=model,
             api_key=api_key,
-            wxo_base_url=base_url,
+            instance_url=base_url,
             iam_url=iam_url,
             auth_type=auth_type
         )
@@ -133,7 +133,7 @@ def test_embed_documents(environment: str, api_key: str, base_url: str,
         embeddings = WxOEmbeddings(
             model=model,
             api_key=api_key,
-            wxo_base_url=base_url,
+            instance_url=base_url,
             iam_url=iam_url,
             auth_type=auth_type
         )
@@ -192,7 +192,7 @@ async def test_aembed_query(environment: str, api_key: str, base_url: str,
         embeddings = WxOEmbeddings(
             model=model,
             api_key=api_key,
-            wxo_base_url=base_url,
+            instance_url=base_url,
             iam_url=iam_url,
             auth_type=auth_type
         )
@@ -250,7 +250,7 @@ async def test_aembed_documents(environment: str, api_key: str, base_url: str,
         embeddings = WxOEmbeddings(
             model=model,
             api_key=api_key,
-            wxo_base_url=base_url,
+            instance_url=base_url,
             iam_url=iam_url,
             auth_type=auth_type
         )
@@ -317,7 +317,7 @@ def test_similarity_search(environment: str, api_key: str, base_url: str,
         embeddings = WxOEmbeddings(
             model=model,
             api_key=api_key,
-            wxo_base_url=base_url,
+            instance_url=base_url,
             iam_url=iam_url,
             auth_type=auth_type
         )
