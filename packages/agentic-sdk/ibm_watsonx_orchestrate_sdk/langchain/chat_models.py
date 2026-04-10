@@ -1,21 +1,21 @@
 """LangChain chat model wrapper for IBM watsonx Orchestrate AI Gateway."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from ibm_watsonx_orchestrate_clients.common.client import Client
-from ibm_watsonx_orchestrate_clients.common.credentials import Credentials
+from ibm_cloud_sdk_core.authenticators import Authenticator
+from ibm_watsonx_orchestrate_sdk.client import Client
+from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, ExecutionContext
 from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
 from langchain_openai import ChatOpenAI
 
 
 class ChatWxO(ChatOpenAI):
     """
+    IBM watsonx Orchestrate Chat Model Wrapper.
     
     Routes LLM calls through the ai-gateway via wxo-server's passthrough endpoint
-    for enhanced security and centralized model management. Automatically handles
-    authentication and model routing with support for both service-level credentials
-    (in WxO runtime) and API key-based authentication (standalone usage) with
-    automatic token generation and refresh.
+    for enhanced security and centralized model management. Supports multiple
+    initialization modes via the agentic-sdk Client.
     
     Supported ChatOpenAI Features:
         - ✅ invoke / ainvoke - Standard chat completions
@@ -27,42 +27,68 @@ class ChatWxO(ChatOpenAI):
         - ✅ Response metadata (token usage, finish_reason, etc.)
         - ✅ Logprobs support
     
-    Usage in LangGraph agents (Runtime Mode):
+    Initialization Methods:
+    
+    1. **from_runnable_config** (Recommended for LangGraph agents in WxO runtime):
         ```python
         from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
-        from langgraph.graph.state import RunnableConfig
         
         def create_agent(config: RunnableConfig):
-            llm = ChatWxO.from_config(
-                config=config,
-                model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+            llm = ChatWxO.from_runnable_config(
+                config,
+                model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
                 temperature=0.2
             )
-            # Use llm in your LangGraph agent as normal
             return llm
         ```
     
-    Standalone usage with API key:
+    2. **from_instance_credentials** (For standalone usage with API key):
         ```python
-        from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
-        
-        llm = ChatWxO(
-            model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
-            api_key="your-wxo-api-key",
-            wxo_base_url="https://your-instance.cloud.ibm.com"
+        llm = ChatWxO.from_instance_credentials(
+            model="virtual-model/watsonx/...",
+            instance_url="https://your-instance.cloud.ibm.com",
+            api_key="your-api-key",
+            temperature=0.7
         )
-        
-        response = llm.invoke("Hello!")
-        print(response.content)
         ```
     
-    Streaming example:
+    3. **from_execution_context** (For runs-on mode with ExecutionContext):
+        ```python
+        llm = ChatWxO.from_execution_context(
+            model="virtual-model/...",
+            execution_context=execution_context,
+            temperature=0.7
+        )
+        ```
+    
+    4. **from_session** (For pre-configured AgenticSession):
+        ```python
+        llm = ChatWxO.from_session(
+            model="virtual-model/...",
+            session=session,
+            temperature=0.7
+        )
+        ```
+    
+    5. **Direct initialization** (For advanced use cases):
+        ```python
+        llm = ChatWxO(
+            model="virtual-model/...",
+            api_key="your-api-key",
+            instance_url="https://your-instance.cloud.ibm.com",
+            temperature=0.7
+        )
+        ```
+    
+    Usage Examples:
+    
+    Streaming:
         ```python
         for chunk in llm.stream("Tell me a story"):
             print(chunk.content, end="", flush=True)
         ```
     
-    Tool calling example:
+    Tool calling:
         ```python
         from pydantic import BaseModel, Field
         
@@ -79,13 +105,16 @@ class ChatWxO(ChatOpenAI):
     def __init__(
         self,
         model: str,
-        agent_api_key: str | None = None,
-        user_id: str | None = None,
-        tenant_id: str | None = None,
-        api_key: str | None = None,
-        wxo_base_url: str | None = None,
-        iam_url: str | None = None,
-        auth_type: str | None = None,
+        api_key: Optional[str] = None,
+        instance_url: Optional[str] = None,
+        iam_url: Optional[str] = None,
+        auth_type: Optional[str] = None,
+        verify: Optional[str | bool] = None,
+        authenticator: Optional[Authenticator] = None,
+        local: bool = False,
+        *,
+        execution_context: Optional[ExecutionContext | Dict[str, Any]] = None,
+        session: Optional[AgenticSession] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -94,23 +123,10 @@ class ChatWxO(ChatOpenAI):
         Args:
             model: Model ID in format "virtual-model/provider/model-name"
                   Example: "virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct"
-            agent_api_key: Service-level API key (optional)
-                          - In WxO runtime: Automatically provided
-                          - Standalone: Not used
-            user_id: User identifier for request context (optional)
-                    - In WxO runtime: Automatically provided
-                    - Standalone: Not required
-            tenant_id: Tenant identifier for request context (optional)
-                      - In WxO runtime: Automatically provided
-                      - Standalone: Not required
             api_key: WxO API key (optional for local, required for SaaS standalone)
                     - Local: Not required (uses default local credentials)
-                      Note: Configure any desired LLM provider API keys in the .env file
-                      used when starting the local ADK server
                     - SaaS standalone: Provide your WxO API key for automatic token management
-                    - WxO Runtime: Not used (agent_api_key is used instead)
-            wxo_base_url: WxO instance base URL (REQUIRED)
-                         - In WxO runtime: Automatically provided
+            instance_url: WxO instance base URL (required unless using execution_context or session)
                          - Local: "http://localhost:4321" (or your local instance URL)
                          - SaaS standalone: Your WxO instance URL (e.g., "https://your-instance.cloud.ibm.com")
             iam_url: IAM authentication URL (optional)
@@ -119,101 +135,87 @@ class ChatWxO(ChatOpenAI):
             auth_type: Authentication type (optional)
                       - Options: "ibm_iam" (SaaS), "mcsp", "mcsp_v1", "mcsp_v2" (AWS), "cpd" (on-prem)
                       - If not provided, will be auto-detected based on environment
+            verify: Certificate verification (optional)
+            authenticator: IBM Cloud SDK authenticator (optional)
+            local: Whether to use local mode (default: False, auto-detected from instance_url)
+            execution_context: ExecutionContext for runs-on mode (optional)
+            session: Pre-configured AgenticSession (optional)
             **kwargs: Additional arguments passed to ChatOpenAI (temperature, max_tokens, etc.)
         
         Raises:
-            ValueError: If neither agent_api_key nor api_key is provided, or if wxo_base_url is missing
-        
-        Note:
-            - In WxO runtime: agent_api_key, user_id, and tenant_id are automatically provided
-            - Standalone: Use api_key for authentication with automatic token management
-        
-        Example (Runtime):
-            ```python
-            # Credentials automatically injected by runtime
-            llm = ChatWxO.from_config(config, model="virtual-model/...")
-            ```
+            ValueError: If required parameters are missing or session has no authentication
         
         Example (Local):
             ```python
-            # Local development - no api_key needed
             llm = ChatWxO(
                 model="virtual-model/watsonx/...",
-                wxo_base_url="http://localhost:4321",
+                instance_url="http://localhost:4321",
                 temperature=0.7
             )
             ```
         
         Example (SaaS Standalone):
             ```python
-            # SaaS - api_key required
             llm = ChatWxO(
                 model="watsonx/...",
                 api_key="your-api-key",
-                wxo_base_url="https://your-instance.cloud.ibm.com",
+                instance_url="https://your-instance.cloud.ibm.com",
                 temperature=0.7
             )
             ```
-        """
-        if wxo_base_url is None:
-            raise TypeError("ChatWxO() missing required argument: 'wxo_base_url'")
         
-        if not wxo_base_url:
-            raise ValueError("No URL Provided")
-        
-        if not wxo_base_url.startswith("https://"):
-            if not is_local_dev(wxo_base_url):
-                raise ValueError("Invalid URL Format. URL must start with 'https://'")
-        
-        if wxo_base_url[-1] == "/":
-            wxo_base_url = wxo_base_url.rstrip("/")
-        
-        # Use local variables before super().__init__() to avoid Pydantic conflicts
-        client_instance = None
-        user_id_value = None
-        tenant_id_value = None
-        
-        # Determine authentication method
-        is_local = is_local_dev(wxo_base_url)
-        
-        if agent_api_key:
-            # Runtime mode - use service-level credentials
-            auth_key = agent_api_key
-            user_id_value = user_id
-            tenant_id_value = tenant_id
-        elif api_key or is_local:
-            # Standalone mode - use API key with automatic token management
-            # For local dev: api_key is optional, LocalServiceInstance will use default credentials
-            credentials = Credentials(
-                url=wxo_base_url,
-                api_key=api_key,  # Can be None for local
-                iam_url=iam_url,
-                auth_type=auth_type
+        Example (Runtime with ExecutionContext):
+            ```python
+            llm = ChatWxO(
+                model="virtual-model/...",
+                execution_context=execution_context
             )
-            client_instance = Client(credentials=credentials)
-            # Both ServiceInstance and LocalServiceInstance set client.token during initialization
-            auth_key = client_instance.token
+            ```
+        """
+        # Create Client instance using agentic-sdk
+        client_instance = Client(
+            api_key=api_key,
+            instance_url=instance_url,
+            verify=verify,
+            authenticator=authenticator,
+            local=local,
+            execution_context=execution_context,
+            session=session
+        )
+        
+        # Get session from client
+        agentic_session = client_instance.session
+        
+        # Extract authentication token
+        if agentic_session.access_token:
+            auth_key = agentic_session.access_token
+        elif agentic_session.authenticator:
+            # For runs-elsewhere mode, we need to get token from authenticator
+            # This will be handled by the authenticator during requests
+            auth_key = "placeholder"  # Will be replaced by authenticator
         else:
             raise ValueError(
-                "api_key is required for SaaS standalone usage. "
-                "In WxO runtime: Credentials are automatically provided via agent_api_key. "
-                "Local: api_key is optional and should not be provided (uses default local credentials). "
-                "SaaS standalone: Pass your WxO API key as api_key parameter."
+                "No authentication method available in session. "
+                "Session must have either access_token or authenticator."
             )
         
-        # Configure for ai-gateway via wxo-server passthrough endpoint
+        # Extract identity information if available
+        user_id_value = None
+        tenant_id_value = None
+        if agentic_session.identity:
+            user_id_value = agentic_session.identity.user_id
+            tenant_id_value = agentic_session.identity.tenant_id
+        
+        # Configure headers for ai-gateway via wxo-server passthrough endpoint
         headers = {"Authorization": f"Bearer {auth_key}"}
         if user_id_value:
             headers["X-User-ID"] = user_id_value
         if tenant_id_value:
             headers["X-Tenant-ID"] = tenant_id_value
         
-        # Construct base URL - add /api prefix only for local development
-        if is_local_dev(wxo_base_url):
-            api_base_url = f"{wxo_base_url}/api/v1/orchestrate/gateway/model"
-        else:
-            # For SaaS/production, no /api prefix
-            api_base_url = f"{wxo_base_url}/v1/orchestrate/gateway/model"
+        # Construct API base URL for gateway passthrough
+        # Session base_url already includes the correct prefix (/api/v1 for local, /v1/orchestrate for others)
+        api_base_url = f"{agentic_session.base_url}/gateway/model"
         
         # Initialize parent ChatOpenAI with passthrough configuration
         super().__init__(
@@ -225,33 +227,32 @@ class ChatWxO(ChatOpenAI):
         )
         
         # Set instance attributes AFTER super().__init__() for Pydantic v2 compatibility
-        self._wxo_base_url = wxo_base_url
         self._client = client_instance
+        self._session = agentic_session
         self._user_id = user_id_value
         self._tenant_id = tenant_id_value
     
     
     def _get_current_token(self) -> str:
         """
-        Get current token, refreshing if necessary when using API key authentication.
+        Get current token, refreshing if necessary when using authenticator.
         
         Returns:
             str: Current valid authentication token
         
         Note:
-            - In API key mode: Automatically checks token expiry and refreshes if needed
-            - In runtime mode: Returns the service-level credential (no refresh needed)
+            - For runs-elsewhere mode: Token is managed by the authenticator
+            - For runs-on and local modes: Token is from the session's access_token
         """
-        if self._client:
-            # Using API key - get token from client
-            # For ServiceInstance: use _get_token() for automatic refresh
-            # For LocalServiceInstance: use client.token directly (no refresh needed)
-            if hasattr(self._client.service_instance, '_get_token'):
-                return self._client.service_instance._get_token()
-            else:
-                return self._client.token
+        # For runs-elsewhere mode with authenticator, get fresh token
+        if self._session.authenticator:
+            token = self._session.authenticator.token_manager.get_token()
+            return token
+        # For runs-on and local modes, use access_token from session
+        elif self._session.access_token:
+            return self._session.access_token
         else:
-            # Using service credentials - extract from headers
+            # Fallback: extract from headers
             return self.default_headers.get("Authorization", "").replace("Bearer ", "")
     
     def invoke(self, *args: Any, **kwargs: Any) -> Any:
@@ -308,85 +309,175 @@ class ChatWxO(ChatOpenAI):
         return await super().ainvoke(*args, **kwargs)
     
     @classmethod
-    def from_config(
+    def from_instance_credentials(
         cls,
-        config: Dict[str, Any],
+        *,
         model: str,
+        instance_url: str,
+        api_key: str,
+        iam_url: Optional[str] = None,
+        auth_type: Optional[str] = None,
+        verify: Optional[str | bool] = None,
+        authenticator: Optional[Authenticator] = None,
         **kwargs: Any
     ) -> "ChatWxO":
         """
-        Convenience method to create ChatWxO from RunnableConfig.
-        
-        Extracts authentication credentials and configuration from the config dictionary
-        provided by LangGraph runtime. Supports both runtime mode (agent_api_key) and
-        standalone mode (api_key).
+        Create ChatWxO from instance credentials (runs-elsewhere mode).
         
         Args:
-            config: RunnableConfig dictionary from create_agent, containing:
-                   - configurable.wxo_base_url: WxO instance URL (required)
-                   - configurable.api_key: WxO API key (standalone mode)
-                   - configurable.agent_api_key: Service-level API key (runtime mode)
-                   - configurable.user_id: User identifier (runtime mode)
-                   - configurable.tenant_id: Tenant identifier (runtime mode)
             model: Model ID in format "virtual-model/provider/model-name"
-            **kwargs: Additional arguments passed to ChatWxO.__init__()
+            instance_url: WxO instance URL
+            api_key: WxO API key
+            iam_url: IAM authentication URL (optional)
+            auth_type: Authentication type (optional)
+            verify: Certificate verification (optional)
+            authenticator: IBM Cloud SDK authenticator (optional)
+            **kwargs: Additional arguments passed to ChatOpenAI
+        
+        Returns:
+            ChatWxO: Configured instance
+        
+        Example:
+            ```python
+            llm = ChatWxO.from_instance_credentials(
+                model="virtual-model/watsonx/...",
+                instance_url="https://your-instance.cloud.ibm.com",
+                api_key="your-api-key",
+                temperature=0.7
+            )
+            ```
+        """
+        return cls(
+            model=model,
+            api_key=api_key,
+            instance_url=instance_url,
+            iam_url=iam_url,
+            auth_type=auth_type,
+            verify=verify,
+            authenticator=authenticator,
+            **kwargs
+        )
+    
+    @classmethod
+    def from_execution_context(
+        cls,
+        *,
+        model: str,
+        execution_context: ExecutionContext | Dict[str, Any],
+        verify: Optional[str | bool] = None,
+        **kwargs: Any
+    ) -> "ChatWxO":
+        """
+        Create ChatWxO from execution context (runs-on mode).
+        
+        Args:
+            model: Model ID in format "virtual-model/provider/model-name"
+            execution_context: ExecutionContext with access_token, api_proxy_url, etc.
+            verify: Certificate verification (optional)
+            **kwargs: Additional arguments passed to ChatOpenAI
+        
+        Returns:
+            ChatWxO: Configured instance
+        
+        Example:
+            ```python
+            llm = ChatWxO.from_execution_context(
+                model="virtual-model/...",
+                execution_context=execution_context,
+                temperature=0.7
+            )
+            ```
+        """
+        return cls(
+            model=model,
+            execution_context=execution_context,
+            verify=verify,
+            **kwargs
+        )
+    
+    @classmethod
+    def from_session(
+        cls,
+        *,
+        model: str,
+        session: AgenticSession,
+        **kwargs: Any
+    ) -> "ChatWxO":
+        """
+        Create ChatWxO from a pre-configured AgenticSession.
+        
+        Args:
+            model: Model ID in format "virtual-model/provider/model-name"
+            session: Pre-configured AgenticSession
+            **kwargs: Additional arguments passed to ChatOpenAI
+        
+        Returns:
+            ChatWxO: Configured instance
+        
+        Example:
+            ```python
+            session = build_local_session(
+                instance_url="http://localhost:4321",
+                access_token="token"
+            )
+            llm = ChatWxO.from_session(
+                model="virtual-model/...",
+                session=session,
+                temperature=0.7
+            )
+            ```
+        """
+        return cls(
+            model=model,
+            session=session,
+            **kwargs
+        )
+    
+    @classmethod
+    def from_runnable_config(
+        cls,
+        config: Any,
+        *,
+        model: str,
+        verify: Optional[str | bool] = None,
+        **kwargs: Any
+    ) -> "ChatWxO":
+        """
+        Create ChatWxO from LangGraph RunnableConfig (runs-on mode).
+        
+        Extracts execution_context from config.configurable and creates a ChatWxO instance.
+        This is the recommended way to initialize ChatWxO in LangGraph agents running
+        in WxO runtime.
+        
+        Args:
+            config: RunnableConfig from LangGraph
+            model: Model ID in format "virtual-model/provider/model-name"
+            verify: Certificate verification (optional)
+            **kwargs: Additional arguments passed to ChatOpenAI
         
         Returns:
             ChatWxO: Configured instance
         
         Raises:
-            ValueError: If neither agent_api_key nor api_key found in config.configurable,
-                       or if wxo_base_url is missing
+            ValueError: If execution_context is missing from config.configurable
         
-        Example (Runtime):
+        Example:
             ```python
             def create_agent(config: RunnableConfig):
-                llm = ChatWxO.from_config(
-                    config=config,
+                llm = ChatWxO.from_runnable_config(
+                    config,
                     model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
-                    temperature=0.2,
-                    max_tokens=1000
+                    temperature=0.2
                 )
                 return llm
             ```
-        
-        Example (Standalone with config dict):
-            ```python
-            config = {
-                "configurable": {
-                    "api_key": "your-api-key",
-                    "wxo_base_url": "https://your-instance.cloud.ibm.com"
-                }
-            }
-            llm = ChatWxO.from_config(config, model="virtual-model/...")
-            ```
         """
-        configurable = config.get("configurable", {})
-        
-        agent_api_key = configurable.get("agent_api_key")
-        user_id = configurable.get("user_id")
-        tenant_id = configurable.get("tenant_id")
-        api_key = configurable.get("api_key")
-        wxo_base_url = configurable.get("wxo_base_url")
-        
-        if not wxo_base_url:
-            raise ValueError(
-                "wxo_base_url not found in config.configurable. "
-                "Ensure base URL is provided in the agent configuration."
-            )
-        
-        if not agent_api_key and not api_key:
-            raise ValueError(
-                "Neither agent_api_key nor api_key found in config.configurable. "
-                "Ensure authentication credentials are provided in the agent configuration."
-            )
+        # Use Client's from_runnable_config to create client
+        client_instance = Client.from_runnable_config(config, verify=verify)
         
         return cls(
             model=model,
-            agent_api_key=agent_api_key,
-            user_id=user_id,
-            tenant_id=tenant_id,
-            api_key=api_key,
-            wxo_base_url=wxo_base_url,
+            session=client_instance.session,
+            verify=verify,
             **kwargs
         )
