@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 from ibm_cloud_sdk_core.authenticators import Authenticator
+from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
 from ibm_watsonx_orchestrate_sdk.client import Client
 from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, ExecutionContext
 from langchain_openai import OpenAIEmbeddings
@@ -120,6 +121,9 @@ class WxOEmbeddings(OpenAIEmbeddings):
         Raises:
             ValueError: If required parameters are missing or session has no authentication
         """
+        if not local and is_local_dev(instance_url):
+            local = True
+
         # Create Client instance using agentic-sdk
         client_instance = Client(
             api_key=api_key,
@@ -164,8 +168,11 @@ class WxOEmbeddings(OpenAIEmbeddings):
             headers["X-Tenant-ID"] = tenant_id_value
         
         # Construct API base URL for gateway passthrough
-        # Session base_url already includes the correct prefix (/api/v1 for local, /v1/orchestrate for others)
-        api_base_url = f"{agentic_session.base_url}/gateway/model"
+        # Session base_url already includes  prefix /api/v1 for local, /v1/orchestrate for others
+        api_base_url = f"{agentic_session.base_url}"
+        if local:
+            api_base_url += "/orchestrate"
+        api_base_url += "/gateway/model"
 
         super().__init__(
             api_key="dummy",  # Ignored by gateway
