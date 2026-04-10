@@ -221,7 +221,7 @@ def build_local_session(
 
     return AgenticSession(
         mode="local",
-        base_url=f"{instance_url.rstrip('/')}/api/v1",
+        base_url=f"{instance_url.rstrip('/')}/api/v1/orchestrate",
         verify=verify,
         access_token=normalize_access_token(access_token),
     )
