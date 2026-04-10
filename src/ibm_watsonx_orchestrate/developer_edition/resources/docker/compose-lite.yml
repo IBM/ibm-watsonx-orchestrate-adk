@@ -485,7 +485,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
+    image: us.icr.io/watson-orchestrate/production/wxo-server-server:20260408-develop-8470-75ac517
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -895,7 +895,7 @@ services:
       - default
       - memory-network
   tools-runtime-manager:
-    image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
+    image: us.icr.io/watson-orchestrate/production/tools-runtime-manager:20260408-develop-2153-20a2d24
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -950,7 +950,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   tools-runtime:
-    image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
+    image: us.icr.io/watson-orchestrate/production/tools-runtime:20260408-develop-2153-20a2d24
     platform: linux/amd64
     ports:
       - "8000:8000"
@@ -988,7 +988,7 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   agent-runtime:
-    image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}
+    image: us.icr.io/watson-orchestrate/development/agent-runtime:20260408-develop-2151-20a2d24
     platform: linux/amd64
     ports:
       - "8001:8000"

@@ -6,6 +6,8 @@ from ibm_watsonx_orchestrate_sdk.common.base_client import BaseAgenticClient
 from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession
 from ibm_watsonx_orchestrate_sdk.memory.models import (
     CreateMemoriesResponse,
+    DeleteAllMemoriesResponse,
+    ListMemoriesResponse,
     MemoryMessage,
     SearchMemoriesResponse,
 )
@@ -62,6 +64,20 @@ class MemoryClient:
             recall=recall,
         )
         return self._propagator.search(request)
+
+    def list(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> ListMemoriesResponse:
+        return self._propagator.list(limit=limit, offset=offset)
+
+    def delete_all(self) -> DeleteAllMemoriesResponse:
+        return self._propagator.delete_all()
+
+    def delete(self, *, memory_id: str) -> bool:
+        return self._propagator.delete(memory_id)
 
     # Compatibility helpers for the previous placeholder API.
     def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> CreateMemoriesResponse:

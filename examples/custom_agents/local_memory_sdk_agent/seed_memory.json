@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "My favorite coffee order is a flat white with oat milk."
+    },
+    {
+      "role": "assistant",
+      "content": "Noted. Favorite coffee is a flat white with oat milk."
+    }
+  ],
+  "memory_type": "conversational"
+}
