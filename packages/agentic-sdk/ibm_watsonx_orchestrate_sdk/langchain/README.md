@@ -5,7 +5,7 @@ A lightweight LangChain integration package that provides drop-in replacements f
 ## Features
 
 - ✅ **Automatic authentication** with token refresh
-- ✅ **Dual mode support**: WxO Runtime (Agent running in WxO) and Standalone (direct API usage for LLM calls)
+- ✅ **Multiple deployment modes**: Runtime (runs-on), Standalone (runs-elsewhere), and Local development
 - ✅ **Enterprise features**: Centralized model policies, usage tracking, security controls
 
 ### Chat Models (ChatWxO)
@@ -33,16 +33,63 @@ pip install ibm-watsonx-orchestrate-sdk
 
 ## Quick Start
 
-### Runtime Mode (within WxO)
+### Method 1: From Instance Credentials (Standalone/Runs-Elsewhere Mode)
 
-When running inside a WxO runtime, credentials are automatically provided:
+For standalone scripts or applications outside WxO runtime:
+
+```python
+from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
+
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
+    api_key="your-wxo-api-key",
+    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    temperature=0.7,
+    max_tokens=1000
+)
+
+response = llm.invoke("Tell me a joke about programming")
+print(response.content)
+```
+
+### Method 2: From Execution Context (Runtime/Runs-On Mode)
+
+When running inside a WxO runtime with execution context:
+
+```python
+from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
+
+# Execution context provided by WxO runtime
+execution_context = {
+    "access_token": "runtime-token",
+    "api_proxy_url": "https://proxy.example.com/v1",
+    "tenant_id": "tenant-123",
+    "user_id": "user-456",
+    "thread_id": "thread-789",
+    "run_id": "run-abc",
+    "deployment_platform": "wxo"
+}
+
+llm = ChatWxO.from_execution_context(
+    execution_context=execution_context,
+    model="virtual-model/watsonx/ibm/granite-3-8b-instruct",
+    temperature=0.2
+)
+
+response = llm.invoke("What is the capital of France?")
+print(response.content)
+```
+
+### Method 3: From RunnableConfig (Runtime/Runs-On Mode)
+
+For LangGraph agents with RunnableConfig:
 
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 from langgraph.graph.state import RunnableConfig
 
 def create_agent(config: RunnableConfig):
-    llm = ChatWxO.from_config(
+    llm = ChatWxO.from_runnable_config(
         config=config,
         model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
         temperature=0.2
@@ -54,17 +101,40 @@ def create_agent(config: RunnableConfig):
     return llm
 ```
 
-### Standalone Mode (Direct API Usage)
+### Method 4: From WxO Agentic Session
 
-For standalone scripts or applications outside WxO runtime:
+For advanced use cases with pre-configured AgenticSession:
+
+```python
+from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
+from ibm_watsonx_orchestrate_sdk.client import Client
+
+# Create client and get session
+client = Client.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
+    api_key="your-wxo-api-key"
+)
+
+llm = ChatWxO.from_session(
+    session=client.session,
+    model="virtual-model/watsonx/ibm/granite-3-8b-instruct"
+)
+
+response = llm.invoke("Hello!")
+print(response.content)
+```
+
+### Method 5: Direct Initialization (Advanced)
+
+Direct initialization with all parameters:
 
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 
 llm = ChatWxO(
-    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com",
+    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
     temperature=0.7,
     max_tokens=1000
 )
@@ -80,10 +150,10 @@ print(response.content)
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 
-llm = ChatWxO(
-    model="virtual-model/watsonx/ibm/granite-3-8b-instruct",
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="virtual-model/watsonx/ibm/granite-3-8b-instruct"
 )
 
 # Simple string input
@@ -198,10 +268,10 @@ asyncio.run(batch_example())
 ### Advanced Configuration
 
 ```python
-llm = ChatWxO(
-    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com",
+    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
     
     # Model parameters
     temperature=0.7,
@@ -240,51 +310,67 @@ llm = ChatOpenAI(
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 
-llm = ChatWxO(
-    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com",
+    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
     temperature=0.7
 )
 ```
 
 **Key differences:**
 1. Import from `ibm_watsonx_orchestrate_sdk.langchain` instead of `langchain_openai`
-2. Use `ChatWxO` instead of `ChatOpenAI`
-3. Provide `wxo_base_url` (your WxO instance URL)
+2. Use `ChatWxO()` instead of `ChatOpenAI()`
+3. Provide `instance_url` (your WxO instance URL)
 4. Use WxO model IDs (format: `provider/model-name` or `provider/creator/model-name`)
 5. All other parameters and methods remain the same!
 
 ## API Reference
-
-### ChatWxO
-
 ```python
 class ChatWxO(ChatOpenAI):
-    """WatsonX Orchestrate LangChain Chat Model Wrapper."""
-    
+    """
+    IBM watsonx Orchestrate Chat Model Wrapper.
+    """
+
     def __init__(
         self,
         model: str,
-        agent_api_key: str | None = None,
-        user_id: str | None = None,
-        tenant_id: str | None = None,
-        api_key: str | None = None,
-        wxo_base_url: str | None = None,
+        api_key: Optional[str] = None,
+        instance_url: Optional[str] = None,
+        iam_url: Optional[str] = None,
+        auth_type: Optional[str] = None,
+        verify: Optional[str | bool] = None,
+        authenticator: Optional[Authenticator] = None,
+        local: bool = False,
+        *,
+        execution_context: Optional[ExecutionContext | Dict[str, Any]] = None,
+        session: Optional[AgenticSession] = None,
         **kwargs: Any
     ) -> None:
         """
         Initialize ChatWxO wrapper.
         
         Args:
-            model: Model ID (e.g., "virtual-model/watsonx/...")
-            agent_api_key: Service-level API key (runtime mode)
-            user_id: User identifier (runtime mode)
-            tenant_id: Tenant identifier (runtime mode)
-            api_key: WxO API key (standalone mode)
-            wxo_base_url: WxO instance URL (required)
-            **kwargs: Additional ChatOpenAI parameters
-        """
+            model: Model ID in format "virtual-model/provider/model-name"
+                  Example: "virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+            api_key: WxO API key (optional for local, required for SaaS standalone)
+                    - Local: Not required (uses default local credentials)
+                    - SaaS standalone: Provide your WxO API key for automatic token management
+            instance_url: WxO instance base URL (required unless using execution_context or session)
+                         - Local: "http://localhost:4321" (or your local instance URL)
+                         - SaaS standalone: Your WxO instance URL (e.g., "https://your-instance.cloud.ibm.com")
+            iam_url: IAM authentication URL (optional)
+                    - For staging/test environments: "https://iam.platform.test.saas.ibm.com"
+                    - If not provided, will be auto-detected based on environment
+            auth_type: Authentication type (optional)
+                      - Options: "ibm_iam" (SaaS), "mcsp", "mcsp_v1", "mcsp_v2" (AWS), "cpd" (on-prem)
+                      - If not provided, will be auto-detected based on environment
+            verify: Certificate verification (optional)
+            authenticator: IBM Cloud SDK authenticator (optional)
+            local: Whether to use local mode (default: False, auto-detected from instance_url)
+            execution_context: ExecutionContext for runs-on mode (optional)
+            session: Pre-configured AgenticSession (optional)
+            **kwargs: Additional arguments passed to ChatOpenAI (temperature, max_tokens, etc.)
 ```
 
 ### Supported Methods
@@ -302,31 +388,54 @@ All `ChatOpenAI` methods are supported:
 
 ### Class Methods
 
-- `from_config(config, model, **kwargs)` - Create from RunnableConfig (for LangGraph)
+- `from_instance_credentials(instance_url, api_key, model, **kwargs)` - Create from instance credentials (standalone/runs-elsewhere)
+- `from_execution_context(execution_context, model, **kwargs)` - Create from execution context (runtime/runs-on)
+- `from_session(session, model, **kwargs)` - Create from AgenticSession
+- `from_runnable_config(config, model, **kwargs)` - Create from RunnableConfig (LangGraph)
 
-## Authentication Modes
+## Deployment Modes
 
-### Runtime Mode (within WxO)
+### Runs-Elsewhere Mode (Standalone)
 
-Credentials are automatically injected by the WxO runtime:
+For standalone scripts with API key authentication:
 
 ```python
-def create_agent(config: RunnableConfig):
-    llm = ChatWxO.from_config(config, model="virtual-model/...")
-    # agent_api_key, user_id, tenant_id automatically provided
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
+    api_key="your-wxo-api-key",
+    model="virtual-model/..."
+)
+# Token automatically generated and refreshed as needed
 ```
 
-### Standalone Mode (Direct API)
+### Runs-On Mode (Runtime)
 
-Provide your WxO API key for automatic token management:
+For agents running inside WxO runtime with execution context:
+
+```python
+llm = ChatWxO.from_execution_context(
+    execution_context=context,  # Provided by runtime
+    model="virtual-model/..."
+)
+# or
+llm = ChatWxO.from_runnable_config(
+    config=config,  # Provided by runtime
+    model="virtual-model/..."
+)
+# Uses runtime-provided access token
+```
+
+### Local Mode (Development)
+
+For local development with simplified authentication:
 
 ```python
 llm = ChatWxO(
+    instance_url="http://localhost:4321",
     model="virtual-model/...",
-    api_key="your-wxo-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    local=True
 )
-# Token automatically generated and refreshed as needed
+# Optimized for local development
 ```
 
 ## Model IDs
@@ -367,14 +476,52 @@ except Exception as e:
 
 ### Quick Start
 
-#### Runtime Mode (within WxO)
+#### Method 1: From Instance Credentials (Standalone/Runs-Elsewhere Mode)
+
+```python
+from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
+
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
+    api_key="your-wxo-api-key",
+    model="openai/text-embedding-3-small"
+)
+
+# Embed a single query
+query_embedding = embeddings.embed_query("What is machine learning?")
+print(f"Embedding dimension: {len(query_embedding)}")
+```
+
+#### Method 2: From Execution Context (Runtime/Runs-On Mode)
+
+```python
+from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
+
+# Execution context provided by WxO runtime
+execution_context = {
+    "access_token": "runtime-token",
+    "api_proxy_url": "https://proxy.example.com/v1",
+    "tenant_id": "tenant-123",
+    "user_id": "user-456"
+}
+
+embeddings = WxOEmbeddings.from_execution_context(
+    execution_context=execution_context,
+    model="openai/text-embedding-3-small"
+)
+
+query_embedding = embeddings.embed_query("What is machine learning?")
+print(f"Embedding dimension: {len(query_embedding)}")
+```
+
+#### Method 3: From RunnableConfig (Runtime/Runs-On Mode)
 
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
 from langgraph.graph.state import RunnableConfig
 
 def create_agent(config: RunnableConfig):
-    embeddings = WxOEmbeddings.from_config(
+    embeddings = WxOEmbeddings.from_runnable_config(
         config=config,
         model="openai/text-embedding-3-small"
     )
@@ -386,22 +533,6 @@ def create_agent(config: RunnableConfig):
     return embeddings
 ```
 
-#### Standalone Mode (Direct API Usage)
-
-```python
-from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
-
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
-    api_key="your-wxo-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
-)
-
-# Embed a single query
-query_embedding = embeddings.embed_query("What is machine learning?")
-print(f"Embedding dimension: {len(query_embedding)}")
-```
-
 ### Usage Examples
 
 #### Basic Embeddings
@@ -409,10 +540,10 @@ print(f"Embedding dimension: {len(query_embedding)}")
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
 
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="openai/text-embedding-3-small"
 )
 
 # Embed a single query
@@ -436,10 +567,10 @@ print(f"Embedded {len(doc_embeddings)} documents")
 import asyncio
 
 async def embed_async():
-    embeddings = WxOEmbeddings(
-        model="openai/text-embedding-3-small",
+    embeddings = WxOEmbeddings.from_instance_credentials(
+        instance_url="https://your-instance.cloud.ibm.com",
         api_key="your-api-key",
-        wxo_base_url="https://your-instance.cloud.ibm.com"
+        model="openai/text-embedding-3-small"
     )
     
     # Async single query
@@ -462,10 +593,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 
 # Initialize embeddings
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="openai/text-embedding-3-small"
 )
 
 # Create documents
@@ -498,16 +629,16 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 
 # Initialize embeddings and LLM
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="openai/text-embedding-3-small"
 )
 
-llm = ChatWxO(
-    model="watsonx/ibm/granite-3-8b-instruct",
+llm = ChatWxO.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="watsonx/ibm/granite-3-8b-instruct"
 )
 
 # Create knowledge base
@@ -551,10 +682,10 @@ print(response.content)
 import numpy as np
 from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
 
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="openai/text-embedding-3-small"
 )
 
 # Embed texts
@@ -597,17 +728,17 @@ embeddings = OpenAIEmbeddings(
 ```python
 from ibm_watsonx_orchestrate_sdk.langchain import WxOEmbeddings
 
-embeddings = WxOEmbeddings(
-    model="openai/text-embedding-3-small",
+embeddings = WxOEmbeddings.from_instance_credentials(
+    instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    wxo_base_url="https://your-instance.cloud.ibm.com"
+    model="openai/text-embedding-3-small"
 )
 ```
 
 **Key differences:**
 1. Import from `ibm_watsonx_orchestrate_sdk.langchain` instead of `langchain_openai`
-2. Use `WxOEmbeddings` instead of `OpenAIEmbeddings`
-3. Provide `wxo_base_url` (your WxO instance URL)
+2. Use `WxOEmbeddings.from_instance_credentials()` instead of `OpenAIEmbeddings()`
+3. Provide `instance_url` (your WxO instance URL)
 4. Use WxO model IDs (format: `provider/model-name`)
 5. All other parameters and methods remain the same!
 
@@ -615,34 +746,38 @@ embeddings = WxOEmbeddings(
 
 ```python
 class WxOEmbeddings(OpenAIEmbeddings):
-    """WatsonX Orchestrate LangChain Embeddings Wrapper."""
-    
+    """IBM watsonx Orchestrate Embeddings Wrapper."""
+
     def __init__(
         self,
         model: str,
-        agent_api_key: str | None = None,
-        user_id: str | None = None,
-        tenant_id: str | None = None,
-        api_key: str | None = None,
-        wxo_base_url: str | None = None,
-        iam_url: str | None = None,
-        auth_type: str | None = None,
-        **kwargs: Any
+        api_key: Optional[str] = None,
+        instance_url: Optional[str] = None,
+        iam_url: Optional[str] = None,
+        auth_type: Optional[str] = None,
+        verify: Optional[str | bool] = None,
+        authenticator: Optional[Authenticator] = None,
+        local: bool = False,
+        *,
+        execution_context: Optional[ExecutionContext | Dict[str, Any]] = None,
+        session: Optional[AgenticSession] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize WxOEmbeddings wrapper.
         
         Args:
-            model: Model ID (e.g., "openai/text-embedding-3-small")
-            agent_api_key: Service-level API key (runtime mode)
-            user_id: User identifier (runtime mode)
-            tenant_id: Tenant identifier (runtime mode)
-            api_key: WxO API key (standalone mode)
-            wxo_base_url: WxO instance URL (required)
-            iam_url: IAM URL for authentication (optional)
+            model: Model ID in format "provider/model-name" (e.g., "openai/text-embedding-3-small")
+            api_key: WxO API key (optional for local, required for SaaS standalone)
+            instance_url: WxO instance base URL (required unless using execution_context or session)
+            iam_url: IAM authentication URL (optional)
             auth_type: Authentication type (optional)
-            **kwargs: Additional OpenAIEmbeddings parameters
-        """
+            verify: Certificate verification (optional)
+            authenticator: IBM Cloud SDK authenticator (optional)
+            local: Whether to use local mode (default: False, auto-detected from instance_url)
+            execution_context: ExecutionContext for runs-on mode (optional)
+            session: Pre-configured AgenticSession (optional)
+            **kwargs: Additional arguments passed to OpenAIEmbeddings
 ```
 
 ### Supported Methods
@@ -656,7 +791,10 @@ All `OpenAIEmbeddings` methods are supported:
 
 ### Class Methods
 
-- `from_config(config, model, **kwargs)` - Create from RunnableConfig (for LangGraph)
+- `from_instance_credentials(instance_url, api_key, model, **kwargs)` - Create from instance credentials (standalone/runs-elsewhere)
+- `from_execution_context(execution_context, model, **kwargs)` - Create from execution context (runtime/runs-on)
+- `from_session(session, model, **kwargs)` - Create from AgenticSession
+- `from_runnable_config(config, model, **kwargs)` - Create from RunnableConfig (runtime/runs-on)
 
 ### Embedding Model IDs
 

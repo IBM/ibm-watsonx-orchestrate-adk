@@ -1,10 +1,10 @@
 # WxO LangChain Integration Tests
 
-Integration tests for ChatWxO and WxOEmbeddings LangChain wrappers in standalone mode.
+Integration tests for ChatWxO and WxOEmbeddings LangChain wrappers in standalone mode (runs-elsewhere).
 
 ## Overview
 
-These tests verify end-to-end functionality of ChatWxO by making real API calls to WxO instances (local Developer Edition and/or SaaS) through the AI Gateway.
+These tests verify end-to-end functionality of ChatWxO and WxOEmbeddings by making real API calls to WxO instances (local Developer Edition and/or SaaS) through the AI Gateway using the agentic-sdk client.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ These tests verify end-to-end functionality of ChatWxO by making real API calls 
 pip install -r requirements.txt
 
 # Or install the package from source
-cd ../../../packages/langchain
+cd ../../../packages/agentic-sdk
 pip install -e .
 ```
 
@@ -44,11 +44,11 @@ Edit `.env` with your actual values:
 ```bash
 # Local WxO Instance
 LOCAL_WXO_API_KEY=your-local-api-key
-LOCAL_WXO_BASE_URL=http://localhost:4321
+LOCAL_INSTANCE_URL=http://localhost:4321
 
-# SaaS WxO Instance  
+# SaaS WxO Instance
 SAAS_WXO_API_KEY=your-saas-api-key
-SAAS_WXO_BASE_URL=https://your-instance.cloud.ibm.com
+SAAS_INSTANCE_URL=https://your-instance.cloud.ibm.com
 
 # Test Models (adjust based on available models)
 LOCAL_CHAT_MODEL_1=virtual-model/watsonx/ibm/granite-3-8b-instruct
