@@ -1,0 +1,294 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "collaborator_agents_flow_low_code",
+        "initiators": [],
+        "description": "Flow will take an input 'city' which is a city. Try to input one of these four cities: San Jose California, Fremont, New York or Los Angeles\nFor example:\n     input: Fremont\n     output: These are the info of city of Fremont where its coordinates is 42.99092,-71.14256 and was founded on January 23, 1956.\n               Fremont current population is 2738000. The weather is overcast, temperature is 14C and wind speed is 11 mph.",
+        "display_name": "collaborator_agents_flow_low_code",
+        "input_schema": {
+            "type": "object",
+            "required": [
+                "city"
+            ],
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "description": "Either San Jose California, Fremont, New York or Los Angeles"
+                }
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "required": [],
+            "properties": {
+                "information_about_the_city": {
+                    "type": "string",
+                    "description": "Information about the city.\n\nFor example:\nThese are the info of city of Fremont where its coordinates is 42.99092,-71.14256 and was founded on January 23, 1956. Fremont current population is 2738000. The weather is overcast, temperature is 14C and wind speed is 11 mph."
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "f838216c-379d-4ac0-aeac-7dccab44df71",
+            "end": "agent_f9cfe3f5-0324-4e8f-b781-80b29c658a66",
+            "start": "__start__"
+        },
+        {
+            "id": "65822b0d-f2ff-4a6c-9729-42903879234e",
+            "end": "agent_f472fe13-3c18-4661-a498-48d2e6bc8489",
+            "start": "agent_f9cfe3f5-0324-4e8f-b781-80b29c658a66"
+        },
+        {
+            "id": "39c2043f-0848-426d-96de-4764bb1e1ef6",
+            "end": "agent_31bcbb87-205f-4566-af6b-5350b2d9159f",
+            "start": "agent_f472fe13-3c18-4661-a498-48d2e6bc8489"
+        },
+        {
+            "id": "3cbdfe96-0701-40d3-ba15-114819d9ffcb",
+            "end": "agent_451b84c0-5555-4467-9406-b328f3a23faf",
+            "start": "agent_31bcbb87-205f-4566-af6b-5350b2d9159f"
+        },
+        {
+            "id": "cb6fb480-1c01-4c78-bfa6-fff8d62c185b",
+            "end": "__end__",
+            "start": "agent_451b84c0-5555-4467-9406-b328f3a23faf"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": -3,
+                    "y": 597
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "agent_31bcbb87-205f-4566-af6b-5350b2d9159f": {
+            "spec": {
+                "kind": "agent",
+                "name": "agent_31bcbb87-205f-4566-af6b-5350b2d9159f",
+                "agent": "population_agent:83579fbc-de57-4737-8d9d-e0fad0af9b78",
+                "message": "What's the population of {flow.input.city}",
+                "position": {
+                    "x": 2,
+                    "y": 358
+                },
+                "test_data": [
+                    {
+                        "value": "",
+                        "source": "flow.input.city"
+                    }
+                ],
+                "description": "You are an agent that will fetch population data\n",
+                "display_name": "population_agent",
+                "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "description": "Agent response"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'population_agent'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "agent_451b84c0-5555-4467-9406-b328f3a23faf": {
+            "spec": {
+                "kind": "agent",
+                "name": "agent_451b84c0-5555-4467-9406-b328f3a23faf",
+                "agent": "aggregate_agent:535a7f57-ecc4-4cca-ae58-011a8594b749",
+                "message": "Invoke the aggregate_data tool with provided input:\n\nFounding date: {flow.city_founding_date_agent.output.value}\n\nPopulation: {flow.population_agent.output.value}\n\nWeather: {flow.weather_agent.output.value}\n\n",
+                "position": {
+                    "x": 2,
+                    "y": 477
+                },
+                "test_data": [
+                    {
+                        "value": "",
+                        "source": "flow.city_founding_date_agent.output.value"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow.weather_agent.output.value"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow.population_agent.output.value"
+                    }
+                ],
+                "description": "You are an agent that will aggerate data about a city\n",
+                "display_name": "aggregate_agent",
+                "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "description": "Agent response"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'aggregate_agent'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "agent_f472fe13-3c18-4661-a498-48d2e6bc8489": {
+            "spec": {
+                "kind": "agent",
+                "name": "agent_f472fe13-3c18-4661-a498-48d2e6bc8489",
+                "agent": "weather_agent:5b8e5a07-cda9-4f3e-bb8a-54757fec71b7",
+                "message": "Get real time weather data for city: {flow.input.city}",
+                "position": {
+                    "x": 3,
+                    "y": 240
+                },
+                "test_data": [
+                    {
+                        "value": "",
+                        "source": "flow.input.city"
+                    }
+                ],
+                "description": "You are an agent that will fetch real time weather data\n",
+                "display_name": "weather_agent",
+                "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "description": "Agent response"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'weather_agent'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "agent_f9cfe3f5-0324-4e8f-b781-80b29c658a66": {
+            "spec": {
+                "kind": "agent",
+                "name": "agent_f9cfe3f5-0324-4e8f-b781-80b29c658a66",
+                "agent": "city_founding_date_agent:c634e708-59fa-4efd-9fdc-0022a81dc2cd",
+                "message": "Get founding date for city: {flow.input.city}",
+                "position": {
+                    "x": 4,
+                    "y": 131
+                },
+                "test_data": [
+                    {
+                        "value": "",
+                        "source": "flow.input.city"
+                    }
+                ],
+                "description": "You are an agent that will fetch city founding date\n",
+                "display_name": "city_founding_date_agent",
+                "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "description": "Agent response"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'city_founding_date_agent'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": false
+    },
+    "output_map": {
+        "spec": {
+            "maps": [
+                {
+                    "metadata": {
+                        "assignmentType": "variable"
+                    },
+                    "has-no-value": false,
+                    "target_variable": "self.output.information_about_the_city",
+                    "value_expression": "flow.aggregate_agent.output.value"
+                }
+            ],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

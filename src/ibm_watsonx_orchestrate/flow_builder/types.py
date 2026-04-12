@@ -4,18 +4,18 @@ from datetime import date
 import numbers
 import inspect
 import logging
+
 import uuid
 import re
 import time
 from typing import (
-    Annotated, Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union, NewType
+    Any, Callable, Self, cast, Literal, List, NamedTuple, Optional, Sequence, Union
 )
-from typing_extensions import Doc
 
 import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
 from pydantic import computed_field, field_validator
-from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler, RootModel
+from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows.constants import ANY_USER
 from ibm_watsonx_orchestrate.agent_builder.tools.types import (
     ToolSpec, ToolRequestBody, ToolResponseBody, JsonSchemaObject, WXOFile
 )
+from ibm_watsonx_orchestrate.flow_builder.utils import ( _get_tool_request_body, _get_tool_response_body )
 
 
 
@@ -37,7 +38,6 @@ class JsonSchemaObjectRef(JsonSchemaObject):
     ref: str=Field(description="The id of the schema to be used.", serialization_alias="$ref")
 
 class SchemaRef(BaseModel):
- 
     ref: str = Field(description="The id of the schema to be used.", serialization_alias="$ref")
 
 def _assign_attribute(model_spec, attr_name, schema):
@@ -87,8 +87,11 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     return model_spec
 
 
-def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef]) -> dict[str, Any]:
+def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef, JsonSchemaObject]) -> dict[str, Any]:
     model_spec = {}
+
+    if isinstance(schema, JsonSchemaObject):
+        schema = _get_tool_request_body(schema)
     if isinstance(schema, ToolRequestBody):
         request_body = cast(ToolRequestBody, schema)
         model_spec["type"] = request_body.type
@@ -106,8 +109,10 @@ def _to_json_from_input_schema(schema: Union[ToolRequestBody, SchemaRef]) -> dic
     
     return model_spec
 
-def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> dict[str, Any]:
+def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef, JsonSchemaObject]) -> dict[str, Any]:
     model_spec = {}
+    if isinstance(schema, JsonSchemaObject):
+        schema = _get_tool_response_body(schema)
     if isinstance(schema, ToolResponseBody):
         response_body = cast(ToolResponseBody, schema)
         model_spec["type"] = response_body.type
@@ -132,14 +137,19 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef]) -> d
     
     return model_spec
 
+class Position(BaseModel):
+    x: float
+    y: float
+
 class NodeSpec(BaseModel):
-    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "timer", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc", "docext", "docclassifier" ] = "node"
+    kind: Literal["node", "tool", "user", "agent", "flow", "start", "decisions", "prompt", "timer", "branch", "wait", "foreach", "loop", "userflow", "end", "docproc", "docext", "docclassifier", "user_flow", "script" ] = "node"
     name: str
     display_name: str | None = None
     description: str | None = None
     input_schema: ToolRequestBody | SchemaRef | None = None
     output_schema: ToolResponseBody | SchemaRef | None = None
     output_schema_object: JsonSchemaObject | SchemaRef | None = None
+    position: Position | None = None
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -176,6 +186,8 @@ class NodeSpec(BaseModel):
                     model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
             else:
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
+        if self.position:
+            model_spec["position"] = self.position
 
         return model_spec
 
@@ -267,8 +279,6 @@ class DocProcCommonNodeSpec(NodeSpec):
         
         return model_spec
     
-
-
 class DocClassifierSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocClassifierConfig
@@ -358,28 +368,145 @@ class PlainTextReadingOrder(StrEnum):
     block_structure = auto()
     simple_line = auto()
 
+class DocProcOutputFormat(StrEnum):
+    '''
+    Output format for document processing results.
+    - docref: Output will be a document reference (default)
+    - object: Output will be a JSON object
+    '''
+    docref = auto()
+    object = auto()
+
 class DocProcSpec(DocProcCommonNodeSpec):
+    '''
+    Document Processing Node Specification for flow-based document analysis.
+    
+    This class defines the configuration for a document processing node in a workflow,
+    enabling text extraction, structure analysis, and key-value pair (KVP) extraction
+    from documents using IBM Watson Document Understanding (WDU) service. It extends
+    DocProcCommonNodeSpec to provide comprehensive document processing capabilities.
+    
+    The DocProcSpec node can perform multiple operations simultaneously:
+    - Plain text extraction with configurable reading order
+    - Document structure analysis (sections, tables, paragraphs, etc.)
+    - LLM-based key-value pair extraction using custom schemas
+    - Handwritten text recognition
+
+    Attributes:
+        kvp_schemas (List[DocProcKVPSchema] | None): Optional list of schemas defining
+            the key-value pairs to extract from documents. Each schema specifies:
+            - document_type: Label for the document category
+            - document_description: Description for schema selection
+            - fields: Dictionary of fields/tables to extract
+            - additional_prompt_instructions: Extra guidance for the LLM
+            
+            Behavior:
+            - None: No KVP extraction performed (default)
+            - Empty list []: Uses internal predefined schemas
+            - List with schemas: Uses provided custom schemas
+            
+        kvp_model_name (str | None): The LLM model identifier for KVP extraction.
+            Examples: "watsonx/mistralai/mistral-medium-2505"
+            Default: None (uses system default model)
+            
+        kvp_force_schema_name (str | None): Forces the KVP extractor to use a specific
+            schema by its document_type name, bypassing automatic schema selection.
+            Useful when you know the exact document type and want to skip classification.
+            Default: None (automatic schema selection based on document content)
+            
+        kvp_enable_text_hints (bool | None): Controls whether to provide text and layout
+            information extracted from the document to the LLM during KVP extraction.
+            - True: LLM receives both page image and extracted text/layout (recommended)
+            - False: LLM relies only on the page image
+            Default: True (better accuracy with text hints)
+            
+        plain_text_reading_order (PlainTextReadingOrder): Determines how text is ordered
+            when extracting plain text from the document:
+            - block_structure: Respects document layout blocks (default, recommended)
+            - simple_line: Simple line-by-line reading order
+            Default: PlainTextReadingOrder.block_structure
+            
+        document_structure (bool): Controls whether to extract and return the complete
+            document structure (sections, paragraphs, tables, lists, images, etc.).
+            - True: Returns full structure in AssemblyJsonOutput format
+            - False: Returns only plain text (faster, smaller response)
+            Default: False
+            
+        output_format (DocProcOutputFormat): Specifies the response format:
+            - docref: Returns a reference URL to a file containing results (default)
+              Response type: TextExtractionResponse
+            - object: Returns results as inline JSON object
+              Response type: TextExtractionObjectResponse
+            Default: DocProcOutputFormat.docref
+    
+    Inherited Attributes (from DocProcCommonNodeSpec):
+        task (DocProcTask): The document processing operation type
+            Default: DocProcTask.text_extraction
+        enable_hw (bool): Enable handwritten text recognition
+            Default: False
+    
+    Inherited Attributes (from NodeSpec):
+        name (str): Unique identifier for the node
+        display_name (str | None): Human-readable name
+        description (str | None): Node description
+        input_schema (ToolRequestBody | SchemaRef | None): Input schema definition
+        output_schema (ToolResponseBody | SchemaRef | None): Output schema definition
+    '''    
     kvp_schemas: List[DocProcKVPSchema] | None = Field(
         title='KVP schemas',
-        description="Optional list of key-value pair schemas to use for extraction.",
+        description="Optional list of key-value pair schemas for LLM-based extraction. "
+                   "None = no KVP extraction, [] = use internal schemas, "
+                   "[schema1, schema2, ...] = use custom schemas. Each schema defines "
+                   "document type, fields to extract, and extraction instructions.",
         default=None)
     kvp_model_name: str | None = Field(
         title='KVP Model Name',
-        description="The LLM model to be used for key-value pair extraction",
+        description="LLM model identifier for key-value pair extraction. "
+                   "Examples: 'meta-llama/llama-3-2-11b-vision-instruct', 'gpt-4-vision'. "
+                   "None uses the system default model. Choose based on accuracy needs "
+                   "and performance requirements.",
         default=None
     )
     kvp_force_schema_name: str | None = Field(
         title='KVP Force Schema Name',
-        description='Forces the kvp extractor to use a specified schema directly for value extraction by setting the schema document_type.',
+        description="Forces the KVP extractor to use a specific schema by its document_type "
+                   "name, bypassing automatic schema selection. Use when document type is "
+                   "known in advance to improve performance and accuracy. None enables "
+                   "automatic schema selection based on document content.",
         default=None
     )
     kvp_enable_text_hints: bool | None = Field(
         title='KVP Enable Text Hints',
-        description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
+        description="Determines whether to provide extracted text and layout information "
+                   "to the LLM during KVP extraction, in addition to the page image. "
+                   "True (recommended) = LLM receives both image and text hints for better "
+                   "accuracy. False = LLM relies only on page image. Text hints significantly "
+                   "improve extraction quality with minimal performance impact.",
         default=True
     )
-    plain_text_reading_order : PlainTextReadingOrder = Field(default=PlainTextReadingOrder.block_structure)
-    document_structure: bool = Field(default=False,description="Requests the entire document structure computed by WDU to be returned")
+    plain_text_reading_order : PlainTextReadingOrder = Field(
+        default=PlainTextReadingOrder.block_structure,
+    )
+    document_structure: bool = Field(
+        title="Document Structure",
+        default=False,
+        description="Requests the complete document structure computed by Watson Document "
+                   "Understanding (WDU) to be returned. When True, the response includes "
+                   "hierarchical structure (sections, paragraphs, tables, lists, images, etc.) "
+                   "with bounding boxes and relationships. When False, only plain text is "
+                   "extracted (faster, smaller response). Set to True when structural analysis "
+                   "or spatial information is needed."
+    )
+    output_format: DocProcOutputFormat = Field(
+        title="Output Format",
+        default=DocProcOutputFormat.docref, 
+        description="Output format for document processing results. "
+                   "'docref' (default) returns a URL reference to a file containing results "
+                   "(TextExtractionResponse). 'object' returns results as inline JSON "
+                   "(TextExtractionObjectResponse). Use 'docref' for large documents or when "
+                   "results will be stored/processed separately. Use 'object' for small documents "
+                   "or immediate inline processing."
+    )
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -399,6 +526,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_force_schema_name"] = self.kvp_force_schema_name
         if self.kvp_enable_text_hints is not None:
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
+        if self.output_format != DocProcOutputFormat.docref:
+            model_spec["output_format"] = self.output_format
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -425,8 +554,9 @@ class NodeErrorHandlerConfig(BaseModel):
         if self.retry_interval:
             model_spec["retry_interval"] = self.retry_interval
         return model_spec
+
 class ToolNodeSpec(NodeSpec):
-    tool: Union[str, ToolSpec] = Field(default = None, description="the tool to use")
+    tool: Union[str, ToolSpec, None] = Field(default = None, description="the tool to use")
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
 
     def __init__(self, **data):
@@ -496,94 +626,137 @@ class UserFieldOption(BaseModel):
         return model_spec
     
 class UserFieldKind(str, Enum):
-    Text: str = "text"
-    Date: str = "date"
-    DateTime: str = "datetime"
-    Time: str = "time"
-    Number: str = "number"
-    File: str = "file"
-    Boolean: str = "boolean"
-    Object: str = "object"
-    Choice: str = "any"
-    List: str = "array"  # used to display list output
-    DateRange: str = "date-range",
-    Field: str = "field",
-    MultiChoice: str = "array"
+    Text = "text"
+    Date = "date"
+    DateTime = "datetime"
+    Time = "time"
+    Number = "number"
+    File = "file"
+    Boolean = "boolean"
+    Object = "object"
+    Choice = "any"
+    List = "array"  # used to display list output
+    DateRange = "date-range"
+    TimeRange = "time-range"
+    Field = "field"
+    MultiChoice = "array"
+    Array = "array"  # this is a duplicate of List
+    User = "user"  # user field for selecting users
+    Behaviour = "behaviour" # support for dynamic forms
 
-    def convert_python_type_to_kind(python_type: type) -> "UserFieldKind":
-        if inspect.isclass(python_type):
-            raise ValueError("Cannot convert class to kind")
-        
-        if python_type == str:
+    @staticmethod
+    def str_to_kind(kind: str) -> "UserFieldKind":
+        # convert a string to the corresponding Kind
+        if kind == "text":
             return UserFieldKind.Text
-        elif python_type == int:
+        elif kind == "date":
+            return UserFieldKind.Date
+        elif kind == "datetime":
+            return UserFieldKind.DateTime
+        elif kind == "time":
+            return UserFieldKind.Time
+        elif kind == "number":
             return UserFieldKind.Number
-        elif python_type == float:
-            return UserFieldKind.Number
-        elif python_type == bool:
+        elif kind == "file":
+            return UserFieldKind.File
+        elif kind == "boolean":
             return UserFieldKind.Boolean
-        elif python_type == list:
-            raise ValueError("Cannot convert list to kind")
-        elif python_type == dict:
-            raise ValueError("Cannot convert dict to kind")
-        
-        return UserFieldKind.Text
-    
-    def convert_kind_to_schema_property(kind: "UserFieldKind", name: str, description: str, 
-                                        default: Any, option: UserFieldOption,
-                                        custom: dict[str, Any]) -> dict[str, Any]:
-        model_spec = {}
-        model_spec["title"] = name
-        model_spec["description"] = description
-        model_spec["default"] = default
+        elif kind == "object":
+            return UserFieldKind.Object
+        elif kind == "any":
+            return UserFieldKind.Choice
+        elif kind == "list":
+            return UserFieldKind.List
+        elif kind == "date-range":
+            return UserFieldKind.DateRange
+        elif kind == "field":
+            return UserFieldKind.Field
+        elif kind == "array":
+            return UserFieldKind.List
+        elif kind == "user":
+            return UserFieldKind.User
+        elif kind == "behaviour":
+            return UserFieldKind.Behaviour # support for dynamic forms
+        else:
+            raise ValueError(f"Invalid kind: {kind}")
 
-        model_spec["type"] = "string"
-        if kind == UserFieldKind.Date:
-            model_spec["format"] = "date"
-        elif kind == UserFieldKind.Time:
-            model_spec["format"] = "time"
-        elif kind == UserFieldKind.DateTime:
-            model_spec["format"] = "datetime"
-        elif kind == UserFieldKind.Number:
-            model_spec["format"] = "number"
-        elif kind == UserFieldKind.Boolean:
-            model_spec["type"] = "boolean"
-        elif kind == UserFieldKind.File:
-            model_spec["format"] = "wxo-file"
-        elif kind == UserFieldKind.List:
-            model_spec["format"] = "array"
-        elif kind == UserFieldKind.Choice:
-            model_spec["format"] = "any"                        
-        elif kind == UserFieldKind.Object:
-            raise ValueError("Object user fields are not supported.")
-        
-        if option:
-            model_spec["enum"] = [value.text for value in option.values]
+    @staticmethod
+    def str_to_code(kind: str) -> str:
+        # convert a string to the corresponding Kind
+        if kind == "text":
+            return "UserFieldKind.Text"
+        elif kind == "date":
+            return "UserFieldKind.Date"
+        elif kind == "datetime":
+            return "UserFieldKind.DateTime"
+        elif kind == "time":
+            return "UserFieldKind.Time"
+        elif kind == "number":
+            return "UserFieldKind.Number"
+        elif kind == "file":
+            return "UserFieldKind.File"
+        elif kind == "boolean":
+            return "UserFieldKind.Boolean"
+        elif kind == "object":
+            return "UserFieldKind.Object"
+        elif kind == "any":
+            return "UserFieldKind.Choice"
+        elif kind == "list":
+            return "UserFieldKind.List"
+        elif kind == "date-range":
+            return "UserFieldKind.DateRange"
+        elif kind == "field":
+            return "UserFieldKind.Field"
+        elif kind == "array":
+            return "UserFieldKind.List"
+        elif kind == "user":
+            return "UserFieldKind.User"
+        elif kind == "behaviour":
+            return "UserFieldKind.Behaviour" # support for dynamic forms
+        else:
+            raise ValueError(f"Invalid kind: {kind}")
 
-        if custom:
-            for key, value in custom.items():
-                model_spec[key] = value
-        return model_spec
 
 
 class UserField(BaseModel):
     name: str
     kind: UserFieldKind = UserFieldKind.Text
-    text: str | None = Field(default=None, description="A descriptive text that can be used to ask user about this field.")
     display_name: str | None = None
-    description: str | None = None
     direction: str | None = None
-    input_map: Any | None = None,
-    default: Any | None = None
-    option: UserFieldOption | None = None
-    min: Any | None = None,
-    max: Any | None = None,
-    is_list: bool = False
-    custom: dict[str, Any] | None = None
-    widget: str | None = None
-    input_schema: JsonSchemaObject | None = None
-    output_schema:  JsonSchemaObject | None = None
+    text: str | None = None
+    input_map: Any | None = None
+    input_schema: ToolRequestBody | SchemaRef | JsonSchemaObject | None = None
+    output_schema: ToolResponseBody | SchemaRef | JsonSchemaObject | None = None
     uiSchema: dict[str, Any] | None = None
+    regex: str | None = None
+    regex_error_msg: str | None = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.input_map, dict):
+                self.input_map = DataMapSpec(**self.input_map)
+
+    def _fixup_input_output_schema_for_form(self):
+        if self.input_schema is None and self.output_schema is None:
+            field_kind = self.kind.value
+            if self.direction == "output" and self.kind.value == "text":
+                field_kind = "message"
+            schemas = clone_form_schema(field_kind)
+            if self.direction == "output" and self.kind == UserFieldKind.File:
+                # we need to override File download
+                schemas["input"] = {
+                    "properties": {"value": {"type": "string", "format": "wxo-file"}},
+                    "required": ["value"]
+                }
+            self.input_schema = schemas["input_schema"] if "input_schema" in schemas else None
+            self.output_schema = schemas["output_schema"] if "output_schema" in schemas else None
+        
+        if self.input_schema and isinstance(self.input_schema, JsonSchemaObject):
+            self.input_schema = _get_tool_request_body(self.input_schema)
+        if self.output_schema and isinstance(self.output_schema, JsonSchemaObject):
+            self.output_schema = _get_tool_response_body(self.output_schema)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -591,48 +764,214 @@ class UserField(BaseModel):
             model_spec["name"] = self.name
         if self.kind:
             model_spec["kind"] = self.kind.value
-        if self.direction:
-            model_spec["direction"] = self.direction  
-        if self.input_map:
-            # workaround for circular dependency related to Assigments in the Datamap module
-            from .data_map import DataMap
-            if self.input_map and not isinstance(self.input_map, DataMap):
-                raise TypeError("input_map must be an instance of DataMap")
-            #model_spec["input_map"] = self.input_map.to_json() 
-            model_spec["input_map"] = {"spec": self.input_map.to_json()}        
         if self.text:
             model_spec["text"] = self.text
+        if self.direction:
+            model_spec["direction"] = self.direction
+        if self.display_name:
+            model_spec["display_name"] = self.display_name      
+        if self.input_map:
+            # workaround for circular dependency related to Assigments in the Datamap module
+            from .data_map import DataMapSpec, DataMap
+            if self.input_map and not isinstance(self.input_map, DataMapSpec):
+                if isinstance(self.input_map, DataMap):
+                    self.input_map = DataMapSpec(spec=self.input_map)
+                else:
+                    raise ValueError("input_map must be of type DataMapSpec or DataMap")
+            if self.input_map and isinstance(self.input_map, DataMapSpec):
+                model_spec["input_map"] = self.input_map.to_json() 
+
+        self._fixup_input_output_schema_for_form()
+
+        if self.input_schema:
+            model_spec["input_schema"] = _to_json_from_input_schema(self.input_schema)
+        if self.output_schema:
+            if isinstance(self.output_schema, ToolResponseBody):
+                if self.output_schema.type != 'null':
+                    model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
+            else:
+                model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
+        if self.uiSchema:
+            model_spec["uiSchema"] = self.uiSchema
+        if self.regex:
+            model_spec["regex"] = self.regex
+        if self.regex_error_msg:
+            model_spec["regex_error_msg"] = self.regex_error_msg
+        return model_spec
+
+# Behaviour Rule Classes for Dynamic Forms
+
+class BehaviourRule(BaseModel):
+    """
+    Base class for behaviour rules that define conditional logic for dynamic forms.
+    
+    Supports if/then/else structures with simple and complex conditions using
+    allOf (AND) and anyOf (OR) operators.
+    
+    Attributes:
+        condition: JSON Schema condition structure with if/then/else
+        impacted_field: The field that is affected by this behaviour
+    """
+    condition: dict[str, Any] | None = None
+    impacted_field: str
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour rule to JSON format."""
+        model_spec = {}
+        if self.condition:
+            model_spec["condition"] = self.condition
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        return model_spec
+
+
+class VisibilityBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for controlling field visibility based on conditions.
+    
+    Uses x-is-visible property in the condition's then/else clauses to
+    show or hide fields dynamically.
+    
+    Example:
+        If field_1 == "USA" then show field_zipcode (x-is-visible: true)
+        else hide field_zipcode (x-is-visible: false)
+    """
+    pass
+
+
+class LabelBehaviourRule(BehaviourRule):
+    """
+    Behaviour rule for changing field labels based on conditions.
+    
+    Uses title property in the condition's then/else clauses to
+    dynamically update field labels.
+    
+    Supports complex conditions with allOf (AND) and anyOf (OR) operators,
+    as well as nested if/then/else structures.
+    
+    Example:
+        If field_country == "USA" then field_region.title = "State"
+        else field_region.title = "Province"
+    """
+    pass
+
+
+class ValueSourceBehaviourRule(BaseModel):
+    """
+    Behaviour rule for populating field values from a tool based on conditions.
+    
+    Calls a synchronous tool to fetch dynamic values for dropdown fields.
+    The tool must return a list of primitives or objects with a 'label' field.
+    
+    Attributes:
+        kind: Always "value_source"
+        tool: Tool identifier in format "name:uuid"
+        impacted_field: The dropdown field to populate
+        tool_input_map: Data map for tool input parameters
+        tool_input_schema: JSON schema for tool inputs
+    
+    Example:
+        When field_country changes, call get_regions tool to populate field_region
+    """
+    kind: Literal["value_source"] = "value_source"
+    tool: str
+    impacted_field: str
+    tool_input_map: Any | None = None
+    tool_input_schema: dict[str, Any] | None = None
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, dict):
+                self.tool_input_map = DataMapSpec(**self.tool_input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the value source rule to JSON format."""
+        model_spec = {}
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.tool:
+            model_spec["tool"] = self.tool
+        if self.impacted_field:
+            model_spec["impacted_field"] = self.impacted_field
+        if self.tool_input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.tool_input_map, DataMapSpec):
+                model_spec["tool_input_map"] = self.tool_input_map.to_json()
+            else:
+                model_spec["tool_input_map"] = self.tool_input_map
+        if self.tool_input_schema:
+            model_spec["tool_input_schema"] = self.tool_input_schema
+        return model_spec
+
+
+class BehaviourField(BaseModel):
+    """
+    A special field type that defines dynamic form behaviours.
+    
+    BehaviourFields are not visible to users but control the behaviour of other
+    fields based on conditions. They can control visibility, labels, or populate
+    values from tools.
+    
+    Attributes:
+        name: Unique identifier for this behaviour
+        kind: Always "behaviour"
+        behaviour_kind: Type of behaviour ("visibility", "label", or "value-source")
+        on_change_to_field: The field that triggers this behaviour when changed
+        display_name: Human-readable name for this behaviour
+        input_map: Data map (typically empty for behaviours)
+        behaviours: List of behaviour rules to apply
+    
+    Example:
+        BehaviourField that shows zipcode field only when country is "USA"
+    """
+    name: str
+    kind: Literal["behaviour"] = "behaviour"
+    behaviour_kind: Literal["visibility", "label", "value-source"]
+    on_change_to_field: str
+    display_name: str | None = None
+    input_map: Any | None = None
+    behaviours: list[VisibilityBehaviourRule | LabelBehaviourRule | ValueSourceBehaviourRule] = []
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.input_map:
+            from .data_map import DataMapSpec, DataMap
+            if isinstance(self.input_map, dict):
+                self.input_map = DataMapSpec(**self.input_map)
+            elif isinstance(self.input_map, DataMap):
+                self.input_map = DataMapSpec(spec=self.input_map)
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the behaviour field to JSON format."""
+        model_spec = {}
+        if self.name:
+            model_spec["name"] = self.name
+        if self.kind:
+            model_spec["kind"] = self.kind
+        if self.behaviour_kind:
+            model_spec["behaviour_kind"] = self.behaviour_kind
+        if self.on_change_to_field:
+            model_spec["on_change_to_field"] = self.on_change_to_field
         if self.display_name:
             model_spec["display_name"] = self.display_name
-        if self.description:
-            model_spec["description"] = self.description
-        if self.default:
-            model_spec["default"] = self.default
-        if self.min:
-            model_spec["min"] = self.min
-        if self.max:
-            model_spec["max"] = self.max
-        if self.is_list:
-            model_spec["is_list"] = self.is_list
-        if self.option:
-            model_spec["option"] = self.option.to_json()
-        if self.custom:
-            model_spec["custom"] = self.custom
-        if self.widget:
-            model_spec["widget"] = self.widget
-        if self.input_schema:
-           model_spec["input_schema"] = _to_json_from_json_schema(self.input_schema)
-        if self.output_schema:
-           model_spec["output_schema"] = _to_json_from_json_schema(self.output_schema) 
-        if self.uiSchema:
-            model_spec["uiSchema"] = self.uiSchema     
+        if self.input_map:
+            from .data_map import DataMapSpec
+            if isinstance(self.input_map, DataMapSpec):
+                model_spec["input_map"] = self.input_map.to_json()
+            else:
+                model_spec["input_map"] = self.input_map
+        if self.behaviours and len(self.behaviours) > 0:
+            model_spec["behaviours"] = [behaviour.to_json() for behaviour in self.behaviours]
         return model_spec
+
 
 class UserFormButton(BaseModel):
     name: str
     kind: Literal["submit", "cancel"]
     display_name: str | None = None
-    visible: bool
+    visible: bool = True
     edge_id: str | None = None
 
     def __init__(self, **data):
@@ -646,11 +985,12 @@ class UserFormButton(BaseModel):
             model_spec["kind"] = self.kind
         if self.display_name:
             model_spec["display_name"] = self.display_name
-        if self.visible:
-            model_spec["visible"] = self.visible
-        if self.edge_id: 
+        # Always include visible property (it's a boolean, not optional)
+        model_spec["visible"] = self.visible
+        # Include edge_id when button is connected to a node
+        if self.edge_id:
             model_spec["edge_id"] = self.edge_id
-        return model_spec    
+        return model_spec
 
 class UserForm(BaseModel):
 
@@ -658,8 +998,9 @@ class UserForm(BaseModel):
     kind: str = "form"
     display_name: str | None = None
     instructions: str | None = None
-    fields: list[UserField] = []  
-    jsonSchema: JsonSchemaObject | None = None
+    fields: list[UserField] = []
+    behaviours: list[BehaviourField] = []  # Dynamic form behaviours
+    jsonSchema: JsonSchemaObject | SchemaRef | None = None
     buttons: list[UserFormButton]
 
     @field_validator("buttons", mode="before")
@@ -677,15 +1018,18 @@ class UserForm(BaseModel):
         
         # Initialize jsonSchema if not provided
         if not hasattr(self, 'jsonSchema') or self.jsonSchema is None:
-            self.jsonSchema = JsonSchemaObject(
-                type='object', 
-                properties={}, 
-                required=[], 
+            self.jsonSchema = JsonSchemaObject( # pyright: ignore[reportCallIssue]
+                type='object',
+                properties={},
+                required=[],
                 description=self.instructions if hasattr(self, 'instructions') else None
             )
         
         if not hasattr(self, 'fields') or self.fields is None:
             self.fields = []
+        
+        if not hasattr(self, 'behaviours') or self.behaviours is None:
+            self.behaviours = []
 
         if not hasattr(self, 'buttons') or self.buttons is None:
             self.buttons = [
@@ -702,18 +1046,70 @@ class UserForm(BaseModel):
         if self.display_name:
             model_spec["display_name"] = self.display_name
         if self.fields and len(self.fields) > 0:
-            model_spec["fields"] = [field.to_json() for field in self.fields]
+            # Include both regular fields and behaviour fields in the fields array
+            # Behaviours should be inserted right after their trigger field (on_change_to_field)
+            all_fields = []
+            field_names = [field.name for field in self.fields]
+            
+            for field in self.fields:
+                # Add the field
+                all_fields.append(field.to_json())
+                
+                # Add any behaviours that are triggered by this field
+                if self.behaviours and len(self.behaviours) > 0:
+                    for behaviour in self.behaviours:
+                        if behaviour.on_change_to_field == field.name:
+                            all_fields.append(behaviour.to_json())
+            
+            model_spec["fields"] = all_fields
+        elif self.behaviours and len(self.behaviours) > 0:
+            # If no regular fields but have behaviours, include only behaviours
+            model_spec["fields"] = [behaviour.to_json() for behaviour in self.behaviours]
         if self.jsonSchema:
-             model_spec["jsonSchema"] = _to_json_from_json_schema(self.jsonSchema)
+            model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
         if self.buttons and len(self.buttons) > 0:
-            model_spec["buttons"] = [button.to_json() for button in self.buttons]     
+            model_spec["buttons"] = [button.to_json() for button in self.buttons]
 
         return model_spec
 
-    def _add_or_replace_field(self, name: str, userfield):
+    def validate_behaviours(self) -> list[str]:
+        """
+        Validate all behaviours in the form for circular dependencies.
+        
+        Returns:
+            List of error messages (empty if valid)
+        """
+        from .utils import detect_circular_dependencies
+
+        # Collect all behaviours and convert to dict format for validation
+        behaviours = []
+        for behaviour_field in self.behaviours:
+            behaviour_dict = {
+                "on_change_to_field": behaviour_field.on_change_to_field,
+                "behaviours": []
+            }
+
+            # Extract impacted fields from behaviour rules
+            for rule in behaviour_field.behaviours:
+                if hasattr(rule, 'impacted_field'):
+                    behaviour_dict["behaviours"].append({
+                        "impacted_field": rule.impacted_field
+                    })
+
+            behaviours.append(behaviour_dict)
+
+        return detect_circular_dependencies(behaviours)
+    
+    def add_or_replace_field(self, name: str, userfield: UserField):
         """
         Replace an existing field (by name) in self.fields or append a new one.
         """
+        # fixup input and output schema for fields
+        if userfield is None:
+            return
+
+        userfield._fixup_input_output_schema_for_form()
+
         for i, field in enumerate(self.fields):
             if field.name == name:
                 self.fields[i] = userfield
@@ -730,6 +1126,8 @@ class UserForm(BaseModel):
             placeholder_text: str| None = None,
             help_text: str | None = None,
             input_map: Any| None=None,
+            regex: str | None = None,
+            regex_error_message: str | None = None,
     ) -> UserField:
         # Use the template system from utils
         schemas = clone_form_schema("text", {
@@ -755,15 +1153,23 @@ class UserForm(BaseModel):
             output_schema=schemas["output_schema"],
             input_schema=schemas["input_schema"],
             uiSchema=schemas["ui_schema"],
+            regex=regex,
+            regex_error_msg=regex_error_message,
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
-        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+        schema_def = {"type": "string", "title": label}
+
+        self.jsonSchema.properties[name] = schema_def
+        
+        self.jsonSchema.properties[name] = schema_def
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def boolean_input_field(
             self,
@@ -810,7 +1216,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
@@ -821,44 +1227,92 @@ class UserForm(BaseModel):
             ],
             "title": label
         }
+
+        return userfield
+
     def date_range_input_field(
             self,
             name: str,
             label: str | None = None,
             required: bool = False,
-            start_date_label:str | None = None,
-            end_date_label:str | None = None,
-            default_start: Any| None = None,
-            default_end: Any| None = None
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_date: Any | None = None,
+            max_date: Any | None = None
     ) -> UserField:
+        """
+        Creates a date range input field in the form.
+
+        This method creates a DateRange type field. For TimeRange fields,
+        use datetime_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_date: Optional DataMap for minimum date constraint (maps to self.input.min_date).
+            max_date: Optional DataMap for maximum date constraint (maps to self.input.max_date).
+
+        Returns:
+            UserField: The created date range input field.
+        """
+        # Validate inputs
         ensure_datamap(default_start, "default_start")
         ensure_datamap(default_end, "default_end")
-        
-        # Use the template system from utils
-        schemas = clone_form_schema("date_range", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD",
-                "ui:options": {"range": True},
-                "ui:order": ["start", "end"]
-            }
-        })
-        
-        # Add additional UI properties if provided
+        ensure_datamap(min_date, "min_date")
+        ensure_datamap(max_date, "max_date")
+
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+
+        template_type = "date_range"
+        format_type = "date"
+        min_prop = "min_date"
+        max_prop = "max_date"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "DateWidget",
+            "format": "YYYY-MM-DD",
+            "ui:options": {"range": True},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
         if start_date_label:
             schemas["ui_schema"]["ui:start_label"] = start_date_label
         if end_date_label:
             schemas["ui_schema"]["ui:end_label"] = end_date_label
-        
-        # Set up input_map
-        if default_start:
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_date, and max_date
+        # Similar to number_input_field pattern
+        if default_start is not None:
             input_map = default_start
             add_assignment(input_map, default_end)
-        else:
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif default_end is not None:
             input_map = default_end
-        
-        # Create the field
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif min_date is not None:
+            input_map = min_date
+            add_assignment(input_map, max_date)
+        elif max_date is not None:
+            input_map = max_date
+        else:
+            input_map = None
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.DateRange,
@@ -869,37 +1323,213 @@ class UserForm(BaseModel):
             input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
-        self._add_or_replace_field(name, userfield)
-        
-        # Update JSON schema
+
+        self.add_or_replace_field(name, userfield)
+
         self.jsonSchema.properties[name] = {
             "type": "array",
-            "items": {"type": "string", "format": "date"},
+            "items": {},
             "title": label
         }
-        
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
-         
+
+        return userfield
+
+    def datetime_range_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            start_date_label: str | None = None,
+            end_date_label: str | None = None,
+            default_start: Any | None = None,
+            default_end: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None
+    ) -> UserField:
+        """
+        Creates a datetime (time) range input field in the form.
+
+        This method creates a TimeRange type field. For DateRange fields,
+        use date_range_input_field instead.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            start_date_label: Optional label for the start field.
+            end_date_label: Optional label for the end field.
+            default_start: Optional DataMap for default start value (maps to self.input.default_start).
+            default_end: Optional DataMap for default end value (maps to self.input.default_end).
+            min_time: Optional DataMap for minimum time constraint (maps to self.input.min_time).
+            max_time: Optional DataMap for maximum time constraint (maps to self.input.max_time).
+
+        Returns:
+            UserField: The created datetime range input field.
+        """
+        # Validate inputs
+        ensure_datamap(default_start, "default_start")
+        ensure_datamap(default_end, "default_end")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+
+        template_type = "time_range"
+        format_type = "time"
+        min_prop = "min_time"
+        max_prop = "max_time"
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": "TimeWidget",
+            "ui:options": {"is_range": True, "is_timezone": True, "is_datepicker": False},
+            "ui:order": ["start", "end"]
+        }
+
+        schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[min_prop] = {"type": "string", "format": format_type}
+            schemas["input_schema"].properties[max_prop] = {"type": "string", "format": format_type}
+
+        if start_date_label:
+            schemas["ui_schema"]["ui:start_label"] = start_date_label
+        if end_date_label:
+            schemas["ui_schema"]["ui:end_label"] = end_date_label
+
+        # Build the input_map by computing all assignments from default_start, default_end, min_time, and max_time
+        # Similar to number_input_field pattern
+        if default_start is not None:
+            input_map = default_start
+            add_assignment(input_map, default_end)
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif default_end is not None:
+            input_map = default_end
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.TimeRange,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
+
     def date_input_field(
             self,
             name: str,
             label: str | None = None,
             required: bool = False,
-            initial_value: Any| None=None,
+            initial_value: Any | None = None,
+            min_date: Any | None = None,
+            max_date: Any | None = None,
+            multiple_dates: bool = False,
     ) -> UserField:
-        # Use the template system from utils
-        schemas = clone_form_schema("date", {
-            "ui": {
-                "ui:title": label if label is not None else name,
-                "ui:widget": "DateWidget",
-                "format": "YYYY-MM-DD"
-            }
-        })
+        """
+        Creates a date input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial date value.
+            min_date: Optional DataMap for minimum allowed date.
+            max_date: Optional DataMap for maximum allowed date.
+            multiple_dates: If True, allows selection of multiple dates. Defaults to False.
+
+        Returns:
+            UserField: The created date input field.
+        """
+        # Validate inputs
+        ensure_datamap(initial_value, "initial_value")
+        ensure_datamap(min_date, "min_date")
+        ensure_datamap(max_date, "max_date")
         
-        # Create the field
+        # Build the input_map by merging all assignments from initial_value, min_date and max_date
+        if initial_value is not None:
+            input_map = initial_value
+            add_assignment(input_map, min_date)
+            add_assignment(input_map, max_date)
+        elif min_date is not None:
+            input_map = min_date
+            add_assignment(input_map, max_date)
+        elif max_date is not None:
+            input_map = max_date
+        else:
+            input_map = None
+        
+        # Deduce is_range_limit from presence of min_date or max_date
+        is_range_limit = min_date is not None or max_date is not None
+        
+        # Base config with common properties, only widget and type differ based on multiple_dates
+        config = {
+            "template": "date",
+            "format": "YYYY-MM-DD",
+            "json_format": "date",
+            "min_prop": "min_date",
+            "max_prop": "max_date",
+            "widget": "MultiDateWidget" if multiple_dates else "DateWidget",
+            "json_schema_type": "array" if multiple_dates else "string",
+        }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "format": config["format"]
+        }
+
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        # Update schemas for multiple dates (input default, output value, and JSON schema)
+        if multiple_dates:
+            array_schema = {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+            schemas["input_schema"].properties["default"] = array_schema
+            schemas["output_schema"].properties["value"] = array_schema
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
         userfield = UserField(
             name=name,
             kind=UserFieldKind.Date,
@@ -907,22 +1537,156 @@ class UserForm(BaseModel):
             direction="input",
             input_schema=schemas["input_schema"],
             output_schema=schemas["output_schema"],
-            input_map=initial_value,
+            input_map=input_map,
             uiSchema=schemas["ui_schema"],
         )
-        
-        # Add or replace the field
-        self._add_or_replace_field(name, userfield)
-        
-        # Update JSON schema
-        self.jsonSchema.properties[name] = {
-            "type": "string",
-            "title": label,
-            "format": "date"
-        }
-        
+
+        self.add_or_replace_field(name, userfield)
+
+        # Set JSON schema based on type
+        if multiple_dates:
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "title": label,
+                "items": {
+                    "type": "string",
+                    "format": config["json_format"]
+                }
+            }
+        else:
+            self.jsonSchema.properties[name] = {
+                "type": "string",
+                "title": label,
+                "format": config["json_format"]
+            }
+
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
+
+    def datetime_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            initial_value: Any | None = None,
+            min_time: Any | None = None,
+            max_time: Any | None = None,
+            inputType: UserFieldKind = UserFieldKind.DateTime,
+    ) -> UserField:
+        """
+        Creates a datetime or time input field in the form.
+
+        Args:
+            name: The internal name of the field.
+            label: Optional display label for the field.
+            required: Whether the field is required. Defaults to False.
+            initial_value: Optional DataMap for initial datetime/time value.
+            min_time: Optional DataMap for minimum allowed datetime/time.
+            max_time: Optional DataMap for maximum allowed datetime/time.
+            inputType: Type of field (DateTime or Time). Defaults to DateTime.
+
+        Returns:
+            UserField: The created datetime/time input field.
+        """
+        # Validate inputType
+        valid_types = [UserFieldKind.DateTime, UserFieldKind.Time]
+        if inputType not in valid_types:
+            raise ValueError(f"inputType must be one of DateTime or Time, got {inputType}")
+        
+        # Validate inputs
+        ensure_datamap(initial_value, "initial_value")
+        ensure_datamap(min_time, "min_time")
+        ensure_datamap(max_time, "max_time")
+        
+        # Build the input_map by merging all assignments from initial_value, min_time and max_time
+        if initial_value is not None:
+            input_map = initial_value
+            add_assignment(input_map, min_time)
+            add_assignment(input_map, max_time)
+        elif min_time is not None:
+            input_map = min_time
+            add_assignment(input_map, max_time)
+        elif max_time is not None:
+            input_map = max_time
+        else:
+            input_map = None
+        
+        # Deduce is_range_limit from presence of min_time or max_time
+        is_range_limit = min_time is not None or max_time is not None
+        
+        # Configure based on inputType
+        if inputType == UserFieldKind.Time:
+            config = {
+                "template": "time",
+                "json_format": "time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": False
+                }
+            }
+        else:  # UserFieldKind.DateTime
+            config = {
+                "template": "datetime",
+                "json_format": "date-time",
+                "widget": "TimeWidget",
+                "min_prop": "min_time",
+                "max_prop": "max_time",
+                "json_schema_type": "array",
+                "ui_options": {
+                    "is_range": False,
+                    "is_timezone": True,
+                    "is_datepicker": True
+                }
+            }
+
+        ui_config = {
+            "ui:title": label if label is not None else name,
+            "ui:widget": config["widget"],
+            "ui:options": config["ui_options"]
+        }
+
+        schemas = clone_form_schema(config["template"], {"ui": ui_config})
+
+        if is_range_limit:
+            schemas["input_schema"].properties[config["min_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+            schemas["input_schema"].properties[config["max_prop"]] = {
+                "type": "string",
+                "format": config["json_format"]
+            }
+
+        userfield = UserField(
+            name=name,
+            kind=inputType,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            input_map=input_map,
+            uiSchema=schemas["ui_schema"],
+        )
+
+        self.add_or_replace_field(name, userfield)
+
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {},
+            "title": label
+        }
+
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
 
     def choice_input_field(
             self,
@@ -936,10 +1700,12 @@ class UserForm(BaseModel):
             initial_value: Any | None = None,
             columns: dict[str, str]| None = None,
             isMultiSelect: bool = False,
+            minItems: int | None = None,
+            maxItems: int | None = None,
     ) -> UserField:
         # Use the template system from utils
-        widget = "ComboboxWidget" if (show_as_dropdown or columns is None) else \
-                 "MultiselectDropdown" if (show_as_dropdown or columns is None and isMultiSelect) else \
+        widget = "MultiselectDropdown" if (show_as_dropdown and isMultiSelect) else \
+                 "ComboboxWidget" if (show_as_dropdown or columns is None) else \
                  "Table"
         
         ui_config = {
@@ -1006,7 +1772,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         if isMultiSelect and columns is not None:
@@ -1016,22 +1782,35 @@ class UserForm(BaseModel):
                     "type": "string",
                     "title": val if val else key  # use value if present, else fallback to key
                 }
-            self.jsonSchema.properties[name] = {
+            schema_def = {
                 "type": "array",
-                "items": {"type": "object", "properties": properties},
+                "items": {"type": "string"},
+                "properties": properties,
                 "title": label
             }
+            if minItems is not None:
+                schema_def["minItems"] = minItems
+            if maxItems is not None:
+                schema_def["maxItems"] = maxItems
+            self.jsonSchema.properties[name] = schema_def
         elif isMultiSelect:
-            self.jsonSchema.properties[name] = {
+            schema_def = {
                 "type": "array",
-                "items": {"type": "any"},
+                "items": {"type": "string"},
                 "title": label
             }
+            if minItems is not None:
+                schema_def["minItems"] = minItems
+            if maxItems is not None:
+                schema_def["maxItems"] = maxItems
+            self.jsonSchema.properties[name] = schema_def
         else:
             self.jsonSchema.properties[name] = {"title": label}
 
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def number_input_field(
             self,
@@ -1087,12 +1866,14 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": num_type, "title": label}
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def file_upload_field(
             self,
@@ -1104,7 +1885,17 @@ class UserForm(BaseModel):
             allow_multiple_files: bool = False,
             file_max_size: int=10,
             supported_file_types : List[str] | None = None,
+            min_num_files: Any | None = None,
+            max_num_files: Any | None = None,
     ) -> UserField:
+        # Validate that min/max are DataMap instances (or None)
+        ensure_datamap(min_num_files, "min_num_files")
+        ensure_datamap(max_num_files, "max_num_files")
+
+        # Validate min/max num files constraints require allow_multiple_files=True
+        if (min_num_files is not None or max_num_files is not None) and not allow_multiple_files:
+            raise ValueError("min_num_files and max_num_files are only valid when allow_multiple_files=True")
+
         # Use the template system from utils
         schemas = clone_form_schema("file", {
             "ui": {
@@ -1126,6 +1917,15 @@ class UserForm(BaseModel):
             )
         else:
             output_schema = schemas["output_schema"]
+
+        # Build the input_map by merging assignments from min_num_files and max_num_files
+        if min_num_files is not None:
+            add_assignment(min_num_files, max_num_files)
+            file_constraints = min_num_files
+        elif max_num_files is not None:
+            file_constraints = max_num_files
+        else:
+            file_constraints = None
         
         # Create the field
         userfield = UserField(
@@ -1136,15 +1936,16 @@ class UserForm(BaseModel):
             input_schema=schemas["input_schema"],
             output_schema=output_schema,
             uiSchema=schemas["ui_schema"],
-            input_map=None
+            input_map=file_constraints
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {
             "description": instructions,
+            "items":{},
             "file_max_size": file_max_size,
             "multi": allow_multiple_files,
             "type": "array",
@@ -1154,6 +1955,8 @@ class UserForm(BaseModel):
         
         if required and name not in self.jsonSchema.required:
             self.jsonSchema.required.append(name)
+
+        return userfield
 
     def message_output_field(
             self,
@@ -1181,10 +1984,12 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+        return userfield
 
     def field_output_field(
             self,
@@ -1213,10 +2018,12 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema
         self.jsonSchema.properties[name] = {"type": "string", "title": label}
+
+        return userfield
 
     def list_output_field(
             self,
@@ -1280,7 +2087,7 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
         # Update JSON schema based on list type
         if isBulletList:
@@ -1299,9 +2106,90 @@ class UserForm(BaseModel):
                     }
             self.jsonSchema.properties[name] = {
                 "type": "array",
-                "items": {"type": "object", "properties": properties},
+                "items": {"type": "string"},
+                "properties": properties,
                 "title": label
             }
+
+        return userfield
+    
+    def list_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            isRowAddable: bool = False,
+            isRowDeletable: bool= False,
+            default: Any | None = None,
+            # A dictionary or columns names and their corresponding labels
+            columns: dict[str, str]| None = None
+    ) -> UserField:
+        ensure_datamap(default, "default")
+
+        # Use the template system from utils
+        schemas = clone_form_schema("list_input")
+        
+        # Configure input schema based on list type
+        schemas["input_schema"].properties["display_items"] = {"type": "array", "items": {}}
+        
+        # Configure source data mapping
+        if columns is not None:
+            # Build a list of strings like "item.name", "item.address", etc.
+            item_fields = [f'item.{key}' for key in columns.keys()]
+            # Convert into a JSON-style string list
+            value_expression = "[" + ", ".join(f'"{field}"' for field in item_fields) + "]"
+            # Create the assignment and add it to source
+            default.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression=value_expression,
+                    metadata={"assignmentType": "variable"}
+                )
+            )
+        else:
+            # If there are no columns create the empty list
+            default.add(
+                Assignment(
+                    target_variable="self.input.display_items",
+                    value_expression="[]"
+                )
+            )
+        
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.List,
+            display_name=label,
+            direction="input",
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            uiSchema=schemas["ui_schema"],
+            input_map=default
+        )
+        
+        # Add or replace the field
+        self.add_or_replace_field(name, userfield)
+        
+        # Update JSON schema based on list type
+        properties = {}
+        if columns is not None:
+            for key, val in columns.items():
+                properties[key] = {
+                    "type": "string",
+                    "title": val if val else key  # use value if present, else fallback to key
+                }
+        self.jsonSchema.properties[name] = {
+            "type": "array",
+            "items": {"type": "string"},
+            "properties": properties,
+            "title": label,
+            "isRowAddable": isRowAddable,
+            "isRowDeletable": isRowDeletable
+        }
+
+        if name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+        
+        return userfield
 
     def file_download_field(
             self,
@@ -1336,14 +2224,362 @@ class UserForm(BaseModel):
         )
         
         # Add or replace the field
-        self._add_or_replace_field(name, userfield)
+        self.add_or_replace_field(name, userfield)
         
-        # Update JSON schema
-        self.jsonSchema.properties[name] = {"type": "string", "title": label}
+        # Update JSON schema - use model_construct to bypass validation for custom "file" type
+        # pyright: ignore[reportCallIssue]
+        self.jsonSchema.properties[name] = JsonSchemaObject.model_construct(type="file", title=label)
+        return userfield
+
+    # Dynamic Forms Behaviour Methods
+    
+    def add_visibility_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a visibility behaviour to control field visibility based on conditions.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of visibility rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_visibility_behaviour(
+                name="show_zipcode",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"zipcode": {"x-is-visible": True}}},
+                        "else": {"properties": {"zipcode": {"x-is-visible": False}}}
+                    },
+                    "impacted_field": "zipcode"
+                }],
+                display_name="Show Zipcode for USA"
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create visibility behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(VisibilityBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="visibility",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_label_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            rules: list[dict[str, Any]],
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a label behaviour to change field labels based on conditions.
+        
+        Supports simple and complex conditions using allOf (AND) and anyOf (OR) operators,
+        as well as nested if/then/else structures.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            rules: List of label rules with condition and impacted_field
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example (simple):
+            form.add_label_behaviour(
+                name="region_label",
+                on_change_to_field="country",
+                rules=[{
+                    "condition": {
+                        "if": {"properties": {"country": {"const": "USA"}}},
+                        "then": {"properties": {"region": {"title": "State"}}},
+                        "else": {"properties": {"region": {"title": "Province"}}}
+                    },
+                    "impacted_field": "region"
+                }],
+                display_name="Region Label"
+            )
+            
+        Example (complex with allOf):
+            form.add_label_behaviour(
+                name="complex_label",
+                on_change_to_field="field1",
+                rules=[{
+                    "condition": {
+                        "if": {
+                            "allOf": [
+                                {"properties": {"field1": {"const": "A"}}},
+                                {"properties": {"field2": {"const": "B"}}}
+                            ]
+                        },
+                        "then": {"properties": {"field3": {"title": "Both A and B"}}},
+                        "else": {"properties": {"field3": {"title": "Other"}}}
+                    },
+                    "impacted_field": "field3"
+                }]
+            )
+        """
+        from .data_map import DataMap
+        
+        # Create label behaviour rules
+        behaviour_rules = []
+        for rule in rules:
+            behaviour_rules.append(LabelBehaviourRule(
+                condition=rule.get("condition"),
+                impacted_field=rule["impacted_field"]
+            ))
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="label",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=behaviour_rules
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+    
+    def add_value_source_behaviour(
+            self,
+            name: str,
+            on_change_to_field: str,
+            impacted_field: str,
+            tool: str,
+            tool_input_schema: dict[str, Any],
+            tool_input_map: dict[str, Any] | None = None,
+            display_name: str | None = None
+    ) -> BehaviourField:
+        """
+        Add a value source behaviour to populate field values from a tool.
+        
+        The tool must be synchronous and return a list of primitives or objects with a 'label' field.
+        The impacted field must be a single-select dropdown.
+        
+        Args:
+            name: Unique identifier for this behaviour
+            on_change_to_field: The field that triggers this behaviour when changed
+            impacted_field: The dropdown field to populate with tool results
+            tool: Tool identifier in format "name:uuid"
+            tool_input_schema: JSON schema for tool inputs
+            tool_input_map: Optional data map for tool input parameters
+            display_name: Human-readable name for this behaviour
+            
+        Returns:
+            The created BehaviourField
+            
+        Example:
+            form.add_value_source_behaviour(
+                name="populate_regions",
+                on_change_to_field="country",
+                impacted_field="region",
+                tool="get_regions:12345-uuid",
+                tool_input_schema={
+                    "type": "object",
+                    "properties": {
+                        "country": {"type": "string"}
+                    }
+                },
+                tool_input_map={
+                    "spec": {
+                        "maps": [{
+                            "target_variable": "self.tool.input.country",
+                            "value_expression": "parent.field.country",
+                            "metadata": {"assignmentType": "field"}
+                        }]
+                    }
+                },
+                display_name="Populate Regions"
+            )
+            
+        Note:
+            - Use "parent.field.fieldName" to reference form fields in Chat UI
+            - Use "self.tool.input.paramName" for tool input parameters
+            - Field names are case-sensitive
+        """
+        from .data_map import DataMap, DataMapSpec
+        
+        # Convert tool_input_map to DataMapSpec if provided
+        if tool_input_map:
+            if isinstance(tool_input_map, dict):
+                tool_input_map = DataMapSpec(**tool_input_map)
+        else:
+            tool_input_map = DataMapSpec(spec=DataMap(maps=[]))
+        
+        # Create value source behaviour rule
+        behaviour_rule = ValueSourceBehaviourRule(
+            kind="value_source",
+            tool=tool,
+            impacted_field=impacted_field,
+            tool_input_map=tool_input_map,
+            tool_input_schema=tool_input_schema
+        )
+        
+        # Create the behaviour field
+        behaviour_field = BehaviourField(
+            name=name,
+            kind="behaviour",
+            behaviour_kind="value-source",
+            on_change_to_field=on_change_to_field,
+            display_name=display_name or name,
+            input_map=DataMap(maps=[]),
+            behaviours=[behaviour_rule]
+        )
+        
+        # Add to behaviours list
+        self.behaviours.append(behaviour_field)
+        
+        return behaviour_field
+
+
+        return userfield
+
+    def user_input_field(
+            self,
+            name: str,
+            label: str | None = None,
+            required: bool = False,
+            multiple_users: bool = False,
+            min_num_users: Any | None = None,
+            max_num_users: Any | None = None,
+    ) -> UserField:
+        """
+        Add a user selection field to the form.
+        
+        Args:
+            name: The field name
+            label: The display label for the field
+            required: Whether the field is required
+            multiple_users: Whether multiple users can be selected
+            min_num_users: Optional minimum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+            max_num_users: Optional maximum number of users to select. Only applicable when
+                           multiple_users=True. Can be an integer or a DataMap for dynamic
+                           configuration via expressions.
+            
+        Returns:
+            UserField: The created user field
+
+        Raises:
+            ValueError: If min_num_users or max_num_users are provided when multiple_users=False.
+            ValueError: If min_num_users or max_num_users are not DataMap instances (when provided as DataMap).
+        """
+        # Validate that min/max are only used with multiple_users=True
+        if not multiple_users:
+            if min_num_users is not None:
+                raise ValueError("min_num_users is only applicable when multiple_users=True.")
+            if max_num_users is not None:
+                raise ValueError("max_num_users is only applicable when multiple_users=True.")
+
+        # Validate DataMap inputs
+        ensure_datamap(min_num_users, "min_num_users")
+        ensure_datamap(max_num_users, "max_num_users")
+
+        # Use the user template from utils
+        schemas = clone_form_schema("user", {
+            "ui": {
+                "ui:title": label if label is not None else name,
+                "ui:widget": "UserPickerWidget",
+                "ui:multi": multiple_users
+            }
+        })
+        
+        # Adjust schemas based on multiple_users parameter
+        if not multiple_users:
+            # Single user selection - output is a single string, no input schema needed
+            schemas["output_schema"] = JsonSchemaObject( # pyright: ignore[reportCallIssue]
+                type='object',
+                properties={"value": {"type": "string", "format": "wxo-user"}},
+                required=["value"],
+                additionalProperties=False
+            )
+            # Remove input_schema for single user (min/max don't apply)
+            schemas["input_schema"] = None
+
+        # Build the input_map from min_num_users and max_num_users assignments,
+        # mirroring the pattern used in number_input_field for minimum/maximum values.
+        input_map: Any | None = None
+        if multiple_users:
+            if min_num_users is not None:
+                add_assignment(min_num_users, max_num_users)  # merge max into min's DataMap
+                input_map = min_num_users
+            elif max_num_users is not None:
+                input_map = max_num_users  # only max provided
+
+        # Create the field
+        userfield = UserField(
+            name=name,
+            kind=UserFieldKind.User,
+            display_name=label,
+            direction="input",
+            input_map=input_map,
+            input_schema=schemas["input_schema"],
+            output_schema=schemas["output_schema"],
+            uiSchema=schemas["ui_schema"],
+        )
+        
+        # Add or replace the field
+        self.add_or_replace_field(name, userfield)
+        
+        # Update JSON schema based on multiple_users
+        if multiple_users:
+            # Multiple users - array of strings
+            self.jsonSchema.properties[name] = {
+                "type": "array",
+                "items": {"type": "string", "format": "wxo-user"},
+                "title": label
+            }
+        else:
+            # Single user - string
+            self.jsonSchema.properties[name] = {
+                "type": "string",
+                "format": "wxo-user",
+                "title": label
+            }
+        
+        if required and name not in self.jsonSchema.required:
+            self.jsonSchema.required.append(name)
+
+        return userfield
 
 class UserNodeSpec(NodeSpec):
     owners: Sequence[str] | None = None
-    text: str | None = None
     fields: list[UserField] | None = None
     form: UserForm | None = None
 
@@ -1354,15 +2590,15 @@ class UserNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        # remove input schema
-        # if "input_schema" in model_spec:
-        #    raise ValueError("Input schema is not allowed for user node.")
-        #    del model_spec["input_schema"]
+
+        # UserNode input and output schema will always be empty
+        if "input_schema" in model_spec:
+            del model_spec["input_schema"]
+        if "output_schema" in model_spec:
+            del model_spec["output_schema"]
 
         if self.owners:
             model_spec["owners"] = self.owners
-        if self.text:
-            model_spec["text"] = self.text
         if self.fields and len(self.fields) > 0:
             model_spec["fields"] = [field.to_json() for field in self.fields]
         else : 
@@ -1372,83 +2608,43 @@ class UserNodeSpec(NodeSpec):
 
         return model_spec
 
-    def field(self, name: str, 
+    def field(self, 
+              name: str, 
               kind: UserFieldKind, 
               text: str | None = None,
               display_name: str | None = None, 
-              description: str | None = None, 
-              default: Any | None = None, 
-              option: list[str] | None = None, 
-              min: Any | None = None,
-              max: Any | None = None,
-              is_list: bool = False,
-              custom: dict[str, Any] | None = None,
-              widget: str | None = None,
               input_map: Any | None = None,
-              direction: str | None = None):
+              direction: str | None = None,
+              input_schema: ToolRequestBody | SchemaRef | None = None,
+              output_schema: ToolResponseBody | SchemaRef | None = None) -> UserField:
         
         # workaround for circular dependency related to Assigments in the Datamap module
-        from .data_map import DataMap
-        if input_map and not isinstance(input_map, DataMap):
-            raise TypeError("input_map must be an instance of DataMap")
-        
-        userfield = UserField(name=name, 
-                              kind=kind, 
-                              text=text,
-                              display_name=display_name, 
-                              description=description, 
-                              default=default, 
-                              option=option, 
-                              min=min,
-                              max=max,
-                              is_list=is_list,
-                              custom=custom,
-                              widget=widget,
-                              direction=direction,
-                              input_map=input_map)
-        
+        from .data_map import DataMapSpec, DataMap
+        if input_map and not isinstance(input_map, (DataMap, DataMapSpec)):
+            raise TypeError("input_map must be an instance of DataMap or DataMapSpec")
+
+        if input_map and isinstance(input_map, DataMap):
+            input_map = DataMapSpec(spec = input_map)
+
+        userfield: UserField = UserField(name=name, 
+                                         kind=kind, 
+                                         display_name=display_name, 
+                                         text=text,
+                                         direction=direction,
+                                         input_map=input_map if input_map is not None else None,
+                                         input_schema=input_schema,
+                                         output_schema=output_schema)
+
         # find the index of the field
-        i = 0
-        for field in self.fields:
-            if field.name == name:
-                break
-        
-        if (len(self.fields) - 1) >= i:
-            self.fields[i] = userfield # replace
+        if self.fields is None:
+            self.fields = [userfield]
+        elif self.fields is not None and len(self.fields) > 0:
+            if (self.fields[0].name == name):
+                self.fields[0] = userfield
+            else:
+                raise ValueError(f"There can be only one standalone field in a user node.")
         else:
-            self.fields.append(userfield) # append
-
-    def setup_fields(self):
-        # make sure fields are not there already
-        if hasattr(self, "fields") and len(self.fields) > 0:
-            raise ValueError("Fields are already defined.")
-        
-        if self.output_schema:
-            if isinstance(self.output_schema, SchemaRef):
-                schema = dereference_refs(schema)
-        schema = self.output_schema
-
-        # get all the fields from JSON schema
-        if self.output_schema and isinstance(self.output_schema, ToolResponseBody):
-            self.fields = []
-            for prop_name, prop_schema in self.output_schema.properties.items():
-                self.fields.append(UserField(name=prop_name,
-                                             kind=UserFieldKind.convert_python_type_to_kind(prop_schema.type),
-                                             display_name=prop_schema.title,
-                                             description=prop_schema.description,
-                                             default=prop_schema.default,
-                                             option=self.setup_field_options(prop_schema.title, prop_schema.enum),
-                                             is_list=prop_schema.type == "array",
-                                             min=prop_schema.minimum,
-                                             max=prop_schema.maximum,
-                                             custom=prop_schema.model_extra))
-
-    def setup_field_options(self, name: str, enums: List[str]) -> UserFieldOption:
-        if enums:
-            option = UserFieldOption(label=name, values=enums)
-            return option
-        else:
-            return None
+            self.fields = [userfield]
 
     def get_or_create_form(self, name: str, display_name: str | None = None, instructions: str | None = None) -> UserForm:
 
@@ -1463,6 +2659,7 @@ class UserNodeSpec(NodeSpec):
                               instructions=instructions,
                               buttons=None) 
         return self.form
+
 
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
@@ -1530,10 +2727,12 @@ class PromptExample(BaseModel):
 class PromptNodeSpec(NodeSpec):
     system_prompt: str | list[str]
     user_prompt: str | list[str]
-    prompt_examples: Optional[list[PromptExample]]
-    llm: Optional[str] 
-    llm_parameters: Optional[PromptLLMParameters] 
-    error_handler_config: Optional[NodeErrorHandlerConfig] 
+    prompt_examples: Optional[list[PromptExample]] = None
+    llm: Optional[str] = None
+    llm_parameters: Optional[PromptLLMParameters] = None
+    error_handler_config: Optional[NodeErrorHandlerConfig] = None
+    metadata: dict[str, Any] | None = None
+    test_input_data: dict[str, Any] | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1555,6 +2754,10 @@ class PromptNodeSpec(NodeSpec):
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
                 model_spec["prompt_examples"].append(example.to_json())
+        if self.metadata:
+            model_spec["metadata"] = self.metadata
+        if self.test_input_data:
+            model_spec["test_input_data"] = self.test_input_data
         return model_spec
     
 class TimerNodeSpec(NodeSpec):
@@ -1584,6 +2787,7 @@ class NodeIdCondition(BaseModel):
     expression: Optional[str] = Field(description="A python expression to be run by the flow engine", default=None)
     node_id: str = Field(description="ID of the node in the flow that branch node should go to")
     default: bool = Field(description="Boolean indicating if the condition is default case")
+    metadata: Optional[dict[str, Any]] = Field(description="Metadata about the condition", default=None)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -1596,9 +2800,10 @@ class NodeIdCondition(BaseModel):
 
 class EdgeIdCondition(BaseModel):
     '''One Condition contains an expression, an edge_id that branch should go to when expression is true, and a default indicator. '''
-    expression: Optional[str] = Field(description="A python expression to be run by the flow engine")
+    expression: Optional[str] = Field(description="A python expression to be run by the flow engine", default=None)
     edge_id: str = Field(description="ID of the edge in the flow that branch node should go to")
     default: bool = Field(description="Boolean indicating if the condition is default case")
+    metadata: Optional[dict[str, Any]] = Field(description="Metadata about the condition", default=None)
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
@@ -1610,18 +2815,22 @@ class EdgeIdCondition(BaseModel):
 
 class Conditions(BaseModel):
     '''One Conditions is an array represents the if-else conditions of a complex branch'''
-    conditions: list = List[Union[NodeIdCondition, EdgeIdCondition]]
+    conditions: List[Union[NodeIdCondition, EdgeIdCondition]]
 
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
         condition_list = []
         for condition in self.conditions:
-            condition_list.append(NodeIdCondition.model_validate(condition).to_json())
+            if isinstance(condition, NodeIdCondition):
+                condition_list.append(NodeIdCondition.model_validate(condition).to_json())
+            elif isinstance(condition, EdgeIdCondition):
+                condition_list.append(EdgeIdCondition.model_validate(condition).to_json())
+            else:
+                raise ValueError(f"Invalid condition type: {type(condition)}")
         model_spec["conditions"] = condition_list
         return model_spec
     
 class MatchPolicy(Enum):
- 
     FIRST_MATCH = 1
     ANY_MATCH = 2
 
@@ -1690,6 +2899,10 @@ class FlowContextWindow(BaseModel):
     max_tokens: Optional[int] = Field(description="The maximum number of token supported by the LLM model", default=None)
     allow_compress: Optional[bool] = Field(description="Indicates whether compression is allowed", default=True)
 
+class Dimensions(BaseModel):
+    width: float
+    height: float
+
 class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
@@ -1697,6 +2910,7 @@ class FlowSpec(NodeSpec):
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
+    dimensions: Dimensions | None = None
 
     context_window: FlowContextWindow | None = None
 
@@ -1708,8 +2922,12 @@ class FlowSpec(NodeSpec):
         model_spec = super().to_json()
         if self.initiators:
             model_spec["initiators"] = self.initiators
+        if self.dimensions:
+            model_spec["dimensions"] = self.dimensions
+        if self.schedulable:
+            model_spec["schedulable"] = self.schedulable
         if self.private_schema:
-            model_spec["private_schema"] = _to_json_from_json_schema(self.private_schema)
+            model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
         
@@ -1779,20 +2997,23 @@ class TaskData(NamedTuple):
 class TaskEventType(Enum):
  
     ON_TASK_WAIT = "task:on_task_wait" # the task is waiting for inputs before proceeding
+    ON_TASK_CALLBACK = "tempus:callback"
     ON_TASK_START = "task:on_task_start"
     ON_TASK_END = "task:on_task_end"
     ON_TASK_STREAM = "task:on_task_stream"
     ON_TASK_ERROR = "task:on_task_error"
-    ON_TASK_RESUME= "task:on_task_resume"
+    ON_TASK_RESUME = "task:on_task_resume"
+    ON_TASK_MESSAGE = "task:on_task_message"
 
 class FlowData(BaseModel):
     '''This class represents the data that is passed between tasks in a flow.'''
-    input: dict[str, Any] = Field(default_factory=dict)
-    output: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] | Any = Field(default_factory=dict)
+    output: dict[str, Any] | Any = Field(default_factory=dict)
+    private: dict[str, Any] | Any = Field(default_factory=dict)
 
 class FlowContext(BaseModel):
  
-    name: str | None = None # name of the process or task
+    name: str | None = None # name of the flow
     task_id: str | None = None # id of the task, this is at the task definition level
     flow_id: str | None = None # id of the flow, this is at the flow definition level
     instance_id: str | None = None
@@ -1803,14 +3024,18 @@ class FlowContext(BaseModel):
     child_context: List["FlowContext"] | None = None
     metadata: dict = Field(default_factory=dict[str, Any])
     data: Optional[FlowData] = None
-
+    assignee: str | None = None # id of the assignee 
+    task_name: str | None = None # name of the current task, a task is an instance of a node
+    task_display_name: str | None = None # display name of the current task
+    task_kind: str | None = None # type of the current task
+ 
     def get(self, key: str) -> Any:
      
         if key in self.data:
             return self.data[key]
 
         if self.parent_context:
-            pc = cast(FlowContext, self.parent_conetxt)
+            pc = cast(FlowContext, self.parent_context)
             return pc.get(key)
     
 class FlowEventType(Enum):
@@ -1818,7 +3043,9 @@ class FlowEventType(Enum):
     ON_FLOW_START = "flow:on_flow_start"
     ON_FLOW_END = "flow:on_flow_end"
     ON_FLOW_ERROR = "flow:on_flow_error"
+    ON_FLOW_WAIT = "flow:on_flow_wait"
     ON_FLOW_RESUME = "flow:on_flow_resume"
+    ON_FLOW_MESSAGE = "flow:on_flow_message"
 
 @dataclass
 class FlowEvent:
@@ -2088,11 +3315,87 @@ class Structures(BaseModel):
     )
 
 class AssemblyJsonOutput(BaseModel):
-    metadata: Metadata = Field(description="Metadata about this document")
-    styles: Optional[List[Style]] = Field(description="Font styles used in this document")
-    kvps: Optional[DocProcKVP] = Field(description="Key value pairs found in the document")
-    top_level_structures: List[str] = Field(default=[], description="Array of ids of the top level structures which belong directly under the document")
-    all_structures: Structures = Field(default=None, description="An object containing of all flattened structures identified in the document")
+    '''
+    Base class for document processing assembly JSON output format.
+    
+    This class represents the complete structured output from document processing operations,
+    containing the document's hierarchical structure, metadata, styling information, and 
+    extracted key-value pairs. It serves as the foundation for document analysis results
+    returned by the Watson Document Understanding (WDU) service.
+    
+    Attributes:
+        metadata (Optional[Metadata]): Document-level metadata including page count, title,
+            author, language, publication date, and other document properties. Contains
+            information about the document source and processing configuration.
+            
+        styles (Optional[List[Style]]): Collection of font styles used throughout the document.
+            Each style includes font name, size, and formatting attributes (bold, italic).
+            Styles are referenced by ID from text tokens to maintain formatting information.
+            
+        kvps (Optional[List[DocProcKVP]]): Key-value pairs extracted from the document using
+            LLM-based extraction. Includes both structured form fields and semantic key-value
+            relationships identified in the document content. 
+            
+        top_level_structures (Optional[List[str]]): Array of structure IDs representing the
+            top-level elements directly under the document root. These IDs reference elements
+            in the all_structures field and define the document's primary organization.
+            Typically includes sections, tables, and other major structural components.
+            
+        all_structures (Optional[Structures]): Comprehensive collection of all document
+            structures organized by type. Contains flattened lists of sections, paragraphs,
+            tables, lists, images, headers, footers, and other structural elements. Each
+            structure includes hierarchical relationships (parent/child IDs) and spatial
+            information (bounding boxes).
+    
+    Structure Hierarchy:
+        The document structure is represented as a tree where:
+        - top_level_structures contains root-level element IDs
+        - Each structure has parent_id and children_ids for navigation
+        - Structures are organized by type in all_structures
+        - Spatial information is preserved via bounding boxes
+    
+    Related Classes:
+        - TextExtractionObjectResponse: Extends this class with plain text field
+        - Metadata: Document-level metadata container
+        - Structures: Container for all structural elements
+        - DocProcKVP: Key-value pair representation
+        - Style: Font and formatting information
+    
+    Notes:
+        - Structure IDs are unique within a document and used for cross-referencing
+        - Bounding boxes use pixel coordinates relative to page dimensions
+        - This format is compatible with IBM Watson Document Understanding output
+    
+    See Also:
+        - DocProcSpec: Configuration for document processing operations
+        - DocProcOutputFormat: Output format selection (object vs docref)
+        - TextExtractionObjectResponse: Subclass with extracted text
+    '''
+    metadata: Optional[Metadata] = Field(
+        default=None, 
+        description="Document-level metadata including page count, title, author, language, "
+                   "and processing configuration. None if metadata extraction was not requested.")
+    styles: Optional[List[Style]] = Field(
+        default=None,
+        description="Font styles used in the document, referenced by style_id from tokens. "
+                   "Includes font name, size, bold, and italic attributes. None if style "
+                   "extraction (document_structure=False) was not requested.")
+    kvps: Optional[List[DocProcKVP]] = Field(
+        default=None,
+        description="Key-value pairs extracted from the document using LLM-based extraction. "
+                   "Includes form fields and semantic relationships with spatial information. "
+                   "None if KVP extraction (kvp_schemas) was not requested or configured.")
+    top_level_structures: Optional[List[str]] = Field(
+        default=None,
+        description="Array of structure IDs for top-level document elements (sections, tables, etc.) "
+                   "that belong directly under the document root. Used to navigate the document "
+                   "hierarchy. None if structure extraction (document_structure=False) was not requested.")
+    all_structures: Optional[Structures] = Field(
+        default=None,
+        description="Comprehensive collection of all document structures organized by type "
+                   "(sections, paragraphs, tables, lists, images, etc.). Each structure includes "
+                   "hierarchical relationships and spatial information. None if structure extraction "
+                   "(document_structure=False) was not requested.")
 
 class LanguageCode(StrEnum):
     '''
@@ -2145,13 +3448,34 @@ class DocProcInput(DocumentProcessingCommonInput):
         default=True
     )
 
+class TextExtractionObjectResponse(AssemblyJsonOutput):
+    '''
+    The text extraction operation response when output_format is set to "object".
+    
+    This class represents the structured response from a document text extraction operation,
+    containing both the extracted plain text and the complete document structure metadata
+    inherited from AssemblyJsonOutput.
+    
+    Attributes:
+        text (str): The extracted plain text content from the document. This is the 
+                   concatenated text from all pages and structures in reading order.
+                   Empty string if no text could be extracted.
+    
+    Note:
+        - This response type is used when DocProcSpec.output_format is set to 
+          DocProcOutputFormat.object
+        - For file reference responses, use TextExtractionResponse instead
+        - The text field contains only plain text; structured data is in inherited fields
+    '''
+    text: str = Field(title='Text', description='The raw text extracted from the input document')
+
 class TextExtractionResponse(BaseModel):
     '''
-    The text extraction operation response.
+    The text extraction operation response when output_format is set to "docref" (default).
     Attributes:
-        output_file_ref (str): The url to the file that contains the extracted text and kvps. 
+        output_file_ref (str): The url to the file that contains the extracted text and kvps.
     '''
-    output_file_ref: str = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
+    output_file_ref: WXOFile = Field(description='The url to the file that contains the extracted text and kvps.', title="output_file_ref")
 
 
 class DecisionsCondition(BaseModel):

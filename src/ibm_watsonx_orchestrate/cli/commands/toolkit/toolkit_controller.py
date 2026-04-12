@@ -8,9 +8,10 @@ import sys
 import re
 import requests
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
+from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit, ToolkitSpec
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitListEntry, ToolkitMCPInputSpec, RemoteMcpModel, LocalMcpModel, ToolkitSource, validate_context
 from ibm_watsonx_orchestrate.agent_builder.agents.types import SpecVersion
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_zip
@@ -32,16 +33,9 @@ import io
 
 logger = logging.getLogger(__name__)
 
-def get_connection_id(app_id: str, is_local_mcp: bool) -> str:
+def get_connection_id(app_id: str) -> str:
     connections_client = get_connections_client()
-    existing_draft_configuration = connections_client.get_config(app_id=app_id, env='draft')
-    existing_live_configuration = connections_client.get_config(app_id=app_id, env='live')
 
-    for config in [existing_draft_configuration, existing_live_configuration]:
-        if is_local_mcp is True:
-            if config and config.security_scheme != 'key_value_creds':
-                logger.error("Only key_value credentials are currently supported for local MCP")
-                exit(1)
     connection_id = None
     if app_id is not None:
         connection = connections_client.get(app_id=app_id)
@@ -68,14 +62,14 @@ class ToolkitController:
         package_root = Path(package_root)
 
         if package_root.is_absolute():
-            return package_root
+            return str(package_root)
 
         file = Path(file)
         folder = file.parent
 
         return str(folder / package_root)
     
-    def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None) -> List[BaseToolkit]:
+    def import_toolkit(self, file: Path | str, app_id: Optional[List[str] | str] = None, allowed_context: Optional[List[str]] = None) -> List[BaseToolkit]:
         file = Path(file)
 
         if not file.exists():
@@ -92,6 +86,10 @@ class ToolkitController:
         for toolkit in toolkits:
             if app_id:
                 toolkit.__toolkit_spec__.mcp.connections = app_id
+            if allowed_context and isinstance(toolkit.__toolkit_spec__.mcp, RemoteMcpModel):
+                # Validate allowed_context values for remote mcp server
+                validate_context(allowed_context)
+                toolkit.__toolkit_spec__.mcp.metadata = {"allowed_context": allowed_context}
             if isinstance(toolkit.__toolkit_spec__.mcp, LocalMcpModel) and toolkit.__toolkit_spec__.mcp.package_root:
                 toolkit.__toolkit_spec__.mcp.package_root = self.__resolve_package_root_path(toolkit.__toolkit_spec__.mcp.package_root, file)
         return toolkits
@@ -109,7 +107,8 @@ class ToolkitController:
         command: Optional[str] = None,
         url: Optional[str] = None,
         tools: Optional[str] = None,
-        app_id: Optional[List[str] | str] = None
+        app_id: Optional[List[str] | str] = None,
+        allowed_context: Optional[List[str]] = None
     ) -> BaseToolkit:
 
         if app_id and isinstance(app_id, str):
@@ -126,7 +125,8 @@ class ToolkitController:
             command=command,
             url=url,
             tools=tools,
-            connections=app_id
+            connections=app_id,
+            allowed_context=allowed_context
         )
 
         toolkit_spec = ToolkitSpec.generate_toolkit_spec(toolkit_input)
@@ -145,9 +145,8 @@ class ToolkitController:
             
             mcp_config = spec.mcp
             
-            is_local_mcp = not isinstance(spec.mcp, RemoteMcpModel)
             if isinstance(mcp_config.connections, List):
-                mcp_config.connections = self.__remap_connections(mcp_config.connections, is_local_mcp)
+                mcp_config.connections = self.__remap_connections(mcp_config.connections)
             
             package_root = getattr(mcp_config, "package_root", None)
             if package_root:
@@ -200,14 +199,36 @@ class ToolkitController:
                 # Create toolkit metadata
                 payload = spec.model_dump(exclude_unset=True)
 
-                with Progress(
-                    SpinnerColumn(spinner_name="dots"),
-                    TextColumn("[progress.description]{task.description}"),
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    progress.add_task(description="Creating toolkit...", total=None)
-                    new_toolkit = self.get_client().create_toolkit(payload)
+                try:
+                    with Progress(
+                        SpinnerColumn(spinner_name="dots"),
+                        TextColumn("[progress.description]{task.description}"),
+                        transient=True,
+                        console=console,
+                    ) as progress:
+                        progress.add_task(description="Creating toolkit...", total=None)
+                        new_toolkit = self.get_client().create_toolkit(payload)
+                except ClientAPIException as e:
+                    error_msg = "Unknown error"
+                    try:
+                        # Don't rely on truthiness of response object - check if it's not None
+                        if e.response is not None and hasattr(e.response, 'text'):
+                            response_text = e.response.text
+                            if response_text:
+                                try:
+                                    error_data = json.loads(response_text)
+                                    error_msg = error_data.get('detail', response_text)
+                                except:
+                                    error_msg = response_text
+                            else:
+                                error_msg = str(e)
+                        else:
+                            error_msg = str(e)
+                    except Exception:
+                        error_msg = str(e)
+                    
+                    logger.error(f"Failed to create toolkit: {error_msg}")
+                    sys.exit(1)
 
                 toolkit_id = new_toolkit["id"]
 
@@ -232,7 +253,7 @@ class ToolkitController:
                 zipfile.write(full_path, arcname=relative_path)
         return zipfile
 
-    def __remap_connections(self, app_ids: List[str], is_local_mcp: bool = False) -> Dict[str, str]:
+    def __remap_connections(self, app_ids: List[str]) -> Dict[str, str]:
         app_id_dict = {}
         for app_id in app_ids:        
             split_pattern = re.compile(r"(?<!\\)=")
@@ -250,7 +271,7 @@ class ToolkitController:
                 raise typer.BadParameter(f"The provided app-id '{app_id}' is not valid. app-id cannot be empty or whitespace")
 
             runtime_id = sanitize_app_id(runtime_id)
-            app_id_dict[runtime_id] = get_connection_id(local_id, is_local_mcp)
+            app_id_dict[runtime_id] = get_connection_id(local_id)
 
         return app_id_dict
 
@@ -380,13 +401,15 @@ class ToolkitController:
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
     
-    def _fetch_and_parse_toolkits(self) -> Tuple[List[BaseToolkit], List[List[str]]]:
+    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None) -> Tuple[List[BaseToolkit], List[List[str]]]:
         parse_errors = []
         client = self.get_client()
-        response = client.get()
+        
+        # Use client method directly - it handles workspace_id parameter properly
+        response = client.get(workspace_id=workspace_id)
 
         toolkits = []
-        for toolkit in response:
+        for toolkit in (response or []):
             try:
                 spec = ToolkitSpec.model_validate(toolkit)
                 toolkits.append(BaseToolkit(spec=spec))
@@ -424,8 +447,8 @@ class ToolkitController:
             table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
             column_args = {
                 "Name": {"overflow": "fold"},
-                "Kind": {},
                 "Description": {},
+                "Kind": {},
                 "Tools": {},
                 "App ID": {"overflow": "fold"}
             }
@@ -512,7 +535,8 @@ class ToolkitController:
             name: str,
             output_file: Path | str,
             zip_file_out: Optional[zipfile.ZipFile] = None,
-            connections_output_path: Path | str = "/connections") -> None:
+            connections_output_path: Path | str = "/connections",
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_file)
         connections_output_path = Path(connections_output_path)
@@ -525,13 +549,17 @@ class ToolkitController:
 
         client = self.get_client()
 
-        toolkit_specs = client.get_draft_by_name(toolkit_name=name)
+        toolkit_specs = client.get_draft_by_name(toolkit_name=name, workspace_id=workspace_id)
 
         if not toolkit_specs:
-            BadRequest(f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`")
+            error_msg = f"No toolkit named '{name}' found. Please ensure the toolkit exists `orchestrate toolkits list`"
+            logger.warning(error_msg)
+            return  # Return early instead of raising exception - exporting of workspaces stops otherwise
         
         if len(toolkit_specs) > 1:
-            BadRequest(f"Multiple toolkits named '{name}' found. Unable to export due to ambiguity")
+            error_msg = f"Multiple toolkits named '{name}' found. Unable to export due to ambiguity"
+            logger.warning(error_msg)
+            return  # Return early instead of raising exception - exporting of workspaces stops otherwise
         
         toolkit_spec = toolkit_specs[0]
 

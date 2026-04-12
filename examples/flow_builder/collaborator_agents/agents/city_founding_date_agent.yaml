@@ -6,7 +6,7 @@ description: >
 instructions: >
     You have to execute the tool and get city founding date.
      Show the output follow this: City:the city which user inputted. {founding_date: output['founding_date']}
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - get_city_founding_date

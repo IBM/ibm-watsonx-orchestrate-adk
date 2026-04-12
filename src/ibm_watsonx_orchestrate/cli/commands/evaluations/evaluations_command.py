@@ -8,6 +8,7 @@ import sys
 import shutil
 import tempfile
 import random
+import requests
 
 from rich.panel import Panel
 from pathlib import Path
@@ -15,11 +16,19 @@ from dotenv import dotenv_values
 from typing import Optional
 from typing_extensions import Annotated
 
-from ibm_watsonx_orchestrate import __version__
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
-from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
+try:
+    from ibm_watsonx_orchestrate import __version__
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode, USE_LEGACY_EVAL
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
+    from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
+    _import_error = False
+    _import_error_msg = None
+except ImportError as e:
+    _import_error = True
+    _import_error_msg = str(e)
+
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +36,22 @@ HIDE_ENVIRONMENT_MGR_PANEL = os.environ.get("HIDE_ENVIRONMENT_MGR_PANEL", "true"
 
 evaluation_app = typer.Typer(no_args_is_help=True)
 
+def _check_import_error():
+    if _import_error:
+        logger.error(f"Failed to import evaluation dependencies: {_import_error_msg}. "
+                     "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
+        sys.exit(1)
+
+def _feature_requires_legacy_eval():
+    if not USE_LEGACY_EVAL:
+        logger.error("Feature requires legacy evaluation. Please enable it using `export USE_LEGACY_EVAL=TRUE`")
+        sys.exit(1)
+
 def _native_agent_template():
     return {
         "spec_version": "v1",
         "style": "default",
-        "llm": "watsonx/meta-llama/llama-3-405b-instruct",
+        "llm": "watsonx/meta-llama/llama-3-3-70b-instruct",
         "name": "",
         "description": "Native agent for validating external agent",
         "instructions": "Use the tools and external agent(s) provided to answer the user's question.  If you do not have enough information to answer the question, say so.  If you need more information, ask follow up questions.",
@@ -128,8 +148,42 @@ def evaluate(
             hidden=HIDE_ENVIRONMENT_MGR_PANEL
         )
     ] = None,
+    langfuse_enabled: Annotated[
+        bool,
+        typer.Option(
+            "--with-langfuse", "-l",
+            help="""
+                Enable evaluation metrics to be evaluated and stored in Langfuse.
+                This feature requires that Orchestrate server is started with `langfuse`.
+            """,
+        )
+    ] = False,
 ):
+    _check_import_error()
     validate_watsonx_credentials(user_env_file)
+
+    if not USE_LEGACY_EVAL:
+        logger.warning("Using beta evaluation. This feature is still in beta.")
+        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`")
+    
+    if langfuse_enabled:
+        lf_sk_exists = os.environ.get("LANGFUSE_SECRET_KEY") is not None
+        lf_pk_exists = os.environ.get("LANGFUSE_PUBLIC_KEY") is not None
+        lf_base_url_exists = os.environ.get("LANGFUSE_BASE_URL") is not None
+
+        if not lf_sk_exists or not lf_pk_exists or not lf_base_url_exists:
+             logger.warning("Please make sure `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_BASE_URL` are set when using -l flag")
+             sys.exit(1)
+        
+        response = requests.get(
+            os.environ.get("LANGFUSE_BASE_URL"),
+            timeout=5
+        )
+        if response.status_code != requests.codes.ok:
+            logger.warning("Langfuse failed to respond after 5 seconds. Make sure Langfuse is running.")
+            sys.exit(1)
+        else:
+            logger.info("Langfuse responded")
 
     if env_manager_path:
         if output_dir:
@@ -147,7 +201,7 @@ def evaluate(
             exit(1)
 
     controller = EvaluationsController()
-    controller.evaluate(config_file=config_file, test_paths=test_paths, output_dir=output_dir)
+    controller.evaluate(config_file=config_file, test_paths=test_paths, output_dir=output_dir, langfuse_enabled=langfuse_enabled)
 
 
 @evaluation_app.command(name="record", help="Record chat sessions and create test cases")
@@ -167,6 +221,9 @@ def record(
         ),
     ] = None
 ):
+    _check_import_error()
+    _feature_requires_legacy_eval()
+    
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.record(output_dir=output_dir)
@@ -204,6 +261,8 @@ def generate(
         ),
     ] = None
 ):
+    _check_import_error()
+
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.generate(stories_path=stories_path, tools_path=tools_path, output_dir=output_dir)
@@ -241,6 +300,8 @@ def analyze(data_path: Annotated[
         ),
     ] = "default"
 ):
+
+    _check_import_error()
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
@@ -298,6 +359,8 @@ def validate_external(
         )
     ] = False
 ):
+    _check_import_error()
+    _feature_requires_legacy_eval()
 
     validate_watsonx_credentials(user_env_file)
 
@@ -418,6 +481,9 @@ def validate_native(
         ),
     ] = None,
 ):
+    _check_import_error()
+    _feature_requires_legacy_eval()
+
     validate_watsonx_credentials(user_env_file)
     
     eval_dir = os.path.join(output_dir, "native_agent_evaluations")
@@ -485,6 +551,9 @@ def quick_eval(
         ),
     ] = None
 ):
+    _check_import_error()
+    _feature_requires_legacy_eval()
+
     if not config_file:
         if not test_paths or not output_dir:
             logger.error("Error: Both --test-paths and --output-dir must be provided when not using a config file")
@@ -511,6 +580,9 @@ evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and
 
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
 def list_plans():
+    _check_import_error()
+    _feature_requires_legacy_eval()
+
     controller = EvaluationsController()
     controller.list_red_teaming_attacks()
 
@@ -566,6 +638,9 @@ def plan(
     ] = None,
 
 ):
+    _check_import_error()   
+    _feature_requires_legacy_eval()
+
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.generate_red_teaming_attacks(
@@ -600,7 +675,10 @@ def run(
             help="Path to a .env file that overrides default.env. Then environment variables override both.",
         ),
     ] = None,
-):
+):  
+    _check_import_error()
+    _feature_requires_legacy_eval()
+
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
     controller.run_red_teaming_attacks(attack_paths=attack_paths, output_dir=output_dir)

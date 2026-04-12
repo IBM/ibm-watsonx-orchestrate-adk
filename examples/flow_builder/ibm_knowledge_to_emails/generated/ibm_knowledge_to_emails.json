@@ -9,7 +9,8 @@
     },
     "output_schema": {
       "$ref": "#/schemas/FlowOutput"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "ask_agent_for_ibm_knowledge": {
@@ -24,7 +25,7 @@
         "output_schema": {
           "$ref": "#/schemas/IBMAgentOutput"
         },
-        "message": "Give an answer about IBM based on the provided question.  If you don't know the answer, just say 'I do not know'",
+        "message": "Give an answer about IBM based on the provided question.  If you don't know the answer, just say '{{ \"answer\": \"I do not know the answer.\" }}'.",
         "agent": "ibm_agent"
       }
     },
@@ -33,7 +34,7 @@
         "kind": "tool",
         "name": "send_emails",
         "display_name": "send_emails",
-        "description": "Send email to a list of email addresses with a content",
+        "description": "Send email to a list of email addresses with a content\n",
         "input_schema": {
           "$ref": "#/schemas/send_emails_input"
         },
@@ -158,17 +159,19 @@
       "properties": {
         "email_addresses": {
           "type": "string",
-          "title": "Email Addresses"
+          "title": "Email Addresses",
+          "description": "The list of email address in string to send, comman separated."
         },
         "content": {
           "type": "string",
-          "title": "Content"
+          "title": "Content",
+          "description": "The content of the email"
         }
       }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-06-10T20:42:40.679282+00:00"
+    "compiled_on": "2025-11-19T16:10:26.901582+00:00"
   }
 }

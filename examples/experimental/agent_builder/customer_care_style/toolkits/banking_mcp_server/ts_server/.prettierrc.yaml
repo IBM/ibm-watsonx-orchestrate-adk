@@ -1,0 +1,8 @@
+semi: true
+singleQuote: true
+bracketSpacing: true
+trailingComma: 'all'
+arrowParens: 'avoid'
+useTabs: false
+tabWidth: 2
+# Made with Bob

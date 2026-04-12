@@ -1,0 +1,21 @@
+[project]
+name = "knowledge"
+version = "0.0.1.dev1"
+description = "Customer Care - Knowledge"
+authors = [{ name = "Joef Huang", email = "joefh@ca.ibm.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "llama-index==0.13.0",
+    "requests>=2.32.0,<3",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

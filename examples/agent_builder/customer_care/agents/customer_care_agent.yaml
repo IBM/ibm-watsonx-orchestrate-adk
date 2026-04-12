@@ -1,7 +1,7 @@
 spec_version: v1
 style: react
 name: customer_care_agent
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 description: >
   You are an agent who specializes in customer care for a large healthcare institution. You should be compassionate
   to the user.

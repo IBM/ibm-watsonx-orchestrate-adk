@@ -18,6 +18,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionConfiguration,
     ConnectionSecurityScheme,
     ConnectionType,
+    ConnectionResource,
     IdpConfigData,
     IdpConfigDataBody,
     AppConfigData,
@@ -29,6 +30,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     # OAuth2ImplicitCredentials,
     OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
+    OAuth2TokenExchangeCredentials,
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
@@ -37,7 +39,8 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionCredentialsEntry,
     ConnectionCredentialsCustomFields,
     ConnectionsListEntry,
-    ConnectionsListResponse
+    ConnectionsListResponse,
+    KeyValueEntry
 )
 
 from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
@@ -82,7 +85,17 @@ def _create_connection_from_spec(content: dict) -> None:
     app_id = content.get("app_id")
     existing_app = client.get(app_id=app_id)
     if not existing_app:
-        add_connection(app_id=app_id)
+        # Extract resource information if present and validate using ConnectionResource model
+        resource_dict = content.get("resource")
+        resource = None
+        if resource_dict:
+            try:
+                # Validate using ConnectionResource model
+                resource = ConnectionResource(**resource_dict)
+            except Exception as e:
+                logger.error(f"Invalid resource configuration in spec file: {e}")
+                sys.exit(1)
+        add_connection(app_id=app_id, resource=resource)
 
     environments = content.get("environments")
     for environment in environments:
@@ -158,21 +171,21 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"Missing flags --auth-url is required for type {type}"
         )
 
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('client_id') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --client-id is required for type {type}"
         )
     
-    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD} and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_CLIENT_CREDS, ConnectionType.OAUTH2_AUTH_CODE, ConnectionType.OAUTH2_PASSWORD, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('token_url') is None
     ):
         raise typer.BadParameter(
             f"Missing flags --token-url is required for type {type}"
         )
 
-    if type == ConnectionType.OAUTH_ON_BEHALF_OF_FLOW and (
+    if type in {ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ConnectionType.OAUTH2_TOKEN_EXCHANGE} and (
             args.get('grant_type') is None
     ):
         raise typer.BadParameter(
@@ -186,7 +199,6 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
             f"The flag --auth-entries is only supported by type {type}"
         )
     
-
 def _parse_entry(entry: str) -> dict[str,str]:
     split_entry = entry.split('=', 1)
     if len(split_entry) != 2:
@@ -258,10 +270,24 @@ def _get_credentials(type: ConnectionType, **kwargs):
                 grant_type=kwargs.get("grant_type"),
                 **custom_fields
             )
+        
+        case ConnectionType.OAUTH2_TOKEN_EXCHANGE:
+            keys = ["client_id","token_url","grant_type"]
+            filtered_args = { key_name: kwargs[key_name] for key_name in keys if kwargs.get(key_name) }
+            filtered_args["access_token_url"] = kwargs.get("token_url")
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
+            return OAuth2TokenExchangeCredentials(**filtered_args, **custom_fields)
+
         case ConnectionType.KEY_VALUE:
             env = {}
-            for entry in kwargs.get('entries', []):
-                env.update(_parse_entry(entry))
+            for e in kwargs.get("entries", []):
+                if isinstance(e, str):
+                    entry = key_value_parse(e)
+                elif isinstance(e, KeyValueEntry):
+                    entry = e
+                else:
+                    raise BadRequest(f"Cannot parse '{e}' into a valid key value entry")
+                env[entry.key] = entry.value
 
             return KeyValueConnectionCredentials(
                 env
@@ -286,13 +312,17 @@ def _connection_credentials_parse_entry(text: str, default_location: ConnectionC
     
     return ConnectionCredentialsEntry(key=key, value=value, location=location)
     
-def _combine_connection_configs(app_id: str, configs: List[ConnectionConfiguration], include_catalog: bool = False) -> dict:
+def _combine_connection_configs(app_id: str, configs: List[ConnectionConfiguration], include_catalog: bool = False, resource: Optional[ConnectionResource] = None) -> dict:
     combined_configuration = {
         'app_id': app_id,
         'spec_version': SpecVersion.V1.value,
         'kind': 'connection',
         'environments': {}
     }
+
+    # Add resource field if provided
+    if resource:
+        combined_configuration['resource'] = resource.model_dump(exclude_none=True)
 
     if include_catalog:
         combined_configuration['catalog'] = {
@@ -332,6 +362,79 @@ def _check_connection_exists(app_id: str):
     conn = client.get_draft_by_app_id(app_id=app_id)
     if not conn:
         raise BadRequest(f"Connection '{app_id}' not found.")
+
+def _list_connections_formatted(connections: list, environment: ConnectionEnvironment | None = None, format: Optional[ListFormats] = None) -> ConnectionsListResponse | None:
+    is_local = is_local_dev()
+    non_configured_connection_details = []
+    draft_connection_details = []
+    live_connection_details = []
+
+    non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
+    draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
+    live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
+    default_args = {"justify": "center", "no_wrap": True}
+    column_args = {
+        "App ID": {"overflow": "fold"},
+        "Auth Type": {},
+        "Type": {},
+        "Credentials Set/ Connected": {}
+    }
+    for column in column_args:
+        draft_table.add_column(column,**default_args, **column_args[column])
+        live_table.add_column(column,**default_args, **column_args[column])
+        non_configured_table.add_column(column,**default_args, **column_args[column])
+
+    for conn in connections:
+        if conn.environment is None:
+            entry = ConnectionsListEntry(
+                app_id=conn.app_id,
+            )
+
+            non_configured_table.add_row(*entry.get_row_details())
+            non_configured_connection_details.append(entry.model_dump())
+            continue
+
+        try:
+            connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
+        except:
+            connection_type = conn.auth_type
+
+        entry = ConnectionsListEntry(
+                app_id=conn.app_id,
+                auth_type = connection_type,
+                type=conn.preference,
+                credentials_set=conn.credentials_entered
+            )
+
+        if conn.environment == ConnectionEnvironment.DRAFT:
+            draft_table.add_row(*entry.get_row_details())
+            draft_connection_details.append(entry.model_dump())
+        elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
+            live_table.add_row(*entry.get_row_details())
+            live_connection_details.append(entry.model_dump())
+
+    match format:
+        case ListFormats.JSON:
+            return ConnectionsListResponse(
+                non_configured=non_configured_connection_details,
+                draft=draft_connection_details,
+                live=live_connection_details
+            )
+        case ListFormats.Table:
+            return ConnectionsListResponse(
+                non_configured=rich_table_to_markdown(non_configured_table),
+                draft=rich_table_to_markdown(draft_table),
+                live=rich_table_to_markdown(live_table)
+            )
+        case _:
+            if environment is None and len(non_configured_table.rows):
+                rich.print(non_configured_table)
+            if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
+                rich.print(draft_table)
+            if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
+                rich.print(live_table)
+            if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
+                logger.info("No connections found. You can create connections using `orchestrate connections add`")
 
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
@@ -428,12 +531,17 @@ def add_identity_provider(app_id: str, environment: ConnectionEnvironment, idp: 
         logger.error(response_text)
         exit(1)
 
-def add_connection(app_id: str) -> None:
+def add_connection(app_id: str, resource: Optional[ConnectionResource] = None) -> None:
     client = get_connections_client()
 
     try:
         logger.info(f"Creating connection '{app_id}'")
         request = {"app_id": app_id}
+        
+        # Add resource field if provided
+        if resource:
+            request["resource"] = resource.model_dump(exclude_none=True)
+        
         client.create(payload=request)
         logger.info(f"Successfully created connection '{app_id}'")
     except requests.HTTPError as e:
@@ -445,12 +553,12 @@ def add_connection(app_id: str) -> None:
                 response_text = f"Failed to create connection. A connection with the App ID '{app_id}' already exists. Please select a different App ID or delete the existing resource."
             else:
                 resp = json.loads(response_text)
-                response_text = resp.get('detail')
+                response_text = resp.get('detail') or resp.get('message') or response_text
         except:
             pass
         logger.error(response_text)
         exit(1)
-
+        
 def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
     client = get_connections_client()
     connection_configs = []
@@ -498,76 +606,7 @@ def list_connections(environment: ConnectionEnvironment | None = None, verbose: 
         rich.print_json(json.dumps(connections_list, indent=4))
         return connections_list
     else:
-        non_configured_connection_details = []
-        draft_connection_details = []
-        live_connection_details = []
-
-        non_configured_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="*Non-Configured")
-        draft_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Draft")
-        live_table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True, title="Live")
-        default_args = {"justify": "center", "no_wrap": True}
-        column_args = {
-            "App ID": {"overflow": "fold"}, 
-            "Auth Type": {}, 
-            "Type": {}, 
-            "Credentials Set/ Connected": {}
-        }
-        for column in column_args:
-            draft_table.add_column(column,**default_args, **column_args[column])
-            live_table.add_column(column,**default_args, **column_args[column])
-            non_configured_table.add_column(column,**default_args, **column_args[column])
-        
-        for conn in connections:
-            if conn.environment is None:
-                entry = ConnectionsListEntry(
-                    app_id=conn.app_id,
-                )
-
-                non_configured_table.add_row(*entry.get_row_details())
-                non_configured_connection_details.append(entry.model_dump())
-                continue
-            
-            try:
-                connection_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
-            except:
-                connection_type = conn.auth_type
-            
-            entry = ConnectionsListEntry(
-                    app_id=conn.app_id,
-                    auth_type = connection_type,
-                    type=conn.preference,
-                    credentials_set=conn.credentials_entered
-                )
-
-            if conn.environment == ConnectionEnvironment.DRAFT:
-                draft_table.add_row(*entry.get_row_details())
-                draft_connection_details.append(entry.model_dump())
-            elif conn.environment == ConnectionEnvironment.LIVE and not is_local:
-                live_table.add_row(*entry.get_row_details())
-                live_connection_details.append(entry.model_dump())
-        
-        match format:
-            case ListFormats.JSON:
-                return ConnectionsListResponse(
-                    non_configured=non_configured_connection_details,
-                    draft=draft_connection_details,
-                    live=live_connection_details
-                )
-            case ListFormats.Table:
-                return ConnectionsListResponse(
-                    non_configured=rich_table_to_markdown(non_configured_table),
-                    draft=rich_table_to_markdown(draft_table),
-                    live=rich_table_to_markdown(live_table)
-                )
-            case _:
-                if environment is None and len(non_configured_table.rows):
-                    rich.print(non_configured_table)
-                if environment == ConnectionEnvironment.DRAFT or (environment == None and len(draft_table.rows)):
-                    rich.print(draft_table)
-                if environment == ConnectionEnvironment.LIVE or (environment == None and len(live_table.rows)):
-                    rich.print(live_table)
-                if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
-                    logger.info("No connections found. You can create connections using `orchestrate connections add`")
+        return _list_connections_formatted(connections=connections, environment=environment, format=format)
 
 def import_connection(file: str) -> None:
     _parse_file(file=file)
@@ -601,7 +640,13 @@ def export_connection(output_file: str, app_id: str | None = None, connection_id
 
     # get connection data
     connections = get_connection_configs(app_id=app_id)
-    combined_connections = _combine_connection_configs(app_id, connections, include_catalog=include_catalog)
+
+    # Get resource information from the connection if it exists
+    client = get_connections_client()
+    connection_info = client.get(app_id=app_id)
+    resource = connection_info.resource if connection_info else None
+
+    combined_connections = _combine_connection_configs(app_id, connections, include_catalog=include_catalog, resource=resource)
 
     # write to folder
     match(output_type):
@@ -666,6 +711,9 @@ def configure_connection(**kwargs) -> None:
     kwargs["idp_config_data"] = idp_config_data
     kwargs["app_config_data"] = app_config_data
 
+    if kwargs.get("custom_config_entries_list"):
+        kwargs["custom_config_entries"] = {e.key: e.value for e in kwargs.get("custom_config_entries_list", [])}
+
     config = ConnectionConfiguration.model_validate(kwargs)
 
     add_configuration(config)
@@ -682,7 +730,6 @@ def set_credentials_connection(
         logger.error(f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`")
         sys.exit(1)
 
-    sso_enabled = config.sso
     conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)
     use_app_credentials = conn_type in OAUTH_CONNECTION_TYPES
 
@@ -699,6 +746,12 @@ def set_credentials_connection(
 
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=credentials, payload=app_creds)
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=credentials, payload=runtime_creds)
+    elif use_app_credentials:
+        add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
+        try:
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=False, credentials=credentials, payload={})
+        except:
+            pass
     else:
         add_credentials(app_id=app_id, environment=environment, use_app_credentials=use_app_credentials, credentials=credentials)
     
@@ -716,14 +769,17 @@ def set_identity_provider_connection(
         logger.error(f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`")
         sys.exit(1)
 
-    sso_enabled = config.sso
     security_scheme = config.security_scheme
 
     if security_scheme != ConnectionSecurityScheme.OAUTH2:
         logger.error(f"Identity providers cannot be set for non-OAuth connection types. The connections specified is of type '{security_scheme}'")
         sys.exit(1)
-
-    if not sso_enabled:
+    
+    if config.auth_type != ConnectionType.OAUTH_ON_BEHALF_OF_FLOW:
+        logger.error(f"Identity Provider is only supported by '{ConnectionType.OAUTH_ON_BEHALF_OF_FLOW}' connections. Provided connection '{app_id}' is of type '{config.auth_type}'")
+        sys.exit(1)
+    
+    if not config.sso:
         logger.error(f"Cannot set Identity Provider when 'sso' is false in configuration. Please enable sso for connection '{app_id}' in environment '{environment}' and try again.")
         sys.exit(1)
 
@@ -739,3 +795,24 @@ def auth_entry_connection_credentials_parse(text: str) -> ConnectionCredentialsE
     if entry.location != ConnectionCredentialsEntryLocation.QUERY:
         raise typer.BadParameter(f"Only location '{ConnectionCredentialsEntryLocation.QUERY}' is supported for --auth-entry")
     return entry
+
+def get_app_id_from_conn_id(conn_id: str) -> str:
+    connections_client = get_connections_client()
+    app_id = connections_client.get_draft_by_id(conn_id=conn_id)
+    if not app_id or app_id == conn_id:
+        logger.error(f"No connection exists with the connection id '{conn_id}'")
+        exit(1)
+    return app_id
+
+def get_conn_id_from_app_id(app_id: str) -> str:
+    connections_client = get_connections_client()
+    connection = connections_client.get_draft_by_app_id(app_id=app_id)
+    if not connection:
+        logger.error(f"No connection exists with the app-id '{app_id}'")
+        exit(1)
+    return connection.connection_id
+def key_value_parse(text: str) -> KeyValueEntry:
+    split_entry = text.split('=', 1)
+    if len(split_entry) != 2:
+        raise typer.BadParameter(f"The entry '{text}' is not in the expected form '<key>=<value>'")
+    return KeyValueEntry(key=split_entry[0], value=split_entry[1])

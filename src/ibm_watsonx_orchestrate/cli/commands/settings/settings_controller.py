@@ -1,5 +1,5 @@
 import logging
-from ibm_watsonx_orchestrate.cli.config import Config, SETTINGS_HEADER, FILE_ENCODING
+from ibm_watsonx_orchestrate.cli.config import USE_NATIVE_DOCKER, Config, SETTINGS_HEADER, FILE_ENCODING
 
 logger = logging.getLogger(__name__)
 
@@ -27,3 +27,8 @@ class SettingsController:
             logger.info(f"Successfully unset encoding type override '{current_encoding}'")
         else:
             logger.error("No encoding type override found thus no change has been made")
+
+    def set_docker_host(self, native: bool = False):
+        cfg = self.__get_config()
+        cfg.write(SETTINGS_HEADER, USE_NATIVE_DOCKER, native)
+        logger.info(f"Docker host set to '{'user managed' if native else 'orchestrate'}'")

@@ -1,3 +1,10 @@
+import yaml
+import json
+import rich
+from rich.panel import Panel
+from rich.table import Table
+from rich.console import Console
+import requests
 import importlib
 import inspect
 import io
@@ -5,19 +12,24 @@ import json
 import logging
 import sys
 import zipfile
+import os
+import tempfile
+from itertools import chain
+from pathlib import Path
 from copy import deepcopy
 from pathlib import Path
-from typing import Iterable, List, TypeVar
+from typing import Any, Iterable, List, Optional, TypeVar
 
 import requests
 import rich
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ibm_watsonx_orchestrate.agent_builder.agents import (
     Agent,
+    CustomAgent,
     ExternalAgent,
     AssistantAgent,
     AgentKind,
@@ -25,34 +37,70 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
-from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection, get_app_id_from_conn_id, get_conn_id_from_app_id
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import \
     import_python_knowledge_base, KnowledgeBaseController
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, import_python_tool, ToolsController, \
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import import_python_model, ModelsController
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolKind, ToolKindImport, import_python_tool, ToolsController, \
     _get_kind_from_spec
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse
-from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
+from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient, AgentUpsertResponse, transform_agents_from_flat_agent_spec
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
+from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
+from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
 
 logger = logging.getLogger(__name__)
 
 # Helper generic type for any agent
-AnyAgentT = TypeVar("AnyAgentT", bound=Agent | ExternalAgent | AssistantAgent)
+AnyAgentT = TypeVar("AnyAgentT", bound=Agent | CustomAgent | ExternalAgent | AssistantAgent)
+
+LOG_LEVEL_COLORS = {
+    "DEBUG": "blue",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "CRITICAL": "bold red"
+}
 
 
-def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+class CustomAgentConfig(BaseModel):
+    """Configuration details from custom agent upload response."""
+    language: Optional[str] = None
+    framework: Optional[str] = None
+    entrypoint: str
+    agent_name: str
+    agent_description: str
+    requirements: List[str] = []
+    file_count: int
+
+    @field_validator('requirements', mode='before')
+    @classmethod
+    def parse_requirements(cls, v):
+        """Convert requirements from string to list if needed."""
+        if isinstance(v, str):
+            if '\n' in v:
+                return [r.strip() for r in v.split('\n') if r.strip()]
+        return [v] if v is not None else []
+
+
+class CustomAgentUploadResponse(BaseModel):
+    """Response from custom agent artifact upload."""
+    config: CustomAgentConfig
+
+
+def import_python_agent(file: str) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
     # Import tools
     import_python_tool(file)
     import_python_knowledge_base(file)
@@ -67,12 +115,12 @@ def import_python_agent(file: str) -> List[Agent | ExternalAgent | AssistantAgen
 
     agents = []
     for _, obj in inspect.getmembers(module):
-        if isinstance(obj, Agent) or isinstance(obj, ExternalAgent) or isinstance(obj, AssistantAgent):
+        if isinstance(obj, (Agent, ExternalAgent, AssistantAgent)):
             agents.append(obj)
     return agents
 
 
-def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | AssistantAgent:
+def create_agent_from_spec(file:str, kind:str) -> Agent | CustomAgent | ExternalAgent | AssistantAgent:
     if not kind:
         kind = AgentKind.NATIVE
     match kind:
@@ -87,7 +135,7 @@ def create_agent_from_spec(file:str, kind:str) -> Agent | ExternalAgent | Assist
 
     return agent
 
-def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+def parse_file(file: str) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
     if file.endswith('.yaml') or file.endswith('.yml') or file.endswith(".json"):
         with safe_open(file, 'r') as f:
             if file.endswith(".json"):
@@ -100,7 +148,7 @@ def parse_file(file: str) -> List[Agent | ExternalAgent | AssistantAgent]:
         agents = import_python_agent(file)
         return agents
     else:
-        raise BadRequest("file must end in .json, .yaml, .yml or .py")
+        raise BadRequest("file must end in .json, .yaml, .yml, or .py")
 
 def parse_create_native_args(name: str, kind: AgentKind, description: str | None, **args) -> dict:
     agent_details = {
@@ -124,6 +172,11 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     tools = tools if tools else []
     tools = [x.strip() for x in tools if x.strip() != ""]
     agent_details["tools"] = tools
+
+    plugins = args.get("plugins", [])
+    plugins = plugins if plugins else []
+    plugins = [x.strip() for x in plugins if x.strip() != ""]
+    agent_details["plugins"] = plugins
 
     knowledge_base = args.get("knowledge_base", [])
     knowledge_base = knowledge_base if knowledge_base else []
@@ -193,25 +246,10 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
 
     return agent_details
 
-def get_conn_id_from_app_id(app_id: str) -> str:
-    connections_client = get_connections_client()
-    connection = connections_client.get_draft_by_app_id(app_id=app_id)
-    if not connection:
-        logger.error(f"No connection exists with the app-id '{app_id}'")
-        exit(1)
-    return connection.connection_id
-
-def get_app_id_from_conn_id(conn_id: str) -> str:
-    connections_client = get_connections_client()
-    app_id = connections_client.get_draft_by_id(conn_id=conn_id)
-    if not app_id or app_id == conn_id:
-        logger.error(f"No connection exists with the connection id '{conn_id}'")
-        exit(1)
-    return app_id
-
-
-def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | AssistantAgentClient) -> dict:
-    agent_specs = client.get_draft_by_name(name)
+def get_agent_details(name: str, client: AgentClient | ExternalAgentClient | AssistantAgentClient, workspace_id: Optional[str] = None) -> dict:
+    # Use client method directly - it handles workspace_id parameter
+    agent_specs = client.get_draft_by_name(name, workspace_id=workspace_id)
+    
     if len(agent_specs) > 1:
             logger.error(f"Multiple agents with the name '{name}' found. Failed to get agent")
             sys.exit(1)
@@ -232,6 +270,7 @@ class AgentsController:
         self.assistant_client = None
         self.tool_client = None
         self.knowledge_base_client = None
+        self.toolkit_client = None
         self.voice_configuration_client = None
 
     def get_native_client(self):
@@ -258,31 +297,504 @@ class AgentsController:
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
-    
+
+    def get_toolkit_client(self):
+        if not self.toolkit_client:
+            self.toolkit_client = instantiate_client(ToolKitClient)
+        return self.toolkit_client
+
     def get_voice_configuration_client(self):
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
     
     @staticmethod
-    def import_agent(file: str, app_id: str) -> List[Agent | ExternalAgent | AssistantAgent]:
+    def import_agent(
+        file: str | None = None,
+        app_id: str | None = None,
+        custom_agent_file_path: str | None = None,
+        custom_agent_config_file: str | None = None
+    ) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        # Check if this is a custom agent with package root
+        if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
+            # This is a custom agent with a directory - create a CustomAgent
+            zip_path, extracted_agent_name = AgentsController._create_agent_zip(
+                custom_agent_file_path,
+                custom_agent_config_file
+            )
+
+            # Create a CustomAgent instance
+            # Note: extracted_agent_name is guaranteed to be non-None because _create_agent_zip
+            # will exit with an error if no agent name is found
+            agent = CustomAgent(
+                name=extracted_agent_name,  # type: ignore
+                description="Custom agent imported from directory",
+                kind=AgentKind.NATIVE,
+                style=AgentStyle.CUSTOM
+            )
+            agent.custom_agent_file_path = zip_path
+
+            return [agent]
+
+        if not file:
+            raise ValueError("File must be provided for native agents")
+
+        # Check if file is a ZIP, if so handle import from ZIP
+        if file.endswith('.zip'):
+            logger.info(f"Detected ZIP file, initiating bulk import from '{file}'")
+            return AgentsController._import_from_zip(file, app_id)
+
         agents = parse_file(file)
         for agent in agents:
             if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
                 agent.app_id = app_id
+
         return agents
+    @staticmethod
+    def _import_from_zip(zip_path: str, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        if not zipfile.is_zipfile(zip_path):
+            logger.error(f"File '{zip_path}' is not a valid ZIP file")
+            sys.exit(1)
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logger.info(f"Extracting ZIP file...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            resources = AgentsController._scan_extracted_structure(temp_dir)
+            
+            logger.info("Importing dependencies...")
+            AgentsController._import_dependencies(resources)
+            
+            logger.info("Importing agents...")
+            imported_agents = AgentsController._import_agents_with_dependencies(resources, app_id)
+            
+            logger.info(f"ZIP import completed successfully. Imported {len(imported_agents)} agent(s).")
+            
+            return imported_agents
+
+    @staticmethod
+    def _scan_extracted_structure(base_dir: str) -> dict:
+        base_path = Path(base_dir)
+        resources = {
+            'root_dir': None,
+            'connections': [],
+            'tools': [],
+            'toolkits': [],
+            'knowledge_bases': [],
+            'agents': {
+                'native': [],
+                'external': [],
+                'assistant': []
+            },
+            'models': [],
+            'model_policies': [],
+        }
+        
+        for item in base_path.rglob('*'):
+            if item.is_dir():
+                subdirs = [d.name for d in item.iterdir() if d.is_dir()]
+                if 'agents' in subdirs or 'tools' in subdirs or 'connections' in subdirs:
+                    resources['root_dir'] = str(item)
+                    break
+        
+        if not resources['root_dir']:
+            resources['root_dir'] = base_dir
+        
+        root = Path(resources['root_dir'])
+        logger.info(f"Found root directory: {root}")
+        
+        connections_dir = root / 'connections'
+        if connections_dir.exists():
+            # Connections can be yaml, yml, or json
+            connection_files = list(chain(
+                connections_dir.glob('*.yaml'),
+                connections_dir.glob('*.yml'),
+                connections_dir.glob('*.json')
+            ))
+            resources['connections'] = [str(f) for f in connection_files]
+            logger.info(f"Found {len(resources['connections'])} connection(s)")
+        
+        tools_dir = root / 'tools'
+        if tools_dir.exists():
+            tool_dirs = [d for d in tools_dir.iterdir() if d.is_dir()]
+            resources['tools'] = [str(d) for d in tool_dirs]
+            logger.info(f"Found {len(resources['tools'])} tool(s)")
+        
+        toolkits_dir = root / 'toolkits'
+        if toolkits_dir.exists():
+            toolkit_files = list(chain(
+                toolkits_dir.glob('*.yaml'),
+                toolkits_dir.glob('*.yml'),
+                toolkits_dir.glob('*.json'),
+                toolkits_dir.glob('*.py'),
+            ))
+            resources['toolkits'] = [str(f) for f in toolkit_files]
+            logger.info(f"Found {len(resources['toolkits'])} toolkit(s)")
+        
+        kb_dir = root / 'knowledge-base'
+        if kb_dir.exists():
+            kb_files = list(chain(
+                kb_dir.glob('*.yaml'),
+                kb_dir.glob('*.yml'),
+                kb_dir.glob('*.json'),
+                kb_dir.glob('*.py'),
+            ))
+            resources['knowledge_bases'] = [str(f) for f in kb_files]
+            logger.info(f"Found {len(resources['knowledge_bases'])} knowledge base(s)")
+        
+        # Scan for models (virtual models and model policies)
+        models_dir = root / 'models'
+        resources['models'] = []
+        resources['model_policies'] = []
+        if models_dir.exists():
+            model_files = list(chain(
+                models_dir.glob('*.yaml'),
+                models_dir.glob('*.yml'),
+                models_dir.glob('*.json'),
+                models_dir.glob('*.py'),
+            ))
+            # Separate models from policies based on name prefix
+            for model_file in model_files:
+                try:
+                    with open(model_file, 'r') as f:
+                        spec = yaml.safe_load(f)
+                    name = spec.get('name', '')
+                    if name.startswith('virtual-policy/'):
+                        resources['model_policies'].append(str(model_file))
+                    elif name.startswith('virtual-model/'):
+                        resources['models'].append(str(model_file))
+                except Exception as e:
+                    logger.warning(f"Failed to parse model file {model_file}: {e}")
+            
+            logger.info(f"Found {len(resources['models'])} virtual model(s)")
+            logger.info(f"Found {len(resources['model_policies'])} model polic(ies)")
+        
+        agents_dir = root / 'agents'
+        if agents_dir.exists():
+            for kind in ['native', 'external', 'assistant']:
+                kind_dir = agents_dir / kind
+                if kind_dir.exists():
+                    agent_files = list(chain(
+                        kind_dir.glob('*.yaml'),
+                        kind_dir.glob('*.yml')
+                    ))
+                    resources['agents'][kind] = [str(f) for f in agent_files]
+                    logger.info(f"Found {len(resources['agents'][kind])} {kind} agent(s)")
+        
+        return resources
+
+    @staticmethod
+    def _import_dependencies(resources: dict) -> None:
+        from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import import_connection
+        from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController
+        
+        if resources['connections']:
+            logger.info(f"Importing {len(resources['connections'])} connection(s)...")
+            for conn_file in resources['connections']:
+                try:
+                    import_connection(file=conn_file)
+                    logger.info(f"  ✓ Imported connection from {Path(conn_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import connection from {Path(conn_file).name}: {e}")
+        
+        if resources['tools']:
+            logger.info(f"Importing {len(resources['tools'])} tool(s)...")
+            tools_controller = ToolsController()
+            for tool_dir in resources['tools']:
+                try:
+                    AgentsController._import_tool_from_directory(tool_dir, tools_controller)
+                    logger.info(f"  ✓ Imported tool from {Path(tool_dir).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import tool from {Path(tool_dir).name}: {e}")
+        
+        if resources['toolkits']:
+            logger.info(f"Importing {len(resources['toolkits'])} toolkit(s)...")
+            toolkit_controller = ToolkitController()
+            for toolkit_file in resources['toolkits']:
+                try:
+                    toolkit_controller.import_toolkit(file=toolkit_file)
+                    logger.info(f"  ✓ Imported toolkit from {Path(toolkit_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import toolkit from {Path(toolkit_file).name}: {e}")
+        
+        if resources['knowledge_bases']:
+            logger.info(f"Importing {len(resources['knowledge_bases'])} knowledge base(s)...")
+            kb_controller = KnowledgeBaseController()
+            for kb_file in resources['knowledge_bases']:
+                try:
+                    kb_controller.import_knowledge_base(file=kb_file, app_id="")
+                    logger.info(f"  ✓ Imported knowledge base from {Path(kb_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import knowledge base from {Path(kb_file).name}: {e}")
+        
+        if resources['models']:
+            logger.info(f"Importing {len(resources['models'])} virtual model(s)...")
+            models_controller = ModelsController()
+            for model_file in resources['models']:
+                try:
+                    # Extract app_id from model spec if present
+                    with open(model_file, 'r') as f:
+                        model_spec = yaml.safe_load(f)
+                    app_id = model_spec.get('app_id', None)
+                    models_controller.import_model(file=model_file, app_id=app_id)
+                    logger.info(f"  ✓ Imported model from {Path(model_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import model from {Path(model_file).name}: {e}")
+        
+        if resources['model_policies']:
+            logger.info(f"Importing {len(resources['model_policies'])} model polic(ies)...")
+            models_controller = ModelsController()
+            for policy_file in resources['model_policies']:
+                try:
+                    models_controller.import_model_policy(file=policy_file)
+                    logger.info(f"  ✓ Imported model policy from {Path(policy_file).name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to import model policy from {Path(policy_file).name}: {e}")
+
+    @staticmethod
+    def _import_tool_from_directory(tool_dir: str, tools_controller: ToolsController) -> None:
+        from ibm_watsonx_orchestrate.cli.commands.agents.agents_helper import get_available_connections, prompt_select_app_ids
+
+        tool_path = Path(tool_dir)
+        tool_name = tool_path.name
+
+        # Fetch available connections and prompt user to select app_ids for this tool
+        logger.info(f"\nProcessing tool: {tool_name}")
+        available_connections = get_available_connections()
+        selected_app_ids = []
+
+        if available_connections:
+            selected_app_ids = prompt_select_app_ids(tool_name, available_connections)
+        else:
+            logger.warning(f"No connections available. Tool '{tool_name}' will be imported without connections.")
+        
+        py_files = list(tool_path.glob('*.py'))
+        yaml_files = list(tool_path.glob('*.yaml')) + list(tool_path.glob('*.yml'))
+        json_files = list(tool_path.glob('*.json'))
+
+        if py_files:
+            kind, main_file = AgentsController._detect_python_tool_kind(py_files, tool_path)
+            requirements = tool_path / 'requirements.txt'
+            
+            if kind == ToolKindImport.python:
+                package_root = str(tool_path) if len(py_files) > 1 else None
+                tools = tools_controller.import_tool(
+                    kind=kind,
+                    file=str(main_file),
+                    requirements_file=str(requirements) if requirements.exists() else None,
+                    package_root=package_root,
+                    app_id=selected_app_ids if selected_app_ids else None
+                )
+                tools_controller.publish_or_update_tools(tools=tools, package_root=package_root if package_root else "")
+            elif kind == ToolKindImport.flow:
+                tools = tools_controller.import_tool(
+                    kind=kind,
+                    file=str(main_file),
+                    app_id=selected_app_ids if selected_app_ids else None
+                )
+                tools_controller.publish_or_update_tools(tools=tools)
+            
+        elif yaml_files:
+            kind = ToolKindImport.openapi
+            main_file = yaml_files[0]
+            
+            tools = tools_controller.import_tool(
+                kind=kind,
+                file=str(main_file),
+                app_id=selected_app_ids if selected_app_ids else None
+            )
+            tools_controller.publish_or_update_tools(tools=tools)
+            
+        elif json_files:
+            kind, main_file = AgentsController._detect_json_tool_kind(json_files)
+            
+            tools = tools_controller.import_tool(
+                kind=kind,
+                file=str(main_file),
+                app_id=selected_app_ids if selected_app_ids else None
+            )
+            tools_controller.publish_or_update_tools(tools=tools)
+            
+        else:
+            logger.warning(f"No importable files (.py, .yaml/.yml, .json) found in {tool_dir}, skipping")
+    
+    @staticmethod
+    def _detect_python_tool_kind(py_files: List[Path], tool_path: Path) -> tuple[ToolKindImport, Path]:
+        # Check if any Python file contains Flow decorator patterns
+        for py_file in py_files:
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Check for Flow tool
+                    if '@flow' in content.lower() or 'from ibm_watsonx_orchestrate.flow_builder' in content:
+                        logger.info(f"Detected Flow tool in {py_file.name}")
+                        return ToolKindImport.flow, py_file
+            except Exception as e:
+                raise ValueError(f"Failed to read {py_file.name}: {e}")
+        
+        # Default to Python tool
+        return ToolKindImport.python, py_files[0]
+    
+    @staticmethod
+    def _detect_json_tool_kind(json_files: List[Path]) -> tuple[ToolKindImport, Path]:
+        main_file = json_files[0]
+        
+        try:
+            with open(main_file, 'r', encoding='utf-8') as f:
+                spec = json.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to read {main_file.name}: {e}")
+        
+        # Check for Flow tool (has spec.kind field)
+        spec_kind = spec.get('spec', {}).get('kind', '').lower()
+        if spec_kind == 'flow':
+            logger.info(f"Detected Flow tool in {main_file.name}")
+            return ToolKindImport.flow, main_file
+        
+        # Check for OpenAPI tool
+        if 'openapi' in spec or 'swagger' in spec or ('paths' in spec and 'info' in spec):
+            logger.info(f"Detected OpenAPI tool in {main_file.name}")
+            return ToolKindImport.openapi, main_file
+        
+        # Check for Langflow tool
+        if 'data' in spec and ('nodes' in spec.get('data', {}) or 'edges' in spec.get('data', {})):
+            logger.info(f"Detected Langflow tool in {main_file.name}")
+            return ToolKindImport.langflow, main_file
+        
+        # Default to Langflow if no clear indicators
+        logger.warning(f"Could not definitively determine JSON tool type for {main_file.name}, defaulting to Langflow")
+        return ToolKindImport.langflow, main_file
+
+    @staticmethod
+    def _import_agents_with_dependencies(resources: dict, app_id: str | None = None) -> List[Agent | CustomAgent | ExternalAgent | AssistantAgent]:
+        all_agent_files = []
+        for kind in ['external', 'assistant', 'native']:
+            all_agent_files.extend(resources['agents'].get(kind, []))
+        
+        if not all_agent_files:
+            logger.info("No agents found to import")
+            # @TODO Potentially throw an error here as atleast one agent is required.
+            return []
+        
+        logger.info(f"Analyzing {len(all_agent_files)} agent(s) for dependencies...")
+        agent_data = AgentsController._parse_agent_files(all_agent_files)
+        
+        sorted_agents = AgentsController._topological_sort_agents(agent_data)
+        
+        imported_agents = []
+        for agent_info in sorted_agents:
+            try:
+                agents = parse_file(agent_info['file_path'])
+                for agent in agents:
+                    if app_id and agent.kind != AgentKind.NATIVE and agent.kind != AgentKind.ASSISTANT:
+                        agent.app_id = app_id
+                imported_agents.extend(agents)
+                logger.info(f"  ✓ Imported agent '{agent_info['name']}' from {Path(agent_info['file_path']).name}")
+            except Exception as e:
+                logger.warning(f"  ✗ Failed to import agent '{agent_info['name']}' from {Path(agent_info['file_path']).name}: {e}")
+        
+        return imported_agents
+
+    @staticmethod
+    def _parse_agent_files(agent_files: List[str]) -> List[dict]:
+        agent_data = []
+        
+        for agent_file in agent_files:
+            try:
+                with open(agent_file, 'r') as f:
+                    spec = yaml.safe_load(f)
+                
+                agent_name = spec.get('name')
+                if not agent_name:
+                    logger.warning(f"Agent file {agent_file} missing 'name' field, skipping")
+                    continue
+                
+                # Extract collaborators (only for native agents)
+                collaborators = []
+                if spec.get('kind') == 'native':
+                    collaborators = spec.get('collaborators', [])
+                
+                agent_data.append({
+                    'name': agent_name,
+                    'file_path': agent_file,
+                    'collaborators': collaborators
+                })
+                
+            except Exception as e:
+                logger.warning(f"Failed to parse agent file {agent_file}: {e}")
+                continue
+        
+        return agent_data
+
+    @staticmethod
+    def _topological_sort_agents(agent_data: List[dict]) -> List[dict]:
+        agent_map = {agent['name']: agent for agent in agent_data}
+        
+        dependents = {agent['name']: [] for agent in agent_data}
+        in_degree = {agent['name']: 0 for agent in agent_data}
+        
+        for agent in agent_data:
+            for collaborator in agent['collaborators']:
+                if collaborator in agent_map:
+                    dependents[collaborator].append(agent['name'])
+                    in_degree[agent['name']] += 1
+                else:
+                    # Collaborator not in the ZIP
+                    logger.warning(f"Agent '{agent['name']}' references collaborator '{collaborator}' which is not in the ZIP file")
+        
+        queue = [name for name, degree in in_degree.items() if degree == 0]
+        sorted_order = []
+        
+        while queue:
+            current = queue.pop(0)
+            sorted_order.append(current)
+            
+            for dependent in dependents[current]:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    queue.append(dependent)
+        
+        # Check for circular dependencies
+        if len(sorted_order) != len(agent_data):
+            remaining = [name for name, degree in in_degree.items() if degree > 0]
+            logger.error(f"Circular dependency detected among agents: {remaining}")
+            logger.error("These agents will not be imported. Please resolve the circular dependencies.")
+            return [agent_map[name] for name in sorted_order]
+        
+        return [agent_map[name] for name in sorted_order]
 
 
     @staticmethod
     def generate_agent_spec(
         name: str, kind: AgentKind, description: str, **kwargs
-    ) -> Agent | ExternalAgent | AssistantAgent:
+    ) -> Agent | CustomAgent | ExternalAgent | AssistantAgent:
         match kind:
             case AgentKind.NATIVE:
                 agent_details = parse_create_native_args(
                     name, kind=kind, description=description, **kwargs
                 )
-                agent = Agent.model_validate(agent_details)
+                # Use CustomAgent for custom style agents
+                if kwargs.get('style') == AgentStyle.CUSTOM:
+                    agent = CustomAgent.model_validate(agent_details)
+                    custom_agent_file_path = kwargs.get('custom_agent_file_path')
+                    custom_agent_config_file = kwargs.get('custom_agent_config_file')
+
+                    # If package_root is a directory, zip it and extract agent name
+                    if custom_agent_file_path and os.path.isdir(custom_agent_file_path):
+                        zip_path, extracted_agent_name = AgentsController._create_agent_zip(
+                            custom_agent_file_path,
+                            custom_agent_config_file
+                        )
+                        agent.custom_agent_file_path = zip_path
+                        # Update agent name if we extracted it from config
+                        if extracted_agent_name:
+                            agent.name = extracted_agent_name
+                            agent_details['name'] = extracted_agent_name
+                    else:
+                        agent.custom_agent_file_path = custom_agent_file_path
+                else:
+                    agent = Agent.model_validate(agent_details)
                 AgentsController().persist_record(agent=agent, **kwargs)
             case AgentKind.EXTERNAL:
                 agent_details = parse_create_external_args(name, kind=kind, description=description, **kwargs)
@@ -328,15 +840,18 @@ class AgentsController:
 
         return deref_agent
     
-    def reference_collaborators(self, agent: Agent) -> Agent:
+    def reference_collaborators(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
 
         ref_agent = deepcopy(agent)
-        matching_native_agents = native_client.get_drafts_by_ids(ref_agent.collaborators)
-        matching_external_agents = external_client.get_drafts_by_ids(ref_agent.collaborators)
-        matching_assistant_agents = assistant_client.get_drafts_by_ids(ref_agent.collaborators)
+        
+        # Use client methods directly - they handle workspace_id parameter
+        matching_native_agents = native_client.get_drafts_by_ids(ref_agent.collaborators, workspace_id=workspace_id)
+        matching_external_agents = external_client.get_drafts_by_ids(ref_agent.collaborators, workspace_id=workspace_id)
+        matching_assistant_agents = assistant_client.get_drafts_by_ids(ref_agent.collaborators, workspace_id=workspace_id)
+        
         matching_agents = matching_native_agents + matching_external_agents + matching_assistant_agents
         
         id_name_lookup = {}
@@ -359,17 +874,58 @@ class AgentsController:
 
     def dereference_tools(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
-
         deref_agent = deepcopy(agent)
+
+        tool_names = list(deref_agent.tools)
 
         # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
-            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools + [deref_agent.custom_join_tool])
-        else:
-            matching_tools = tool_client.get_drafts_by_names(deref_agent.tools)
+            tool_names.append(deref_agent.custom_join_tool)
+
+        # Plugin tool names
+        plugin_phases = {}
+
+        if agent.plugins is not None:
+            plugin_phases = {
+                "agent_pre_invoke": getattr(agent.plugins, "agent_pre_invoke", None),
+                "agent_post_invoke": getattr(agent.plugins, "agent_post_invoke", None),
+            }
+
+            for plugin_list in plugin_phases.values():
+                if plugin_list:
+                    tool_names.extend([p.plugin_name for p in plugin_list])
+
+        # Fetch ALL tools at once 
+        all_matching_tools = tool_client.get_drafts_by_names(tool_names)
+
+        # Validate plugin placement
+        if agent.plugins is not None:
+            for phase_name, plugin_list in plugin_phases.items():
+                if not plugin_list:
+                    continue
+
+                for plugin in plugin_list:
+                    tool = next((t for t in all_matching_tools if t["name"] == plugin.plugin_name), None)
+                    if not tool:
+                        logger.error(f"Plugin {plugin.plugin_name} not found in fetched tools.")
+                        sys.exit(1)
+
+                    python_binding = tool.get("binding", {}).get("python", {})
+                    tool_type = python_binding.get("type")
+
+                    if not tool_type:
+                        logger.error(f"Tool '{plugin.plugin_name}' missing 'type' in binding.")
+                        sys.exit(1)
+
+                    if tool_type != phase_name:
+                        logger.error(
+                            f"Tool '{plugin.plugin_name}' has type '{tool_type}' "
+                            f"but is placed under the '{phase_name}' section of the Agent spec. Please update this."
+                        )
+                        sys.exit(1)
 
         name_id_lookup = {}
-        for tool in matching_tools:
+        for tool in all_matching_tools:
             if tool.get("name") in name_id_lookup:
                 logger.error(f"Duplicate draft entries for tool '{tool.get('name')}'")
                 sys.exit(1)
@@ -391,41 +947,103 @@ class AgentsController:
                 sys.exit(1)
             deref_agent.custom_join_tool = join_tool_id
 
+        # # Dereference plugins
+        if agent.plugins:
+            # Make a deep copy of the agent's plugins so we don't mutate the original
+            deref_agent.plugins = deepcopy(agent.plugins)
+
+            for phase_name in ["agent_pre_invoke", "agent_post_invoke"]:
+                phase_list = getattr(deref_agent.plugins, phase_name, None)
+                if not phase_list:
+                    continue
+
+                for plugin in phase_list:
+                    plugin_id = name_id_lookup.get(plugin.plugin_name)
+                    if not plugin_id:
+                        logger.error(f"Failed to find plugin tool. No tools found with the name '{plugin.plugin_name}'")
+                        sys.exit(1)
+                    plugin.plugin_id = plugin_id
+
         return deref_agent
     
-    def reference_tools(self, agent: Agent) -> Agent:
+    def reference_tools(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
         tool_client = self.get_tool_client()
 
         ref_agent = deepcopy(agent)
+
+        # main tools
+        main_tool_ids = list(ref_agent.tools)
         
-        # If agent has style set to "planner" and have join_tool defined, then we need to include that tool as well
+        # Include custom join tool if planner style
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
-            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools + [ref_agent.custom_join_tool])
-        else:
-            matching_tools = tool_client.get_drafts_by_ids(ref_agent.tools)
+            main_tool_ids.append(agent.custom_join_tool)
+
+        # plugin tools
+        plugin_tool_ids = []
+        if ref_agent.plugins:
+            # pre-invoke plugins
+            if getattr(ref_agent.plugins, "agent_pre_invoke", None):
+                plugin_tool_ids.extend(
+                    p.plugin_id for p in ref_agent.plugins.agent_pre_invoke if p.plugin_id
+                )
+
+            # post-invoke plugins
+            if getattr(ref_agent.plugins, "agent_post_invoke", None):
+                plugin_tool_ids.extend(
+                    p.plugin_id for p in ref_agent.plugins.agent_post_invoke if p.plugin_id
+                )
+
+        all_tool_ids = main_tool_ids + plugin_tool_ids
+        matching_tools = tool_client.get_drafts_by_ids(all_tool_ids, workspace_id=workspace_id)
 
         id_name_lookup = {}
         for tool in matching_tools:
-            if tool.get("id") in id_name_lookup:
-                logger.error(f"Duplicate draft entries for tool '{tool.get('id')}'")
+            tid = tool.get("id")
+            tname = tool.get("name")
+            if tid in id_name_lookup:
+                logger.error(f"Duplicate draft entries for tool '{tid}'")
                 sys.exit(1)
-            id_name_lookup[tool.get("id")] = tool.get("name")
-        
+            id_name_lookup[tid] = tname
+
+        # resolove main tools
         ref_tools = []
-        for id in agent.tools:
-            name = id_name_lookup.get(id)
+        for tid in agent.tools:
+            name = id_name_lookup.get(tid)
             if not name:
-                logger.error(f"Failed to find tool. No tools found with the id '{id}'")
-                sys.exit(1)
+                error_msg = f"Failed to find tool. No tools found with the id '{tid}'"
+                logger.warning(error_msg)
+                continue  # Skip this tool and continue with others, otherwise exporting workspace fails
             ref_tools.append(name)
         ref_agent.tools = ref_tools
-        
+
+        # resolove custom join tool
         if agent.style == AgentStyle.PLANNER and agent.custom_join_tool:
             join_tool_name = id_name_lookup.get(agent.custom_join_tool)
             if not join_tool_name:
-                logger.error(f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'")
-                sys.exit(1)
-            ref_agent.custom_join_tool = join_tool_name
+                error_msg = f"Failed to find custom join tool. No tools found with the id '{agent.custom_join_tool}'"
+                logger.warning(error_msg)
+                # Set to None if not found, agent export will continue
+                ref_agent.custom_join_tool = None
+            else:
+                ref_agent.custom_join_tool = join_tool_name
+
+        # resolve plugin tools
+        if agent.plugins:
+            for phase_name in ["agent_pre_invoke", "agent_post_invoke"]:
+                phase_list = getattr(ref_agent.plugins, phase_name, None)
+                if not phase_list:
+                    continue
+
+                for plugin in phase_list:
+                    plugin_name = id_name_lookup.get(plugin.plugin_id)
+                    if not plugin_name:
+                        logger.error(
+                            f"Failed to find plugin tool. No plugin found with id '{plugin.plugin_id}'"
+                        )
+                        sys.exit(1)
+                    plugin.plugin_name = plugin_name
+                    # REMOVE plugin_id so it's not exported
+                    del plugin.plugin_id
 
         return ref_agent
     
@@ -453,22 +1071,68 @@ class AgentsController:
 
         return deref_agent
     
-    def reference_knowledge_bases(self, agent: Agent) -> Agent:
+    def reference_knowledge_bases(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
         client = self.get_knowledge_base_client()
 
         ref_agent = deepcopy(agent)
         
         ref_knowledge_bases = []
         for id in agent.knowledge_base:
-            matching_knowledge_base = client.get_by_id(id)
-            name = matching_knowledge_base.get("name")
+            try:
+                # Use client method directly - it handles workspace_id parameter 
+                matching_knowledge_base = client.get_by_id(id, workspace_id=workspace_id)
+                
+                name = matching_knowledge_base.get("name") if matching_knowledge_base else None
+                if not name:
+                    logger.warning(f"No knowledge base with ID '{id}' found in workspace")
+                    continue  # Skip this KB instead of failing
+                ref_knowledge_bases.append(name)
+            except Exception as e:
+                logger.warning(f"Could not resolve knowledge base '{id}': {str(e)}")
+                continue  # Skip this KB and continue with others
+        ref_agent.knowledge_base = ref_knowledge_bases
+
+        return ref_agent
+    def dereference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        deref_agent = deepcopy(agent)
+        matching_toolkits: Any = client.get_drafts_by_names(deref_agent.toolkits)
+
+        name_id_lookup = {}
+        for tk in matching_toolkits:
+            if tk.get("name") in name_id_lookup:
+                logger.error(f"Duplicate draft entries for toolkit '{tk.get('name')}'")
+                sys.exit(1)
+            name_id_lookup[tk.get("name")] = tk.get("id")
+
+        deref_toolkits: list[Any] = []
+        for name in agent.toolkits:
+            id = name_id_lookup.get(name)
+            if not id:
+                logger.error(f"Failed to find toolkit. No toolkit found with the name '{name}'")
+                sys.exit(1)
+            deref_toolkits.append(id)
+        deref_agent.toolkits = deref_toolkits
+
+        return deref_agent
+
+    def reference_toolkits(self, agent: Agent) -> Agent:
+        client = self.get_toolkit_client()
+
+        ref_agent = deepcopy(agent)
+
+        ref_toolkits = []
+        for id in agent.toolkits:
+            matching_toolkit = client.get_draft_by_id(id)
+            name = matching_toolkit.get("name")
             if not name:
                 logger.error(f"Failed to find knowledge base. No knowledge base found with the id '{id}'")
                 sys.exit(1)
-            ref_knowledge_bases.append(name)
-        ref_agent.knowledge_base = ref_knowledge_bases
+            ref_toolkits.append(name)
+        ref_agent.toolkits = ref_toolkits
         return ref_agent
-    
+
     def dereference_guidelines(self, agent: Agent) -> Agent:
         tool_client = self.get_tool_client()
         
@@ -602,24 +1266,37 @@ class AgentsController:
     def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.dereference_collaborators(agent)
-        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
+
+        plugins_has_entries = (
+            (agent.plugins.agent_pre_invoke and len(agent.plugins.agent_pre_invoke) > 0) or
+            (agent.plugins.agent_post_invoke and len(agent.plugins.agent_post_invoke) > 0)
+        )
+
+        if (agent.tools and len(agent.tools) > 0) or \
+        (agent.style == AgentStyle.PLANNER and agent.custom_join_tool) or \
+        plugins_has_entries:
             agent = self.dereference_tools(agent)
-        if agent.knowledge_base and len(agent.knowledge_base):
+
+        if agent.knowledge_base and len(agent.knowledge_base) > 0:
             agent = self.dereference_knowledge_bases(agent)
-        if agent.guidelines and len(agent.guidelines):
+        if agent.guidelines and len(agent.guidelines) > 0:
             agent = self.dereference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits) > 0:
+            agent = self.dereference_toolkits(agent)
 
         return agent
     
-    def reference_native_agent_dependencies(self, agent: Agent) -> Agent:
+    def reference_native_agent_dependencies(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
         if agent.collaborators and len(agent.collaborators):
-            agent = self.reference_collaborators(agent)
-        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool):
-            agent = self.reference_tools(agent)
+            agent = self.reference_collaborators(agent, workspace_id=workspace_id)
+        if (agent.tools and len(agent.tools)) or (agent.style == AgentStyle.PLANNER and agent.custom_join_tool) or (agent.plugins is not None):
+            agent = self.reference_tools(agent, workspace_id=workspace_id)
         if agent.knowledge_base and len(agent.knowledge_base):
-            agent = self.reference_knowledge_bases(agent)
+            agent = self.reference_knowledge_bases(agent, workspace_id=workspace_id)
         if agent.guidelines and len(agent.guidelines):
             agent = self.reference_guidelines(agent)
+        if agent.toolkits and len(agent.toolkits):
+            agent = self.reference_toolkits(agent)
 
         return agent
     
@@ -649,18 +1326,19 @@ class AgentsController:
             return self.dereference_external_or_assistant_agent_dependencies(agent)
 
     # Convert all ids used in an agent to the corresponding names
-    def reference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+    def reference_agent_dependencies(self, agent: AnyAgentT, workspace_id: Optional[str] = None) -> AnyAgentT:
 
         agent = self.reference_common_agent_dependencies(agent)
         if isinstance(agent, Agent):
-            return self.reference_native_agent_dependencies(agent)
+            return self.reference_native_agent_dependencies(agent, workspace_id=workspace_id)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.reference_external_or_assistant_agent_dependencies(agent)
 
     def publish_or_update_agents(
-        self, agents: Iterable[Agent | ExternalAgent | AssistantAgent]
+        self, agents: Iterable[Agent | CustomAgent | ExternalAgent | AssistantAgent]
     ):
         for agent in agents:
+            # Check for existing agents by name
             agent_name = agent.name
 
             native_client = self.get_native_client()
@@ -668,13 +1346,14 @@ class AgentsController:
             assistant_client = self.get_assistant_client()
 
             existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_construct(**agent) for agent in existing_native_agents]
-            existing_external_agents = external_client.get_draft_by_name(agent_name)
-            existing_external_agents = [ExternalAgent.model_construct(**agent) for agent in existing_external_agents]
-            existing_assistant_agents = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_agents = [AssistantAgent.model_construct(**agent) for agent in existing_assistant_agents]
+            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
+            existing_external_clients = external_client.get_draft_by_name(agent_name)
+            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
+            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
+            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
 
-            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
+            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+
             agent = self.dereference_agent_dependencies(agent)
 
             if isinstance(agent, Agent) and agent.style == AgentStyle.PLANNER and isinstance(agent.custom_join_tool, str):
@@ -697,6 +1376,7 @@ class AgentsController:
 
             if len(all_existing_agents) > 0:
                 existing_agent = all_existing_agents[0]
+                agent_name = agent.name
 
                 if agent_name == existing_agent.name:
                     if agent_kind != existing_agent.kind:
@@ -707,26 +1387,354 @@ class AgentsController:
             else:
                 self.publish_agent(agent)
 
-    def publish_agent(self, agent: Agent, **kwargs) -> None:
+    @staticmethod
+    def _create_agent_zip(package_root: str, config_file: str | None = None) -> tuple[str, str | None]:
+        """
+        Create a temporary zip file from a directory for custom agent upload.
+
+        Args:
+            package_root: Path to the directory to zip
+            config_file: Optional path to a config.yaml file to include in the zip
+
+        Returns:
+            Tuple of (path to the created temporary zip file, agent name from config or None)
+        """
+        # Create a temporary file that won't be automatically deleted
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.zip', prefix='agent_package_')
+        os.close(temp_fd)
+
+        agent_name = None
+
+        try:
+            with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Add all files from package_root
+                for root, _, files in os.walk(package_root):
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        relative_path = os.path.relpath(full_path, start=package_root)
+                        zip_file.write(full_path, arcname=relative_path)
+
+                        # Try to extract agent name from agent.yaml
+                        if agent_name is None and file.lower() in ['agent.yaml', 'agent.yml']:
+                            try:
+                                with open(full_path, 'r') as f:
+                                    config_data = yaml.load(f, Loader=yaml.SafeLoader)
+                                    agent_name = config_data.get('name')
+                            except Exception as e:
+                                logger.warning(f"Failed to parse config file for agent name: {e}")
+
+                # Add config file if provided and not already in package_root
+                if config_file:
+                    config_filename = os.path.basename(config_file)
+                    # Check if config.yaml already exists in the zip
+                    if config_filename not in zip_file.namelist():
+                        zip_file.write(config_file, arcname=config_filename)
+                        # Try to extract agent name from the provided config file
+                        if agent_name is None:
+                            try:
+                                with open(config_file, 'r') as f:
+                                    config_data = yaml.load(f, Loader=yaml.SafeLoader)
+                                    # Try 'name' field first (new format)
+                                    agent_name = config_data.get('name')
+                            except Exception as e:
+                                logger.warning(f"Failed to parse config file for agent name: {e}")
+                    else:
+                        logger.warning(f"Config file '{config_filename}' already exists in package root, using the one from package root")
+
+            logger.info(f"Created temporary zip file from directory: {package_root}")
+            if agent_name:
+                logger.info(f"Detected agent name from config: {agent_name}")
+                return temp_path, agent_name
+
+            # Clean up temp file if no agent name found
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            logger.error(
+                f"No agent name found in config file. Please ensure your package contains "
+                f"an 'agent.yaml' file with a 'name' field."
+            )
+            sys.exit(1)
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+
+    @staticmethod
+    def _upload_custom_agent_artifact(
+        native_client: AgentClient,
+        agent_id: str,
+        custom_agent_file_path: str
+    ) -> tuple[dict | None, bool]:
+        """
+        Upload a custom agent artifact and return the response and temp file flag.
+
+        Args:
+            native_client: The agent client instance
+            agent_id: The agent ID to upload to
+            custom_agent_file_path: Path to the zip file
+
+        Returns:
+            Tuple of (upload_response, is_temp_file)
+        """
+        upload_response = None
+        is_temp_file = False
+
+        if custom_agent_file_path:
+            logger.info(f"Uploading custom agent package...")
+            upload_response = native_client.upload_agent_artifact(
+                agent_id=agent_id,
+                file_path=custom_agent_file_path
+            )
+            logger.info(f"Custom agent package uploaded successfully")
+
+            # Check if this is a temporary file
+            if custom_agent_file_path.startswith(tempfile.gettempdir()):
+                is_temp_file = True
+
+        return upload_response, is_temp_file
+
+    @staticmethod
+    def _display_custom_agent_config(
+        config: CustomAgentConfig,
+        agent_id: str,
+        agent_name: str,
+        is_update: bool = False
+    ) -> None:
+        """
+        Display custom agent configuration details in a formatted table.
+
+        Args:
+            config: The configuration from upload response
+            agent_id: The agent ID
+            agent_name: The agent name
+            is_update: Whether this is an update operation
+        """
+        console = Console()
+
+        # Display operation type
+        operation = "Updated" if is_update else "Created"
+        logger.info(f"Agent '{agent_name}' {operation.lower()} successfully")
+
+        # Create a panel with agent info
+        info_panel = Panel(
+            f"[bold cyan]Agent ID:[/bold cyan] {agent_id}\n"
+            f"[bold cyan]Operation:[/bold cyan] {operation}\n"
+            f"[bold cyan]Name:[/bold cyan] {agent_name}",
+            title=f"[bold green]✓ Custom Agent {operation}[/bold green]",
+            border_style="green"
+        )
+        console.print(info_panel)
+
+        # Create a table for the custom agent configuration
+        config_table = Table(
+            title="Configuration Details",
+            show_header=True,
+            header_style="bold cyan",
+            show_lines=True,
+        )
+        config_table.add_column("Property", style="cyan", no_wrap=True)
+        config_table.add_column("Value", style="green")
+
+        config_table.add_row("Language", config.language)
+        config_table.add_row("Framework", config.framework)
+        config_table.add_row("Entrypoint", config.entrypoint)
+        config_table.add_row("Agent Name", config.agent_name)
+        config_table.add_row("Agent Description", config.agent_description)
+        config_table.add_row("Requirements", '\n'.join(config.requirements) if config.requirements else "None")
+        config_table.add_row("Files in Package", str(config.file_count))
+
+        console.print(config_table)
+
+    @staticmethod
+    def _cleanup_temp_file(file_path: str, is_temp: bool) -> None:
+        """
+        Clean up a temporary file if needed.
+
+        Args:
+            file_path: Path to the file
+            is_temp: Whether the file is temporary
+        """
+        if is_temp and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.debug(f"Cleaned up temporary zip file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary zip file: {e}")
+
+    def publish_agent(self, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs) -> None:
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        
         if isinstance(agent, Agent):
-            response = self.get_native_client().create(agent.model_dump(exclude_none=True))
-            _raise_guidelines_warning(response)
-            logger.info(f"Agent '{agent.name}' imported successfully")
+            # Use the client's create method which handles workspace injection
+            native_client = self.get_native_client()
+            try:
+                response_data = native_client.create(agent.model_dump(exclude_none=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create agent: {error_msg}")
+                sys.exit(1)
+            
+            _raise_guidelines_warning(response_data)
+
+            # Check if this is a custom agent - always upload if file path provided
+            if agent.style == AgentStyle.CUSTOM:
+                custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
+
+                if custom_agent_file_path:
+                    if not response_data.id:
+                        logger.error(
+                            f"Failed to create agent '{agent.name}': Backend did not return an agent ID. "
+                            f"Cannot upload custom agent package without an agent ID."
+                        )
+                        sys.exit(1)
+                    
+                    logger.info(f"Uploading custom agent package for agent ID: {response_data.id}")
+                    # Upload artifact using helper
+                    upload_response, is_temp_file = self._upload_custom_agent_artifact(
+                        self.get_native_client(),
+                        response_data.id,
+                        custom_agent_file_path
+                    )
+
+                    # Display configuration if available
+                    if upload_response:
+                        try:
+                            response_model = CustomAgentUploadResponse.model_validate(upload_response)
+                            if response_model.config:
+                                agent_name = response_model.config.agent_name or agent.name
+                                self._display_custom_agent_config(response_model.config, response_data.id, agent_name, is_update=False)
+                            else:
+                                logger.info(f"Agent '{agent.name}' imported successfully")
+                        except Exception as e:
+                            logger.warning(f"Could not parse upload response: {e}")
+                            logger.info(f"Agent '{agent.name}' imported successfully")
+                    else:
+                        logger.info(f"Agent '{agent.name}' imported successfully")
+
+                    # Clean up temporary file
+                    self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
+                else:
+                    logger.info(f"Agent '{agent.name}' imported successfully")
+            else:
+                logger.info(f"Agent '{agent.name}' imported successfully")
+
         if isinstance(agent, ExternalAgent):
-            self.get_external_client().create(agent.model_dump(exclude_none=True))
+            try:
+                self.get_external_client().create(agent.model_dump(exclude_none=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create external agent: {error_msg}")
+                sys.exit(1)
             logger.info(f"External Agent '{agent.name}' imported successfully")
+            
         if isinstance(agent, AssistantAgent):
-            self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
+            try:
+                self.get_assistant_client().create(agent.model_dump(exclude_none=True, by_alias=True))
+            except ClientAPIException as e:
+                # Extract error message from response
+                error_msg = "Unknown error"
+                
+                try:
+                    # Don't rely on truthiness of response object - check if it's not None
+                    if e.response is not None and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                        if response_text:
+                            try:
+                                error_data = json.loads(response_text)
+                                error_msg = error_data.get('detail', response_text)
+                            except:
+                                error_msg = response_text
+                        else:
+                            error_msg = str(e)
+                    else:
+                        error_msg = str(e)
+                except Exception:
+                    error_msg = str(e)
+                
+                logger.error(f"Failed to create assistant agent: {error_msg}")
+                sys.exit(1)
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
-        self, agent_id: str, agent: Agent, **kwargs
+        self, agent_id: str, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs
     ) -> None:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
-            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True))
+            exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
+            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields))
             _raise_guidelines_warning(response)
-            logger.info(f"Agent '{agent.name}' updated successfully")
+
+            # Handle custom agent artifact upload for updates
+            if agent.style == AgentStyle.CUSTOM:
+                custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
+
+                if custom_agent_file_path:
+                    # Upload artifact using helper
+                    upload_response, is_temp_file = self._upload_custom_agent_artifact(
+                        self.get_native_client(),
+                        agent_id,
+                        custom_agent_file_path
+                    )
+
+                    # Display configuration if available
+                    if upload_response and 'config' in upload_response:
+                        config_dict = upload_response.get('config', {})
+                        try:
+                            config = CustomAgentConfig.model_validate(config_dict)
+                            agent_name = config.agent_name or agent.name
+                            self._display_custom_agent_config(config, agent_id, agent_name, is_update=True)
+                        except Exception as e:
+                            logger.warning(f"Could not parse upload response config: {e}")
+                            logger.info(f"Agent '{agent.name}' updated successfully")
+                    else:
+                        logger.info(f"Agent '{agent.name}' updated successfully")
+
+                    # Clean up temporary file
+                    self._cleanup_temp_file(custom_agent_file_path, is_temp_file)
+                else:
+                    logger.info(f"Agent '{agent.name}' updated successfully")
+            else:
+                logger.info(f"Agent '{agent.name}' updated successfully")
+
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
             self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True))
@@ -808,7 +1816,7 @@ class AgentsController:
                 knowledge_bases.append(id)
         return knowledge_bases
     
-    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
+    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind, workspace_id: Optional[str] = None) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
         parse_errors = []
         target_kind_display_name = None
         target_kind_class = None
@@ -830,7 +1838,9 @@ class AgentsController:
             case _:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
-        response = agent_client.get()
+        # Use client method directly - it handles workspace_id parameter 
+        response = agent_client.get(workspace_id=workspace_id)
+        
         agents = []
         for agent in response:
             try:
@@ -846,25 +1856,29 @@ class AgentsController:
 
     def _get_all_unique_agent_resources(self, agents: List[Agent], target_attr: str) -> List[str]:
         """
-            Given a list of agents get all the unique values of a certain field
-            Example: agent1.tools = [1 ,2 ,3] and agent2.tools = [2, 4, 5] then return [1, 2, 3, 4, 5]
-            Example: agent1.id = "123" and agent2.id = "456" then return ["123", "456"]
-
-            Args:
-                agents: List of agents
-                target_attr: The name of the field to access and get unique elements
-
-            Returns:
-                A list of unique elements from across all agents
+        Given a list of agents, get all unique values of a certain field.
+        Handles both flat lists (like agent.tools = [id1, id2]) and nested plugin objects.
         """
         all_ids = set()
+
         for agent in agents:
             attr_value = getattr(agent, target_attr, None)
-            if attr_value:
-                if isinstance(attr_value, list):
-                    all_ids.update(attr_value)
-                else:
-                    all_ids.add(attr_value)
+            if not attr_value:
+                continue
+
+            # Special handling for Plugins model
+            if target_attr == "plugins" and hasattr(attr_value, "agent_pre_invoke"):
+                for plugin_ref in getattr(attr_value, "agent_pre_invoke", []):
+                    all_ids.add(plugin_ref.plugin_id)
+                for plugin_ref in getattr(attr_value, "agent_post_invoke", []):
+                    all_ids.add(plugin_ref.plugin_id)
+
+            elif isinstance(attr_value, list):
+                all_ids.update(attr_value)
+
+            else:
+                all_ids.add(attr_value)
+
         return list(all_ids)
 
     def _construct_lut_agent_resource(self, resource_list: List[dict], key_attr: str, value_attr) -> dict:
@@ -888,15 +1902,17 @@ class AgentsController:
         return lut
     
     def _lookup_agent_resource_value(
-            self,
-            agent: Agent, 
-            lookup_table: dict[str, str], 
-            target_attr: str,
-            target_attr_display_name: str
-        ) -> List[str] | str | None:
+        self,
+        agent: Agent, 
+        lookup_table: dict[str, str], 
+        target_attr: str,
+        target_attr_display_name: str
+    ) -> list[str] | str | None:
         """
         Using a lookup table convert all the strings in a given field of an agent into their equivalent in the lookup table
         Example: lookup_table={1: obj1, 2: obj2} agent=Agent(tools=[1,2]) return. [obj1, obj2]
+
+        This function also takes into account plugins.
 
         Args:
             agent: An agent
@@ -906,10 +1922,25 @@ class AgentsController:
         """
         attr_value = getattr(agent, target_attr, None)
         if not attr_value:
-            return
-        
+            return None
+
+        # Special case for Plugins
+        if target_attr == "plugins" and hasattr(attr_value, "agent_pre_invoke"):
+            resolved_names = []
+
+            for plugin_ref in getattr(attr_value, "agent_pre_invoke", []):
+                plugin_id = plugin_ref.plugin_id
+                resolved_names.append(lookup_table.get(plugin_id, plugin_id))
+
+            for plugin_ref in getattr(attr_value, "agent_post_invoke", []):
+                plugin_id = plugin_ref.plugin_id
+                resolved_names.append(lookup_table.get(plugin_id, plugin_id))
+
+            return resolved_names
+
+        # Normal list of strings
         if isinstance(attr_value, list):
-            new_resource_list=[]
+            new_resource_list = []
             for value in attr_value:
                 if value in lookup_table:
                     new_resource_list.append(lookup_table[value])
@@ -917,12 +1948,13 @@ class AgentsController:
                     logger.warning(f"{target_attr_display_name} with ID '{value}' not found. Returning {target_attr_display_name} ID")
                     new_resource_list.append(value)
             return new_resource_list
+
+        # Single string
+        if attr_value in lookup_table:
+            return lookup_table[attr_value]
         else:
-            if attr_value in lookup_table:
-                return lookup_table[attr_value]
-            else:
-                logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
-                return attr_value
+            logger.warning(f"{target_attr_display_name} with ID '{attr_value}' not found. Returning {target_attr_display_name} ID")
+            return attr_value
 
     def _batch_request_resource(self, client_fn, ids, batch_size=50) -> List[dict]:
         resources = []
@@ -946,6 +1978,22 @@ class AgentsController:
             tool_names = self._lookup_agent_resource_value(agent, tool_lut, "tools", "Tool")
             if tool_names:
                 agent.tools = tool_names
+        return new_agents
+    
+    def _bulk_resolve_agent_plugins(self, agents: List[Agent]) -> List[Agent]:
+        new_agents = agents.copy()
+        all_plugin_ids = self._get_all_unique_agent_resources(new_agents, "plugins")
+        if not all_plugin_ids:
+            return new_agents
+
+        all_plugins = self._batch_request_resource(self.get_tool_client().get_drafts_by_ids, all_plugin_ids)
+
+        plugin_lut = self._construct_lut_agent_resource(all_plugins, "id", "name")
+
+        for agent in new_agents:
+            plugin_names = self._lookup_agent_resource_value(agent, plugin_lut, "plugins", "Plugin")
+            if plugin_names:
+                agent.plugins = plugin_names
         return new_agents
 
     def _bulk_resolve_agent_knowledge_bases(self, agents: List[Agent]) -> List[Agent]:
@@ -1041,6 +2089,7 @@ class AgentsController:
                 output_dictionary["native"] = agents_list
             else:
                 resolved_native_agents = self._bulk_resolve_agent_tools(native_agents)
+                resolved_native_agents = self._bulk_resolve_agent_plugins(native_agents)
                 resolved_native_agents = self._bulk_resolve_agent_knowledge_bases(resolved_native_agents)
                 resolved_native_agents = self._bulk_resolve_agent_collaborators(resolved_native_agents)
 
@@ -1065,6 +2114,7 @@ class AgentsController:
                         "Style": {},
                         "Collaborators": {},
                         "Tools": {},
+                        "Plugins": {},
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
                     }
@@ -1072,6 +2122,24 @@ class AgentsController:
                         native_table.add_column(column, **column_args[column])
 
                     for agent in resolved_native_agents:
+                        # If agent.plugins might be a list of tuples
+                        # Build plugin strings for display
+                        plugin_strings = []
+                        if agent.plugins:
+                            # If it's a Plugins object
+                            if hasattr(agent.plugins, "agent_pre_invoke"):
+                                plugin_strings.extend(
+                                    [p.plugin_name for p in agent.plugins.agent_pre_invoke if p.plugin_name]
+                                )
+                                plugin_strings.extend(
+                                    [p.plugin_name for p in agent.plugins.agent_post_invoke if p.plugin_name]
+                                )
+                            elif isinstance(agent.plugins, list):
+                                for p in agent.plugins:
+                                    if isinstance(p, dict) and "plugin_name" in p:
+                                        plugin_strings.append(p["plugin_name"])
+                                    elif isinstance(p, str):
+                                        plugin_strings.append(p)
                         agent_name = self._format_agent_display_name(agent)
                         native_table.add_row(
                             agent_name,
@@ -1080,6 +2148,7 @@ class AgentsController:
                             agent.style,
                             ", ".join(agent.collaborators),
                             ", ".join(agent.tools),
+                            ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
                         )
@@ -1240,41 +2309,50 @@ class AgentsController:
 
                 logger.info(f"Successfully removed agent {name}")
             else:
-                logger.warning(f"No agent named '{name}' found")
+                # Provide workspace-aware error message
+                if should_use_workspaces():
+                    active_workspace = get_active_workspace_name()
+                    if active_workspace:
+                        logger.warning(f"No agent named '{name}' found in active workspace '{active_workspace}'")
+                    else:
+                        logger.warning(f"No agent named '{name}' found")
+                else:
+                    logger.warning(f"No agent named '{name}' found")
         except requests.HTTPError as e:
             logger.error(e.response.text)
             exit(1)
 
-    def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent):
-        ref_agent = self.reference_agent_dependencies(agent)
-        agent_spec = ref_agent.model_dump(mode='json', exclude_none=True)
+    def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent, exclude: List[str] | None = None, workspace_id: Optional[str] = None):
+        ref_agent = self.reference_agent_dependencies(agent, workspace_id=workspace_id)
+        agent_spec = ref_agent.model_dump(mode='json', exclude_none=True, exclude=exclude)
         return agent_spec
 
-    def get_agent(self, name: str, kind: AgentKind) -> Agent | ExternalAgent | AssistantAgent:
+    def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
         match kind:
             case AgentKind.NATIVE:
                 client = self.get_native_client()
-                agent_details = get_agent_details(name=name, client=client)
+                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
                 agent = Agent.model_validate(agent_details)
             case AgentKind.EXTERNAL:
                 client = self.get_external_client()
-                agent_details = get_agent_details(name=name, client=client)
+                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
                 agent = ExternalAgent.model_validate(agent_details)
             case AgentKind.ASSISTANT:
                 client = self.get_assistant_client()
-                agent_details = get_agent_details(name=name, client=client)
+                agent_details = get_agent_details(name=name, client=client, workspace_id=workspace_id)
                 agent = AssistantAgent.model_validate(agent_details)
         
         return agent
     
-    def get_agent_by_id(self, id: str) -> Agent | ExternalAgent | AssistantAgent | None:
+    def get_agent_by_id(self, id: str, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent | None:
         native_client = self.get_native_client()
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
 
-        native_result = native_client.get_draft_by_id(id)
-        external_result = external_client.get_draft_by_id(id)
-        assistant_result = assistant_client.get_draft_by_id(id)
+        # Use client methods directly - they handle workspace_id parameter 
+        native_result = native_client.get_draft_by_id(id, workspace_id=workspace_id)
+        external_result = external_client.get_draft_by_id(id, workspace_id=workspace_id)
+        assistant_result = assistant_client.get_draft_by_id(id, workspace_id=workspace_id)
 
         if native_result:
             return Agent.model_validate(native_result)
@@ -1283,10 +2361,37 @@ class AgentsController:
         if assistant_result:
             return AssistantAgent.model_validate(assistant_result)
 
-    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False) -> None:
+    def get_agent_by_names(self, names: List[str]) -> List[dict]:
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+
+        native_result = native_client.get_drafts_by_names(names)
+        external_result = external_client.get_drafts_by_names(names)
+        assistant_result = assistant_client.get_drafts_by_names(names)
+
+        return native_result + external_result + assistant_result
+
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None, workspace_id: Optional[str] = None) -> None:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
+
+        # Get the agent first to check if it's a custom agent
+        agent = self.get_agent(name, kind, workspace_id=workspace_id)
+        is_custom_agent = isinstance(agent, Agent) and agent.style == AgentStyle.CUSTOM
+
+        # For custom agents, handle differently
+        if is_custom_agent:
+            if output_file_extension != ".zip":
+                logger.error(f"Output file must end with the extension '.zip' for custom agents. Provided file '{output_path}' ends with '{output_file_extension}'")
+                sys.exit(1)
+
+            # Download the custom agent package directly
+            self.download_agent_artifact(agent_name=name, output_path=output_path)
+            return
+
+        # For non-custom agents, proceed with regular export logic
         if not agent_only_flag and output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
@@ -1294,13 +2399,13 @@ class AgentsController:
             logger.error(f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
         
-        agent = self.get_agent(name, kind)
+        agent = self.get_agent(name, kind, workspace_id=workspace_id)
 
         if agent.restrictions == AgentRestrictionType.NON_EDITABLE:
             logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
             sys.exit(1)
 
-        agent_spec_file_content = self.get_spec_file_content(agent)
+        agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude, workspace_id=workspace_id)
         
         agent_spec_file_content.pop("hidden", None)
         agent_spec_file_content.pop("id", None)
@@ -1355,9 +2460,9 @@ class AgentsController:
         agent_tools = agent_spec_file_content.get("tools", [])
 
         tools_controller = ToolsController()
-        tools_client = tools_controller.get_client() 
+        tools_client = tools_controller.get_client()
         tool_specs = None
-        tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools) if t.get('name')}
+        tool_specs = {t.get('name'):t for t in tools_client.get_drafts_by_names(agent_tools, workspace_id=workspace_id) if t.get('name')}
 
         for tool_name in agent_tools:
 
@@ -1370,50 +2475,108 @@ class AgentsController:
                 if check_file_in_zip(file_path=base_tool_file_path, zip_file=zip_file_out):
                     continue
 
-            tools_controller.export_tool(
-                name=tool_name,
-                output_path=base_tool_file_path,
-                zip_file_out=zip_file_out, 
-                spec=current_spec, 
-                connections_output_path=f"{output_file_name}/connections/"
-            )
+            try:
+                tools_controller.export_tool(
+                    name=tool_name,
+                    output_path=base_tool_file_path,
+                    zip_file_out=zip_file_out,
+                    spec=current_spec,
+                    connections_output_path=f"{output_file_name}/connections/",
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - tool/toolkit may not exist or may have been renamed - needed for workspaces
+                logger.warning(f"Could not export tool '{tool_name}': {str(e)}")
+                continue
 
             if with_tool_spec_file and tool_specs:
                 zip_file_out.writestr(
                     f"{base_tool_file_path}config.json",
                     ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True,indent=2)
                 )
+
+        # Export Plugins
+        agent_plugins = agent_spec_file_content.get("plugins", {})
+
+        tools_controller = ToolsController()
+        tools_client = tools_controller.get_client()
+
+        for phase_name, plugin_list in agent_plugins.items():
+            for plugin in plugin_list:
+                plugin_name = plugin.get("plugin_name")
+                if not plugin_name:
+                    continue
+
+                base_plugin_file_path = f"{output_file_name}/plugins/{plugin_name}/"
+                if check_file_in_zip(file_path=base_plugin_file_path, zip_file=zip_file_out):
+                    continue
+
+                plugin_specs = {t.get('name'): t for t in tools_client.get_drafts_by_names([plugin_name], workspace_id=workspace_id) if t.get('name')}
+                current_spec = plugin_specs.get(plugin_name)
+
+                tools_controller.export_tool(
+                    name=plugin_name,
+                    output_path=base_plugin_file_path,
+                    zip_file_out=zip_file_out,
+                    spec=current_spec,
+                    connections_output_path=f"{output_file_name}/connections/",
+                    workspace_id=workspace_id
+                )
+
+                # Optionally, write a config.json for the plugin spec
+                if with_tool_spec_file and current_spec:
+                    zip_file_out.writestr(
+                        f"{base_plugin_file_path}config.json",
+                        ToolSpec.model_validate(current_spec).model_dump_json(exclude_unset=True, indent=2)
+                    )
         
         # Export Knowledge Bases
         knowledge_base_controller = KnowledgeBaseController()
         for kb_name in agent_spec_file_content.get("knowledge_base", []):
-            knowledge_base_file_path = f"{output_file_name}/knowledge-bases/"
-            knowledge_base_controller.knowledge_base_export(
-                name=kb_name,
-                output_path=knowledge_base_file_path,
-                zip_file_out=zip_file_out,
-                connections_output_path=f"{output_file_name}/connections/"
+            knowledge_base_file_path = f"{output_file_name}/knowledge_bases/"
+            try:
+                knowledge_base_controller.knowledge_base_export(
+                    name=kb_name,
+                    output_path=knowledge_base_file_path,
+                    zip_file_out=zip_file_out,
+                    connections_output_path=f"{output_file_name}/connections/",
+                    workspace_id=workspace_id
                 )
+            except Exception as e:
+                logger.warning(f"Could not export knowledge base '{kb_name}': {str(e)}")
         
         # Export Collaborators
         if kind == AgentKind.NATIVE:
             for collaborator_id in agent.collaborators:
-                collaborator = self.get_agent_by_id(collaborator_id)
+                try:
+                    collaborator = self.get_agent_by_id(collaborator_id, workspace_id=workspace_id)
 
-                if not collaborator:
-                    logger.warning(f"Skipping {collaborator_id}, no agent with id {collaborator_id} found")
+                    if not collaborator:
+                        logger.warning(f"Skipping {collaborator_id}, no agent with id {collaborator_id} found")
+                        continue
+
+                    if collaborator.restrictions == AgentRestrictionType.NON_EDITABLE:
+                        logger.warning(f"Collaborator '{collaborator.name}' is not editable and cannot be exported")
+                        continue
+                    
+                    self.export_agent(
+                        name=collaborator.name,
+                        kind=collaborator.kind,
+                        output_path=output_path,
+                        agent_only_flag=False,
+                        zip_file_out=zip_file_out,
+                        workspace_id=workspace_id)
+                except Exception as e:
+                    logger.warning(f"Could not export collaborator '{collaborator_id}': {str(e)}")
                     continue
 
-                if collaborator.restrictions == AgentRestrictionType.NON_EDITABLE:
-                    logger.warning(f"Collaborator '{collaborator.name}' is not editable and cannot be exported")
-                    continue
-                
-                self.export_agent(
-                    name=collaborator.name,
-                    kind=collaborator.kind,
-                    output_path=output_path,
-                    agent_only_flag=False,
-                    zip_file_out=zip_file_out)
+        # Export Models / Model Policies
+        models_controller = ModelsController()
+        model_name = agent_spec_file_content.get("llm", "")
+        if model_name.startswith("virtual-model/"):
+            models_controller.export_model(name=model_name, output_path=output_path, zip_file_out=zip_file_out)
+        elif model_name.startswith("virtual-policy/"):
+            models_controller.export_model_policy(name=model_name, output_path=output_path, zip_file_out=zip_file_out)
 
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
@@ -1529,9 +2692,229 @@ class AgentsController:
             logger.info(f"Successfully undeployed agent {name}")
         else:
             logger.error(f"Error undeploying agent {name}")
+
+    def copy_agent(
+        self,
+        agent_name: str,
+        destination_workspace: str,
+        source_workspace: Optional[str] = None
+    ):
+        """
+        Copy an agent to a destination workspace.
+        
+        Args:
+            agent_name: Name of the agent to copy
+            destination_workspace: Destination workspace name (required)
+            source_workspace: Source workspace name (defaults to active workspace)
+        """
+        console = Console()
+        workspace_context = WorkspaceContext()
+        
+        # Check if workspaces are supported (IBM Cloud only)
+        if not workspace_context.should_use_workspaces():
+            logger.error("Agent copy is only supported for IBM Cloud instances. Workspaces are not available in the current environment.")
+            sys.exit(1)
+        
+        # Lazy import to avoid circular dependency
+        from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_controller import WorkspacesController
+        workspace_controller = WorkspacesController()
+        
+        # Resolve source workspace
+        source_workspace, source_workspace_id = workspace_controller._resolve_workspace(source_workspace)
+        
+        # Resolve destination workspace
+        destination_workspace, destination_workspace_id = workspace_controller._resolve_workspace(destination_workspace)
+        
+        # Validate that source and destination are different
+        if source_workspace_id == destination_workspace_id:
+            logger.error(f"Cannot copy agent to the same workspace. Source and destination workspaces are both '{source_workspace}'")
+            sys.exit(1)
+        
+        # Get agent by name from source workspace using workspace_id parameter
+        native_client = self.get_native_client()
+        external_client = self.get_external_client()
+        assistant_client = self.get_assistant_client()
+        
+        existing_native_agents = native_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
+        existing_external_agents = external_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
+        existing_assistant_agents = assistant_client.get_draft_by_name(agent_name, workspace_id=source_workspace_id)
+        
+        # Determine which type of agent was found
+        agent = None
+        client = None
+        agent_type_name = None
+        
+        if len(existing_native_agents) > 0:
+            agent = existing_native_agents[0]
+            client = native_client
+            agent_type_name = "native"
+        elif len(existing_external_agents) > 0:
+            agent = existing_external_agents[0]
+            client = external_client
+            agent_type_name = "external"
+        elif len(existing_assistant_agents) > 0:
+            agent = existing_assistant_agents[0]
+            client = assistant_client
+            agent_type_name = "assistant"
+        else:
+            logger.error(f"No agent found with name '{agent_name}' in workspace '{source_workspace}'")
+            sys.exit(1)
+        
+        agent_id = agent.get("id")
+        
+        try:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(
+                    description=f"Copying agent '{agent_name}' from '{source_workspace}' to '{destination_workspace}'",
+                    total=None
+                )
+                
+                response = client.copy_agent(
+                    agent_id=agent_id,
+                    destination_workspace_id=destination_workspace_id,
+                    source_workspace_id=source_workspace_id
+                )
+            
+            new_agent_id = response.get("id")
+            message = response.get("message")
+            status_endpoint = response.get("status_endpoint")
+            
+            logger.info(f"Agent copy initiated successfully")
+            logger.info(f"{message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to copy agent: {str(e)}")
+            sys.exit(1)
+    
     
     @staticmethod
     def _format_agent_display_name(agent: AnyAgentT) -> str:
         return f"{agent.name} ({agent.display_name})" if agent.display_name and agent.name != agent.display_name else agent.name
 
+    def connect_connections_to_agent(self, agent_name: str, connection_ids: List[str]) -> None:
+        """
+        Connect connections to an agent using the PATCH endpoint.
 
+        Args:
+            agent_name: Name of the agent to connect connections to
+            connection_ids: List of connection IDs (app_ids) to connect
+        """
+        native_client = self.get_native_client()
+        connections_client = get_connections_client()
+
+        existing_agents = native_client.get_draft_by_name(agent_name)
+
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to connect connections")
+            sys.exit(1)
+
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+
+        if agent.get("style") != AgentStyle.CUSTOM:
+            logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
+            sys.exit(1)
+
+        connection_uuids = []
+        for app_id in connection_ids:
+            connection = connections_client.get_draft_by_app_id(app_id=app_id)
+            if not connection:
+                logger.error(f"No connection exists with the app-id '{app_id}'")
+                sys.exit(1)
+            if connection.connection_id in agent.get("connection_ids", []):
+                logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
+                sys.exit(1)
+            connection_uuids.append(connection.connection_id)
+
+        # Connect the connections to the agent
+        logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
+        native_client.connect_connections(agent_id, connection_uuids)
+        logger.info(f"Successfully connected connections to agent '{agent_name}'")
+
+
+    def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:
+        """
+        Upload a custom file artifact for an agent.
+
+        Args:
+            agent_name: Name of the agent to upload the file for
+            file_path: Path to the file to upload
+
+        Returns:
+            Response dictionary from the upload operation
+        """
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            sys.exit(1)
+
+        native_client = self.get_native_client()
+        existing_agents = native_client.get_draft_by_name(agent_name)
+
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to upload file")
+            sys.exit(1)
+
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+
+        try:
+            logger.info(f"Uploading file '{file_path}' for agent '{agent_name}'...")
+            response = native_client.upload_agent_artifact(
+                agent_id=agent_id,
+                file_path=file_path
+            )
+            logger.info(f"Successfully uploaded file for agent '{agent_name}'")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to upload file: {e}")
+            sys.exit(1)
+
+    def download_agent_artifact(self, agent_name: str, output_path: str) -> None:
+        """
+        Download a custom agent package (zip file).
+        Only works for custom agents.
+
+        Args:
+            agent_name: Name of the custom agent to download
+            output_path: Path where the zip file should be saved
+        """
+        native_client = self.get_native_client()
+        existing_agents = native_client.get_draft_by_name(agent_name)
+
+        if len(existing_agents) == 0:
+            logger.error(f"No agent found with name '{agent_name}'")
+            sys.exit(1)
+        if len(existing_agents) > 1:
+            logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to download")
+            sys.exit(1)
+
+        agent = existing_agents[0]
+        agent_id = agent.get("id")
+        agent_style = agent.get("style")
+
+        if agent_style != AgentStyle.CUSTOM:
+            logger.error(f"Agent '{agent_name}' is not a custom agent (style: {agent_style}). Only custom agents can be downloaded.")
+            sys.exit(1)
+
+        try:
+            logger.info(f"Downloading custom agent package for '{agent_name}'...")
+            zip_content = native_client.download_agent_artifact(agent_id=agent_id)
+
+            with open(output_path, 'wb') as f:
+                f.write(zip_content)
+
+            logger.info(f"Successfully downloaded custom agent package to '{output_path}'")
+        except Exception as e:
+            logger.error(f"Failed to download agent package: {e}")
+            sys.exit(1)

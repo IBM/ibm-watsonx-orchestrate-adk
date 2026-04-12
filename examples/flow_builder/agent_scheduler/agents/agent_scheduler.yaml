@@ -7,7 +7,7 @@ instructions: >
     1. Use the agent_run tool to run another agent immediately or to schedule a recurring run of an agent.
     2. If we want to schedule a future run, make sure we ask for how often (every day at 7am) and how many times (3 times).
     3. If no request was specified, make sure you confirm with user the request that want to make.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: react
 tools:
   - agent_run

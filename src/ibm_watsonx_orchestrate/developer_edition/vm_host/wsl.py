@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 import zipfile
 import sys
 import re
@@ -31,14 +31,18 @@ def _safe_print(msg: str, style: str = "white"):
 
 class WSLLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
+        self.keyring_unlocked = False
         _ensure_wsl_installed()
 
     def start_server(self):
         _ensure_wsl_distro_exists()
         _ensure_wsl_distro_started()
+        _ensure_docker_started()
 
     def stop_server(self):
+        logger.info("Stopping WSL Distro...")
         _ensure_wsl_distro_stopped()
+        logger.info("WSL Distro stopped.")
 
     def delete_server(self):
         return _ensure_wsl_distro_deleted()
@@ -56,6 +60,9 @@ class WSLLifecycleManager(VMLifecycleManager):
         return f"/mnt/{drive}/{folder}"
     
     def run_docker_command(self, command: Union[str, List[str]], capture_output=False, **kwags) -> subprocess.CompletedProcess:
+        if not self.keyring_unlocked:
+            self.shell(["gnome-keyring-daemon", "unlock"],capture_output=True, user="orchestrate")
+            self.keyring_unlocked = True
         # Docker commands should implicitly run as 'orchestrate'
         # The 'shell' method should handle passing 'user="orchestrate"' to wsl_exec
         # If there's an explicit need to run docker as root, you'd add 'user="root"' to **kwags
@@ -78,13 +85,106 @@ class WSLLifecycleManager(VMLifecycleManager):
 
     def show_current_context(self):
         _get_current_docker_context()
+    
+    def is_server_running(self):
+        _ensure_wsl_installed()  
+
+        state = _get_distro_state()
+        if state is None:
+            return False
+        if state == 'Running':
+            return True
+        return False
+    
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        memory_is_sufficient = _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb)
+
+        if not memory_is_sufficient:
+            # Check if VM exists before trying to edit it
+            state = _get_distro_state()
+            if state is not None:
+                # VM exists, we can edit it
+                logger.info(f"Restarting VM to apply new memory allocation ({min_memory_gb}GB)...")
+                self.edit_server(memory=min_memory_gb)
+            else: 
+                logger.info(f"VM will be created with {min_memory_gb}GB memory on first start.")
+
+class WSLConfigLinesManager:
+    """Manager for manipulating WSL configuration lines without file I/O."""
+
+    def __init__(self, config_lines: list[str]):
+        """Initialize with existing config lines.
+        
+        Args:
+            config_lines: List of configuration lines from .wslconfig file
+        """
+        self.config_lines = config_lines.copy()  # Make a copy to avoid mutating original
+        self.__create_config_dict_from_config_lines__()
+
+    def __create_config_dict_from_config_lines__(self):
+        self.config_dict = {"wsl2": {}}
+
+        header_pattern = re.compile(r"^\[([^\]]+)\]$")
+        key_value_pattern = re.compile(r"^([^=]+)=(.+)$")
+
+        # if no header at top of config, assume keys are for wsl2 header
+        current_header = "wsl2"
+
+        for line in self.config_lines:
+            header = header_pattern.match(line)
+            if header:
+                current_header = header.group(1)
+                continue
+
+            key_value = key_value_pattern.match(line)
+            if key_value:
+                k,v = key_value.groups()
+                self.config_dict[current_header][k] = v
+            
+    def __create_config_lines_from_config_dict__(self):
+        self.config_lines = []
+        for header in self.config_dict.keys():
+            self.config_lines.append(f"[{header}]")
+            for k,v in self.config_dict[header].items():
+                self.config_lines.append(f"{k}={v}")
+
+    def set_or_replace(self, key: str, value: str, section: Optional[str] = "wsl2"):
+        """Set or replace a configuration key, value pair.
+        
+        Args:
+            key: Configuration key (e.g., "memory", "processors")
+            value: Configuration value (e.g., "16GB", "8")
+        """
+        # ensure section exists
+        self.config_dict.setdefault(section, {})
+        self.config_dict[section][key] = value
+
+    def get_key(self, key: str, section: Optional[str] = "wsl2") -> str | None:
+        """Fetch the configuration value for the passed key
+        
+        Args:
+            key (str): Configuration key (e.g., "memory", "processors")
+
+        Returns:
+            str: Value of key in configuration file, 'None' if not present 
+        """
+        return self.config_dict.get(section,{}).get(key,None)
+
+    def get_config_lines(self) -> list[str]:
+        """Get the modified configuration lines.
+        
+        Returns:
+            List of configuration lines
+        """
+        self.__create_config_lines_from_config_dict__()
+        return self.config_lines
 
 def _command_to_list(command: Union[str, List[str]]) -> List[str]:
     if isinstance(command, str):
         return command.split()
     return command
 
-def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate", **kwags) -> subprocess.CompletedProcess:
+def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate", check: bool = True, **kwags) -> subprocess.CompletedProcess:
     """
     Executes a command inside the WSL distribution.
 
@@ -99,13 +199,17 @@ def wsl_exec(command: List[str], capture_output=True, user: str = "orchestrate",
     try:
         result = subprocess.run(
             cmd,
-            check=True,
+            check=check,
             capture_output=capture_output,
             text=True,
             **kwags
         )
         return result
     except subprocess.CalledProcessError as e:
+        # Ctrl+C while streaming logs
+        if e.returncode == 130:
+            return subprocess.CompletedProcess(args=e.cmd, returncode=130)
+
         logger.error(f"WSL command failed: {e.cmd}, return code: {e.returncode}")
         if e.stdout:
             logger.error(f"WSL command stdout: {e.stdout.strip()}")
@@ -279,7 +383,7 @@ def _extract_ubuntu_appx(appx_path, temp_dir):
 
     return tar_path
 
-def _ensure_wsl_resources():
+def _configure_wsl_config():
     """Ensure the ibm-watsonx-orchestrate distro uses 8 CPUs / 16GB RAM."""
     wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
 
@@ -288,31 +392,21 @@ def _ensure_wsl_resources():
     if wslconfig_path.exists():
         config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
     
-    # Ensure [wsl2] section exists
-    if not any(line.strip().lower() == "[wsl2]" for line in config_lines):
-        config_lines.insert(0, "[wsl2]")
-    
-    # Helper to set or replace a key
-    def set_or_replace(key, value):
-        for i, line in enumerate(config_lines):
-            if line.strip().startswith(f"{key}="):
-                config_lines[i] = f"{key}={value}"
-                return
-        config_lines.append(f"{key}={value}")
+    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
 
-    set_or_replace("processors", f"{DEFAULT_CPUS}")
-    set_or_replace("memory", f"{DEFAULT_MEMORY}GB")
-    set_or_replace("idleTimeout", "0")
+    config_manager.set_or_replace("processors", f"{DEFAULT_CPUS}")
+    config_manager.set_or_replace("memory", f"{DEFAULT_MEMORY}GB")
+    config_manager.set_or_replace("networkingMode","mirrored")
+    config_manager.set_or_replace("vmIdleTimeout", 0)
 
-    wslconfig_path.write_text("\n".join(config_lines), encoding="utf-8")
+    wslconfig_path.write_text("\n".join(config_manager.get_config_lines()), encoding="utf-8")
 
 def _configure_wsl_distro():
     """
     Configure the WSL distro and install Rootful Docker directly.
     """
     logger.info("Configuring the ibm-watsonx-orchestrate distro...")
-    _ensure_wsl_resources()
-    _ensure_wsl_idle_timeout_disabled()
+    _configure_wsl_config()
     base_dir = Path(__file__).resolve().parent.parent
     user_data_path = base_dir / "resources" / "wsl" / "cloud-init" / "ibm-watsonx-orchestrate.user-data"
     if not user_data_path.exists():
@@ -362,7 +456,14 @@ def _configure_wsl_distro():
             # Install core dependencies
             DEBIAN_FRONTEND=noninteractive apt install -y \
                 ca-certificates curl gnupg lsb-release \
-                libsecret-1-0 pkg-config 
+                libsecret-1-0 pkg-config gnome-keyring
+
+            mkdir -p /home/orchestrate/.local/share/keyrings/
+            echo "Default_keyring" > /home/orchestrate/.local/share/keyrings/default
+            echo "[keyring]\ndisplay-name=Default keyring\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false" > /home/orchestrate/.local/share/keyrings/Default_keyring.keyring
+            
+            chown orchestrate:orchestrate /home/orchestrate/.local/share/keyrings
+
             
             install -m 0755 -d /etc/apt/keyrings
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -378,12 +479,6 @@ def _configure_wsl_distro():
 
             # Add orchestrate user to docker group if not already done by usermod above
             usermod -aG docker orchestrate || true
-
-            # Start Docker daemon
-            if ! pgrep -x dockerd >/dev/null 2>&1; then
-                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
-                sleep 15
-            fi
             """
         ],
         check=True,
@@ -450,36 +545,6 @@ def _configure_wsl_distro():
         logger.error(f"WSL: Stderr: {e.stderr}")
         raise 
 
-def _ensure_wsl_idle_timeout_disabled():
-    """Ensure WSL idleTimeout=0 is set in .wslconfig (prevents auto-shutdown)."""
-    wslconfig_path = Path.home() / ".wslconfig"
-    lines = []
-
-    if wslconfig_path.exists():
-        with open(wslconfig_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-    # Remove old [wsl2] blocks if needed
-    cleaned = []
-    in_wsl2_block = False
-    for line in lines:
-        if line.strip().lower().startswith("[wsl2]"):
-            in_wsl2_block = True
-            continue
-        if in_wsl2_block and line.strip().startswith("["):
-            in_wsl2_block = False
-        if not in_wsl2_block:
-            cleaned.append(line)
-
-    new_block = [
-        "[wsl2]\n",
-        "idleTimeout=0\n",
-        "\n"
-    ]
-    cleaned.extend(new_block)
-
-    with open(wslconfig_path, "w", encoding="utf-8") as f:
-        f.writelines(cleaned)
 
 def _ensure_wsl_distro_started():
     """Ensure the WSL distro is started"""
@@ -558,6 +623,22 @@ def _ensure_wsl_distro_deleted() -> bool:
     except Exception as e:
         logger.error(f"Unexpected error deleting WSL distro {VM_NAME}: {e}")
         return False
+    
+def _ensure_docker_started():
+    subprocess.run(
+        [
+            "wsl", "-d", VM_NAME, "-u", "root", "--", "sh", "-c",
+            r"""
+            # Start Docker daemon
+            if ! pgrep -x dockerd >/dev/null 2>&1; then
+                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+                sleep 15
+            fi
+            """
+        ],
+        check=True,
+        capture_output=True
+    )
 
 def _get_distro_state():
     """Return the current state ('Running', 'Stopped', etc.) of the WSL distro, or None if not found."""
@@ -615,6 +696,22 @@ def _get_distro_state():
         logger.exception("An unexpected error occurred in _get_distro_state:")
         return None
 
+def _ensure_docker_started():
+    subprocess.run(
+        [
+            "wsl", "-d", VM_NAME, "-u", "root", "--", "sh", "-c",
+            r"""
+            # Start Docker daemon
+            if ! pgrep -x dockerd >/dev/null 2>&1; then
+                nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+                sleep 15
+            fi
+            """
+        ],
+        check=True,
+        capture_output=True
+    )
+
 def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orchestrate") -> bool:
     """
     Edit WSL VM settings (CPU, memory, disk) by modifying ~/.wslconfig,
@@ -622,17 +719,27 @@ def _edit_wsl_vm(cpus=None, memory=None, disk=None, distro_name="ibm-watsonx-orc
     Containers and data remain intact.
     """
     try:
-        wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, None)
 
-        # Write clean WSL2 section
-        config_lines = ["[wsl2]"]
+        was_server_running = EnvService._check_dev_edition_server_health()
+
+        wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
+        
+        # Read existing config
+        config_lines = []
+        if wslconfig_path.exists():
+            config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
+        
+        config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
+        
         if cpus:
-            config_lines.append(f"processors={cpus}")
+            config_manager.set_or_replace("processors", f"{cpus}")
         if memory:
             memory_value = f"{memory}GB" if str(memory).isdigit() else str(memory)
-            config_lines.append(f"memory={memory_value}")
+            config_manager.set_or_replace("memory", f"{memory_value}")
 
-        wslconfig_path.write_text("\n".join(config_lines) + "\n", encoding="utf-8")
+        wslconfig_path.write_text("\n".join(config_manager.get_config_lines()) + "\n", encoding="utf-8")
 
         logger.info("Restarting WSL for configuration changes to take effect...")
         subprocess.run(["wsl", "--terminate", distro_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -694,25 +801,17 @@ EOF
 
         logger.info("WSL VM configuration and Docker restart completed successfully.")
 
-        # Optional: API health check
-        default_env_path = EnvService.get_default_env_file()
-        merged_env_dict = EnvService.merge_env(default_env_path, None)
-        health_user = merged_env_dict.get("WXO_USER")
-        health_pass = merged_env_dict.get("WXO_PASS")
-        url = "http://localhost:4321/api/v1/auth/token"
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        data = {'username': health_user, 'password': health_pass}
+        if was_server_running:
+            logger.info("Waiting for API to be reachable...")
+            health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+            server_is_started = EnvService._wait_for_dev_edition_server_health_check(timeout_seconds=health_check_timeout)
 
-        logger.info("Waiting for API to be reachable...")
-
-        while True:
-            try:
-                response = requests.post(url, headers=headers, data=data)
-                if 200 <= response.status_code < 300:
-                    break
-            except requests.RequestException:
-                pass
-            time.sleep(3)
+            if server_is_started:
+                logger.info("WSL VM editted and server restarted successfully.")
+            else:
+                logger.error("WSL VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+        else:
+            logger.info("WSL VM editted. To start the server 'orchestrate server start'.")
 
         logger.info("API reachable.")
         return True
@@ -899,10 +998,12 @@ def _ssh_into_wsl():
             return False
 
         logger.info(f"Opening shell into WSL distribution '{DISTRO_NAME}'...")
+        
+        user = os.environ.get("WXO_SSH_USER", "orchestrate")
 
         # Attach user to WSL shell interactively
         subprocess.run(
-            ["wsl", "-d", DISTRO_NAME],
+            ["wsl", "-d", DISTRO_NAME, "-u", user],
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr
@@ -923,5 +1024,60 @@ def _ssh_into_wsl():
     except Exception as e:
         logger.error(f"ERROR: Unexpected error while connecting to WSL: {e}")
         return False
+    
+def _check_and_ensure_wsl_memory_for_doc_processing(min_memory_gb: int=24) -> bool:
+    """Check if the WSL distro has enough memory for document processing.  """
+    
+    wslconfig_path = Path(os.environ["USERPROFILE"]) / ".wslconfig"
+    
+    # Read existing config
+    config_lines = []
+    current_memory_gb = None
+    
+    if wslconfig_path.exists():
+        config_lines = wslconfig_path.read_text(encoding="utf-8").splitlines()
+        
+    config_manager: WSLConfigLinesManager = WSLConfigLinesManager(config_lines)
+    
+    # get current memory setting
+    memory_value = config_manager.get_key("memory")
+                
+    # Parse memory value (supports "16GB", "16384MB", or just "16")
+    # If no memory setting found, assume default (16GB)
+    if memory_value is None:
+        current_memory_gb = DEFAULT_MEMORY
+    elif memory_value.upper().endswith("GB"):
+        current_memory_gb = int(re.sub(r'[^\d]', '', memory_value))
+    elif memory_value.upper().endswith("MB"):
+        current_memory_gb = int(re.sub(r'[^\d]', '', memory_value)) // 1024
+    elif memory_value.isdigit():
+        current_memory_gb = int(memory_value)
+
+    
+    # Check if memory is sufficient
+    if current_memory_gb >= min_memory_gb:
+        return True
+    else:
+        # Memory is insufficient - warn and increase
+        logger.warning(
+            f"\n{'='*70}\n"
+            f"MEMORY REQUIREMENT WARNING\n"
+            f"{'='*70}\n"
+            f"Document Processing requires at least {min_memory_gb}GB of memory.\n"
+            f"Current WSL memory allocation: {current_memory_gb}GB\n"
+            f"\n"
+            f"Automatically increasing memory to {min_memory_gb}GB...\n"
+            f"{'='*70}\n"
+        )
+    
+
+    config_manager.set_or_replace("memory", f"{min_memory_gb}GB")
+    
+    # Write back all config lines (preserves everything else)
+    wslconfig_path.write_text("\n".join(config_manager.get_config_lines()), encoding="utf-8")
+    
+    logger.info(f"Updated {wslconfig_path} with memory={min_memory_gb}GB")
+
+    return False
     
 

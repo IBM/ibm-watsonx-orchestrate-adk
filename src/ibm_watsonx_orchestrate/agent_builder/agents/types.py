@@ -8,7 +8,9 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.agents.webchat_customizations import StarterPrompts, WelcomeContent
-from pydantic import Field, AliasChoices
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
+from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
+from pydantic import Field, AliasChoices, field_validator
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -17,7 +19,7 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 
 # TO-DO: this is just a placeholder. Will update this later to align with backend
-DEFAULT_LLM = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+DEFAULT_LLM = "groq/openai/gpt-oss-120b"
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +33,6 @@ def str_presenter(dumper, data):
 yaml.add_representer(str, str_presenter)
 yaml.representer.SafeRepresenter.add_representer(str, str_presenter) # to use with safe_dum
 
-class SpecVersion(str, Enum):
-    V1 = "v1"
-
-    def __str__(self):
-        return self.value 
-
-    def __repr__(self):
-        return repr(self.value)
 
 
 class AgentKind(str, Enum):
@@ -97,6 +91,8 @@ class BaseAgentSpec(BaseModel):
     voice_configuration_id: Optional[str] = None
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
+    memory_enabled: Optional[bool] = None
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     # Catalog Only
     publisher: Annotated[Optional[str],Field(description="A field exclusive to IBM catalog published agents")] = None
@@ -141,6 +137,9 @@ class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
     PLANNER = "planner"
+    CUSTOM = "custom"
+    CUSTOMER_CARE = "experimental_customer_care"
+    REACT_INTRINSIC = "react_intrinsic"
 
     def __str__(self):
         return self.value 
@@ -175,6 +174,8 @@ class AgentSpec(BaseAgentSpec):
     guidelines: Optional[List[AgentGuideline]] = None
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
+    toolkits: Optional[List[str]] = []
+    plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
     chat_with_docs: Optional[ChatWithDocsConfig] = None
@@ -202,10 +203,22 @@ class AgentSpec(BaseAgentSpec):
         if self.kind != AgentKind.NATIVE:
             raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
         return self
+    
+    @field_validator("plugins", mode="before")
+    def ensure_plugins_object(cls, v):
+        if v is None:
+            return Plugins()
+        if isinstance(v, Plugins):
+            return v
+        if isinstance(v, dict):
+            return Plugins(**v)
+        if isinstance(v, list):
+            return Plugins()
+        return v
 
 def validate_agent_fields(values: dict) -> dict:
     # Check for empty strings or whitespace
-    for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base"]:
+    for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base", "plugins"]:
         value = values.get(field)
         if value and not str(value).strip():
             raise BadRequest(f"{field} cannot be empty or just whitespace")
@@ -220,6 +233,9 @@ def validate_agent_fields(values: dict) -> dict:
         if values.get("custom_join_tool") and values.get("structured_output"):
             raise ValueError("Only one of 'custom_join_tool' or 'structured_output' can be provided for planner style agents.")
 
+    # Validate CUSTOMER_CARE style restrictions
+    validate_customer_care_fields(values)
+
     context_variables = values.get("context_variables")
     if context_variables is not None:
         if not isinstance(context_variables, list):
@@ -229,6 +245,53 @@ def validate_agent_fields(values: dict) -> dict:
                 raise ValueError("All context_variables must be non-empty strings")
 
     return values
+
+def validate_customer_care_fields(values: dict):
+    if values.get("style") == AgentStyle.CUSTOMER_CARE:
+        # Warn if LLM doesn't end with the recommended model
+        llm = values.get("llm")
+        if llm and not "gpt-oss-120b" in llm:
+            logger.warning(f"'{llm} is unsupported for {AgentStyle.CUSTOMER_CARE.value} style agents. Please use 'groq/openai/gpt-oss-120b'")
+
+        unsupported_fields = []
+
+        if values.get("tools"):
+            unsupported_fields.append("tools")
+
+        if values.get("knowledge_base"):
+            unsupported_fields.append("knowledge_base")
+
+        plugins = values.get("plugins")
+        if plugins:
+            if isinstance(plugins, dict) and any(plugins.values()):
+                unsupported_fields.append("plugins")
+            elif isinstance(plugins, Plugins):
+                plugin_dict = plugins.model_dump(exclude_none=True)
+                if plugin_dict:
+                    unsupported_fields.append("plugins")
+
+        if values.get("guidelines"):
+            unsupported_fields.append("guidelines")
+        if values.get("collaborators"):
+            unsupported_fields.append("collaborators")
+        if values.get("welcome_content"):
+            unsupported_fields.append("welcome_content")
+        if values.get("custom_join_tool"):
+            unsupported_fields.append("custom_join_tool")
+
+        chat_with_docs = values.get("chat_with_docs")
+        if chat_with_docs:
+            if isinstance(chat_with_docs, dict) and chat_with_docs.get("enabled") is True:
+                unsupported_fields.append("chat_with_docs.enabled")
+            elif isinstance(chat_with_docs, ChatWithDocsConfig) and chat_with_docs.enabled is True:
+                unsupported_fields.append("chat_with_docs.enabled")
+
+        if unsupported_fields:
+            raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
+    else:
+        # For non-CUSTOMER_CARE styles, toolkits are not supported
+        if values.get("toolkits"):
+            raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
 
 # ===============================
 #      EXTERNAL AGENT TYPES
@@ -348,3 +411,26 @@ def validate_assistant_agent_fields(values: dict) -> dict:
                 raise ValueError("All context_variables must be non-empty strings")
 
     return values
+
+
+# ==================== AGENT COPY TYPES ====================
+
+class AgentCopyRequest(BaseModel):
+    """Request model for copying an agent to a workspace.
+    
+    Note: Currently copies all agent dependencies (tools, collaborators) automatically.
+    """
+    destination_workspace_id: str = Field(
+        ...,
+        description="Destination workspace ID where the agent will be copied. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+    source_workspace_id: str = Field(
+        ...,
+        description="Source workspace ID where the agent currently exists. Use '00000000-0000-0000-0000-000000000001' for global workspace"
+    )
+
+class AgentCopyResponse(BaseModel):
+    """Response model for agent copy operation."""
+    id: str = Field(..., description="UUID of the newly created agent copy")
+    message: str = Field(..., description="Status message indicating the copy operation has been initiated")
+    status_endpoint: str = Field(..., description="Endpoint to check the status of the copy operation")

@@ -21,11 +21,13 @@ from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller imp
 from ibm_watsonx_orchestrate.cli.commands.server.images.images_command import images_app
 from ibm_watsonx_orchestrate.cli.config import PROTECTED_ENV_NAME, clear_protected_env_credentials_token, Config, \
     AUTH_CONFIG_FILE_FOLDER, AUTH_CONFIG_FILE, AUTH_MCSP_TOKEN_OPT, AUTH_SECTION_HEADER, LICENSE_HEADER, \
-    ENV_ACCEPT_LICENSE
+    ENV_ACCEPT_LICENSE, DOCKER_SERVICE_CREDS_OPT
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.docker_utils import DockerLoginService, DockerComposeCore, DockerUtils
 from ibm_watsonx_orchestrate.utils.environment import EnvService
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.migration_manager import MigrationsManager
 from ibm_watsonx_orchestrate.utils.utils import parse_string_safe
 
 
@@ -95,6 +97,7 @@ def run_compose_lite(
         with_voice=False,
         with_connections_ui=False,
         with_langflow=False,
+        with_ai_builder=False,
     ) -> None:
     env_service.prepare_clean_env(final_env_file)
     db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
@@ -130,8 +133,10 @@ def run_compose_lite(
         profiles.append("connections-ui")
     if with_langflow:
         profiles.append("langflow")
+    if with_ai_builder:
+        profiles.append("agent-builder")
 
-    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0", "--scale", "cpe=0"])
+    result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0"])
 
     if result.returncode == 0:
         logger.info("Services started successfully.")
@@ -139,27 +144,28 @@ def run_compose_lite(
         if final_env_file.exists():
             final_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded= result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
         sys.exit(1)
 
-def wait_for_wxo_server_health_check(health_user, health_pass, timeout_seconds=90, interval_seconds=2):
-    url = "http://localhost:4321/api/v1/auth/token"
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    data = {
-        'username': health_user,
-        'password': health_pass
-    }
+def stop_virtual_machine(keep_vm: bool = False):
+    if keep_vm:
+        return
+    
+    vm = get_vm_manager()
+    vm.stop_server()
+
+def wait_for_wxo_server_health_check(timeout_seconds=90, interval_seconds=2):
+    url = "http://localhost:4321/api/v1/health/ready"
 
     start_time = time.time()
     errormsg = None
     while time.time() - start_time <= timeout_seconds:
         try:
-            response = requests.post(url, headers=headers, data=data)
+            response = requests.get(url)
             if 200 <= response.status_code < 300:
                 return True
             else:
@@ -194,7 +200,7 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     DockerUtils.ensure_docker_installed()
 
     cli_config = Config()
-    env_service = EnvService(cli_config)
+    env_service = EnvService(cli_config) 
     env_service.prepare_clean_env(user_env_file)
     user_env = env_service.get_user_env(user_env_file)
     merged_env_dict = env_service.prepare_server_env_vars_minimal(user_env=user_env)
@@ -233,15 +239,12 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
     # Make env file vm-visible and reuse existing env file if present
-    vm_env_dir = Path.home() / ".cache/orchestrate"
-    vm_env_dir.mkdir(parents=True, exist_ok=True)
-    vm_env_file = vm_env_dir / final_env_file.name
-    shutil.copy(final_env_file, vm_env_file)
+    vm_env_file = copy_files_to_cache(final_env_file, env_service)
 
     logger.info("Waiting for orchestrate server to be fully started and ready...")
 
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
-    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'], timeout_seconds=health_check_timeout)
+    is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if not is_successful_server_healthcheck:
         logger.error("Healthcheck failed orchestrate server.  Make sure you start the server components with `orchestrate server start` before trying to start the chat UI")
         return False
@@ -259,7 +262,8 @@ def run_compose_lite_ui(user_env_file: Path) -> bool:
             except Exception as e:
                 logger.warning(f"Failed to remove temp file {f}: {e}")
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -284,19 +288,29 @@ def run_compose_lite_down_ui(user_env_file: Path, is_reset: bool = False) -> Non
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
+    # Make env file vm-visible and reuse existing env file if present
+    vm_env_dir = Path.home() / ".cache/orchestrate"
+    vm_env_dir.mkdir(parents=True, exist_ok=True)
+    vm_env_file = vm_env_dir / final_env_file.name
+    shutil.copy(final_env_file, vm_env_file)
+
+
     cli_config = Config()
     env_service = EnvService(cli_config)
     compose_core = DockerComposeCore(env_service=env_service)
 
-    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=final_env_file, is_reset=is_reset)
+    result = compose_core.service_down(service_name="ui", friendly_name="UI", final_env_file=vm_env_file, is_reset=is_reset)
 
     if result.returncode == 0:
         logger.info("UI service stopped successfully.")
         # Remove the temp file if successful
         if final_env_file.exists():
             final_env_file.unlink()
+        if vm_env_file.exists():
+            vm_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -334,7 +348,8 @@ def run_compose_lite_down(final_env_file: Path, is_reset: bool = False) -> None:
         if lima_env_file.exists():
             lima_env_file.unlink()
     else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
+        stderr_decoded = result.stderr.decode('utf-8') if isinstance(result.stderr, bytes) else result.stderr
+        error_message = stderr_decoded if stderr_decoded else "Error occurred."
         logger.error(
             f"Error running docker-compose (temporary env file left at {final_env_file}):\n{error_message}"
         )
@@ -366,12 +381,8 @@ def run_compose_lite_logs(final_env_file: Path) -> None:
     vm = get_vm_manager()
 
     try:
-        if vm:
-            logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
-            result = vm.run_docker_command(command, capture_output=False)
-        else:
-            logger.info("Tailing docker-compose logs (native Docker)...")
-            result = subprocess.run(["docker"] + command, text=True)
+        logger.info(f"Tailing docker-compose logs inside {vm.__class__.__name__}...")
+        result = vm.run_docker_command(command, capture_output=False)
     except KeyboardInterrupt:
         result = subprocess.CompletedProcess(args=command, returncode=130)
     except subprocess.CalledProcessError as e:
@@ -424,7 +435,6 @@ def confirm_accepts_license_agreement(accepts_by_argument: bool, cfg: Config):
             logger.error('The terms and conditions were not accepted, exiting.')
             exit(1)
 
-
 def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     """
     Prepare the compose + env files in a cache directory (~/.cache/orchestrate)
@@ -436,7 +446,7 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy compose file
-    compose_src = env_service.get_compose_file()
+    compose_src = env_service.get_compose_file(ignore_cache=True)
     shutil.copy(compose_src, staging_dir / "docker-compose.yml")
 
     # Merge default + user env
@@ -449,17 +459,13 @@ def copy_files_to_cache(user_env_file: Path, env_service: EnvService) -> Path:
 
     # Return the correct path for the VM to access
     system = platform.system().lower()
-    username = Path.home().name
 
-    if system == "darwin":
-        vm_env_path = Path(f"/Users/{username}/.cache/orchestrate/merged.env")
-    elif system == "windows":
+    if system == "windows":
         # When running in WSL, /home/orchestrate maps directly inside the WSL VM
         # vm_env_path = Path("/home/orchestrate/.cache/orchestrate/merged.env")
         vm_env_path = Path(path_for_vm(merged_env_path))
     else:
-        # Linux native
-        vm_env_path = Path(f"/home/{username}/.cache/orchestrate/merged.env")
+         vm_env_path = merged_env_path
 
     return vm_env_path
 
@@ -500,7 +506,7 @@ def server_start(
         None,
         '--compose-file', '-f',
         help='Provide the path to a custom docker-compose file to use instead of the default compose file'
-    ),  
+    ),
     with_voice: bool = typer.Option(
         False,
         '--with-voice', '-v',
@@ -514,6 +520,26 @@ def server_start(
         False,
         '--with-langflow',
         help='Enable Langflow UI, available at http://localhost:7861'
+    ),
+    with_ai_builder: bool = typer.Option(
+        False,
+        '--with-ai-builder',
+        help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
+    ),
+    cert_bundle_path: str = typer.Option(
+        None,
+        "--cert-bundle-path",
+        help="Path to a custom certificate bundle file."
+    ),
+    service_username: str = typer.Option(
+        None,
+        "--service-username",
+        help="Username configured on Developer Edition services .e.g Postgres, Minio"
+    ),
+    service_password: str = typer.Option(
+        None,
+        "--service-password",
+        help="Password configured on Developer Edition services .e.g Postgres, Minio"
     ),
 ):
     cli_config = Config()
@@ -540,8 +566,10 @@ def server_start(
     user_env = env_service.get_user_env(user_env_file=user_env_file, fallback_to_persisted_env=False)
     developer_edition_source = env_service.get_dev_edition_source_core(user_env)
     env_service.persist_user_env(user_env, include_secrets=persist_env_secrets, source=developer_edition_source)
-    
-    merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False)
+
+    service_creds = env_service.get_service_credentials(username=service_username, password=service_password)
+
+    merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False, service_credentials=service_creds)
 
     if not DockerUtils.check_exclusive_observability(experimental_with_langfuse, experimental_with_ibm_telemetry):
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
@@ -561,22 +589,46 @@ def server_start(
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
+        merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = merged_env_dict.get('FLOW_TRACING_OTLP_ENDPOINT') or 'http://jaeger:4318/v1/traces'
+    else:
+        merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = ''
 
     if with_langflow:
         merged_env_dict['LANGFLOW_ENABLED'] = 'true'
+
+    if with_voice:
+        merged_env_dict['VOICE_ENABLED'] = 'true'
+    
+    if with_ai_builder:
+        merged_env_dict['AI_BUILDER_ENABLED'] = 'true'
+
+    if cert_bundle_path:
+        cert_path: Path = Path(cert_bundle_path)
+        if not cert_path.exists() or not cert_path.is_file():
+            logger.error(msg=f"Certificate bundle not found: {cert_bundle_path}")
+            sys.exit(1)
+            
+        cert_bundle_path: str = str(cert_path.absolute())
+        merged_env_dict['CERT_BUNDLE_PATH'] = cert_bundle_path
+        merged_env_dict['CERT_BUNDLE_ENABLED'] = 'true'
 
     final_env_file = env_service.write_merged_env_file(merged_env_dict)
 
     vm_env_file_path = copy_files_to_cache(final_env_file, env_service)
 
     vm = get_vm_manager()
-    if vm:
-        vm.start_server()
-
-    logger.info("Running docker compose-up inside the VM...")
     
-    if with_voice:
-        merged_env_dict['VOICE_ENABLED'] = 'true'
+    if with_doc_processing:
+        try:
+            vm.check_and_ensure_memory_for_doc_processing(min_memory_gb=24)
+        except Exception as e:
+            logger.warning(f"Could not verify memory requirements: {e}")
+            logger.warning("Continuing with server start...")
+
+    vm.start_server()
+
+    logger.info("Running docker compose-up...")
+    
     
     try:
         DockerLoginService(env_service=env_service).login_by_dev_edition_source(merged_env_dict)
@@ -591,14 +643,16 @@ def server_start(
                      with_doc_processing=with_doc_processing,
                      with_voice=with_voice,
                      with_connections_ui=with_connections_ui,
-                     with_langflow=with_langflow, env_service=env_service)
+                     with_langflow=with_langflow,
+                     with_ai_builder=with_ai_builder,
+                     env_service=env_service)
     
-    run_db_migration()
+    run_db_migration(with_ai_builder, merged_env_dict)
 
     logger.info("Waiting for orchestrate server to be fully initialized and ready...")
 
     health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else (7 * 60)
-    is_successful_server_healthcheck = wait_for_wxo_server_health_check(merged_env_dict['WXO_USER'], merged_env_dict['WXO_PASS'], timeout_seconds=health_check_timeout)
+    is_successful_server_healthcheck = wait_for_wxo_server_health_check(timeout_seconds=health_check_timeout)
     if is_successful_server_healthcheck:
         logger.info("Orchestrate services initialized successfully")
     else:
@@ -618,13 +672,17 @@ def server_start(
     cleanup_orchestrate_cache()
 
     if experimental_with_langfuse:
-        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: orchestrate@ibm.com, password: orchestrate")
+        logger.info(f"You can access the observability platform Langfuse at http://localhost:3010, username: {merged_env_dict.get('LANGFUSE_EMAIL')}, password: {merged_env_dict.get('LANGFUSE_PASSWORD')}")
     if with_doc_processing:
         logger.info(f"Document processing in Flows (Public Preview) has been enabled.")
+        
+
     if with_connections_ui:
         logger.info("Connections UI can be found at http://localhost:3412/connectors")
     if with_langflow:
         logger.info("Langflow has been enabled, the Langflow UI is available at http://localhost:7861")
+    if with_ai_builder:
+        logger.info("AI Builder feature has been enabled. You can now use AI assisted agent authoring features")
 
 @server_app.command(name="stop")
 def server_stop(
@@ -632,8 +690,17 @@ def server_stop(
         None,
         "--env-file", '-e',
         help="Path to a .env file that overrides default.env. Then environment variables override both."
+    ),
+    keep_vm: bool = typer.Option(
+        False,
+        "--keep-vm",
+        help="Don't stop the VM running the Developer Editon server."
     )
 ):
+    vm = get_vm_manager()
+    if not vm.is_server_running():
+        logger.info("Server already stopped")
+        return
 
     DockerUtils.ensure_docker_installed()
     default_env_path = EnvService.get_default_env_file()
@@ -646,6 +713,7 @@ def server_stop(
     EnvService.apply_llm_api_key_defaults(merged_env_dict)
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
     run_compose_lite_down(final_env_file=final_env_file)
+    stop_virtual_machine(keep_vm=keep_vm)
 
 @server_app.command(name="reset")
 def server_reset(
@@ -654,7 +722,15 @@ def server_reset(
             "--env-file", '-e',
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
+        keep_vm: bool = typer.Option(
+            False,
+            "--keep-vm",
+            help="Don't stop the VM running the Developer Editon server."
+        )
 ):
+    vm = get_vm_manager()
+    vm.start_server()
+
     DockerUtils.ensure_docker_installed()
 
     user_env_file = parse_string_safe(value=user_env_file, override_empty_to_none=True)
@@ -683,10 +759,12 @@ def server_reset(
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
     run_compose_lite_down(final_env_file=final_env_file, is_reset=True)
+    stop_virtual_machine(keep_vm=keep_vm)
 
-def run_db_migration() -> None:
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
+def run_db_migration(with_ai_builder: bool = False, merged_env_dict: Optional[dict] = None) -> None:
+    if not merged_env_dict:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
 
     # Set required env keys
     merged_env_dict.update({
@@ -703,126 +781,38 @@ def run_db_migration() -> None:
         'ASSISTANT_LLM_API_KEY': '',
     })
 
-    # Write merged env file to a temporary location
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
-    # Ensure orchestrate directory exists (shared between host & VM)
-    orchestrate_dir = Path.home() / ".cache/orchestrate"
-    orchestrate_dir.mkdir(parents=True, exist_ok=True)
-
-    # Ensure final_env_file is a Path
-    if isinstance(final_env_file, str):
-        final_env_file = Path(final_env_file)
-
-    # Create path in orchestrate dir
-    vm_env_file = orchestrate_dir / final_env_file.name
-
-    # Copy using host path
-    shutil.copy(final_env_file, vm_env_file)
-
-    # Now convert for VM use
-    final_env_file_vm = path_for_vm(vm_env_file)
-
     pg_user = merged_env_dict.get("POSTGRES_USER", "postgres")
+    pg_timeout = merged_env_dict.get("POSTGRES_READY_TIMEOUT", 10)
 
-    migration_script = rf'''
-    APPLIED_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/applied_migrations.txt"
-    mkdir -p "$(dirname "$APPLIED_MIGRATIONS_FILE")"
-    touch "$APPLIED_MIGRATIONS_FILE"
+    migration_manager = MigrationsManager(
+        env_path=final_env_file,
+        context={
+            'PG_USER': pg_user,
+            'PG_TIMEOUT': pg_timeout
+        }
+    )
+    logger.info(f"Running DB migrations inside {migration_manager.vm_manager.__class__.__name__}...")
 
-    for file in /docker-entrypoint-initdb.d/*.sql; do
-        filename=$(basename "$file")
-        if grep -Fxq "$filename" "$APPLIED_MIGRATIONS_FILE"; then
-            echo "Skipping already applied migration: $filename"
-        else
-            echo "Applying migration: $filename"
-            if psql -U {pg_user} -d postgres -q -f "$file" > /dev/null 2>&1; then
-                echo "$filename" >> "$APPLIED_MIGRATIONS_FILE"
-            else
-                echo "Error applying $filename. Stopping migrations."
-                exit 1
-            fi
-        fi
-    done
+    system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
+    if system == "windows":
+        time.sleep(60)
 
+    migration_manager.run_orchestrate_migrations()
+    migration_manager.run_observability_migrations()
+    migration_manager.run_mcp_gateway_migrations()
 
-    # Create wxo_observability database if it doesn't exist
-    if psql -U {pg_user} -lqt | cut -d '|' -f 1 | grep -qw wxo_observability; then
-        echo 'Existing wxo_observability DB found'
-    else
-        echo 'Creating wxo_observability DB'
-        createdb -U "{pg_user}" -O "{pg_user}" wxo_observability;
-        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE wxo_observability TO {pg_user}";
-    fi
+    if with_ai_builder:
+        migration_manager.run_architect_migrations()
 
 
-    # Run observability-specific migrations
-    OBSERVABILITY_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/observability_migrations.txt"
-    touch "$OBSERVABILITY_MIGRATIONS_FILE"
 
-    for file in /docker-entrypoint-initdb.d/observability/*.sql; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            
-            if grep -Fxq "$filename" "$OBSERVABILITY_MIGRATIONS_FILE"; then
-                echo "Skipping already applied observability migration: $filename"
-            else
-                echo "Applying observability migration: $filename"
-                if psql -U {pg_user} -d wxo_observability -q -f "$file" > /dev/null 2>&1; then
-                    echo "$filename" >> "$OBSERVABILITY_MIGRATIONS_FILE"
-                else
-                    echo "Error applying observability migration: $filename. Stopping migrations."
-                    exit 1
-                fi
-            fi
-        fi
-    done
-    '''
+def create_langflow_db(merged_env_dict: Optional[dict] = None) -> None:
+    if not merged_env_dict:
+        default_env_path = EnvService.get_default_env_file()
+        merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
 
-    # Encode the migration script to base64
-    encoded_script = base64.b64encode(migration_script.encode('utf-8')).decode('utf-8')
-
-    # need to use shlex.quote around the base64 string to ensure it's treated as a single argument
-    command_to_execute = f"echo {shlex.quote(encoded_script)} | base64 --decode | bash"
-
-    compose_path = EnvService(Config()).get_compose_file()
-    compose_path_vm = path_for_vm(compose_path)
-    command = [
-        "compose",
-        "-f", str(compose_path_vm),
-        "--env-file", str(final_env_file_vm),
-        "exec",
-        "-u", "root",
-        "wxo-server-db",
-        "bash",
-        "-c",
-        command_to_execute
-    ]
-
-    vm = get_vm_manager()
-    if vm:
-        logger.info(f"Running DB migrations inside {vm.__class__.__name__}...")
-        system = get_os_type() # I noticed WSL having issues after Orchestrate server reset so addin this sleep here.
-        if system == "windows":
-            time.sleep(60)
-        result = vm.run_docker_command(command, capture_output=False)
-    else:
-        logger.info("Running DB migrations (native Docker)...")
-        result = subprocess.run(["docker"] + command, text=True)
-
-    if result.returncode == 0:
-        logger.info("Migration ran successfully.")
-        if vm_env_file.exists():
-            vm_env_file.unlink()
-
-    else:
-        error_message = getattr(result, "stderr", None) or "Error occurred."
-        logger.error(f"Error running database migration:\n{error_message}")
-        sys.exit(1)
-
-def create_langflow_db() -> None:
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, user_env_path=None)
     merged_env_dict['WATSONX_SPACE_ID']='X'
     merged_env_dict['WATSONX_APIKEY']='X'
     merged_env_dict['WXAI_API_KEY'] = ''
@@ -834,48 +824,27 @@ def create_langflow_db() -> None:
     merged_env_dict['ASSISTANT_EMBEDDINGS_SPACE_ID'] = ''
     merged_env_dict['ROUTING_LLM_API_KEY'] = ''
     merged_env_dict['ASSISTANT_LLM_API_KEY'] = ''
+    
     final_env_file = EnvService.write_merged_env_file(merged_env_dict)
 
     pg_timeout = merged_env_dict.get('POSTGRES_READY_TIMEOUT','10')
-
     pg_user = merged_env_dict.get("POSTGRES_USER","postgres")
 
-    creation_command = f"""
-    echo 'Waiting for pg to initialize...'
+    migration_manager = MigrationsManager(
+        env_path=final_env_file,
+        context={
+            'PG_USER': pg_user,
+            'PG_TIMEOUT': pg_timeout
+        }
+    )
 
-    timeout={pg_timeout}
-    while [[ -z `pg_isready | grep 'accepting connections'` ]] && (( timeout > 0 )); do
-      ((timeout-=1)) && sleep 1;
-    done
+    migration_manager.run_langflow_migrations()
 
-    if psql -U {pg_user} -lqt | cut -d \\| -f 1 | grep -qw langflow; then
-        echo 'Existing Langflow DB found'
-    else
-        echo 'Creating Langflow DB'
-        createdb -U "{pg_user}" -O "{pg_user}" langflow;
-        psql -U {pg_user} -q -d postgres -c "GRANT CONNECT ON DATABASE langflow TO {pg_user}";
-    fi
-    """
 
-    cli_config = Config()
-    env_service = EnvService(cli_config)
-    compose_core = DockerComposeCore(env_service=env_service)
-
-    result = compose_core.service_container_bash_exec(service_name="wxo-server-db",
-                                                      log_message="Preparing Langflow resources...",
-                                                      final_env_file=final_env_file, bash_command=creation_command)
-
-    if result.returncode == 0:
-        logger.info("Langflow resources sucessfully created")
-    else:
-        error_message = result.stderr.decode('utf-8') if result.stderr else "Error occurred."
-        logger.error(
-            f"Failed to create Langflow resources\n{error_message}"
-        )
-        sys.exit(1)
+    
 
 def bump_file_iteration(filename: str) -> str:
-    regex = re.compile(f"^(?P<name>[^\\(\\s\\.\\)]+)(\\((?P<num>\\d+)\\))?(?P<type>\\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")
+    regex = re.compile(rf"^(?P<name>[^\(\s\.\)]+)(\((?P<num>\d+)\))?(?P<type>\.(?:{'|'.join(_EXPORT_FILE_TYPES)}))?$")
     _m = regex.match(filename)
     iter = int(_m['num']) + 1 if (_m and _m['num']) else 1
     return f"{_m['name']}({iter}){_m['type'] or ''}"
@@ -928,15 +897,15 @@ def server_eject(
 @server_app.command(name="purge", help="Delete the underlying VM and all its data")
 def server_purge():
     vm = get_vm_manager(ensure_installed=False)
-    if vm:
-        console = Console()
-        with Progress(
-            SpinnerColumn(spinner_name="dots"),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-            console=console,
-                ) as progress:
-                    progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+    console = Console()
+    with Progress(
+        SpinnerColumn(spinner_name="dots"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        console=console,
+            ) as progress:
+                task = progress.add_task(description="Deleting the underlying VM and all its data", total=None)
+                try:
                     success =  vm.delete_server()
                     if success:
                         progress.stop()
@@ -945,9 +914,10 @@ def server_purge():
                         progress.stop()
                         logger.error("Failed to Delete VM.")
                         sys.exit(1)
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+                except Exception as e:
+                    progress.stop()
+                    raise BadRequest(str(e))
+
 
 # orchestrate server edit - will allow the user to update their underlying vm cpu and memory settings
 @server_app.command(name="edit", help="Edit the underlying VM CPU, memory, or disk settings")
@@ -966,32 +936,49 @@ def server_edit(
         if disk: 
             logger.warning("Disk resizing is not supported automatically for WSL. Please resize manually if needed.")
     
-    vm = get_vm_manager()
-    if vm:
+    # Using Progress Spinner for OSX/Linux but using logger.info for wsl as it takes much longer and gives user better info.
+    if system == "windows":
+        vm = get_vm_manager()
         success =  vm.edit_server(cpus, memory, disk)
         if success:
-            logger.info("VM updated successfully and restarted.")
+            logger.info("VM updated successfully.")
         else:
             logger.error("Failed to Update VM.")
             sys.exit(1)
     else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+        vm = get_vm_manager()
+        console = Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+        ) as progress:
+            progress.add_task(description="Editing the underlying VM settings...", total=None)
+            try:
+                success = vm.edit_server(cpus, memory, disk)
+                if success:
+                    progress.stop()
+                    logger.info("VM updated successfully.")
+                else:
+                    progress.stop()
+                    logger.error("Failed to Update VM.")
+                    sys.exit(1)
+            except Exception as e:
+                progress.stop()
+                raise BadRequest(str(e))
+
 
 # orchestrate server attach-docker - switch the docker context to the ibm-watsonx-orchestrate context
 @server_app.command(name="attach-docker", help="Attach Docker to the Orchestrate VM context")
 def server_attach_docker():
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.attach_docker_context()
-        if success:
-            logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.attach_docker_context()
+    if success:
+        logger.info("Docker context successfully switched to ibm-watsonx-orchestrate.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server release-docker - switch the docker context back to default
@@ -1001,15 +988,11 @@ def server_release_docker():
     previous_context = cfg.read(DOCKER_CONTEXT, PREVIOUS_DOCKER_CONTEXT, ) or "default"
 
     vm = get_vm_manager()
-    if vm:
-        success = vm.release_docker_context()
-        if success:
-            logger.info(f"Docker context successfully switched to {previous_context}.")
-        else:
-            logger.error("Failed to switch Docker context.")
-            sys.exit(1)
+    success = vm.release_docker_context()
+    if success:
+        logger.info(f"Docker context successfully switched to {previous_context}.")
     else:
-        logger.error("No underlying VM found")
+        logger.error("Failed to switch Docker context.")
         sys.exit(1)
 
 # orchestrate server logs <container> - get the logs of a given container pod
@@ -1048,22 +1031,14 @@ def server_logs(
     
     else:
         vm = get_vm_manager()
-        if vm:
-            vm.get_container_logs(container_id, container_name)
-        else:
-            logger.error("No underlying VM found")
-            sys.exit(1)
+        vm.get_container_logs(container_id, container_name)
 
 
 # orchestrate server ssh - ssh into the underlying vm
 @server_app.command(name="ssh", help="SSH into the underlying VM")
 def ssh():
     vm = get_vm_manager()
-    if vm:
-        vm.ssh()
-    else:
-        logger.error("No underlying VM found")
-        sys.exit(1)
+    vm.ssh()
 
 
 if __name__ == "__main__":

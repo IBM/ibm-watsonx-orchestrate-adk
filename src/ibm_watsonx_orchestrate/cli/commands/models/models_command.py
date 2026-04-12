@@ -114,6 +114,24 @@ def models_remove(
     models_controller = ModelsController()
     models_controller.remove_model(name=name)
 
+@models_app.command(name="export", help="Export a model and its dependencies to a zip file or yaml")
+def models_export(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the model you wish to export"),
+    ],
+    output_path: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to where the file containing the exported data should be saved",
+        ),
+    ],
+):
+    models_controller = ModelsController()
+    models_controller.export_model(name=name, output_path=output_path)
+
 @models_policy_app.command(name='import', help='Add a model policy')
 def models_policy_import(
     file: Annotated[
@@ -131,6 +149,24 @@ def models_policy_import(
     )
     for policy in policies:
         models_controller.publish_or_update_model_policies(policy=policy)
+
+@models_policy_app.command(name='export', help='Export a model policy')
+def models_policy_export(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the model policy you wish to export"),
+    ],
+    output_path: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to where the file containing the data should be saved",
+        )
+    ],
+):
+    models_controller = ModelsController()
+    models_controller.export_model_policy(name=name, output_path=output_path)
 
 @models_policy_app.command(name='add', help='Add a model policy')
 def models_policy_add(

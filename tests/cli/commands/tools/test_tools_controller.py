@@ -17,7 +17,7 @@ from typer import BadParameter
 import json
 import pytest
 import uuid
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 import tempfile
 import os
 import sys
@@ -125,6 +125,13 @@ class MockToolClient:
         ids = []
         for agent in agents:
             ids.append({"name": agent, "id": str(uuid.uuid4())})
+        return ids
+    
+    def get_drafts_by_ids(self, tool_ids, workspace_id=None):
+        """Mock method for get_drafts_by_ids with optional workspace_id parameter"""
+        ids = []
+        for tool_id in tool_ids:
+            ids.append({"name": f"tool_{tool_id}", "id": tool_id})
         return ids
     
     def get_draft_by_id(self, tool_id: str) -> dict | Literal[""]:
@@ -300,13 +307,14 @@ def test_openapi_multiple_app_ids():
     assert "Kind 'openapi' can only take one app-id" in str(e)
 
 def test_openapi_app_id_key_value(caplog):
+    """Test that OpenAPI tools now accept key_value connections"""
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client, \
          mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev') as mock_is_local_dev,\
          mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
         mock_is_local_dev.return_value = False
         mock_client.return_value = MockConnectionClient(
             get_response=MockConnection(appid="test", connection_type="key_value"),
-            get_by_id_response=[MockConnection(appid="test", connection_type="key_value")],
+            get_by_id_response=MockConnection(appid="test", connection_type="key_value"),
             list_conn_response=[ListConfigsResponse(**{
                     "connection_id": "12345",
                     "app_id": "test",
@@ -316,13 +324,16 @@ def test_openapi_app_id_key_value(caplog):
             })]
         )
 
-        with pytest.raises(SystemExit) as e:
-            tools_controller = ToolsController()
-            tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",  app_id="test")
-            list(tools)
-
+        # OpenAPI tools should now accept key_value connections without error
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(ToolKind.openapi, file="tests/cli/resources/yaml_samples/tool.yaml",  app_id="test")
+        tools_list = list(tools)
+        
+        # Verify that tools were imported successfully
+        assert len(tools_list) > 0
+        # Verify no error message about key_value connections
         captured = caplog.text
-        assert "key_value_creds application connections can not be bound to openapi tools" in captured
+        assert "key_value_creds application connections can not be bound to openapi tools" not in captured
 
 
 def test_openapi_no_file():
@@ -399,7 +410,7 @@ def test_python_with_package_root_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True):
@@ -413,7 +424,7 @@ def test_python_with_package_root_with_trailing_slash_binding_function_is_set():
     assert (tools[0]).__tool_spec__.binding.python.function == "testtool2_single_file.testtool2:my_tool"
     assert tools[0].__tool_spec__.name == "testtool2_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2"]
 
 def test_python_with_package_root_binding_function_is_set2():
     drop_module('testtool1')
@@ -427,7 +438,7 @@ def test_python_with_package_root_binding_function_is_set2():
     assert tools[0].__tool_spec__.binding.python.function == "python_multi_file_samples.testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_tests():
     drop_module('testtool1')
@@ -441,7 +452,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_t
     assert tools[0].__tool_spec__.binding.python.function == "cli.resources.python_multi_file_samples.testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_dir_of_tool():
     drop_module('testtool1')
@@ -455,7 +466,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_d
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_without_package_root_binding_function_is_set():
     drop_module('testtool1')
@@ -469,7 +480,7 @@ def test_python_without_package_root_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_as_empty_string_binding_function_is_set():
     drop_module('testtool1')
@@ -483,7 +494,7 @@ def test_python_with_package_root_as_empty_string_binding_function_is_set():
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_as_whitespace_string_binding_function_is_set():
     drop_module('testtool1')
@@ -497,7 +508,7 @@ def test_python_with_package_root_as_whitespace_string_binding_function_is_set()
     assert tools[0].__tool_spec__.binding.python.function == "testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_package_root_binding_function_is_set_when_package_root_is_wrapped_in_whitespace():
     drop_module('testtool1')
@@ -511,7 +522,7 @@ def test_python_with_package_root_binding_function_is_set_when_package_root_is_w
     assert tools[0].__tool_spec__.binding.python.function == "testtool1.testtool1:my_tool"
     assert tools[0].__tool_spec__.name == "testtool1_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_no_package_root_fails_when_file_name_has_unsupported_characters():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
@@ -545,7 +556,7 @@ def test_python_with_no_package_root_and_unsupported_path_to_tool():
     assert tools[0].__tool_spec__.binding.python.function == "testtool_4:my_tool"
     assert tools[0].__tool_spec__.name == "testtool4_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2"]
 
 def test_python_with_package_root_and_unsupported_path_to_tool():
     with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
@@ -591,7 +602,7 @@ def test_python_with_tool_in_subfolder_with_relative_imports():
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool6:my_tool"
     assert tools[0].__tool_spec__.name == "testtool6_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_python_with_tool_in_subfolder_with_package_level():
     drop_module('testtool7')
@@ -605,7 +616,7 @@ def test_python_with_tool_in_subfolder_with_package_level():
     assert tools[0].__tool_spec__.binding.python.function == "tools.testtool7:my_tool"
     assert tools[0].__tool_spec__.name == "testtool7_name"
     assert tools[0].__tool_spec__.permission == ToolPermission.READ_ONLY
-    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=8.3.4,<9.0.0", "requests>=2.32.4"]
+    assert tools[0].__tool_spec__.binding.python.requirements == ["pytest>=9.0.2", "requests>=2.32.4"]
 
 def test_publish_openapi():
     with mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.instantiate_client') as mock_instantiate_client:
@@ -990,6 +1001,41 @@ def test_update_python():
 
         mock_instantiate_client.assert_called_once_with(ToolClient)
         mock_zipfile.assert_called
+
+
+def test_python_tool_with_single_context_param():
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client') as mock_client:
+        mock_client.list.return_value = []
+        tools_controller = ToolsController()
+        tools = tools_controller.import_tool(
+            ToolKind.python, 
+            file = "tests/cli/resources/python_samples/tool_w_single_context_param.py",
+            requirements_file = "tests/cli/resources/python_samples/requirements.txt"
+        )
+        tools = list(tools)
+        assert len(tools) == 1
+        imported_tool = tools.pop()
+        assert imported_tool.__tool_spec__.binding.python is not None
+        assert imported_tool.__tool_spec__.binding.python.agent_run_paramater == "current_run"
+        # assert imported_tool.__tool_spec__.input_schema.properties == {}
+        # assert imported_tool.__tool_spec__.input_schema.required == []
+
+
+def test_python_tool_with_additional_context_param():
+    with mock.patch("ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev", return_value=True),\
+         mock.patch('ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client',) as mock_client:
+        with pytest.raises(Exception) as e:
+            tools_controller = ToolsController()
+            tools = tools_controller.import_tool(
+                ToolKind.python, 
+                file = "tests/cli/resources/python_samples/tool_w_additional_context_param.py",
+                requirements_file = "tests/cli/resources/python_samples/requirements.txt"
+            )
+            tools = list(tools)
+        
+        assert e.errisinstance(ToolContextException)
+
 
 
 @mock.patch(

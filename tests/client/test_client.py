@@ -2,6 +2,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client import utils
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client import VoiceConfigurationsClient
+from ibm_watsonx_orchestrate.client.phone.phone_client import PhoneClient
 # from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 # from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 
@@ -42,3 +43,11 @@ def test_voice_controller_client():
 
     client = instantiate_client(VoiceConfigurationsClient)
 
+def test_phone_controller_client():
+    utils.DEFAULT_CONFIG_FILE_FOLDER = "tests/client/resources/"
+    utils.DEFAULT_CONFIG_FILE = "config.yaml"
+    utils.AUTH_CONFIG_FILE_FOLDER = "tests/client/resources/"
+    utils.AUTH_CONFIG_FILE = "credentials.yaml"
+
+    client = instantiate_client(PhoneClient)
+    

@@ -1,10 +1,12 @@
 import logging
 import importlib
 import inspect
+import os
 import sys
 import io
 import re
 import tempfile
+from types import FunctionType
 from pydantic import BaseModel
 import requests
 import zipfile
@@ -25,12 +27,14 @@ from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, Tool
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
+from ibm_watsonx_orchestrate.cli.commands.langflow.langflow_controller import LangflowController
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelHighlighter
+from ibm_watsonx_orchestrate.cli.commands.tools.auto_discover.auto_discover import auto_discover_python_tools
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController 
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionConfiguration, ConnectionPreference
 from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
     PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
@@ -46,16 +50,19 @@ from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
+from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+import yaml
 
 from  ibm_watsonx_orchestrate import __version__
 
 logger = logging.getLogger(__name__)
 
-__supported_characters_pattern = re.compile("^(\\w|_)+$")
+__supported_characters_pattern = re.compile(r"^(\w|_)+$")
 
 
 DEFAULT_LANGFLOW_TOOL_REQUIREMENTS = [
-    "lfx==0.1.13"
+    "lfx==0.2.1"
 ]
 
 DEFAULT_LANGFLOW_RUNNER_MODULES = [
@@ -70,6 +77,39 @@ class ToolKind(str, Enum):
     flow = "flow"
     langflow = "langflow"
     # skill = "skill"
+
+def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
+    client = get_connections_client()
+    connection_configs = []
+    for env in ConnectionEnvironment:
+        try:
+            config = client.get_config(app_id=app_id,env=env)
+            if not config:
+                continue
+            else:
+                connection_configs.append( config.as_config() )
+        except:
+            logger.error(f"Unable to get {env.value.lower()} configs for connection '{app_id}'")
+
+    return connection_configs
+
+def check_plugin_connection(app_id: List[str]):
+    app_ids = []
+    connections_client = get_connections_client()
+    connections = connections_client.get_draft_by_app_ids(app_id)
+
+    for conn in connections:
+        if isinstance(conn, tuple) and len(conn) == 2:
+            key, value = conn
+            if key == "app_id":
+                app_ids.append(value)
+
+    for app_id_check in app_ids:
+        conn_configs = get_connection_configs(app_id_check)
+        for conn_config in conn_configs:
+            if conn_config.preference == ConnectionPreference.MEMBER:
+                logger.error(f"{conn_config.app_id} connection has type of Member. Connection types for Plugin Tools must be Team and not Member")
+                sys.exit(1)
 
 class ToolKindImport(str, Enum):
     openapi = ToolKind.openapi.value
@@ -133,14 +173,9 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                     raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
                 continue
 
-            # Validate that the connection is not key_value when the tool in openapi
+            # OpenAPI tools support all connection types - no validation needed
             case ToolKind.openapi:
-                permitted_connections_types.extend([
-                    ConnectionSecurityScheme.API_KEY_AUTH,
-                    ConnectionSecurityScheme.BASIC_AUTH,
-                    ConnectionSecurityScheme.BEARER_TOKEN,
-                    ConnectionSecurityScheme.OAUTH2
-                ])
+                continue
 
             # Validate that the connection is key_value when the tool in langflow
             case ToolKind.langflow:
@@ -344,7 +379,7 @@ def get_resolved_py_tool_reqs_file (tool_file, requirements_file, package_root):
 
     return resolved_requirements_file
 
-def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
+def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exclude_ibm_watsonx_orchestrate=True):
     requirements = []
 
     if requirements_file is not None:
@@ -354,7 +389,8 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
     if remove_trailing_newlines is True:
         requirements = [x.strip() for x in requirements]
 
-    requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
+    if exclude_ibm_watsonx_orchestrate:
+        requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
     requirements = list(dict.fromkeys(requirements))
 
     return requirements
@@ -363,7 +399,10 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True):
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     try:
+        
+        # standard file import
         file_path = Path(file).absolute()
+
         file_path_str = str(file_path)
 
         if file_path.is_dir():
@@ -400,6 +439,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             sys.path.append(str(package_folder))
 
         module = importlib.import_module(package, package=package_folder)
+
         if resolved_package_root:
             del sys.path[-1]
         del sys.path[-1]
@@ -426,9 +466,21 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
             raise typer.BadParameter(f"Failed to read file {resolved_requirements_file} {e}")
 
     tools = []
+
+    
     for _, obj in inspect.getmembers(module):
         if not isinstance(obj, BaseTool):
             continue
+            
+
+        # Plugin tool - if it was given an app-id
+        if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
+            if app_id and len(app_id):
+                check_plugin_connection(app_id)
+            if obj.kind == PythonToolKind.AGENTPREINVOKE:
+                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPREINVOKE
+            elif obj.kind == PythonToolKind.AGENTPOSTINVOKE:
+                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPOSTINVOKE
 
         obj.__tool_spec__.binding.python.requirements = requirements
 
@@ -450,7 +502,11 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
         validate_python_connections(obj)
         tools.append(obj)
 
+    
+
     return tools
+    
+
 
 async def import_flow_tool(file: str) -> None:
     
@@ -560,10 +616,9 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
                                  description=model["spec"]["description"], 
                                  permission="read_only", 
                                  flow_model=model)   
-    
-    tools = import_flow_support_tools(model=model)
-    
-    tools.append(tool)
+    tools = [tool]
+    # tools = import_flow_support_tools(model=model)
+    # tools.append(tool)
 
     return tools
 
@@ -598,7 +653,6 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
     connections = get_connection_ids(app_ids=app_id, environment='draft')
     
     tool = create_langflow_tool(tool_definition=imported_tool, connections=connections)
-
 
     return tool    
 
@@ -665,12 +719,37 @@ class ToolsController:
         self.client = None
         self.tool_kind = tool_kind
         self.file = file
+        self.cleanup_file = False
         self.requirements_file = requirements_file
 
     def get_client(self) -> ToolClient:
         if not self.client:
             self.client = instantiate_client(ToolClient)
         return self.client
+    
+    def resolve_file(self, name: str = None):        
+        if not self.file and self.tool_kind == ToolKind.langflow:
+            langflow_tool_json = LangflowController().export_tool_from_langflow(name)
+
+            with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8", suffix=".json", delete=False) as fp:
+                json.dump(langflow_tool_json, fp, indent=4)
+                fp.flush()
+                tempfile_path = os.path.abspath(fp.name)
+                self.set_file(new_file=tempfile_path, cleanup=True)
+
+        return self.file
+
+    def set_file(self, new_file: str, cleanup: bool = False):
+        self.file = new_file
+        self.cleanup_file = cleanup
+
+    def remove_temp_file(self):
+        if self.cleanup_file:
+            os.unlink(self.file)
+
+    @staticmethod
+    def format_display_name(tool: any) -> str:
+        return f"{tool.name} ({tool.display_name})" if tool.display_name and tool.name != tool.display_name else tool.name
 
     @staticmethod
     def import_tool(kind: ToolKind, **args) -> Iterable[BaseTool]:
@@ -704,7 +783,9 @@ class ToolsController:
                 tools = []
                 logger.warning("Skill Import not implemented yet")
             case "langflow":
-                tools = run_coroutine_sync(import_langflow_tool(file=args["file"],app_id=args.get('app_id',None)))
+                app_id = args.get('app_id', None)
+                file_path = args.get('file')
+                tools = run_coroutine_sync(import_langflow_tool(file=file_path,app_id=app_id))
             case _:
                 raise BadRequest("Invalid kind selected")
 
@@ -805,9 +886,10 @@ class ToolsController:
                         toolkit_name = toolkit["name"]
                     elif toolkit:
                         toolkit_name = str(toolkit)
-                
+
+                tool_name = self.format_display_name(tool.__tool_spec__)
                 entry = ToolListEntry(
-                    name=tool.__tool_spec__.name,
+                    name=tool_name,
                     description=tool.__tool_spec__.description,
                     type=tool_type,
                     toolkit=toolkit_name,
@@ -886,10 +968,15 @@ class ToolsController:
                                     raise ex
 
                             zip_tool_artifacts.writestr("tool-spec.json", tool.dumps_spec())
+                        
+                        cfg = Config()
+                        registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
+                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
 
                         requirements = []
                         if resolved_requirements_file is not None:
-                            requirements = get_requirement_lines(requirements_file=resolved_requirements_file, remove_trailing_newlines=False)
+                            exclude_ibm_watsonx_orchestrate = not registry_type == RegistryType.SKIP
+                            requirements = get_requirement_lines(requirements_file=resolved_requirements_file, remove_trailing_newlines=False, exclude_ibm_watsonx_orchestrate=exclude_ibm_watsonx_orchestrate)
 
                         # Ensure there is a newline at the end of the file
                         if len(requirements) > 0 and not requirements[-1].endswith("\n"):
@@ -962,9 +1049,36 @@ class ToolsController:
                     self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
     def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
+        from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
+        
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
-        response = self.get_client().create(tool_spec)
+        try:
+            response = self.get_client().create(tool_spec)
+        except ClientAPIException as e:
+            # Extract error message from response
+            error_msg = "Unknown error"
+            
+            try:
+                # Don't rely on truthiness of response object - check if it's not None
+                if e.response is not None and hasattr(e.response, 'text'):
+                    response_text = e.response.text
+                    if response_text:
+                        try:
+                            error_data = json.loads(response_text)
+                            error_msg = error_data.get('detail', response_text)
+                        except:
+                            error_msg = response_text
+                    else:
+                        error_msg = str(e)
+                else:
+                    error_msg = str(e)
+            except Exception:
+                error_msg = str(e)
+            
+            logger.error(f"Failed to create tool: {error_msg}")
+            sys.exit(1)
+            
         tool_id = response.get("id")
 
         if tool_artifact is not None:
@@ -1027,26 +1141,31 @@ class ToolsController:
     
         return zip_in_memory.getvalue()
 
-
-    def download_tool(self, name: str) -> DownloadResult | None:
+    def download_tool(self, name: str, tool_id: Optional[str] = None, tool_spec: Optional[dict] = None) -> DownloadResult | None:
         tool_client = self.get_client()
-        draft_tools = tool_client.get_draft_by_name(tool_name=name)
-        if len(draft_tools) > 1:
-            logger.error(f"Multiple existing tools found with name '{name}'. Failed to get tool")
-            sys.exit(1)
-        if len(draft_tools) == 0:
-            logger.error(f"No tool named '{name}' found")
-            sys.exit(1)
-
-        draft_tool = draft_tools[0]
+        
+        # If tool_spec is provided, use it directly
+        if tool_spec:
+            draft_tool = tool_spec
+            tool_id = tool_id or draft_tool.get("id")
+        else:
+            # Otherwise, look up the tool by name (uses active workspace context)
+            draft_tools = tool_client.get_draft_by_name(tool_name=name)
+            if len(draft_tools) > 1:
+                logger.error(f"Multiple existing tools found with name '{name}'. Failed to get tool")
+                sys.exit(1)
+            if len(draft_tools) == 0:
+                logger.error(f"No tool named '{name}' found")
+                sys.exit(1)
+            draft_tool = draft_tools[0]
+            tool_id = draft_tool.get("id")
+        
         draft_tool_kind = _get_kind_from_spec(draft_tool)
         
         supported_toolkinds = [ToolKind.python,ToolKind.langflow,ToolKind.flow, ToolKind.openapi]
         if draft_tool_kind not in supported_toolkinds:
             logger.warning(f"Skipping '{name}', {draft_tool_kind.value} tools are currently unsupported by export")
             return
-
-        tool_id = draft_tool.get("id")
         
         # Initialize tool_artifacts_bytes with an empty bytes object as default
         tool_artifacts_bytes = b''
@@ -1065,7 +1184,8 @@ class ToolsController:
                     logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
                     return None
                 else:
-                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
+                    logger.warning(f"Could not find tool artifacts for tool '{name}'") # changed this from a bad request else the whole exporting of a workspace stops.
+                    return None
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
@@ -1076,17 +1196,19 @@ class ToolsController:
     def export_tool(
             self,
             name: str,
-            output_path: str, 
-            zip_file_out: Optional[zipfile.ZipFile] = None, 
-            connections_output_path: str = "/connections", 
-            spec: dict | None = None) -> None:
+            output_path: str,
+            zip_file_out: Optional[zipfile.ZipFile] = None,
+            toolkit_output_file: Optional[str] = None,
+            connections_output_path: str = "/connections",
+            spec: dict | None = None,
+            workspace_id: Optional[str] = None) -> None:
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         if not zip_file_out and  output_file_extension != ".zip":
             logger.error(f"Output file must end with the extension '.zip'. Provided file '{output_path}' ends with '{output_file_extension}'")
             sys.exit(1)
-        
+
         if not spec:
             client = self.get_client()
             specs = client.get_draft_by_name(name)
@@ -1105,22 +1227,28 @@ class ToolsController:
                 BadRequest(f"The tool '{name}' does not match the naming scheme expected of an MCP tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
             tc = ToolkitController()
-            tc.export_toolkit(
-                name=toolkit_name,
-                output_file=output_file,
-                zip_file_out=zip_file_out,
-                connections_output_path=connections_output_path
-            )
+            try:
+                tc.export_toolkit(
+                    name=toolkit_name,
+                    output_file=toolkit_output_file or output_file,
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path,
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - toolkit may not exist or may have been renamed - needed when exporting a workspace  
+                logger.warning(f"Could not export toolkit '{toolkit_name}' for MCP tool '{name}': {str(e)}")
             return
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
 
-        tool_artifact: DownloadResult | None = self.download_tool(name)
+        tool_artifact: DownloadResult | None = self.download_tool(name, tool_spec=spec)
 
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
-        app_ids = [conn.app_id for conn in connections]
+        # Fix NoneType error: connections can be None
+        app_ids = [conn.app_id for conn in (connections or [])]
 
         if not tool_artifact or not tool_artifact.content:
             return
@@ -1131,25 +1259,62 @@ class ToolsController:
         else:
             zip_file_out = zipfile.ZipFile(output_path, "w")
         
+        flow_definition_content = None
         with zipfile.ZipFile(io.BytesIO(tool_artifact.content), "r") as zip_file_in:
           
             for item in zip_file_in.infolist():
                 buffer = zip_file_in.read(item.filename)
                 if (item.filename != 'bundle-format'):
                     zip_file_out.writestr(f"{zip_file_root_folder}/{item.filename}", buffer)
+                    # For flow tools, preserve the flow definition content
+                    if tool_artifact.kind == ToolKind.flow and item.filename.endswith('.json'):
+                        flow_definition_content = buffer
         
         for app_id in app_ids:
             export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
         
         logger.info(f"Successfully exported tool definition for '{name}' to '{output_path}'")
 
-        if tool_artifact.kind == ToolKind.flow:
-            tools_in_flow = get_all_tools_in_flow(json.loads(buffer))
+        if tool_artifact.kind == ToolKind.flow and flow_definition_content:
+            try:
+                flow_data = json.loads(flow_definition_content)
+                tools_in_flow = get_all_tools_in_flow(flow_data)
 
-            for t in tools_in_flow:
-                self.export_tool(
-                    name=t,
-                    output_path=f"{output_file.parent}/{t}",
-                    zip_file_out=zip_file_out,
-                    connections_output_path=connections_output_path
-                )
+                # Fix NoneType error: tools_in_flow can be None
+                # fixes [WARNING] - Could not export tool 'collaborator_agents_flow': 'NoneType' object is not iterable
+                for t in (tools_in_flow or []):
+                    self.export_tool(
+                        name=t,
+                        output_path=f"{output_file.parent}/{t}",
+                        toolkit_output_file=f"{output_file.parent.parent}/toolkits",
+                        zip_file_out=zip_file_out,
+                        connections_output_path=connections_output_path
+                    )
+            except Exception as e:
+                logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
+        
+        # Return True to indicate successful export
+        return True
+
+    def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
+        
+        if Path(input_file).suffix.lower() != ".py":
+            raise typer.BadParameter(f"Auto-discover is only valid for python tools")
+        
+        if output_file and Path(output_file).suffix.lower() != ".py":
+            raise typer.BadParameter(f"Output file must be a valid python file name")
+
+        if not env_file:
+            raise typer.BadParameter(f"Python tool auto discover requires an env file to be passed with the '--env-file' flag")
+        
+        if function_names is not None and not isinstance(function_names,list):
+            function_names = [function_names]
+        
+        output_path = auto_discover_python_tools(
+            file=input_file, 
+            output_file=output_file,
+            env_file=env_file,
+            llm=llm,
+            function_names=function_names
+        )
+        return Path(output_path).absolute()

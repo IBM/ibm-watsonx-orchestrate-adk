@@ -4,6 +4,7 @@ import json
 from pydantic import BaseModel, Field, model_validator
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,22 @@ class Language(str, Enum):
     NODE = "node"
     PYTHON ="python"
 
+class AllowedContext(str, Enum):
+    TENANT_ID = "tenant_id"
+    AGENT_ID = "agent_id"
+
+def validate_context(metadata: List[str]) -> None:
+    """Validate that metadata values are only 'tenant_id' or 'agent_id'."""
+    if not metadata:
+        return
+    
+    allowed_metadata = {e.value for e in AllowedContext}
+    invalid_metadata = [m for m in metadata if m not in allowed_metadata]
+    if invalid_metadata:
+        allowed_values = ', '.join(f"'{v}'" for v in allowed_metadata)
+        logger.error(f"Invalid metadata values: {', '.join(invalid_metadata)}. Only {allowed_values} are allowed.")
+        sys.exit(1)
+
 class BaseMcpModel(BaseModel):
     tools: Optional[List[str]] = None
     connections: Dict[str, str] | List[str] = {}
@@ -37,6 +54,7 @@ class LocalMcpModel(BaseMcpModel):
 class RemoteMcpModel(BaseMcpModel):
     server_url: str
     transport: ToolkitTransportKind
+    metadata: Optional[Dict[str, List[str]]] = None
 
 McpModel = Union[LocalMcpModel, RemoteMcpModel]
 
@@ -54,6 +72,8 @@ class ToolkitMCPInputSpec(BaseModel):
     tools: Optional[List[str]] = None
     connections: Optional[List[str]] = None
     source: Optional[ToolkitSource] = None
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
+    allowed_context: Optional[List[str]] = None
 
     def __parse_tool_string(tool_string: str) -> List[str]:
         if tool_string == "*": # Wildcard to use all tools for MCP    
@@ -110,6 +130,13 @@ class ToolkitMCPInputSpec(BaseModel):
         if isinstance(tools, str):
             values["tools"] = cls.__parse_tool_string(tools)
         
+        # Extract allowed_context from nested metadata structure if present
+        if "metadata" in values and isinstance(values["metadata"], dict):
+            if "allowed_context" in values["metadata"]:
+                values["allowed_context"] = values["metadata"]["allowed_context"]
+            # Remove the metadata dict as it's not a field in ToolkitMCPInputSpec
+            del values["metadata"]
+        
         values["command"] = cls.__infer_command(
             values.get("command"),
             values.get("package"),
@@ -124,6 +151,12 @@ class ToolkitMCPInputSpec(BaseModel):
     def post_validate_mcp(self):
         if self.kind != ToolkitKind.MCP:
             raise BadRequest(f"Unsupported toolkit kind: {self.kind}")
+
+        # Validate allowed_context values
+        validate_context(self.allowed_context)
+
+        if self.allowed_context and not self.url and not self.transport:
+            logger.warning("allowed_context metadata configuration is only applicable to remote MCP toolkits. It will be ignored for local MCP toolkits.")
 
         # Local MCP validation
         if not self.url and not self.transport:
@@ -193,11 +226,16 @@ class ToolkitSpec(BaseModel):
 
         mcp_config = None
         if input_spec.source == ToolkitSource.REMOTE:
+            metadata_dict = None
+            if input_spec.allowed_context:
+                metadata_dict = {"allowed_context": input_spec.allowed_context}
+            
             mcp_config = RemoteMcpModel(
                 server_url=input_spec.url,
                 transport=input_spec.transport,
                 tools=input_spec.tools,
-                connections=input_spec.connections
+                connections=input_spec.connections,
+                metadata=metadata_dict
             )
         else:
             mcp_config = LocalMcpModel(

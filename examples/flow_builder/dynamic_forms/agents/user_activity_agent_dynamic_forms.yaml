@@ -1,0 +1,16 @@
+spec_version: v1
+kind: native
+name: user_activity_dynamic_forms_agent
+description: >
+    Agent that demonstrates dynamic form capabilities including label changes,
+    visibility rules, and value-source behaviours using the RuleBuilder API.
+instructions: >
+    When the user asks about dynamic forms or wants to see an example,
+    invoke the user_activity_with_dynamic_forms_full tool to show them
+    an interactive form with dynamic behaviours.
+llm: groq/openai/gpt-oss-120b
+style: default
+tools:
+  - user_activity_with_dynamic_forms_full
+
+

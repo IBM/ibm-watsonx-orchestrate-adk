@@ -15,6 +15,7 @@ import getpass
 
 from ibm_watsonx_orchestrate.cli.config import (Config, PREVIOUS_DOCKER_CONTEXT, DOCKER_CONTEXT)
 
+from ibm_watsonx_orchestrate.client.utils import get_linux_package_manager
 from ibm_watsonx_orchestrate.developer_edition.vm_host.constants import VM_NAME, CPU_ARCH_ARM, DEFAULT_DISK_SPACE, \
     DEFAULT_CPUS, DEFAULT_MEMORY
 
@@ -35,7 +36,9 @@ class LimaLifecycleManager(VMLifecycleManager):
         _ensure_lima_vm_started()
 
     def stop_server(self):
+        logger.info("Stopping Lima VM...")
         _ensure_lima_vm_stopped()
+        logger.info("Lima VM stopped.")
 
     def delete_server(self):
         return _ensure_lima_vm_host_deleted()
@@ -53,6 +56,7 @@ class LimaLifecycleManager(VMLifecycleManager):
         capture_output: bool = False,
         input: str | None = None,
         env: dict | None = None, 
+        **kwargs
     ) -> subprocess.CompletedProcess:
         """
         Run a Docker command inside the Lima VM.
@@ -68,6 +72,7 @@ class LimaLifecycleManager(VMLifecycleManager):
             text=True,
             input=input,
             env=env,
+            **kwargs
         )
         
     def edit_server(self, cpus=None, memory=None, disk=None):
@@ -87,6 +92,31 @@ class LimaLifecycleManager(VMLifecycleManager):
     
     def ssh(self):
         return _ssh_into_lima()
+    
+    def is_server_running(self):
+        _ensure_lima_installed()
+        
+        vm = _get_vm_state()
+        if vm is None:
+            logger.info('Could not find VM named ' + VM_NAME)
+            return False
+        status = vm['status']
+        if status == 'Running':
+            return True
+        return False
+
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        memory_is_sufficient = _check_and_ensure_lima_memory_for_doc_processing(min_memory_gb)
+
+        if not memory_is_sufficient :
+            vm = _get_vm_state()
+            if vm is not None:
+                # VM exists, we can edit it
+                logger.info(f"Restarting VM to apply new memory allocation ({min_memory_gb}GB)...")
+                self.edit_server(memory=min_memory_gb)
+            else:
+                # VM doesn't exist yet, config will be used on creation
+                logger.info(f"VM will be created with {min_memory_gb}GB memory on first start.")
 
 def _command_to_list(command: str | list) -> list:
     return [e.strip() for e in command.split(' ') if e.strip() != ''] if isinstance(command, str) else command
@@ -96,22 +126,42 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
 
-    out = subprocess.run(
-        [str(limactl_path)] + command,
-        check=True,
-        capture_output=capture_output,
-        text=True
-    )
+    try:
+        out = subprocess.run(
+            [str(limactl_path)] + command,
+            check=True,
+            capture_output=capture_output,
+            text=True
+        )
 
-    if capture_output:
-        return out.stdout.strip()
+        if capture_output:
+            return out.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        logger.error(f"An error occured while executing the command: {[str(limactl_path)] + command}")
+        if "--debug" in sys.argv:
+            logger.error(f"RETURN CODE: {e.returncode}")
+            logger.error(f"STDERR: {e.stderr}")
+            raise e
+        sys.exit(1)
     return None
 
 def _get_unix_os():
     return subprocess.run(['uname', '-s'], text=True, check=True, capture_output=True).stdout.strip()
 
-def _get_unix_cpu_arch():
-    return subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+def _get_unix_arm_capability():
+    try:
+        return subprocess.run(['sysctl', '-n', 'hw.optional.arm64'], text=True, check=True, capture_output=True).stdout.strip() == "1"
+    except:
+        return False
+
+def _get_unix_cpu_arch(ignore_emulation: bool = True) -> str:
+    arch = subprocess.run(['uname', '-m'], text=True, check=True, capture_output=True).stdout.strip()
+    os = _get_unix_os()
+
+    # Check for Rosetta Emulation
+    if ignore_emulation and arch == 'x86_64' and os == 'Darwin' and _get_unix_arm_capability():
+        return "arm64"
+    return arch
 
 def _get_lima_vm_base_args() -> List[str]:
     os = _get_unix_os()
@@ -186,29 +236,21 @@ def _ensure_qemu_installed():
 
     # Install required packages, INCLUDING virtiofsd
     try:
+        package_manager = get_linux_package_manager()
         subprocess.run(
-            ["sudo", "dnf", "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
+            ["sudo", package_manager , "install", "-y", "qemu-kvm", "qemu-img", "libvirt-daemon-driver-qemu", "virtiofsd"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        logger.info("QEMU packages (including virtio-fs) installed via dnf.")
+        logger.info(f"QEMU packages (including virtio-fs) installed via {package_manager}.")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install QEMU packages: {e.stderr}")
         return # Return early on failure
 
     # Detect actual binary location (RHEL 9 puts it in /usr/libexec/qemu-kvm)
-    possible_paths = [
-        "/usr/libexec/qemu-kvm",  # RHEL 9 standard
-        "/usr/lib64/qemu-kvm",    # fallback
-    ]
-
-    real_qemu = None
-    for path in possible_paths:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            real_qemu = path
-            break
+    real_qemu = shutil.which("qemu-kvm")
 
     if not real_qemu:
         logger.error("Could not find QEMU binary after installation. Please install manually.")
@@ -329,7 +371,7 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     logger.info(f"Downloading Lima from {url}")
     try:
         subprocess.run(
-            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+            ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
             check=True,
             capture_output=True
         )
@@ -381,13 +423,9 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
                 logger.error(f"Failed to remove {path_to_remove}")
                 sys.exit(1)
 
-    # OS and CPU arch for download
-    os_name = _get_unix_os()
-    cpu_arch = _get_unix_cpu_arch()
-
     url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
     subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm {lima_folder}'],
+        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
         check=True
     )
 
@@ -486,6 +524,11 @@ def _ensure_lima_vm_stopped():
         return
     
 def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
+    default_env_path = EnvService.get_default_env_file()
+    merged_env_dict = EnvService.merge_env(default_env_path, None)
+
+    was_server_running = EnvService._check_dev_edition_server_health()
+
     """Edit Lima VM config file directly to update resources."""
     logger.info("Stopping Lima VM...")
     _ensure_lima_vm_stopped()
@@ -522,24 +565,18 @@ def _edit_lima_vm(cpus=None, memory=None, disk=None) -> bool:
     # Restart VM
     limactl(["start", VM_NAME], capture_output=True)
 
-    # Wait indefinitely for API health check
-    default_env_path = EnvService.get_default_env_file()
-    merged_env_dict = EnvService.merge_env(default_env_path, None)
-    health_user = merged_env_dict.get("WXO_USER")
-    health_pass = merged_env_dict.get("WXO_PASS")
+   
+    if was_server_running:
+        health_check_timeout = int(merged_env_dict["HEALTH_TIMEOUT"]) if "HEALTH_TIMEOUT" in merged_env_dict else 120
+        server_is_started = EnvService._wait_for_dev_edition_server_health_check(timeout_seconds=health_check_timeout)
 
-    url = "http://localhost:4321/api/v1/auth/token"
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    data = {'username': health_user, 'password': health_pass}
-
-    while True:
-        try:
-            response = requests.post(url, headers=headers, data=data)
-            if 200 <= response.status_code < 300:
-                break
-        except requests.RequestException:
-            pass
-        time.sleep(3)
+        if server_is_started:
+            logger.info("Lima VM editted and server restarted successfully.")
+        else:
+            logger.error("Lima VM editted but server failed to start successfully within the expected timeframe. To start the server 'orchestrate server start'.")
+    else:
+        logger.info("Lima VM editted. To start the server 'orchestrate server start'.")
+    
 
     return True
 
@@ -679,3 +716,60 @@ def _get_current_docker_context():
         capture_output=True, text=True
     )
     return result.stdout.strip()
+
+def _check_and_ensure_lima_memory_for_doc_processing(min_memory_gb: int=24) -> bool:
+    """Check if the Lima VM has enough memory for document processing.  """
+    vm_dir = Path.home() / ".lima" / VM_NAME
+    config_path = vm_dir / "lima.yaml"
+    
+    if not config_path.exists():
+        logger.warning(f"Lima config not found at {config_path}. VM may not be created yet.")
+        return True  # Will be set during VM creation
+    
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        
+        # Get current memory (format: "16GiB" or just number)
+        current_memory = config.get("memory", f"{DEFAULT_MEMORY}GiB")
+        
+        # Parse memory value
+        if isinstance(current_memory, str):
+            if current_memory.upper().endswith("GIB") or current_memory.upper().endswith("GB"):
+                current_memory_gb = int(''.join(filter(str.isdigit, current_memory)))
+            else:
+                current_memory_gb = int(current_memory)
+        else:
+            current_memory_gb = int(current_memory)
+        
+        # Check if memory is sufficient
+        if current_memory_gb >= min_memory_gb:
+            return True
+        else:
+            # Memory is insufficient - warn and increase
+            logger.warning(
+                f"\n{'='*70}\n"
+                f"MEMORY REQUIREMENT WARNING\n"
+                f"{'='*70}\n"
+                f"Document Processing requires at least {min_memory_gb}GB of memory.\n"
+                f"Current Lima VM memory allocation: {current_memory_gb}GB\n"
+                f"\n"
+                f"Automatically increasing memory to {min_memory_gb}GB...\n"
+                f"This requires restarting the VM.\n"
+                f"{'='*70}\n"
+            )
+            # Update memory in config (preserves all other settings)
+            config["memory"] = f"{min_memory_gb}GiB"
+            
+            # Write updated config back to file
+            with open(config_path, "w") as f:
+                yaml.dump(config, f)
+            
+            logger.info(f"Updated {config_path} with memory={min_memory_gb}GiB")
+        
+            return False        
+
+    except Exception as e:
+        logger.error(f"Failed to check Lima VM memory: {e}")
+        return False
+

@@ -3,7 +3,7 @@ kind: native
 name: hello_message_agent
 description: >
     You are an agent that will generate a hello message for a person.
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - hello_message_flow

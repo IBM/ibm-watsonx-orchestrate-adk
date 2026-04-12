@@ -1,0 +1,65 @@
+{
+  "agent": "hr_agent",
+  "goals": {
+    "get_direct_reports_hr_agent": [
+      "get_assignment_id_1",
+      "get_assignment_id_2"
+    ],
+    "get_assignment_id_1": [
+      "get_timeoff_schedule_1"
+    ],
+    "get_assignment_id_2": [
+      "get_timeoff_schedule_2"
+    ],
+    "get_timeoff_schedule_1": [],
+    "get_timeoff_schedule_2": []
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_direct_reports_hr_agent",
+      "tool_name": "get_direct_reports_hr_agent",
+      "args": {
+        "username": "nken"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_1",
+      "tool_name": "get_assignment_id_hr_agent",
+      "args": {
+        "username": "nwaters"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_assignment_id_2",
+      "tool_name": "get_assignment_id_hr_agent",
+      "args": {
+        "username": "johndoe"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_1",
+      "tool_name": "get_timeoff_schedule_hr_agent",
+      "args": {
+        "assignment_id": "15778303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    },
+    {
+      "type": "tool_call",
+      "name": "get_timeoff_schedule_2",
+      "tool_name": "get_timeoff_schedule_hr_agent",
+      "args": {
+        "assignment_id": "15338303",
+        "start_date": "2025-01-01",
+        "end_date": "2025-05-05"
+      }
+    }
+  ],
+  "story": "My username is nken. I want to find out timeoff schedule for my direct reports from: 2025-01-01 to: 2025-05-05.",
+  "starting_sentence": "I want to know the timeoff schedule for my reports for a certain period."
+}

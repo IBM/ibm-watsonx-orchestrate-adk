@@ -5,11 +5,12 @@
 
 pkg_name = "ibm-watsonx-orchestrate"
 
-__version__ = "2.0.0"
+
+__version__ = "2.7.0"
 
 
 
-from ibm_watsonx_orchestrate.utils.logging.logger import setup_logging
+from ibm_watsonx_orchestrate_core.utils.logging import setup_logging
 
 setup_logging()
 

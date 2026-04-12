@@ -1,6 +1,6 @@
 import typer
 from typing_extensions import Annotated, List
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionPreference, ConnectionKind, ConnectionCredentialsEntry, ConnectionSendVia, KeyValueEntry, ConnectionResource
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import (
     add_connection,
     remove_connection,
@@ -11,7 +11,8 @@ from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller imp
     set_credentials_connection,
     set_identity_provider_connection,
     token_entry_connection_credentials_parse,
-    auth_entry_connection_credentials_parse
+    auth_entry_connection_credentials_parse,
+    key_value_parse
 )
 
 connections_app = typer.Typer(no_args_is_help=True)
@@ -23,9 +24,30 @@ def add_connection_command(
             '--app-id', '-a',
             help='The app id of the connection you wish to create. This value will be used to uniquely reference this connection when associating the connection with tools or agents'
         )
-    ]
+    ],
+    component: Annotated[
+        str, typer.Option(
+            '--component',
+            help='Optional component this connection is associated with (e.g., "knowledge", "registry")'
+        )
+    ] = None,
+    category: Annotated[
+        str, typer.Option(
+            '--category',
+            help='Optional category for the component (e.g., "milvus" for knowledge component)'
+        )
+    ] = None
 ):
-    add_connection(app_id=app_id)
+    # Build ConnectionResource object if component or category is provided
+    resource = None
+    if component or category:
+        try:
+            resource = ConnectionResource(component=component, category=category)
+        except Exception as e:
+            typer.echo(f"Error: Invalid resource configuration - {e}", err=True)
+            raise typer.Exit(1)
+    
+    add_connection(app_id=app_id, resource=resource)
 
 @connections_app.command(name="remove")
 def remove_connection_command(
@@ -145,6 +167,13 @@ def configure_connection_command(
             help='Header values for the app token request. Defaults to using `content-type: application/x-www-form-urlencoded`.  Multiple can be set using `--app-token-header "content-type: application/x-www-form-urlencoded" --app-token-header "encoding:..."` . Only applicable to OAuth kinds with sso'
         )
     ] = None,
+    custom_config_entries_list: Annotated[
+        List[KeyValueEntry], typer.Option(
+            '--config-entries', '-e',
+            parser=key_value_parse,
+            help="Custom configuration options for the connection. Should be set in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
+        )
+    ] = None,
     
 ):
     configure_connection(
@@ -157,7 +186,8 @@ def configure_connection_command(
         idp_token_use=idp_token_use,
         idp_token_type=idp_token_type,
         idp_token_header=idp_token_header,
-        app_token_header=app_token_header
+        app_token_header=app_token_header,
+        custom_config_entries_list=custom_config_entries_list
     )
 
 @connections_app.command(name="set-credentials")
@@ -211,7 +241,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--client-id',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_implicit_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the client_id to authenticate against the application token server'
         )
     ] = None,
     client_secret: Annotated[
@@ -233,7 +263,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--token-url',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the url of the application token server'
         )
     ] = None,
     auth_url: Annotated[
@@ -247,7 +277,7 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--grant-type',
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
         )
     ] = None,
     scope: Annotated[
@@ -258,10 +288,10 @@ def set_credentials_connection_command(
         )
     ] = None,
     entries: Annotated[
-        List[str],
-        typer.Option(
-            '--entries', "-e",
-            help="For key_value, a key value pair in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
+         List[KeyValueEntry], typer.Option(
+            '--entries', '-e',
+            parser=key_value_parse,
+             help="For key_value, a key value pair in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
         )
     ] = None,
     token_entries: Annotated[

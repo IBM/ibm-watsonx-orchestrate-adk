@@ -43,6 +43,12 @@ class VMLifecycleManager(ABC):
         """Edit VM resource allocation (CPU, memory, disk)."""
         pass
 
+    @abstractmethod
+    def check_and_ensure_memory_for_doc_processing(self, min_memory_gb: int=24)-> None:
+        """Check if the VM has enough memory for document processing.  """
+        pass 
+    
+    @abstractmethod
     def show_current_context(self) -> Optional[str]:
         """Show current Docker context"""
         pass
@@ -65,4 +71,9 @@ class VMLifecycleManager(ABC):
     @abstractmethod
     def ssh(self) -> Optional[str]:
         """SSH into VM"""
+        pass
+
+    @abstractmethod
+    def is_server_running(self) -> bool:
+        """Returns a boolean indicating if the server is running or not"""
         pass

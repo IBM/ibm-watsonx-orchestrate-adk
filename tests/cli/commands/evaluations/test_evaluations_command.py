@@ -4,9 +4,12 @@ import tempfile
 import pytest
 import shutil
 from pathlib import Path
-from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluateMode
-from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import TestCaseManager
+try:
+    from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluateMode
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import TestCaseManager
+except ImportError:
+    pytest.skip(allow_module_level=True)
 
 @pytest.fixture(autouse=True, scope="module")
 def user_env_file():
@@ -88,7 +91,8 @@ class TestEvaluate:
             mock_evaluate.assert_called_once_with(
                 config_file=config_file,
                 test_paths=None,
-                output_dir=None
+                output_dir=None,
+                langfuse_enabled=False
             )
 
     def test_evaluate_with_command_line_args(self, user_env_file):
@@ -99,7 +103,8 @@ class TestEvaluate:
             mock_evaluate.assert_called_once_with(
                 config_file=None,
                 test_paths=test_paths,
-                output_dir=output_dir
+                output_dir=output_dir,
+                langfuse_enabled=False
             )
 
     def test_evaluate_with_empty_test_paths(self, user_env_file):

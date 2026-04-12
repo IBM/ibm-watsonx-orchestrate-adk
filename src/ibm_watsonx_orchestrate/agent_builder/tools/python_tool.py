@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from types import MappingProxyType
-from typing import Any, Callable, Dict, List, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, get_type_hints, get_origin, get_args, Annotated
 import logging
 
 from pydantic import TypeAdapter, BaseModel
@@ -14,8 +14,11 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
-    PythonToolBinding
-from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+    PythonToolBinding, ToolResponseFormat
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
+from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
+from ibm_watsonx_orchestrate.agent_builder.tools.types import MultiFileConstraints, WXOFile
+
 
 _all_tools = []
 logger = logging.getLogger(__name__)
@@ -25,6 +28,77 @@ JOIN_TOOL_PARAMS = {
     'task_results': Dict[str, Any],
     'messages': List[Dict[str, Any]],
 }
+
+TOOLS_DYNAMIC_PARAM_FLAG = "x-ibm-dynamic-field"
+TOOLS_DYNAMIC_SCHEMA_FLAG = "x-ibm-dynamic-schema"
+
+EXTENSION_TO_MIME = {
+    "csv":  ["text/csv"],               
+    "doc":  ["application/msword"],       
+    "docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],  
+    "jpeg": ["image/jpeg"],           
+    "jpg":  ["image/jpeg"],               
+    "png":  ["image/png"],              
+    "pdf":  ["application/pdf"],          
+    "ppt":  ["application/vnd.ms-powerpoint"], 
+    "pptx": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],  
+    "svg":  ["image/svg+xml"],            
+    "txt":  ["text/plain"],               
+    "xls":  ["application/vnd.ms-excel"], 
+    "xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],  
+    "html": ["text/html"],              
+    "wav":  ["audio/wav", "audio/x-wav"],
+    "mp3":  ["audio/mpeg"],               
+    "mp4":  ["audio/mp4"],               
+    "tiff": ["image/tiff"],              
+    "py":   ["text/x-python"],             
+    "yaml": ["application/x-yaml", "text/yaml"],      
+    "yml":  ["application/x-yaml", "text/yaml"],                
+    "java": ["text/x-java-source"],     
+    "json": ["application/json"],        
+    "xml":  ["application/xml"],          
+    "js":   ["application/javascript"],    
+    "ts":   ["application/typescript"],    
+    "go":   ["text/x-go"],                
+    "md":   ["text/markdown"]
+}
+
+def _extensions_to_mime_types(exts: list[str] | None) -> list[str] | None:
+    if not exts:
+        return None
+
+    mimes = []
+    for ext in exts:
+        if ext not in EXTENSION_TO_MIME:
+            logger.warning(f"Unsupported file extension '{ext}'")
+            continue
+        mimes.extend(EXTENSION_TO_MIME[ext])
+
+    return mimes
+
+def _extract_list_wxofile_params(fn):
+    """
+    Extract parameter names that are List[WXOFile] without MultiFileConstraints.
+    Returns a list of parameter names.
+    """
+    sig = inspect.signature(fn)
+    list_wxofile_params = []
+
+    for name, param in sig.parameters.items():
+        annotation = param.annotation
+        
+        # Skip Annotated types (they might have MultiFileConstraints)
+        if get_origin(annotation) is Annotated:
+            continue
+            
+        # Check if it's a List type
+        if get_origin(annotation) in (list, List):
+            args = get_args(annotation)
+            # Check if the list contains WXOFile
+            if args and args[0] is WXOFile:
+                list_wxofile_params.append(name)
+    
+    return list_wxofile_params
 
 def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict):
     parsed_expected_credentials = []
@@ -36,18 +110,44 @@ def _parse_expected_credentials(expected_credentials: ExpectedCredentials | dict
                 parsed_expected_credentials.append(ExpectedCredentials.model_validate(credential))
     
     return parsed_expected_credentials
-
-def _create_immutable_struct(input):
-    match input:
-        case dict():
-            return MappingProxyType({k:_create_immutable_struct(v) for k,v in input})
-        case list() | set():
-            return tuple([_create_immutable_struct(v) for v in input])
-        case _:
-            return input
-
     
 
+def _merge_dynamic_schema(base_schema: ToolRequestBody | ToolResponseBody, dynamic_schema: Optional[ToolRequestBody|ToolResponseBody]) -> None:
+    """
+    Merge dynamic schema properties and required fields into the base schema.
+    Modifies base_schema in place.
+    
+    :param base_schema: The base schema to merge into
+    :param dynamic_schema: The dynamic schema to merge from
+    :raises ValueError: If duplicate property names are found between base and dynamic schemas
+    """
+    if not dynamic_schema:
+        return
+    
+    # Initialize required list if None
+    if base_schema.required is None:
+        base_schema.required = []
+    
+    # Extend required fields from dynamic schema
+    if dynamic_schema.required:
+        base_schema.required.extend(dynamic_schema.required)
+    
+    # Initialize properties dict if None
+    if base_schema.properties is None:
+        base_schema.properties = {}
+    
+    # Update properties from dynamic schema
+    if dynamic_schema.properties:
+        # Check if dynamic schema has properties with the same name as properties in base schema
+        duplicated_properties = set(base_schema.properties.keys()) & set(dynamic_schema.properties.keys())
+        if duplicated_properties:
+            logger.error(f"Dynamic schema can't have the same properties as base schema.\nDuplicate properties found: {duplicated_properties}")
+            raise ValueError("Duplicate properties found")
+
+        for prop_schema in dynamic_schema.properties.values():
+            # JsonSchemaObject has extra='allow'
+            setattr(prop_schema, TOOLS_DYNAMIC_PARAM_FLAG , True)
+        base_schema.properties.update(dynamic_schema.properties)
 
 class PythonTool(BaseTool):
     def __init__(self,
@@ -60,7 +160,12 @@ class PythonTool(BaseTool):
                 expected_credentials: List[ExpectedCredentials] = None,
                 display_name: str = None,
                 kind: PythonToolKind = PythonToolKind.TOOL,
-                spec=None
+                spec=None,
+                enable_dynamic_input_schema: bool = False,
+                enable_dynamic_output_schema: bool = False,
+                dynamic_input_schema: Optional[ToolRequestBody] = None,
+                dynamic_output_schema: Optional[ToolResponseBody] = None,
+                response_format: Optional[ToolResponseFormat] = None,
                 ):
         self.fn = fn
         self.name = name
@@ -74,22 +179,40 @@ class PythonTool(BaseTool):
         self._spec = None
         if spec:
             self._spec = spec
+        self.enable_dynamic_input_schema = enable_dynamic_input_schema
+        self.enable_dynamic_output_schema = enable_dynamic_output_schema
+        self.dynamic_input_schema = dynamic_input_schema
+        self.dynamic_output_schema = dynamic_output_schema
+        self.response_format = response_format
 
     def __call__(self, *args, **kwargs):
+
         run_context_param = self.get_run_param()
+        context_object = None
+
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
-            if context_param_value is not None:
-                try:
-                    from ibm_watsonx_orchestrate.run import AgentRun
-                    if not isinstance(context_param_value, AgentRun):
-                        context_param_value = AgentRun.model_validate(context_param_value)
-                except Exception:
-                    context_param_value = _create_immutable_struct(context_param_value)
-                kwargs[run_context_param] = context_param_value
-            
-            
-        return self.fn(*args, **kwargs)
+            if context_param_value:
+                kwargs[run_context_param] = self.__parse_context_param(context_param_value)
+
+
+        result = self.fn(*args, **kwargs)
+        context_updates = context_object.get_context_updates() if context_object else {}
+
+        return ToolResponse(content=result,context_updates=context_updates)
+    
+    def __parse_context_param(self, context_param_value):
+        from ibm_watsonx_orchestrate.run.context import AgentRun
+        
+        if isinstance(context_param_value, AgentRun):
+            return context_param_value
+        
+        try:
+            return AgentRun(**context_param_value)
+        except:
+            return AgentRun(request_context=context_param_value)
+
+
     
     @property
     def __tool_spec__(self):
@@ -106,15 +229,21 @@ class PythonTool(BaseTool):
             doc = None
 
         _desc = self.description
-        if self.description is None and doc is not None:
-            _desc = doc.description
+        doc_arg_descriptions = {}
+
+        if doc is not None:
+            if self.description is None:
+                _desc = doc.description
+            
+            doc_arg_descriptions = { arg.arg_name: arg.description for arg in doc.params }
 
         
         spec = ToolSpec(
             name=self.name or self.fn.__name__,
             display_name=self.display_name,
             description=_desc,
-            permission=self.permission
+            permission=self.permission,
+            response_format=self.response_format if self.response_format else ToolResponseFormat.CONTENT
         )
 
         spec.binding = ToolBinding(python=PythonToolBinding(function=''))
@@ -133,13 +262,33 @@ class PythonTool(BaseTool):
         # If the function is a join tool, validate its signature matches the expected parameters. If not, raise error with details.
         if self.kind == PythonToolKind.JOIN_TOOL:
             _validate_join_tool_func(self.fn, sig, spec.name)
-
         if not self.input_schema:
+            input_schema_model = None
             try:
                 input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=True)
-            except:
-                logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
-                input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+            except ValueError as e:
+                err_msg = str(e)
+                # Check if error is due to Annotated types with MultiFileConstraints (false positive)
+                constraints_params = _extract_multifile_constraints(self.fn)
+                list_wxofile_params = _extract_list_wxofile_params(self.fn)
+                has_file_constraints = bool(constraints_params or list_wxofile_params)
+                
+                if "Found invalid Google-Style docstring" in err_msg:
+                    logger.warning("Unable to properly parse parameter descriptions due to incorrectly formatted docstring. This may result in degraded agent performance. To fix this, please ensure the docstring conforms to Google's docstring format.")
+                elif "in docstring not found in function signature." in err_msg and not has_file_constraints:
+                    # Only warn if it's not a file constraint parameter (those are expected to have Annotated types)
+                    logger.warning("Unable to properly parse parameter descriptions due to missing or incorrect type hints. This may result in degraded agent performance. To fix this, please ensure the tool inputs have type hints that match those in the docstring.")
+                elif "in docstring not found in function signature." in err_msg and has_file_constraints:
+                    # Suppress warning for file constraint parameters - this is expected behavior
+                    pass
+                else:
+                    logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            except Exception as e:
+                logger.warning("Unable to properly parse parameter descriptions. This may result in degraded agent performance.")
+            finally:
+                if not input_schema_model:
+                    input_schema_model: type[BaseModel] = create_schema_from_function(spec.name, self.fn, parse_docstring=False)
+
             input_schema_json_original = input_schema_model.model_json_schema()
             input_schema_json = dereference_refs(input_schema_json_original)
             # fix missing default during dereference
@@ -150,12 +299,73 @@ class PythonTool(BaseTool):
                     v.get("type") == "string" and v.get("default") is None:
                     v["default"] = input_schema_json_original.get("properties", {}).get(k, {}).get("default")
                 # in case the original arg has description but the reference doesn't
-                if input_schema_json_original.get("properties", {}).get(k, {}).get("description") and \
-                        v.get("description") is None:
-                    v["description"] = input_schema_json_original.get("properties", {}).get(k, {}).get("description")
+                if v.get("description") is None:
+                    if input_schema_json_original.get("properties", {}).get(k, {}).get("description"):
+                        v["description"] = input_schema_json_original.get("properties", {}).get(k, {}).get("description")
+                    elif doc_arg_descriptions.get(k,None):
+                        v["description"] = doc_arg_descriptions[k]
+                    
+                
             # Convert the input schema to a JsonSchemaObject
             input_schema_obj = JsonSchemaObject(**input_schema_json)
             input_schema_obj = _fix_optional(input_schema_obj)
+
+            # Multiple file constraints
+            constraints_by_param = _extract_multifile_constraints(self.fn)
+
+            # Detect List[WXOFile] parameters without explicit constraints
+            list_wxofile_params = _extract_list_wxofile_params(self.fn)
+            
+            for param_name, (_, constraints) in constraints_by_param.items():
+                prop: JsonSchemaObject = input_schema_obj.properties.get(param_name)
+                if not prop:
+                    continue
+
+                if prop.items is None:
+                    prop.items = JsonSchemaObject(type="string", format="wxo-file")
+                
+                prop.items.type = "string"
+                prop.items.format = "wxo-file"
+
+                constraints_payload = {
+                    "accepted_types": _extensions_to_mime_types(constraints.accepted_file_extensions),
+                    "max_files": constraints.max_files,
+                    "min_files": constraints.min_files,
+                    "max_total_size": constraints.max_total_size,
+                    "allowMultipleFiles": constraints.max_files > 1,
+                }
+                
+                # Only include max_size_per_file if it's not None
+                if constraints.max_size_per_file is not None:
+                    constraints_payload["max_size_per_file"] = constraints.max_size_per_file
+                
+                # Include custom text if provided
+                if constraints.text is not None:
+                    constraints_payload["text"] = constraints.text
+                
+                setattr(prop.items, "x-file-constraints", constraints_payload)
+            
+            # Handle List[WXOFile] without explicit MultiFileConstraints
+            for param_name in list_wxofile_params:
+                # Skip if already handled by MultiFileConstraints
+                if param_name in constraints_by_param:
+                    continue
+                    
+                prop: JsonSchemaObject = input_schema_obj.properties.get(param_name)
+                if not prop:
+                    continue
+
+                if prop.items is None:
+                    prop.items = JsonSchemaObject(type="string", format="wxo-file")
+                
+                prop.items.type = "string"
+                prop.items.format = "wxo-file"
+
+                constraints_payload = {
+                    "allowMultipleFiles": True,
+                }
+                
+                setattr(prop.items, "x-file-constraints", constraints_payload)
 
             spec.input_schema = ToolRequestBody(
                 type='object',
@@ -164,8 +374,21 @@ class PythonTool(BaseTool):
             )
         else:
             spec.input_schema = self.input_schema
+
+        # Extract context param and note the param name in the tool binding
+        context_param = _extract_context_param(name=self.name, input_schema=spec.input_schema)
+
+        if context_param:
+            spec.binding.python.agent_run_paramater = context_param
+
+
+
+        # Merge dynamic input schema if provided
+        if self.enable_dynamic_input_schema:
+            _merge_dynamic_schema(spec.input_schema, self.dynamic_input_schema)
+            setattr(spec.input_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
         
-        _validate_input_schema(spec.input_schema)
+        _validate_input_schema(spec.input_schema, self.enable_dynamic_input_schema)
 
         if not self.output_schema:
             ret = sig.return_annotation
@@ -186,17 +409,19 @@ class PythonTool(BaseTool):
 
         else:
             spec.output_schema = ToolResponseBody()
+
+        if self.enable_dynamic_output_schema:
+            _merge_dynamic_schema(spec.output_schema, self.dynamic_output_schema)
+            setattr(spec.output_schema, TOOLS_DYNAMIC_SCHEMA_FLAG, True)
         
          # Validate the generated schema still conforms to the requirement for a join tool
         if self.kind == PythonToolKind.JOIN_TOOL:
             if not spec.is_custom_join_tool():
                 raise ValueError(f"Join tool '{spec.name}' does not conform to the expected join tool schema. Please ensure the input schema has the required fields: {JOIN_TOOL_PARAMS.keys()} and the output schema is a string.")
+        
 
         self._spec = spec
         return spec
-    
-    def add_run_param(self, param_name: str):
-        self.__tool_spec__.binding.python.agent_run_paramater = param_name
     
     def get_run_param(self):
         return self.__tool_spec__.binding.python.agent_run_paramater
@@ -280,8 +505,13 @@ def _fix_optional(schema):
 
     return schema
 
-def _validate_input_schema(input_schema: ToolRequestBody) -> None:
+def _validate_input_schema(input_schema: ToolRequestBody, enable_dynamic_schema: bool) -> None:
     props = input_schema.properties
+    
+    # Remove kwargs if dynamic schema is enabled
+    if enable_dynamic_schema and "kwargs" in props:
+        del props["kwargs"]
+    
     for prop in props:
         property_schema = props.get(prop)
         if not (property_schema.type or property_schema.anyOf):
@@ -312,6 +542,38 @@ def _validate_join_tool_func(fn: Callable, sig: inspect.Signature | None = None,
         if actual_type != expected_type:
             raise ValueError(f"Join tool function '{name}' has incorrect type for parameter '{param}'. Expected {expected_type}, got {actual_type}")
 
+def _extract_context_param(name: str, input_schema: ToolRequestBody) -> Optional[str]:
+    agent_run_param = None
+
+    if input_schema.properties:
+        for k,v in input_schema.properties.items():
+            if v.title == 'AgentRun':
+                if agent_run_param:
+                    raise ToolContextException(f"Tool {name} has multiple run context objects")
+                agent_run_param = k
+
+    # if agent_run_param:
+    #     if agent_run_param in input_schema.properties:
+    #         del input_schema.properties[agent_run_param]
+    #     if agent_run_param in input_schema.required:
+    #         input_schema.required.remove(agent_run_param)
+
+    return agent_run_param
+
+def _extract_multifile_constraints(fn):
+    sig = inspect.signature(fn)
+    constraints_by_param = {}
+
+    for name, param in sig.parameters.items():
+        annotation = param.annotation
+        if get_origin(annotation) is Annotated:
+            base_type, *metadata = get_args(annotation)
+            for item in metadata:
+                if isinstance(item, MultiFileConstraints):
+                    constraints_by_param[name] = (base_type, item)
+    return constraints_by_param
+
+
 def tool(
     *args,
     name: str = None,
@@ -322,6 +584,11 @@ def tool(
     expected_credentials: List[ExpectedCredentials] = None,
     display_name: str = None,
     kind: PythonToolKind = PythonToolKind.TOOL,
+    enable_dynamic_input_schema: bool = False,
+    enable_dynamic_output_schema: bool = False,
+    dynamic_input_schema: Optional[ToolRequestBody | dict] = None,
+    dynamic_output_schema: Optional[ToolResponseBody | dict] = None,
+    response_format: Optional[ToolResponseFormat] = None,
 ) -> Callable[[{__name__, __doc__}], PythonTool]:
     """
     Decorator to convert a python function into a callable tool.
@@ -331,18 +598,19 @@ def tool(
     :param input_schema: the json schema args to the tool
     :param output_schema: the response json schema for the tool
     :param permission: the permissions needed by the user of the agent to invoke the tool
+    :param enable_dynamic_input_schema: if dynamic input schema is enabled
+    :param enable_dynamic_output_schema: if dynamic output schema is enabled
+    :param dynamic_input_schema: the dynamic input schema for the tool - used to validate params passed under **kwargs
+    :param dynamic_output_schema: the dynamic output schema for the tool - used to validate dynamic return values
+    :param response_format: the response format for the tool - either 'content' or 'content_and_artifact'
     :return:
     """
     # inspiration: https://github.com/pydantic/pydantic/blob/main/pydantic/validate_call_decorator.py
-    agent_run_param = None
+    if dynamic_input_schema and not isinstance(dynamic_input_schema, ToolRequestBody):
+        dynamic_input_schema = ToolRequestBody(**dynamic_input_schema)
 
-    if input_schema and input_schema.type == 'object' and input_schema.properties:
-        for k, v in list(input_schema.properties.items()):
-            # AgentRun detection is only relevant for tools that include the run context
-            if (getattr(v, "title", "") or "") == 'AgentRun':
-                if agent_run_param:
-                    raise BadRequest(f"Tool {name} has multiple run context objects")
-                agent_run_param = k
+    if dynamic_output_schema and not isinstance(dynamic_output_schema, ToolResponseBody):
+        dynamic_output_schema = ToolResponseBody(**dynamic_output_schema)
 
 
                 # Align custom schemas with the default AgentRun shape so the runtime doesn't strip context.
@@ -371,11 +639,13 @@ def tool(
             permission=permission,
             expected_credentials=expected_credentials,
             display_name=display_name,
-            kind=kind
+            kind=kind,
+            enable_dynamic_input_schema=enable_dynamic_input_schema,
+            enable_dynamic_output_schema=enable_dynamic_output_schema,
+            dynamic_input_schema=dynamic_input_schema,
+            dynamic_output_schema=dynamic_output_schema,
+            response_format=response_format
         )
-
-        if agent_run_param:
-            t.add_run_param(agent_run_param)
             
         _all_tools.append(t)
         return t

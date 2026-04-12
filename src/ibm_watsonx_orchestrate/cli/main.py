@@ -1,6 +1,5 @@
 
 import typer
-import sys
 
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_command import connections_app
 from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
@@ -13,12 +12,16 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_command import models_ap
 from ibm_watsonx_orchestrate.cli.commands.environment.environment_command import environment_app
 from ibm_watsonx_orchestrate.cli.commands.partners.partners_command import partners_app
 from ibm_watsonx_orchestrate.cli.commands.channels.channels_command import channel_app
+from ibm_watsonx_orchestrate.cli.commands.phone.phone_command import phone_app
+from ibm_watsonx_orchestrate.cli.commands.customer_care.customer_care_command import customer_care_app
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_command import knowledge_bases_app
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_command import toolkits_app
 from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import evaluation_app
-from ibm_watsonx_orchestrate.cli.commands.copilot.copilot_command import copilot_app
 from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_command import voice_configurations_app
+from ibm_watsonx_orchestrate.cli.commands.observability.observability_command import observability_app
+from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_command import workspaces_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
+from ibm_watsonx_orchestrate.client.utils import is_ibm_cloud_platform
 
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -39,13 +42,23 @@ app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledg
 app.add_typer(connections_app, name="connections", help='Interact with the agents in your active env')
 app.add_typer(voice_configurations_app, name="voice-configs", help="Configure voice providers to enable voice interaction with your agents")
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires entitlement]')
-app.add_typer(chat_app, name="chat", help='Launch the chat ui for your local Developer Edition server [requires entitlement]')
+app.add_typer(chat_app, name="chat", help='Launch the chat ui and CLI chat interface for your local Developer Edition server [requires entitlement]')
 app.add_typer(models_app, name="models", help='List the available large language models (llms) that can be used in your agent definitions')
-app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat)")
+app.add_typer(channel_app, name="channels", help="Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)")
+app.add_typer(phone_app, name="phone", help="Manage phone configurations (global resources that can be attached to multiple agents)")
+app.add_typer(customer_care_app, name="customer-care", help='Manage contact center configurations for customer care', hidden=True)
 app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance of your agents in your active env')
-app.add_typer(copilot_app, name="copilot", help='Access AI powered assistance to help refine your agents')
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
 app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
+app.add_typer(observability_app, name="observability", help='Search and export trace data from the observability platform for analysis in third-party tools')
+
+# Conditionally add workspaces command only for IBM Cloud environments
+try:
+    if is_ibm_cloud_platform():
+        app.add_typer(workspaces_app, name="workspaces", help='Manage workspaces and workspace members for organizing agents and resources')
+except Exception:
+    # If we can't determine the platform (e.g., no active env), don't add the command
+    pass
 
 if __name__ == "__main__":
     app()

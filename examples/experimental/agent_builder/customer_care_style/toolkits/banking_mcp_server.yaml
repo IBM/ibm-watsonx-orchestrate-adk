@@ -1,0 +1,12 @@
+spec_version: v1
+kind: mcp
+name: banking
+description: An mcp server for a bank
+transport: streamable_http # streamable_http|sse
+# The below url only works for developer edition, for a SaaS or CDP instance
+# this needs to be the url of an instance available from the internet 
+# (code engine could be a good hosting platform for this).
+url: http://host.docker.internal:3004/mcp
+# No tools need to be imported, the customer care style dynamically discovers tools
+# at runtime
+tools: []

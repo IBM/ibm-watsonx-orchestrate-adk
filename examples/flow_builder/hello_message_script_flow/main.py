@@ -27,8 +27,8 @@ async def main():
     generated_folder = f"{Path(__file__).resolve().parent}/generated"
     my_flow_definition.dump_spec(f"{generated_folder}/hello_message_script_flow.json")
     
-    # global flow_run
-    # flow_run = await my_flow_definition.invoke({"first_name": "John", "last_name": "Doe"}, on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
+    global flow_run
+    flow_run = await my_flow_definition.invoke({"first_name": "John", "last_name": "Doe"}, on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
 
 if __name__ == "__main__":
     asyncio.run(main())

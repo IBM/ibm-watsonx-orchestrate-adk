@@ -5,8 +5,11 @@ import platform
 import subprocess
 import sys
 import tempfile
+import requests
+import time
+import re
 from pathlib import Path
-from typing import Tuple, OrderedDict, Any
+from typing import Tuple, OrderedDict, Any, Optional
 from urllib.parse import urlparse
 from enum import Enum
 
@@ -14,10 +17,11 @@ from dotenv import dotenv_values
 
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
-from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config
-from ibm_watsonx_orchestrate.client.utils import is_arm_architecture
+from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config, DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT
+from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -52,15 +56,28 @@ class EnvService:
         "WO_INSTANCE",
         "USE_SAAS_ML_TOOLS_RUNTIME",
         "AUTHORIZATION_URL",
+        "OAUTH_REDIRECT_URL",
         "OPENSOURCE_REGISTRY_PROXY",
         "WDU_RUNTIME_SOURCE",
         "LATEST_ENV_FILE",
     }
 
+    _SERVICE_USERNAME_ENV_VAR="SERVICE_USERNAME"
+    _SERVICE_PASSWORD_ENV_VAR="SERVICE_PASSWORD"
+
     def __init__ (self, config: Config):
         self.__config = config
 
-    def get_compose_file (self) -> Path:
+    def get_compose_file (self, ignore_cache: bool = False) -> Path:
+        if not ignore_cache:
+            cache_dir = Path.home() / ".cache" / "orchestrate"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            compose_file_cache_location = Path(path_for_vm(cache_dir / "docker-compose.yml"))
+
+            if compose_file_cache_location.exists():
+                return compose_file_cache_location
+
         custom_compose_path = self.__get_compose_file_path()
         return Path(custom_compose_path) if custom_compose_path else self.__get_default_compose_file()
 
@@ -231,6 +248,7 @@ class EnvService:
 
         persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
         persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
+        persistable_env["LLM_HAS_AWS_CREDS"] = 'BEDROCK_AWS_SECRET_ACCESS_KEY' in env and 'BEDROCK_AWS_ACCESS_KEY_ID' in env
         persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
                                                  (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
 
@@ -242,8 +260,11 @@ class EnvService:
         )
 
     def __get_persisted_user_env (self) -> dict | None:
-        user_env = self.__config.get(USER_ENV_CACHE_HEADER) if self.__config.get(USER_ENV_CACHE_HEADER) else None
-        return user_env
+        try:
+            user_env = self.__config.get(USER_ENV_CACHE_HEADER) if self.__config.get(USER_ENV_CACHE_HEADER) else None
+            return user_env
+        except:
+            return None
 
     def set_compose_file_path_in_env (self, path: str = None) -> None:
         self.__config.save(
@@ -293,6 +314,93 @@ class EnvService:
             sys.exit(1)
 
         env_dict.update(model_config.model_dump(exclude_none=True))
+
+        return env_dict
+
+    @staticmethod
+    def __validate_service_credential(cred: str, pattern: str = r'^[A-Za-z0-9!#$%^&*()_+=\-]+$', min_length: int = 0) -> bool:
+        return  (len(cred) >= min_length) and bool(re.match(pattern, cred))
+
+    def __persist_service_credentials(self, service_credentials: dict):
+        
+        persist_creds = {
+            "username": service_credentials.get(self._SERVICE_USERNAME_ENV_VAR),
+            "password": service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR),
+        }
+
+        self.__config.write(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT, persist_creds)
+
+
+
+    def get_service_credentials(self, username: Optional[str] = None, password: Optional[str] = None) -> dict:
+        _DEFAULT_SERVICE_USER = "orchestrate"
+        valid_service_cred_pattern = re.compile(r'^[A-Za-z0-9!#$%^&*()_+=\-]+$')
+        service_credentials = {}
+        cfg_service_credentials = self.__config.read(DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT) or {}
+
+        service_credentials[self._SERVICE_USERNAME_ENV_VAR] = username or os.environ.get(self._SERVICE_USERNAME_ENV_VAR) or cfg_service_credentials.get("username")
+        if not service_credentials.get(self._SERVICE_USERNAME_ENV_VAR):
+            try:
+                import getpass
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = getpass.getuser()
+            except:
+                logger.warning(f"Failed to find logged in os user. Defaulting service username to be '{_DEFAULT_SERVICE_USER}'")
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = _DEFAULT_SERVICE_USER
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_USERNAME_ENV_VAR), valid_service_cred_pattern, 3):
+                logger.warning(f"Invalid username provided. Defaulting service username to be '{_DEFAULT_SERVICE_USER}'")
+                service_credentials[self._SERVICE_USERNAME_ENV_VAR] = _DEFAULT_SERVICE_USER
+        
+        service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = password or os.environ.get(self._SERVICE_PASSWORD_ENV_VAR) or cfg_service_credentials.get("password")
+        if not service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR):
+            import getpass
+            service_credentials[self._SERVICE_PASSWORD_ENV_VAR] = getpass.getpass("Set Master Password for Local Services: ")
+        if not self.__validate_service_credential(service_credentials.get(self._SERVICE_PASSWORD_ENV_VAR), valid_service_cred_pattern, 18):
+                raise BadRequest(f"Invalid password provided. Password must be a minimum of 18 characters. Password must contain only letters, numbers and allowed symbols. Whitespace is not permitted")
+
+        try:
+            self.__persist_service_credentials(service_credentials)
+        except:
+            pass
+        return service_credentials
+    
+    @staticmethod
+    def __apply_service_credentials(env_dict: dict, service_credentials: dict) -> dict:
+        CONFIGURABLE_USERNAMES = [
+            # "POSTGRES_USER", <- not supported
+            "LANGFUSE_USERNAME",
+            "MINIO_ROOT_USER",
+            "MCP_GATEWAY_BASIC_USER",
+            # "ES_USERNAME",<- not supported
+            # "MILVUS_USERNAME" <- not supported
+            "CLICKHOUSE_USER"
+        ]
+
+        CONFIGURABLE_PASSWORDS = [
+            "POSTGRES_PASSWORD",
+            "LANGFUSE_PASSWORD",
+            "MINIO_ROOT_PASSWORD",
+            "MCP_GATEWAY_BASIC_PASSWORD",
+            "MCP_GATEWAY_ADMIN_PASSWORD",
+            "ES_PASSWORD",
+            "MILVUS_PASSWORD",
+            "CLICKHOUSE_PASSWORD",
+            "TAVILY_API_KEY", #May not be needed
+            "RUNTIME_MANAGER_API_KEY",
+            "DB_ENCRYPTION_KEY",
+            "AGENTOPS_API_KEY",
+            "MEMORY_SERVICE_API_KEY"
+        ]
+
+        username = service_credentials.get(EnvService._SERVICE_USERNAME_ENV_VAR)
+        password = service_credentials.get(EnvService._SERVICE_PASSWORD_ENV_VAR)
+
+        if username:
+            for username_var in CONFIGURABLE_USERNAMES:
+                env_dict.setdefault(username_var, username)
+
+        if password:
+            for password_var in CONFIGURABLE_PASSWORDS:
+                env_dict.setdefault(password_var, password)
 
         return env_dict
 
@@ -390,27 +498,62 @@ class EnvService:
         # configure default/preferred model properly based on availability of apikeys
         wo_instance = env_dict.get("WO_INSTANCE")
         groq_key = env_dict.get("GROQ_API_KEY")
+        aws_creds = env_dict.get("BEDROCK_AWS_ACCESS_KEY_ID") and env_dict.get("BEDROCK_AWS_SECRET_ACCESS_KEY")
         use_saas_ml_tools_runtime = bool(wo_instance)
         env_dict.setdefault("USE_SAAS_ML_TOOLS_RUNTIME", str(use_saas_ml_tools_runtime).lower())
-        
+
         if wo_instance:
             # both wx.ai and groq supported
             pass
-        elif llm_value and not groq_key:
-            # wx.ai only
-            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "watsonx/meta-llama/llama-3-2-90b-vision-instruct,watsonx/meta-llama/llama-3-405b-instruct", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "watsonx/meta-llama/llama-3-2-90b-vision-instruct", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "watsonx/meta-llama/llama-3-3-70b-instruct", env_dict, user_dict)
-        elif not llm_value and groq_key:
-            # groq only
-            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", "groq/openai/gpt-oss-120b", env_dict, user_dict)
-        elif llm_value and groq_key:
-            # wx.ai and groq
-            pass
+        elif any([llm_value, groq_key, aws_creds]):
+            PREFERRED_MODELS = []
+            DEFAULT_LLM_MODEL = ""
+            DEFAULT_FLOW_LLM_MODEL = ""
+            if llm_value:
+                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+                                         "watsonx/meta-llama/llama-3-405b-instruct"])
+                DEFAULT_LLM_MODEL = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+                DEFAULT_FLOW_LLM_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
+            if aws_creds:
+                PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
+                DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"
+            if groq_key:
+                PREFERRED_MODELS.append("groq/openai/gpt-oss-120b")
+                DEFAULT_LLM_MODEL = "groq/openai/gpt-oss-120b"
+                DEFAULT_FLOW_LLM_MODEL = "groq/openai/gpt-oss-120b"
+            if DEFAULT_FLOW_LLM_MODEL == "":
+                # TODO: For flows team to confirm
+                RuntimeError("Flow not supporting bedrock gpt oss as default yet")
+            EnvService.__set_if_not_in_user_env("PREFERRED_MODELS", ",".join(PREFERRED_MODELS), env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", DEFAULT_LLM_MODEL, env_dict, user_dict)
+            EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", DEFAULT_FLOW_LLM_MODEL, env_dict, user_dict)
         else:
-            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`")
+            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")
+    
+    @staticmethod
+    def _check_dev_edition_server_health() -> bool:
+        url = "http://localhost:4321/api/v1/health/ready"
+        try:
+            response = requests.get(url)
+            if 200 <= response.status_code < 300:
+                return True
+        except:
+            pass
+        return False
+
+    @staticmethod
+    def _wait_for_dev_edition_server_health_check(timeout_seconds=120, interval_seconds=3):
+        start_time = time.time()
+        while time.time() - start_time <= timeout_seconds:
+            try:
+                res = EnvService._check_dev_edition_server_health()
+                if res:
+                    return True
+            except requests.RequestException as e:
+                pass
+
+            time.sleep(interval_seconds)
+        return False
 
 
     @staticmethod
@@ -449,10 +592,12 @@ class EnvService:
         return merged_env_dict
 
     @staticmethod
-    def prepare_server_env_vars (user_env: dict = {}, should_drop_auth_routes: bool = False) -> dict:
+    def prepare_server_env_vars (user_env: dict = {}, should_drop_auth_routes: bool = False, service_credentials: dict = {}) -> dict:
         merged_env_dict = EnvService.prepare_server_env_vars_minimal(user_env)
 
         merged_env_dict = EnvService.__apply_server_env_dict_defaults(merged_env_dict)
+ 
+        merged_env_dict = EnvService.__apply_service_credentials(env_dict=merged_env_dict, service_credentials=service_credentials)
 
         if should_drop_auth_routes:
             # NOTE: this is only needed in the case of co-pilot as of now.

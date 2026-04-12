@@ -47,22 +47,12 @@ def build_ibm_knowledge_to_emails(aflow: Flow) -> Flow:
         name="ask_agent_for_ibm_knowledge",
         agent="ibm_agent",
         description="Ask the IBM agent to get a fact based on the provided question.",
-        message="Give an answer about IBM based on the provided question.  If you don't know the answer, just say 'I do not know'",
+        message="""Give an answer about IBM based on the provided question.  If you don't know the answer, just say '{{ "answer": "I do not know the answer." }}'.""",
         input_schema=IBMAgentInput,
         output_schema=IBMAgentOutput,
     )
 
     send_emails_node = aflow.tool(send_emails)
-
-    
-    #ask_agent_to_send_email_node = aflow.agent(
-    #    name="ask_agent_to_send_email",
-    #    agent="email_agent",
-    #    description="Ask the email agent to send email to the provided email list.",
-    #    message="Please send an email to the provided email addresses with a content created based on the question and answer provided. Do not ask to provide emails or content.'",
-    #    input_schema=EmailAgentInput,
-    #    output_schema=EmailAgentOutput,
-    #)
     
     aflow.sequence(START, ask_agent_for_ibm_knowledge, send_emails_node, END)
 

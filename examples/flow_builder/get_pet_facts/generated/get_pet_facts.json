@@ -9,7 +9,8 @@
     },
     "output_schema": {
       "$ref": "#/schemas/PetFacts"
-    }
+    },
+    "schedulable": false
   },
   "nodes": {
     "getDogFact": {
@@ -17,12 +18,6 @@
         "kind": "tool",
         "name": "getDogFact",
         "display_name": "getDogFact",
-        "input_schema": {
-          "$ref": "#/schemas/getDogFact_input"
-        },
-        "output_schema": {
-          "$ref": "#/schemas/bo_1"
-        },
         "tool": "getDogFact"
       }
     },
@@ -31,16 +26,10 @@
         "kind": "tool",
         "name": "getCatFact",
         "display_name": "getCatFact",
-        "input_schema": {
-          "$ref": "#/schemas/getCatFact_input"
-        },
-        "output_schema": {
-          "$ref": "#/schemas/bo_2"
-        },
         "tool": "getCatFact"
       }
     },
-    "branch_3": {
+    "branch_1": {
       "spec": {
         "kind": "branch",
         "name": "branch_3",
@@ -79,14 +68,14 @@
   "edges": [
     {
       "start": "__start__",
-      "end": "branch_3"
+      "end": "branch_1"
     },
     {
-      "start": "branch_3",
+      "start": "branch_1",
       "end": "getDogFact"
     },
     {
-      "start": "branch_3",
+      "start": "branch_1",
       "end": "getCatFact"
     },
     {
@@ -124,49 +113,6 @@
           "type": "array",
           "title": "Facts",
           "description": "A list of facts about the pet",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "getDogFact_input": {
-      "type": "object",
-      "title": "getDogFact_input",
-      "required": [],
-      "properties": {}
-    },
-    "bo_1": {
-      "type": "object",
-      "title": "bo_1",
-      "description": "Successfully retrieved dog fact",
-      "required": [],
-      "properties": {
-        "facts": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "success": {
-          "type": "boolean"
-        }
-      }
-    },
-    "getCatFact_input": {
-      "type": "object",
-      "title": "getCatFact_input",
-      "required": [],
-      "properties": {}
-    },
-    "bo_2": {
-      "type": "object",
-      "title": "bo_2",
-      "description": "Successfully retrieved cat fact",
-      "required": [],
-      "properties": {
-        "data": {
-          "type": "array",
           "items": {
             "type": "string"
           }

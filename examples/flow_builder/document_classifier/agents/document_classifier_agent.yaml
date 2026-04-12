@@ -6,7 +6,7 @@ description: >
 instructions: >
     Invoke custom_flow_docclassifier_example tool and output the result
 
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - custom_flow_docclassifier_example

@@ -1,0 +1,23 @@
+# Facebook Messenger Channel Configuration Example
+
+spec_version: v1
+kind: channel
+
+# Required: Channel type identifier
+channel: facebook
+
+# Required: Name for this channel instance
+name: production_facebook_channel
+
+# Optional: Description of this channel
+description: Main customer support Facebook Messenger channel for production environment
+
+# Required: Facebook app secret
+application_secret: ${FACEBOOK_APP_SECRET}
+
+# Required: Page access token for the Facebook page
+page_access_token: ${FACEBOOK_PAGE_ACCESS_TOKEN}
+
+# Required: Verification token for webhook verification This can be any string value you come up with. 
+# You will have to enter the same string when you complete the Webhooks configuration on Facebook's side.
+verification_token: ${FACEBOOK_VERIFICATION_TOKEN}
