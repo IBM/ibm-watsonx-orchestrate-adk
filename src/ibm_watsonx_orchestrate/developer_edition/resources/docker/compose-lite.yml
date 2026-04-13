@@ -263,6 +263,7 @@ services:
       AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+      LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
