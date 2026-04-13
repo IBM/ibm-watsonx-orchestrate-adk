@@ -71,12 +71,12 @@ class Client:
                     # This is valid for a scenario where user is running wxo-server in different port and wish to provide custom instance url
                     instance_url = env_url
                     local = True
-                    api_key = None  # Will be auto-generated
+                    api_key = None
                 else:
                     # No env vars - use default from LocalServiceInstance with auto-generated token
                     instance_url = DEFAULT_LOCAL_SERVICE_URL
                     local = True
-                    api_key = None  # Will be auto-generated
+                    api_key = None
 
             if instance_url is None:
                 raise ValueError("instance_url is required")
