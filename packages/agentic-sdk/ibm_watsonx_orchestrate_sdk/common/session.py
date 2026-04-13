@@ -150,13 +150,28 @@ def build_runs_elsewhere_session(
     api_key: str,
     verify: str | bool | None = None,
     authenticator: Authenticator | None = None,
+    auth_type: str | None = None,
+    iam_url: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
 ) -> AgenticSession:
     if not instance_url:
         raise ValueError("instance_url is required")
-    if not api_key and authenticator is None:
-        raise ValueError("api_key is required")
+    if authenticator is None:
+        if not api_key and (not username or not password):
+            raise ValueError(
+                "Either api_key, authenticator, or username with password is required"
+            )
 
-    credentials = Credentials(url=instance_url, api_key=api_key, verify=verify)
+    credentials = Credentials(
+        url=instance_url,
+        api_key=api_key,
+        verify=verify,
+        auth_type=auth_type,
+        iam_url=iam_url,
+        username=username,
+        password=password,
+    )
     resolved_authenticator = authenticator
     if resolved_authenticator is None:
         dummy_client = _DummyClient(credentials)

@@ -43,6 +43,10 @@ class Client:
         verify: Optional[str | bool] = None,
         authenticator: Optional[Authenticator] = None,
         local: bool = False,
+        auth_type: Optional[str] = None,
+        iam_url: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         *,
         execution_context: Optional[ExecutionContext | Mapping[str, Any]] = None,
         session: Optional[AgenticSession] = None,
@@ -91,13 +95,20 @@ class Client:
                     verify=verify,
                 )
             else:
-                if api_key is None and authenticator is None:
-                    raise ValueError("api_key or authenticator is required")
+                if authenticator is None:
+                    if api_key is None and (username is None or password is None):
+                        raise ValueError(
+                            "Either api_key, authenticator, or username with password is required"
+                        )
                 self._session = build_runs_elsewhere_session(
                     instance_url=instance_url,
                     api_key=api_key or "",
                     verify=verify,
                     authenticator=authenticator,
+                    auth_type=auth_type,
+                    iam_url=iam_url,
+                    username=username,
+                    password=password,
                 )
 
         self._context_client: Optional[ContextClient] = None
