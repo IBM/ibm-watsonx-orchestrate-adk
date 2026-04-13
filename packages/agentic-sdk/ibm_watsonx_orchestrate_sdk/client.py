@@ -17,6 +17,7 @@ from ibm_watsonx_orchestrate_sdk.common.session import (
 from ibm_watsonx_orchestrate_sdk.context.context_client import ContextClient
 from ibm_watsonx_orchestrate_sdk.memory.memory_client import MemoryClient
 from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev
+from ibm_watsonx_orchestrate_clients.common.service_instance.local_service_instance import DEFAULT_LOCAL_SERVICE_URL
 
 
 def _extract_configurable(config: Any) -> Mapping[str, Any]:
@@ -66,16 +67,16 @@ class Client:
                     api_key = env_token
                     instance_url = env_url
                     local = True
+                elif env_url:
+                    # This is valid for a scenario where user is running wxo-server in different port and wish to provide custom instance url
+                    instance_url = env_url
+                    local = True
+                    api_key = None  # Will be auto-generated
                 else:
-                    missing_vars = []
-                    if not env_token:
-                        missing_vars.append("WXO_USER_TOKEN")
-                    if not env_url:
-                        missing_vars.append("WXO_AUTH_URL")
-                    raise ValueError(
-                        "Either execution_context or instance_url authentication is required. "
-                        f"Missing environment variables: {', '.join(missing_vars)}"
-                    )
+                    # No env vars - use default from LocalServiceInstance with auto-generated token
+                    instance_url = DEFAULT_LOCAL_SERVICE_URL
+                    local = True
+                    api_key = None  # Will be auto-generated
 
             if instance_url is None:
                 raise ValueError("instance_url is required")
@@ -84,8 +85,6 @@ class Client:
                 local = True
 
             if local:
-                if api_key is None:
-                    raise ValueError("access token is required in local mode")
                 self._session = build_local_session(
                     instance_url=instance_url,
                     access_token=api_key,
