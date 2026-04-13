@@ -171,14 +171,38 @@ def build_runs_elsewhere_session(
     )
 
 
+def _get_local_default_token(instance_url: str, verify: str | bool | None = None) -> str:
+    """
+    Generate a local development token using LocalServiceInstance.
+    Reuses existing logic from ibm_watsonx_orchestrate_clients package.
+    """
+    from ibm_watsonx_orchestrate_clients.common.service_instance.local_service_instance import LocalServiceInstance
+    
+    try:
+        # Create a dummy client with credentials
+        credentials = Credentials(url=instance_url, verify=verify)
+        dummy_client = _DummyClient(credentials)
+        
+        # Use LocalServiceInstance to generate token
+        local_instance = LocalServiceInstance(dummy_client)
+        return local_instance.tenant_access_token
+        
+    except Exception as e:
+        raise ValueError(f"Failed to generate local token: {e}")
+
+
 def build_local_session(
     *,
     instance_url: str,
-    access_token: str,
+    access_token: str | None = None,
     verify: str | bool | None = None,
 ) -> AgenticSession:
     if not instance_url:
         raise ValueError("instance_url is required")
+    
+    # Auto-generate token if not provided
+    if access_token is None:
+        access_token = _get_local_default_token(instance_url, verify=verify)
 
     return AgenticSession(
         mode="local",
