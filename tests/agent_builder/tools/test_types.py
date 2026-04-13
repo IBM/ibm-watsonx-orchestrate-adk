@@ -3,7 +3,7 @@ import os
 
 import pytest
 import urllib.parse
-from ibm_watsonx_orchestrate.agent_builder.tools.types import WXOFile
+from ibm_watsonx_orchestrate_core.types.tools.types import WXOFile
 
 
 def test_wxo_file_type_get_file_metadata():
@@ -49,11 +49,11 @@ def test_wxo_file_type_get_file_content_with_secure_download():
     
     # Reload module to pick up env vars
     import importlib
-    from ibm_watsonx_orchestrate.agent_builder.tools import types
+    from ibm_watsonx_orchestrate_core.types.tools import types
     importlib.reload(types)
     
     url = "https://app-server.com/v1/files/document.pdf"
-    with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+    with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
         response = MagicMock()
         response.content = b"test content with auth"
         mock_get.return_value = response
@@ -86,11 +86,11 @@ def test_wxo_file_type_get_file_content_without_secure_download():
     
     # Reload module to pick up env vars
     import importlib
-    from ibm_watsonx_orchestrate.agent_builder.tools import types
+    from ibm_watsonx_orchestrate_core.types.tools import types
     importlib.reload(types)
     
     url = "https://app-server.com/v1/files/document.pdf"
-    with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+    with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
         response = MagicMock()
         response.content = b"test content without auth"
         mock_get.return_value = response
@@ -118,11 +118,11 @@ def test_wxo_file_type_get_file_content_without_path_prefix():
     
     # Reload module to pick up env vars
     import importlib
-    from ibm_watsonx_orchestrate.agent_builder.tools import types
+    from ibm_watsonx_orchestrate_core.types.tools import types
     importlib.reload(types)
     
     url = "http://external-storage.com/bucket/file.txt"
-    with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+    with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
         response = MagicMock()
         response.content = b"external content"
         mock_get.return_value = response
@@ -231,11 +231,11 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         url = "https://app-server.com/v1/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -261,11 +261,11 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         url = "https://app-server.com/v1/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -288,11 +288,11 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         url = "http://external-storage.com/bucket/file.txt"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -318,12 +318,12 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         # URL matching custom prefix - should have auth headers with custom values
         url = "https://app-server.com/api/v2/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -345,11 +345,11 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         url = "https://any-url.com/file"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -374,12 +374,12 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         # URL matching prefix - should have auth headers including tenant ID
         url = "https://app-server.com/v1/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -405,12 +405,12 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         # URL matching prefix - should have auth headers but no tenant ID
         url = "https://app-server.com/v1/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {"x-amz-meta-filename": "test.txt"}
             mock_get.return_value = response
@@ -436,12 +436,12 @@ class TestWXOFileSecureDownload:
         
         # Need to reload the module to pick up new env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         # URL matching prefix - should have auth headers including tenant ID
         url = "https://app-server.com/v1/files/document.pdf"
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.content = b"file content"
             mock_get.return_value = response
@@ -469,13 +469,13 @@ class TestWXOFile302Redirect:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         wxo_url = "https://app-server.com/v1/files/document.pdf"
         s3_url = "https://s3.amazonaws.com/bucket/file.pdf?signature=xyz"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             # First call returns 302 with Location header
             redirect_response = MagicMock()
             redirect_response.status_code = 302
@@ -527,12 +527,12 @@ class TestWXOFile302Redirect:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         wxo_url = "https://app-server.com/v1/files/document.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             # Response with 200 status (no redirect)
             response = MagicMock()
             response.status_code = 200
@@ -559,12 +559,12 @@ class TestWXOFile302Redirect:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         s3_url = "https://s3.amazonaws.com/bucket/file.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {
                 'x-amz-id-2': 'test-id',
@@ -597,12 +597,12 @@ class TestWXOFileMisconfigurationWarning:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         wxo_url = "https://app-server.com/v1/files/document.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {'Content-Type': 'application/pdf'}
             mock_get.return_value = response
@@ -622,12 +622,12 @@ class TestWXOFileMisconfigurationWarning:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         wxo_url = "https://app-server.com/v1/files/document.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.content = b"test content"
             mock_get.return_value = response
@@ -647,12 +647,12 @@ class TestWXOFileMisconfigurationWarning:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         s3_url = "https://s3.amazonaws.com/bucket/file.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.headers = {'Content-Type': 'application/pdf'}
             mock_get.return_value = response
@@ -672,12 +672,12 @@ class TestWXOFileMisconfigurationWarning:
         
         # Reload module to pick up env vars
         import importlib
-        from ibm_watsonx_orchestrate.agent_builder.tools import types
+        from ibm_watsonx_orchestrate_core.types.tools import types
         importlib.reload(types)
         
         wxo_url = "https://app-server.com/v1/files/document.pdf"
         
-        with patch('ibm_watsonx_orchestrate.agent_builder.tools.types.requests.get') as mock_get:
+        with patch('ibm_watsonx_orchestrate_core.types.tools.types.requests.get') as mock_get:
             response = MagicMock()
             response.status_code = 200
             response.headers = {'Content-Type': 'application/pdf'}
