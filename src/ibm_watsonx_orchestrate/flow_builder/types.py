@@ -187,7 +187,7 @@ class NodeSpec(BaseModel):
             else:
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
         if self.position:
-            model_spec["position"] = self.position
+            model_spec["position"] = {"x": self.position.x, "y": self.position.y}
 
         return model_spec
 
@@ -675,6 +675,8 @@ class UserFieldKind(str, Enum):
             return UserFieldKind.List
         elif kind == "date-range":
             return UserFieldKind.DateRange
+        elif kind == "time-range":
+            return UserFieldKind.TimeRange
         elif kind == "field":
             return UserFieldKind.Field
         elif kind == "array":
@@ -711,6 +713,8 @@ class UserFieldKind(str, Enum):
             return "UserFieldKind.List"
         elif kind == "date-range":
             return "UserFieldKind.DateRange"
+        elif kind == "time-range":
+            return "UserFieldKind.TimeRange"
         elif kind == "field":
             return "UserFieldKind.Field"
         elif kind == "array":
@@ -1106,6 +1110,44 @@ class UserForm(BaseModel):
 
         return detect_circular_dependencies(behaviours)
     
+
+    def set_form_schema(self, schema: JsonSchemaObject | type[BaseModel], flow: Any):
+        """
+        Set the jsonSchema for this form and register it in the flow's global schemas.
+        This method always creates a SchemaRef by registering the schema in the flow.
+        
+        Args:
+            schema: The schema to set - can be:
+                - A Pydantic BaseModel class (will be converted to JsonSchemaObject)
+                - A JsonSchemaObject
+            flow: The flow instance to register the schema with (required)
+        """
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            # If it's a Pydantic model class, convert it to JsonSchemaObject
+            # Get the JSON schema from the Pydantic model
+            pydantic_schema = schema.model_json_schema()
+            # Convert to JsonSchemaObject - only include fields that are present
+            json_schema_kwargs = {
+                'type': pydantic_schema.get('type', 'object'),
+                'title': pydantic_schema.get('title', schema.__name__),
+            }
+            if 'description' in pydantic_schema:
+                json_schema_kwargs['description'] = pydantic_schema['description']
+            if 'properties' in pydantic_schema:
+                json_schema_kwargs['properties'] = pydantic_schema['properties']
+            if 'required' in pydantic_schema:
+                json_schema_kwargs['required'] = pydantic_schema['required']
+            
+            json_schema = JsonSchemaObject(**json_schema_kwargs)
+            # Register in flow's schemas and get SchemaRef
+            self.jsonSchema = flow._add_schema_ref(json_schema, json_schema.title)
+        elif isinstance(schema, JsonSchemaObject):
+            # If it's a JsonSchemaObject, register it in the flow's schemas
+            # Use the flow's _add_schema_ref method to register and get a SchemaRef
+            self.jsonSchema = flow._add_schema_ref(schema, schema.title)
+        else:
+            raise ValueError(f"schema must be either a Pydantic BaseModel class or JsonSchemaObject, got {type(schema)}")
+
     def add_or_replace_field(self, name: str, userfield: UserField):
         """
         Replace an existing field (by name) in self.fields or append a new one.
@@ -2929,7 +2971,7 @@ class FlowSpec(NodeSpec):
         if self.initiators:
             model_spec["initiators"] = self.initiators
         if self.dimensions:
-            model_spec["dimensions"] = self.dimensions
+            model_spec["dimensions"] = {"width": self.dimensions.width, "height": self.dimensions.height}
         if self.schedulable:
             model_spec["schedulable"] = self.schedulable
         if self.private_schema:
