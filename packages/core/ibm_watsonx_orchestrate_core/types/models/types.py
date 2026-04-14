@@ -5,6 +5,7 @@ from pydantic import Field, BaseModel, ConfigDict, model_validator
 
 class ModelProvider(str, Enum):
     OPENAI = 'openai'
+    OPENAI_OAUTH2_CLIENT_CREDS = 'openai-oauth2-client-creds'
     A21 = 'a21'
     ANTHROPIC = 'anthropic'
     ANYSCALE = 'anyscale'
