@@ -1,5 +1,5 @@
 """
-The Flow model.  There are multiple methods to allow creation and population of 
+The Flow model.  There are multiple methods to allow creation and population of
 the Flow model.
 """
 
@@ -21,6 +21,7 @@ import copy
 import uuid
 import pytz
 import os
+import ast
 
 from typing_extensions import Self
 from pydantic import BaseModel, Field, SerializeAsAny, create_model, TypeAdapter
@@ -468,6 +469,46 @@ class Flow(Node):
         return cast(ToolNode, node)
     
 
+    def _extract_output_properties_from_script(self, script: str) -> dict[str, JsonSchemaObject]:
+        '''
+        Extract output properties from script by parsing the AST and finding all self.output.xyz references.
+        Returns a dictionary of property names to JsonSchemaObject (with type string as default).
+        '''
+        if not script:
+            return {}
+        
+        properties = {}
+        
+        try:
+            # Parse the script into an AST
+            tree = ast.parse(script)
+            
+            # Walk through all nodes in the AST
+            for node in ast.walk(tree):
+                # Look for attribute assignments: self.output.xyz = ...
+                if isinstance(node, ast.Attribute):
+                    # Check if this is accessing an attribute on self.output
+                    if (isinstance(node.value, ast.Attribute) and
+                        isinstance(node.value.value, ast.Name) and
+                        node.value.value.id == 'self' and
+                        node.value.attr == 'output'):
+                        # node.attr is the property name (xyz in self.output.xyz)
+                        prop_name = node.attr
+                        if prop_name not in properties:
+                            # Default to string type since we can't infer the actual type from the script
+                            prop_schema = JsonSchemaObject( # type: ignore
+                                type="string",
+                                description=f"Output variable: {prop_name}"
+                            )
+                            properties[prop_name] = prop_schema
+        except SyntaxError:
+            # If the script has syntax errors, we can't parse it
+            # Return empty dict and let the script fail at runtime
+            logger.warning(f"Could not parse script for output schema extraction due to syntax error")
+            return {}
+        
+        return properties
+    
     def script(
         self,
         script: str | None = "",
@@ -479,11 +520,28 @@ class Flow(Node):
         position: Position | None = None,
         dimensions: Dimensions | None = None
     ) -> ScriptNode:
-        '''create a script node in the flow'''    
+        '''create a script node in the flow'''
         name = name if name is not None and name != "" else ""
 
         input_schema_obj = _get_json_schema_obj("input", input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
+        
+        # If no output_schema is provided, try to auto-generate from script
+        if output_schema is None and script:
+            extracted_properties = self._extract_output_properties_from_script(script)
+            if extracted_properties:
+                # Create a JsonSchemaObject with the extracted properties
+                output_schema_obj = JsonSchemaObject( # type: ignore
+                    type="object",
+                    properties=extracted_properties,
+                    title=f"{name}_output" if name else "script_output"
+                )
+                # Add the schema to the flow's schema dictionary
+                title = output_schema_obj.title if output_schema_obj.title else "script_output"
+                output_schema_obj = self._add_schema(output_schema_obj, title)
+            else:
+                output_schema_obj = _get_json_schema_obj("output", output_schema)
+        else:
+            output_schema_obj = _get_json_schema_obj("output", output_schema)
 
         script_node_spec = ScriptNodeSpec(
                                 name = name,
