@@ -2998,8 +2998,13 @@ class LoopSpec(FlowSpec):
 
         return model_spec
 
+class UserAssignmentPolicy(Enum):
+    FLOW_INITIATOR = "initiator"
+    USER= "data_map"
+
 class UserFlowSpec(FlowSpec):
     owners: Sequence[str] = [ANY_USER]
+    assignment_policy : UserAssignmentPolicy = Field(default=UserAssignmentPolicy.FLOW_INITIATOR, description="The initiator of this flow")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3009,7 +3014,8 @@ class UserFlowSpec(FlowSpec):
         model_spec = super().to_json()
         if self.initiators:
             model_spec["owners"] = self.initiators
-
+        if self.assignment_policy:
+            model_spec["assignment_policy"] = self.assignment_policy.value
         return model_spec
 
 class ForeachPolicy(Enum):
