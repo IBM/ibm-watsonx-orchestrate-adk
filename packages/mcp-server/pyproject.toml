@@ -16,7 +16,7 @@ requires-python = ">=3.11, <3.14"
 dependencies = [
     "typing-extensions>=4.4.0",
     "pyyaml>=6.0.2,<7.0.0",
-    "fastmcp~=2.10",
+    "fastmcp>=2.10,<=2.14.5",
     "ibm-watsonx-orchestrate>=1.16.0",
     "authlib>=1.6.3",
 ]

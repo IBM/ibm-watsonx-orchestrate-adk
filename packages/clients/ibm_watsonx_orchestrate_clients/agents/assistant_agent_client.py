@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate_core.utils.workspaces import (
     resolve_and_inject_workspace,
     convert_workspace_id_to_name
 )
+from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID
 
 class AssistantAgentClient(BaseWXOClient):
     """
@@ -16,7 +17,7 @@ class AssistantAgentClient(BaseWXOClient):
         payload = resolve_and_inject_workspace(payload)
         return self._post("/assistants/watsonx", data=payload)
 
-    def get(self, workspace_id: Optional[str] = None) -> dict:
+    def get(self, workspace_id: Optional[str] = None, include_global: bool = True) -> dict:
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
@@ -24,6 +25,9 @@ class AssistantAgentClient(BaseWXOClient):
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
         agents = self._get(f"/assistants/watsonx?{query_string}")
@@ -36,39 +40,44 @@ class AssistantAgentClient(BaseWXOClient):
         
         return agents
 
-    def update(self, agent_id: str, data: dict) -> dict:
+    def update(self, agent_id: str, data: dict, skip_workspace_injection: bool = False) -> dict:
         # Resolve workspace field and inject active workspace context
-        data = resolve_and_inject_workspace(data)
+        # Skip injection for cross-workspace updates
+        if not skip_workspace_injection:
+            data = resolve_and_inject_workspace(data)
         return self._patch(f"/assistants/watsonx/{agent_id}", data=data)
 
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"/assistants/watsonx/{agent_id}")
     
-    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None) -> List[dict]:
-        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id)
+    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
+        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id, include_global=include_global)
 
-    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-        if workspace_id is not None:
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
             params['workspace_id'] = workspace_id
-        else:
-            # Add workspace filtering if applicable
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         # Build query string with names and other params
         query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
         return self._get(f"/assistants/watsonx?{'&'.join(query_parts)}")
     
-    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None) -> dict | str:
+    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None, include_global: bool = True) -> dict | str:
         if agent_id is None:
             return ""
         else:
             try:
                 # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-                if workspace_id is not None:
+                if workspace_id is not None and not include_global:
                     params = {'workspace_id': workspace_id}
                     query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
                     agent = self._get(f"/assistants/watsonx/{agent_id}?{query_string}")
@@ -80,15 +89,19 @@ class AssistantAgentClient(BaseWXOClient):
                     return ""
                 raise(e)
     
-    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:  
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-        if workspace_id is not None:
+        if workspace_id is not None and workspace_id != GLOBAL_WORKSPACE_ID:
             params['workspace_id'] = workspace_id
-        else:
+        elif workspace_id is None:
+            # Add workspace filtering if applicable (only when not explicitly set)
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         # Build query string with ids and other params
         query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]
