@@ -83,9 +83,9 @@ class JokeResponse(BaseModel):
     rating: Optional[int] = Field(default=None, description="How funny the joke is, from 1 to 10")
 
 
-def test_basic_invoke(environment: str, api_key: str, base_url: str,
-                      model: str, iam_url: str | None = None,
-                      auth_type: str | None = None) -> TestResult:
+def run_basic_invoke(environment: str, api_key: str, base_url: str,
+                     model: str, iam_url: str | None = None,
+                     auth_type: str | None = None) -> TestResult:
     """Test basic invoke functionality."""
     start_time = datetime.now()
     test_question = "What is the capital of France? Answer in one sentence."
@@ -134,9 +134,9 @@ def test_basic_invoke(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_bind_tools(environment: str, api_key: str, base_url: str,
-                    model: str, iam_url: str | None = None,
-                    auth_type: str | None = None) -> TestResult:
+def run_bind_tools(environment: str, api_key: str, base_url: str,
+                   model: str, iam_url: str | None = None,
+                   auth_type: str | None = None) -> TestResult:
     """Test bind_tools functionality."""
     start_time = datetime.now()
     
@@ -192,9 +192,9 @@ def test_bind_tools(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_structured_output(environment: str, api_key: str, base_url: str,
-                          model: str, iam_url: str | None = None,
-                          auth_type: str | None = None) -> TestResult:
+def run_structured_output(environment: str, api_key: str, base_url: str,
+                         model: str, iam_url: str | None = None,
+                         auth_type: str | None = None) -> TestResult:
     """Test with_structured_output functionality."""
     start_time = datetime.now()
     
@@ -244,9 +244,9 @@ def test_structured_output(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_batch(environment: str, api_key: str, base_url: str,
-               model: str, iam_url: str | None = None,
-               auth_type: str | None = None) -> TestResult:
+def run_batch(environment: str, api_key: str, base_url: str,
+              model: str, iam_url: str | None = None,
+              auth_type: str | None = None) -> TestResult:
     """Test batch functionality."""
     start_time = datetime.now()
     
@@ -302,9 +302,9 @@ def test_batch(environment: str, api_key: str, base_url: str,
         )
 
 
-async def test_astream(environment: str, api_key: str, base_url: str,
-                       model: str, iam_url: str | None = None,
-                       auth_type: str | None = None) -> TestResult:
+async def run_astream(environment: str, api_key: str, base_url: str,
+                      model: str, iam_url: str | None = None,
+                      auth_type: str | None = None) -> TestResult:
     """Test async streaming functionality."""
     start_time = datetime.now()
     
@@ -358,9 +358,9 @@ async def test_astream(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_logprobs(environment: str, api_key: str, base_url: str,
-                  model: str, iam_url: str | None = None,
-                  auth_type: str | None = None) -> TestResult:
+def run_logprobs(environment: str, api_key: str, base_url: str,
+                 model: str, iam_url: str | None = None,
+                 auth_type: str | None = None) -> TestResult:
     """Test logprobs functionality."""
     start_time = datetime.now()
     
@@ -464,11 +464,11 @@ def run_integration_tests():
     
     # Define test functions
     test_functions = [
-        test_basic_invoke,
-        test_bind_tools,
-        test_structured_output,
-        test_batch,
-        test_logprobs,
+        run_basic_invoke,
+        run_bind_tools,
+        run_structured_output,
+        run_batch,
+        run_logprobs,
     ]
     
     # Run tests
@@ -480,7 +480,7 @@ def run_integration_tests():
             results.append(result)
         
         # Run async test
-        async_result = asyncio.run(test_astream(environment, api_key, base_url, model, iam_url, auth_type))
+        async_result = asyncio.run(run_astream(environment, api_key, base_url, model, iam_url, auth_type))
         results.append(async_result)
     
     # Print summary
