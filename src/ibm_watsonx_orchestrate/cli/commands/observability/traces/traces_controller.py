@@ -311,41 +311,48 @@ def trace_search (  start_time: datetime,
                     sort=sort,
                     page_size=page_size,
                 )
-                
-                progress.update(task, description=f"Found {len(search_response.traceSummaries)} traces")
-            
+                            
             if not search_response.traceSummaries:
                 logger.warning("No traces found matching the criteria")
                 return
             
             traces_to_display = search_response.traceSummaries
-            
             # Display results in a table
-            table = Table(title=f"Found {len(search_response.traceSummaries)} traces")
+            table = Table(title=f"Found {len([t for t in traces_to_display if t.agentNames])} traces")
+            table.add_column("Timestamp")
             table.add_column("Trace ID", no_wrap=True)
-            table.add_column("Start Time")
-            table.add_column("Duration (ms)")
-            table.add_column("Spans")
             table.add_column("Agent Name")
-            table.add_column("Agent ID")
-            table.add_column("User ID")
-            
+            table.add_column("Latency", justify="right")
             for trace in traces_to_display:
-                # Handle both list and single value for agent_names, agent_ids, and user_ids
+                # Get agent name (use first one if multiple, or "-" if none)
                 agent_name = trace.agentNames[0] if trace.agentNames else "-"
-                agent_id = trace.agentIds[0] if trace.agentIds else "-"
-                user_id = trace.userIds[0] if trace.userIds else "-"
+                if agent_name !="-":
+                    agent_name = trace.agentNames[0] if trace.agentNames else "-"
                 
-                table.add_row(
-                    trace.traceId,
-                    trace.startTime[:19],  # Show date and time only
-                    str(trace.durationMs),
-                    str(trace.spanCount),
-                    agent_name,
-                    agent_id,
-                    user_id
-                )
-            
+                    # Convert duration from ms to seconds
+                    latency_s = trace.durationMs / 1000.0
+                    
+                    # Format latency with appropriate precision
+                    if latency_s == 0:
+                        latency_str = "0s"
+                    elif latency_s < 0.001:
+                        latency_str = f"{latency_s*1000:.3f}ms"
+                    elif latency_s < 1:
+                        latency_str = f"{latency_s*1000:.0f}ms"
+                    else:
+                        latency_str = f"{latency_s:.3f}s"
+                    # Format timestamp to match UI: MM/DD/YYYY , HH:MM:SSAM/PM
+                    # Parse ISO format: 2026-04-02T09:42:27.548775Z
+                    dt = datetime.fromisoformat(trace.startTime.replace('Z', '+00:00'))
+                    formatted_timestamp = dt.strftime("%m/%d/%Y , %I:%M:%S%p")
+
+                    table.add_row(
+                        formatted_timestamp,  # Show date and time only (YYYY-MM-DDTHH:MM:SS)
+                        trace.traceId,
+                        agent_name,
+                        latency_str,
+                    )
+
             console.print()
             console.print(table)
             console.print()
