@@ -1,5 +1,5 @@
 from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file, get_relative_file_path
-from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 import json
