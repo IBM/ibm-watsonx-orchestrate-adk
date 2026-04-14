@@ -72,9 +72,6 @@ pythonpath = [
     "packages/clients",
     "packages/agentic-sdk",
 ]
-norecursedirs = [
-    "tests/integration_tests/agentic_sdk/langchain", # requires .env
-]
 
 [tool.hatch.envs.default]
 dependencies = [
