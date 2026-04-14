@@ -1,0 +1,69 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "context_variables_5323gj",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "context variables"
+    },
+    "edges": [
+        {
+            "id": "5589376b-277b-4aa8-bd98-28ce1e19f187",
+            "end": "CodeBlock 1",
+            "start": "__start__"
+        },
+        {
+            "id": "3060a5ed-f636-4e3d-ad8a-86d44fef27f6",
+            "end": "__end__",
+            "start": "CodeBlock 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 300
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "CodeBlock 1": {
+            "spec": {
+                "fn": "system.context.set_variable('Role',\"Product Manager\")\nsystem.context.get_variable(\"wxo_email_id\")",
+                "kind": "script",
+                "name": "CodeBlock 1",
+                "position": {
+                    "x": 0,
+                    "y": 155
+                },
+                "display_name": "Context Variables"
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_under_specified": true,
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}
