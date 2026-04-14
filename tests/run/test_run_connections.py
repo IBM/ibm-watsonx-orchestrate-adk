@@ -8,7 +8,6 @@ from ibm_watsonx_orchestrate.run.connections import(
     oauth2_client_creds,
     oauth2_on_behalf_of,
     oauth2_token_exchange,
-    oauth2_direct_accesstoken,
     key_value,
     connection_type
 )
@@ -69,12 +68,6 @@ class TestOauth2TokenExchange:
         with patch("ibm_watsonx_orchestrate.run.connections.get_application_connection_credentials") as mock:
             oauth2_token_exchange("test")
             mock.assert_called_with(ConnectionType.OAUTH2_TOKEN_EXCHANGE, app_id="test")
-
-class TestOauthDirectAccess:
-    def test_oauth2_direct_accesstoken(self):
-        with patch("ibm_watsonx_orchestrate.run.connections.get_application_connection_credentials") as mock:
-            oauth2_direct_accesstoken("test")
-            mock.assert_called_with(ConnectionType.OAUTH2_DIRECT_ACCESS, app_id="test")
 
 class TestKeyValue:
     def test_key_value(self):
