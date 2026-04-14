@@ -42,8 +42,7 @@ services:
 
 
   wxo-server-connection-manager:
-    # image: ${CM_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
-    image: us.icr.io/watson-orchestrate/production/wxo-connections:20260408-develop-1487-8e7cd1c
+    image: ${CM_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections:${CM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     volumes:
@@ -69,8 +68,7 @@ services:
       - 3001:3001
   
   wxo-server-connections-ui:
-    # image: ${CONNECTIONS_UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections-ui:${CONNECTIONS_UI_TAG:-latest}
-    image: http://us.icr.io/watson-orchestrate/production/wxo-connections-ui:20260409-develop-2184-135fa5d
+    image: ${CONNECTIONS_UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-connections-ui:${CONNECTIONS_UI_TAG:-latest}
     platform: linux/amd64
     profiles: [connections-ui]
     environment:
