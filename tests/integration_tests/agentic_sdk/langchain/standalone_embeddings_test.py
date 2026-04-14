@@ -21,6 +21,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+import pytest
 
 from dotenv import load_dotenv
 
@@ -30,7 +31,7 @@ if not env_path.exists():
     print("❌ Error: .env file not found!")
     print(f"   Please copy .env.template to .env and configure your credentials.")
     print(f"   Expected location: {env_path}")
-    sys.exit(1)
+    pytest.skip(allow_module_level=True)
 
 load_dotenv(env_path)
 
@@ -40,7 +41,7 @@ except ImportError:
     print("❌ Error: ibm-watsonx-orchestrate-sdk not installed!")
     print("   Install with: pip install ibm-watsonx-orchestrate-sdk")
     print("   Or from source: pip install -e packages/agentic-sdk/ibm-watsonx-orchestrate-sdk")
-    sys.exit(1)
+    pytest.skip(allow_module_level=True)
 
 
 class TestResult:
