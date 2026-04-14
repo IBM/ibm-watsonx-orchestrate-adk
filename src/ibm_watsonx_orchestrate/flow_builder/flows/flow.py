@@ -36,7 +36,7 @@ from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
     NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
-    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
+    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
     UserFormButton
 )
@@ -2105,3 +2105,98 @@ class UserFlow(Flow):
         node = self._add_node(node)
         return cast(UserNode, node)
     
+    def assign_to(self, policy: UserAssignmentPolicy, assignees: Optional[str] = None) -> Self:
+        '''
+        Sets the assignment policy for the user flow and optionally specifies the assignees.
+
+        Args:
+            policy (UserAssignmentPolicy): The assignment policy to use. Options:
+                - UserAssignmentPolicy.FLOW_INITIATOR: Assigns the user flow to the user who initiated the flow
+                - UserAssignmentPolicy.USER: Assigns the user flow to specific user(s) defined by the assignees parameter
+            
+            assignees (Optional[str]): Expression that resolves to the user(s) the flow is assigned to for execution.
+                Required when policy is UserAssignmentPolicy.USER. Can be one of:
+                
+                - A JSON array with a single user ID (as a string):
+                    Example: '["123002B12G"]'
+                
+                - A flow variable path that references a user:
+                    Example: 'flow.private.employee.manager'
+                    (where manager is of type User)
+                
+                The expression will be used to dynamically assign the user activity to a user at runtime.
+
+        Returns:
+            Self: The current instance of the user flow.
+            
+        Raises:
+            ValueError: If policy is UserAssignmentPolicy.USER and assignees is not provided,
+                       or if assignees is a JSON array that doesn't contain exactly one user ID.
+            
+        Examples:
+            # Assign to flow initiator
+            user_flow.assign_to(UserAssignmentPolicy.FLOW_INITIATOR)
+            
+            # Assign to specific user by ID
+            user_flow.assign_to(UserAssignmentPolicy.USER, assignees='["123002B12G"]')
+            
+            # Assign to a user referenced by a flow variable
+            user_flow.assign_to(UserAssignmentPolicy.USER, assignees='flow.private.employee.manager')
+        '''
+        
+        # Validate that assignees is provided when policy is USER
+        if policy == UserAssignmentPolicy.USER and assignees is None:
+            raise ValueError("assignees parameter is required when assignment policy is USER")
+        
+        self.get_spec().assignment_policy = policy
+        
+        # If USER policy, set up input_map and input_schema
+        if policy == UserAssignmentPolicy.USER:
+            # Determine if assignees is a JSON array (literal) or a variable expression
+            # A JSON array starts with '[' and ends with ']'
+            is_literal = assignees.strip().startswith('[') and assignees.strip().endswith(']')
+            
+            # If it's a JSON array literal, validate it contains exactly one user ID
+            if is_literal:
+                import json
+                try:
+                    parsed_array = json.loads(assignees.strip())
+                    if not isinstance(parsed_array, list):
+                        raise ValueError("assignees must be a JSON array when using literal format")
+                    if len(parsed_array) != 1:
+                        raise ValueError(f"assignees array must contain exactly one user ID, but contains {len(parsed_array)}")
+                    if not isinstance(parsed_array[0], str):
+                        raise ValueError("assignees array must contain a string user ID")
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"assignees is not a valid JSON array: {e}")
+            
+            assignment_type = "literal" if is_literal else "variable"
+            
+            # Create the input_map using DataMap and DataMapSpec
+            assignment = Assignment(
+                target_variable="self.input.assignees",
+                value_expression=assignees,
+                metadata={"assignmentType": assignment_type}
+            )
+            
+            data_map = DataMap(maps=[assignment])
+            self.input_map = DataMapSpec(spec=data_map)
+            
+            # Create and set the input_schema as ToolRequestBody
+            assignees_schema = JsonSchemaObject(
+                type="array",
+                items=JsonSchemaObject(
+                    type="string",
+                    format="wxo-user"
+                )
+            )
+            
+            input_schema = ToolRequestBody(
+                type="object",
+                properties={
+                    "assignees": assignees_schema
+                }
+            )
+            self.get_spec().input_schema = input_schema
+        
+        return self
