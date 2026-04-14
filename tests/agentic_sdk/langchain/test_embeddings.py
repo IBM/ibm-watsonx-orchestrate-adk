@@ -2,9 +2,11 @@
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from ibm_watsonx_orchestrate_sdk.langchain.embeddings import WxOEmbeddings
-from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, RequestIdentity
-
+try:
+    from ibm_watsonx_orchestrate_sdk.langchain.embeddings import WxOEmbeddings
+    from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession, RequestIdentity
+except ImportError:
+    pytest.skip(allow_module_level=True)
 
 # Test fixtures for creating mock sessions
 @pytest.fixture
