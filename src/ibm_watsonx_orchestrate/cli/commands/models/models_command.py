@@ -15,6 +15,106 @@ logger = logging.getLogger(__name__)
 models_app = typer.Typer(no_args_is_help=True)
 models_policy_app = typer.Typer(no_args_is_help=True)
 models_app.add_typer(models_policy_app, name='policy', help='Add or remove pseudo models which route traffic between multiple downstream models')
+models_config_app = typer.Typer(no_args_is_help=True)
+models_config_denylist_app = typer.Typer(no_args_is_help=True)
+models_config_app.add_typer(
+    models_config_denylist_app,
+    name="denylist",
+    help="Adding/removing LLMs to/from denylist"
+)
+models_app.add_typer(
+    models_config_app,
+    name="config",
+    help="Set default LLM or adding/removing LLMs to/from denylist"
+)
+
+
+@models_config_app.command(name="list", help="Listing tenant level model selection configuration")
+def list_model_selection():
+    models_controller = ModelsController()
+    models_controller.list_model_selection()
+
+@models_config_app.command(name="reset", help="Resetting tenant level model selection config")
+def reset_model_selection():
+    models_controller = ModelsController()
+    models_controller.reset_model_selection_config()
+
+@models_config_app.command(name="export", help="Exporting tenant level model selection into an yaml file")
+def export_model_selection(
+    output_path: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to where the file containing the exported data should be saved",
+        ),
+    ],
+):
+    models_controller = ModelsController()
+    models_controller.export_model_selection(output_path)
+
+
+@models_config_app.command(name="import", help="Importing tenant level model selection from a file")
+def import_model_selection(
+     file: Annotated[
+        str,
+        typer.Option(
+            "--file",
+            "-f",
+            help="Path to spec file containing model selection details.",
+        ),
+    ],
+):
+    models_controller = ModelsController()
+    models_controller.import_model_selection(file)
+
+
+@models_config_app.command(name="default", help="Set default LLM for the tenant")
+def set_llm_default(
+     model_name: Annotated[
+        str,
+        typer.Option(
+            "--name",
+            "-n",
+            help="The model name to be set as default llm",
+        ),
+    ],
+):
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(default_llm=model_name)
+
+
+@models_config_denylist_app.command(name="add", help="Add LLMs to denylist")
+def add_to_llm_denylist(
+     model_names: Annotated[
+        list[str],
+        typer.Option(
+            "--name",
+            "-n",
+            help="The model names to be added to denylist",
+        ),
+    ],
+):
+
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(add_to_llm_denylist=model_names)
+
+
+@models_config_denylist_app.command(name="remove", help="Remove LLMs from denylist")
+def remove_from_llm_denylist(
+     model_names: Annotated[
+        list[str],
+        typer.Option(
+            "--name",
+            "-n",
+            help="The model names to be removed from denylist",
+        ),
+    ],
+):
+
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(remove_from_llm_denylist=model_names)
+
 
 @models_app.command(name="list", help="List available models")
 def model_list(
@@ -22,9 +122,13 @@ def model_list(
         bool,
         typer.Option("--raw", "-r", help="Display the list of models in a non-tabular format"),
     ] = False,
+    show_all_models: Annotated[
+        bool,
+        typer.Option("--all", "-a", help="Display all available models"),
+    ] = False,
 ):
     models_controller = ModelsController()
-    models_controller.list_models(print_raw=print_raw)
+    models_controller.list_models(print_raw=print_raw, show_all_models=show_all_models)
 
 @models_app.command(name="import", help="Import models from spec file")
 def models_import(
