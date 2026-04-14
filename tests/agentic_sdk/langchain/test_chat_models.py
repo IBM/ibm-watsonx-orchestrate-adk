@@ -12,10 +12,10 @@ class TestChatWxOInitialization:
     @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
     def test_init_with_instance_credentials(self, mock_client_class):
         """Test initialization with instance_url and api_key."""
-        # Mock AgenticSession
+        # Mock AgenticSession for runs-elsewhere mode
         mock_session = Mock(spec=AgenticSession)
         mock_session.mode = "runs-elsewhere"
-        mock_session.base_url = "http://localhost:4321/api/v1"
+        mock_session.base_url = "http://localhost:4321/v1/orchestrate"  # runs-elsewhere format
         mock_session.access_token = None
         mock_session.authenticator = Mock()
         mock_session.authenticator.token_manager.get_token.return_value = "test-token-123"
@@ -37,8 +37,7 @@ class TestChatWxOInitialization:
         assert llm._client == mock_client
         assert llm._user_id is None
         assert llm._tenant_id is None
-        # Session base_url already includes /api/v1, so gateway path is appended
-        assert llm.openai_api_base == "http://localhost:4321/api/v1/gateway/model"
+        assert llm.openai_api_base == "http://localhost:4321/v1/orchestrate/gateway/model"
         assert "Authorization" in llm.default_headers
         # Token comes from authenticator placeholder initially
         assert "Bearer" in llm.default_headers["Authorization"]
@@ -47,9 +46,11 @@ class TestChatWxOInitialization:
         mock_client_class.assert_called_once_with(
             api_key="test-api-key",
             instance_url="http://localhost:4321",
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
-            local=False,
+            local=True,  # localhost is auto-detected as local
             execution_context=None,
             session=None
         )
@@ -77,7 +78,7 @@ class TestChatWxOInitialization:
         
         execution_context = {
             "access_token": "test-access-token",
-            "api_proxy_url": "https://api.example.com",
+            "api_proxy_url": "https://api.example.com/v1/orchestrate",
             "tenant_id": "test-tenant",
             "user_id": "test-user",
             "thread_id": "test-thread"
@@ -100,7 +101,7 @@ class TestChatWxOInitialization:
     @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
     def test_init_with_session(self, mock_client_class):
         """Test initialization with pre-configured session."""
-        # Mock AgenticSession
+        # Mock AgenticSession for local mode
         mock_session = Mock(spec=AgenticSession)
         mock_session.mode = "local"
         mock_session.base_url = "http://localhost:4321/api/v1"
@@ -120,7 +121,7 @@ class TestChatWxOInitialization:
         
         assert llm.model == "virtual-model/watsonx/test-model"
         assert llm._session == mock_session
-        assert llm.openai_api_base == "http://localhost:4321/api/v1/gateway/model"
+        assert llm.openai_api_base == "http://localhost:4321/api/v1/orchestrate/gateway/model"
         assert llm.default_headers["Authorization"] == "Bearer local-token"
     
     @patch('ibm_watsonx_orchestrate_sdk.langchain.chat_models.Client')
@@ -147,12 +148,14 @@ class TestChatWxOInitialization:
         
         assert llm.model == "virtual-model/watsonx/test-model"
         assert llm._session == mock_session
-        assert llm.openai_api_base == "http://localhost:4321/api/v1/gateway/model"
+        assert llm.openai_api_base == "http://localhost:4321/api/v1/orchestrate/gateway/model"
         
         # Verify Client was created with local=True
         mock_client_class.assert_called_once_with(
             api_key=None,
             instance_url="http://localhost:4321",
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
             local=True,

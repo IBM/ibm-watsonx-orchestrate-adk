@@ -128,8 +128,8 @@ class WxOEmbeddings(OpenAIEmbeddings):
         client_instance = Client(
             api_key=api_key,
             instance_url=instance_url,
-            # iam_url=iam_url,
-            # auth_type=auth_type,
+            iam_url=iam_url,
+            auth_type=auth_type,
             verify=verify,
             authenticator=authenticator,
             local=local,
@@ -168,9 +168,12 @@ class WxOEmbeddings(OpenAIEmbeddings):
             headers["X-Tenant-ID"] = tenant_id_value
         
         # Construct API base URL for gateway passthrough
-        # Session base_url already includes  prefix /api/v1 for local, /v1/orchestrate for others
+        # Session base_url format by mode:
+        # - local: {instance_url}/api/v1 -> need to add /orchestrate
+        # - runs-elsewhere: {instance_url}/v1/orchestrate
+        # - runs-on: api_proxy_url (already includes path)
         api_base_url = f"{agentic_session.base_url}"
-        if local:
+        if agentic_session.mode == "local":
             api_base_url += "/orchestrate"
         api_base_url += "/gateway/model"
 

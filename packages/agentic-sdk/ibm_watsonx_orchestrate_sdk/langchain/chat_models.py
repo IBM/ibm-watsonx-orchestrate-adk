@@ -179,8 +179,8 @@ class ChatWxO(ChatOpenAI):
         client_instance = Client(
             api_key=api_key,
             instance_url=instance_url,
-            # iam_url=iam_url,
-            # auth_type=auth_type,
+            iam_url=iam_url,
+            auth_type=auth_type,
             verify=verify,
             authenticator=authenticator,
             local=local,
@@ -219,9 +219,12 @@ class ChatWxO(ChatOpenAI):
             headers["X-Tenant-ID"] = tenant_id_value
         
         # Construct API base URL for gateway passthrough
-        # Session base_url already includes  prefix /api/v1 for local, /v1/orchestrate for others
+        # Session base_url format by mode:
+        # - local: {instance_url}/api/v1 -> need to add /orchestrate
+        # - runs-elsewhere: {instance_url}/v1/orchestrate
+        # - runs-on: api_proxy_url (already includes path)
         api_base_url = f"{agentic_session.base_url}"
-        if local:
+        if agentic_session.mode == "local":
             api_base_url += "/orchestrate"
         api_base_url += "/gateway/model"
         
@@ -315,6 +318,111 @@ class ChatWxO(ChatOpenAI):
             current_token = self._get_current_token()
             self.default_headers["Authorization"] = f"Bearer {current_token}"
         return await super().ainvoke(*args, **kwargs)
+    
+    def stream(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Stream responses from the chat model with automatic token refresh.
+        
+        Overrides the parent stream() to refresh authentication token before streaming.
+        
+        Args:
+            *args: Positional arguments passed to ChatOpenAI.stream()
+            **kwargs: Keyword arguments passed to ChatOpenAI.stream()
+        
+        Returns:
+            Iterator of AIMessageChunk objects
+        
+        Example:
+            ```python
+            for chunk in llm.stream("Tell me a story"):
+                print(chunk.content, end="", flush=True)
+            ```
+        """
+        if self._client:
+            # Refresh token in headers before making request
+            current_token = self._get_current_token()
+            self.default_headers["Authorization"] = f"Bearer {current_token}"
+        return super().stream(*args, **kwargs)
+    
+    async def astream(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Async stream responses from the chat model with automatic token refresh.
+        
+        Overrides the parent astream() to refresh authentication token before streaming.
+        
+        Args:
+            *args: Positional arguments passed to ChatOpenAI.astream()
+            **kwargs: Keyword arguments passed to ChatOpenAI.astream()
+        
+        Returns:
+            Async iterator of AIMessageChunk objects
+        
+        Example:
+            ```python
+            async for chunk in llm.astream("Tell me a story"):
+                print(chunk.content, end="", flush=True)
+            ```
+        """
+        if self._client:
+            # Refresh token in headers before making request
+            current_token = self._get_current_token()
+            self.default_headers["Authorization"] = f"Bearer {current_token}"
+        
+        # astream returns an async generator, so we need to iterate and yield
+        async for chunk in super().astream(*args, **kwargs):
+            yield chunk
+    
+    def batch(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Batch process multiple inputs with automatic token refresh.
+        
+        Overrides the parent batch() to refresh authentication token before processing.
+        
+        Args:
+            *args: Positional arguments passed to ChatOpenAI.batch()
+            **kwargs: Keyword arguments passed to ChatOpenAI.batch()
+        
+        Returns:
+            List of AIMessage objects
+        
+        Example:
+            ```python
+            responses = llm.batch(["Question 1", "Question 2", "Question 3"])
+            for response in responses:
+                print(response.content)
+            ```
+        """
+        if self._client:
+            # Refresh token in headers before making request
+            current_token = self._get_current_token()
+            self.default_headers["Authorization"] = f"Bearer {current_token}"
+        return super().batch(*args, **kwargs)
+    
+    async def abatch(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Async batch process multiple inputs with automatic token refresh.
+        
+        Overrides the parent abatch() to refresh authentication token before processing.
+        
+        Args:
+            *args: Positional arguments passed to ChatOpenAI.abatch()
+            **kwargs: Keyword arguments passed to ChatOpenAI.abatch()
+        
+        Returns:
+            List of AIMessage objects
+        
+        Example:
+            ```python
+            responses = await llm.abatch(["Question 1", "Question 2", "Question 3"])
+            for response in responses:
+                print(response.content)
+            ```
+        """
+        if self._client:
+            # Refresh token in headers before making request
+            current_token = self._get_current_token()
+            self.default_headers["Authorization"] = f"Bearer {current_token}"
+        return await super().abatch(*args, **kwargs)
     
     @classmethod
     def from_instance_credentials(
