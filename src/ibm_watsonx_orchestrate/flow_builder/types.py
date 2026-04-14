@@ -132,6 +132,9 @@ def _to_json_from_output_schema(schema: Union[ToolResponseBody, SchemaRef, JsonS
             model_spec["required"] = response_body.required
         if response_body.type == "string" and response_body.format is not None:
             model_spec["format"] = response_body.format
+        # Include model_extra fields (e.g., x-ibm-is-sensitive, x-ibm-masking-policy)
+        if hasattr(response_body, 'model_extra') and response_body.model_extra:
+            model_spec.update(response_body.model_extra)
     elif isinstance(schema, SchemaRef):
         model_spec["$ref"] = schema.ref
     
