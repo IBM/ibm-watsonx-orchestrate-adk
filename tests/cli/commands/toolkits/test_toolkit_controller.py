@@ -73,7 +73,7 @@ class MockToolkitsClient(MagicMock):
     def list_tools(self, zip_file_path: str, command: str, args: List[str]) -> str:
         return self.list_tools_res
     
-    def get(self, workspace_id=None):
+    def get(self, workspace_id=None, include_global=True):
         return self.get_res
 
 class TestGetConnectionId:
@@ -770,7 +770,7 @@ class TestToolkitControllerPublishOrUpdateToolkits:
             expected_payload = {
                 "name": self.mock_name,
                 "description": self.mock_description,
-                "mcp": mcp_spec.model_dump(exclude_none=True)
+                "mcp": mcp_spec.model_dump(exclude_unset=True)
             }
 
             mock_client.create_toolkit.assert_called_once_with(expected_payload)
@@ -795,7 +795,7 @@ class TestToolkitControllerPublishOrUpdateToolkits:
         
         captured = caplog.text
 
-        assert "Existing toolkit found with name" in str(captured)
+        assert "Existing MCP toolkit found with name" in str(captured)
     
     def test_publish_or_update_toolkits_local_invalid_folder(self, caplog):
         with patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client, \
@@ -1045,6 +1045,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
@@ -1073,6 +1074,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
@@ -1154,6 +1156,7 @@ class TestToolkitControllerImportToolkit:
 
             mock_tool_content = {
                 "spec_version": SpecVersion.V1,
+                "kind": ToolkitKind.MCP,
                 "name": self.mock_name,
                 "description": self.mock_description,
                 "package": "test_pacakge",
