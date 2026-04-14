@@ -1,10 +1,64 @@
 import pytest
 from pydantic_core import ValidationError
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, MagicMock
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 from ibm_watsonx_orchestrate.agent_builder.agents import Agent, SpecVersion, AgentKind, AgentStyle, AgentGuideline
-from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
+from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import ModelPoliciesClient
+from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
+from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
+from ibm_watsonx_orchestrate_core.types.models.types import ModelListEntry
+from cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
+
+
+class MockModelsClient():
+
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+        self.list_response = list_response or []
+        self.get_draft_by_name_response = get_draft_by_name_response or []
+        self.list_all_response = list_all_response or []
+        self.base_url = 'http://localhost:4321'
+
+    def list(self):
+        return self.list_response
+
+    def list_all(self):
+        return self.list_all_response
+
+
+MOCK_MODEL_LIST_RESPONSE = [
+    ModelListEntry(
+        name='watsonx/default/llm',
+        description="123",
+        is_default=True,
+        recommended=True
+    ),
+    ModelListEntry(
+        name='virtual/watsonx/xxx/yyy',
+        description="456",
+        is_custom=True,
+    ),
+    ModelListEntry(
+        name='openai/gpt6',
+        description="789",
+        recommended=True,
+        is_denied=True,
+    )
+]
+
+
+def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient | ModelSelectionClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None, mock_model_selection_client: MockModelSelectionClient=None) -> MockModelsClient | MockModelPoliciesClient | MockModelSelectionClient:
+    if client == ModelsClient:
+        if mock_models_client:
+             return mock_models_client
+        return MockModelsClient()
+    if client == ModelPoliciesClient:
+        if mock_policies_client:
+            return mock_policies_client
+        return MockModelPoliciesClient()
+    if client == ModelSelectionClient:
+        return mock_model_selection_client or MockModelSelectionClient()
+
 
 @pytest.fixture()
 def valid_native_agent_sample():
@@ -43,7 +97,7 @@ def default_values():
     return {
         "kind": AgentKind.NATIVE,
         "memory_enabled": None,
-        "llm": DEFAULT_LLM,
+        "llm": "groq/openai/gpt-oss-120b",
         "collaborators": [],
         "tools": [],
         "knowledge_base": [],
@@ -130,23 +184,30 @@ class TestAgentInit:
         assert native_agent.guidelines == [AgentGuideline.model_validate(native_spec_definition["guidelines"][0])]
 
 
-    def test_native_agent_missing_optional_params(self, native_agent_missing_optional_values, default_values):
-        agent_spec = native_agent_missing_optional_values["spec"]
-        missing_value = native_agent_missing_optional_values["missing"]
+    def test_native_agent_missing_optional_params(self, native_agent_missing_optional_values, default_values, monkeypatch):
+        mock_models_client = MockModelsClient(
+            list_all_response=MOCK_MODEL_LIST_RESPONSE
+        )
+        with patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
+            agent_spec = native_agent_missing_optional_values["spec"]
+            missing_value = native_agent_missing_optional_values["missing"]
 
-        default_value = default_values.get(missing_value, None)
+            default_value = default_values.get(missing_value, None)
 
-        native_agent = Agent(
-            **agent_spec
-            )
+            native_agent = Agent(
+                **agent_spec
+                )
 
-        for key in agent_spec:
-            if key == missing_value:
-                assert getattr(native_agent, key) == default_value
-            if key == "guidelines":
-                assert getattr(native_agent, key) == [AgentGuideline.model_validate(agent_spec.get(key)[0])]
-            else:
-                assert getattr(native_agent, key) == agent_spec.get(key)
+            for key in agent_spec:
+                if key == missing_value:
+                    assert getattr(native_agent, key) == default_value
+                if key == "guidelines":
+                    assert getattr(native_agent, key) == [AgentGuideline.model_validate(agent_spec.get(key)[0])]
+                else:
+                    assert getattr(native_agent, key) == agent_spec.get(key)
 
     def test_native_agent_missing_required_params(self, native_agent_missing_required_values):
         agent_spec = native_agent_missing_required_values["spec"]

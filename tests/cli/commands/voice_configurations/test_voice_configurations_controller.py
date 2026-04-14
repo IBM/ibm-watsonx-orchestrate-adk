@@ -139,18 +139,22 @@ class TestRemoveVoiceConfiguration:
 
   def test_remove_by_name(self):
     with patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.delete") as delete_mock, \
-      patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.get_by_name") as get_mock:
+      patch("ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_client.VoiceConfigurationsClient.list") as list_mock:
       expected_id = "test_id"
       expected_name = "test_name"
-      mock_config = voice_configuration_class(
-        expected_id=expected_id,
-        expected_name=expected_name
-      )
-      get_mock.return_value = [mock_config]
+      # Mock the raw config list response (not validated VoiceConfiguration objects)
+      list_mock.return_value = [
+        {
+          "name": expected_name,
+          "voice_configuration_id": expected_id,
+          "speech_to_text": {"provider": "watson_stt"},
+          "text_to_speech": {"provider": "watson_tts"}
+        }
+      ]
 
       VoiceConfigurationsController().remove_voice_config_by_name(voice_config_name=expected_name)
 
-      get_mock.assert_called_once()
+      list_mock.assert_called_once()
       delete_mock.assert_called_once_with(expected_id)
 
 def voice_configuration_dict_full(

@@ -1,4 +1,4 @@
-from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import (
     AgentsController,
     AgentKind

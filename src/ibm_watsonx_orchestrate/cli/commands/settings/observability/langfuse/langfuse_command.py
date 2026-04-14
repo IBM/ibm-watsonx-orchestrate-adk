@@ -7,7 +7,7 @@ from json import loads
 import typer
 from yaml.representer import Representer
 
-from ibm_watsonx_orchestrate.agent_builder.agents import SpecVersion
+from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.client.analytics.llm.analytics_llm_client import AnalyticsLLMClient, AnalyticsLLMConfig, \
     AnalyticsLLMResponse
 from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client, handle_error

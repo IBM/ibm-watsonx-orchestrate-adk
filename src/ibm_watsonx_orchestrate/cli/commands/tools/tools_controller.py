@@ -6,7 +6,6 @@ import sys
 import io
 import re
 import tempfile
-from types import FunctionType
 from pydantic import BaseModel
 import requests
 import zipfile
@@ -24,6 +23,7 @@ import typer
 from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools, get_requirement_lines, get_resolved_py_tool_reqs_file, get_package_root, get_connection_environments, get_formated_requirements_lines
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
@@ -34,26 +34,23 @@ from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController 
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
-from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment, ConnectionConfiguration, ConnectionPreference
-from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, \
-    PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
+from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionEnvironment
+from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT, \
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
-from ibm_watsonx_orchestrate.client.connections import get_connections_client, get_connection_type
+from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
-from ibm_watsonx_orchestrate.flow_builder.utils import import_flow_support_tools
-from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
 from ibm_watsonx_orchestrate.utils.async_helpers import run_coroutine_sync
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
-from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 import yaml
-
 from  ibm_watsonx_orchestrate import __version__
 
 logger = logging.getLogger(__name__)
@@ -78,54 +75,15 @@ class ToolKind(str, Enum):
     langflow = "langflow"
     # skill = "skill"
 
-def get_connection_configs(app_id: str) -> List[ConnectionConfiguration]:
-    client = get_connections_client()
-    connection_configs = []
-    for env in ConnectionEnvironment:
-        try:
-            config = client.get_config(app_id=app_id,env=env)
-            if not config:
-                continue
-            else:
-                connection_configs.append( config.as_config() )
-        except:
-            logger.error(f"Unable to get {env.value.lower()} configs for connection '{app_id}'")
-
-    return connection_configs
-
-def check_plugin_connection(app_id: List[str]):
-    app_ids = []
-    connections_client = get_connections_client()
-    connections = connections_client.get_draft_by_app_ids(app_id)
-
-    for conn in connections:
-        if isinstance(conn, tuple) and len(conn) == 2:
-            key, value = conn
-            if key == "app_id":
-                app_ids.append(value)
-
-    for app_id_check in app_ids:
-        conn_configs = get_connection_configs(app_id_check)
-        for conn_config in conn_configs:
-            if conn_config.preference == ConnectionPreference.MEMBER:
-                logger.error(f"{conn_config.app_id} connection has type of Member. Connection types for Plugin Tools must be Team and not Member")
-                sys.exit(1)
-
 class ToolKindImport(str, Enum):
     openapi = ToolKind.openapi.value
     python = ToolKind.python.value
     flow = ToolKind.flow.value
     langflow = ToolKind.langflow.value
 
-def _get_connection_environments() -> List[ConnectionEnvironment]:
-    if is_local_dev():
-        return [ConnectionEnvironment.DRAFT]
-    else:
-        return [env.value for env in ConnectionEnvironment]
-
 def validate_app_ids(kind: ToolKind, **args) -> None:
     
-    environments = _get_connection_environments()
+    environments = get_connection_environments()
     
     app_ids = args.get("app_id")
     if not app_ids:
@@ -199,9 +157,6 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
                 exit(1)
 
-
-            
-
 def validate_params(kind: ToolKind, **args) -> None:
     if kind in {"openapi", "python"} and args["file"] is None:
         raise typer.BadParameter(
@@ -221,17 +176,6 @@ def validate_params(kind: ToolKind, **args) -> None:
                 f"Missing flags {missing_params} required for kind skill"
             )
     validate_app_ids(kind=kind, **args)
-
-def get_connection_id(app_id: str) -> str:
-    connections_client = get_connections_client()
-    connection_id = None
-    if app_id is not None:
-        connection = connections_client.get(app_id=app_id)
-        if  not connection:
-            logger.error(f"No connection exists with the app-id '{app_id}'")
-            exit(1)
-        connection_id = connection.connection_id
-    return connection_id
 
 def get_connections(app_ids: list[str] | str = None, environment: str = None, allow_missing: bool = True) -> dict:
     if not app_ids:
@@ -263,251 +207,10 @@ def get_connection_ids(app_ids: list[str] | str = None, environment: str = None,
     connections = get_connections(app_ids=app_ids, environment=environment, allow_missing=allow_missing)
     return { k:v.connection_id for k,v in connections.items() }
 
-def parse_app_ids(app_ids: List[str]) -> dict[str,str]:
-    app_id_dict = {}
-    for app_id in app_ids:
-        # Split on = but not on \=
-        split_pattern = re.compile(r"(?<!\\)=")
-        split_id = re.split(split_pattern, app_id)
-        split_id = [x.replace("\\=", "=") for x in split_id]
-        if len(split_id) == 2:
-            runtime_id, local_id = split_id
-        elif len(split_id) == 1:
-            runtime_id = split_id[0]
-            local_id = split_id[0]
-        else:
-            raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. This is likely caused by having mutliple equal signs, please use '\\=' to represent a literal '=' character")
-
-        if not len(runtime_id.strip()) or not len(local_id.strip()):
-            raise typer.BadParameter(f"The provided --app-id '{app_id}' is not valid. --app-id cannot be empty or whitespace")
-
-        runtime_id = sanitize_app_id(runtime_id)
-        app_id_dict[runtime_id] = get_connection_id(local_id)
-
-    return app_id_dict
-
-def validate_python_connections(tool: BaseTool):
-    if not tool.expected_credentials:
-        return
-
-    connections_client = get_connections_client()
-    connections = tool.__tool_spec__.binding.python.connections
-
-    provided_connections = list(connections.keys()) if connections else []
-    imported_connections_list = connections_client.list()
-    imported_connections = {}
-    for conn in imported_connections_list:
-        conn_id = conn.connection_id
-        conn_env = conn.environment
-        if conn_id in imported_connections:
-            imported_connections[conn_id][conn_env] = conn
-        else:
-            imported_connections[conn_id] = {conn_env: conn}
-
-    validation_failed = False
-
-    existing_sanatized_expected_tool_app_ids = set()
-
-    for expected_cred in tool.expected_credentials:
-
-        expected_tool_app_id = expected_cred.app_id
-        if isinstance(expected_cred.type, List):
-            expected_tool_conn_types = expected_cred.type
-        else:
-            expected_tool_conn_types = [expected_cred.type]
-
-        sanatized_expected_tool_app_id = sanitize_app_id(expected_tool_app_id)
-        if sanatized_expected_tool_app_id in existing_sanatized_expected_tool_app_ids:
-            logger.error(f"Duplicate App ID found '{expected_tool_app_id}'. Multiple expected app ids in the tool '{tool.__tool_spec__.name}' collide after sanaitization to '{sanatized_expected_tool_app_id}'. Please rename the offending app id in your tool.")
-            sys.exit(1)
-        existing_sanatized_expected_tool_app_ids.add(sanatized_expected_tool_app_id)
-
-        if sanatized_expected_tool_app_id not in provided_connections:
-            logger.error(f"The tool '{tool.__tool_spec__.name}' requires an app-id '{expected_tool_app_id}'. Please use the `--app-id` flag to provide the required app-id")
-            sys.exit(1)
-
-        if not connections:
-            continue
-            
-        connection_id = connections.get(sanatized_expected_tool_app_id)
-        imported_connection = imported_connections.get(connection_id)
-
-        if connection_id and not imported_connection:
-            logger.error(f"The expected connection id '{connection_id}' does not match any known connection. This is likely caused by the connection being deleted. Please rec-reate the connection and re-import the tool")
-            validation_failed = True
-        
-        environments = _get_connection_environments()
-
-        for conn_environment in environments:
-            conn = imported_connection.get(conn_environment)
-            conn_identifier = conn.app_id if conn is not None else connection_id
-            if conn is None or conn.security_scheme is None:
-                message = f"Connection '{conn_identifier}' is not configured in the '{conn_environment}' environment."
-                if conn_environment == ConnectionEnvironment.DRAFT:
-                    logger.error(message)
-                    sys.exit(1)
-                else:
-                    logger.warning(message + " If you deploy this tool without setting the live configuration the tool will error during execution.")
-                continue
-
-            imported_connection_auth_type = get_connection_type(security_scheme=conn.security_scheme, auth_type=conn.auth_type)
-
-            if conn and len(expected_tool_conn_types) and imported_connection_auth_type not in expected_tool_conn_types:
-                logger.error(f"The app-id '{conn.app_id}' is of type '{imported_connection_auth_type.value}' in the '{conn_environment}' environment. The tool '{tool.__tool_spec__.name}' accepts connections of the following types '{', '.join(expected_tool_conn_types)}'. Use `orchestrate connections list` to view current connections and use `orchestrate connections add` to create the relevent connection")
-                validation_failed = True
-
-    if validation_failed:
-        exit(1)
-
-
-def get_package_root(package_root):
-    return None if package_root is None or package_root.strip() == "" else package_root.strip()
-
-def get_resolved_py_tool_reqs_file (tool_file, requirements_file, package_root):
-    resolved_requirements_file = requirements_file if requirements_file is not None else None
-    tool_sibling_reqs_file = Path(tool_file).absolute().parent.joinpath("requirements.txt")
-    package_root_reqs_file = Path(package_root).absolute().joinpath(
-        "requirements.txt") if get_package_root(package_root) is not None else None
-
-    if resolved_requirements_file is None:
-        # first favor requirements which is sibling root. if not, fallback to the one at package root.
-        if tool_sibling_reqs_file.exists():
-            resolved_requirements_file = str(tool_sibling_reqs_file)
-
-        elif package_root_reqs_file is not None and package_root_reqs_file.exists():
-            resolved_requirements_file = str(package_root_reqs_file)
-
-    return resolved_requirements_file
-
-def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exclude_ibm_watsonx_orchestrate=True):
-    requirements = []
-
-    if requirements_file is not None:
-        with safe_open(requirements_file, 'r') as fp:
-            requirements = fp.readlines()
-
-    if remove_trailing_newlines is True:
-        requirements = [x.strip() for x in requirements]
-
-    if exclude_ibm_watsonx_orchestrate:
-        requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
-    requirements = list(dict.fromkeys(requirements))
-
-    return requirements
-
-
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
-    try:
-        
-        # standard file import
-        file_path = Path(file).absolute()
-
-        file_path_str = str(file_path)
-
-        if file_path.is_dir():
-            raise typer.BadParameter(f"Provided tool file path is not a file.")
-
-        elif file_path.is_symlink():
-            raise typer.BadParameter(f"Symbolic links are not supported for tool file path.")
-
-        file_name = file_path.stem
-
-        if __supported_characters_pattern.match(file_name) is None:
-            raise typer.BadParameter(f"File name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Filename: \"{file_name}\"")
-
-        resolved_package_root = get_package_root(package_root)
-        if resolved_package_root:
-            resolved_package_root = str(Path(resolved_package_root).absolute())
-            package_path = str(Path(resolved_package_root).parent.absolute())
-            package_folder = str(Path(resolved_package_root).stem)
-            sys.path.append(package_path)           # allows you to resolve non relative imports relative to the root of the module
-            sys.path.append(resolved_package_root)  # allows you to resolve relative imports in combination with import_module(..., package=...)
-            package = file_path_str.replace(resolved_package_root, '').replace('.py', '').replace('/', '.').replace('\\', '.')
-            if not path.isdir(resolved_package_root):
-                raise typer.BadParameter(f"The provided package root is not a directory.")
-
-            elif not file_path_str.startswith(str(Path(resolved_package_root))):
-                raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
-
-            temp_path = Path(file_path_str[len(str(Path(resolved_package_root))) + 1:])
-            if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
-                raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
-        else:
-            package_folder = file_path.parent
-            package = file_path.stem
-            sys.path.append(str(package_folder))
-
-        module = importlib.import_module(package, package=package_folder)
-
-        if resolved_package_root:
-            del sys.path[-1]
-        del sys.path[-1]
-
-
-    except typer.BadParameter as ex:
-        raise ex
-
-    except Exception as e:
-        raise typer.BadParameter(f"Failed to load python module from file {file}: {e}")
-
-    requirements = []
-    resolved_requirements_file = get_resolved_py_tool_reqs_file(tool_file=file, requirements_file=requirements_file,
-                                                                package_root=resolved_package_root)
-
-    if resolved_requirements_file is not None:
-        logger.info(f"Using requirement file: \"{resolved_requirements_file}\"")
-
-    if resolved_requirements_file is not None:
-        try:
-            requirements = get_requirement_lines(resolved_requirements_file)
-
-        except Exception as e:
-            raise typer.BadParameter(f"Failed to read file {resolved_requirements_file} {e}")
-
-    tools = []
-
+    return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
     
-    for _, obj in inspect.getmembers(module):
-        if not isinstance(obj, BaseTool):
-            continue
-            
-
-        # Plugin tool - if it was given an app-id
-        if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
-            if app_id and len(app_id):
-                check_plugin_connection(app_id)
-            if obj.kind == PythonToolKind.AGENTPREINVOKE:
-                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPREINVOKE
-            elif obj.kind == PythonToolKind.AGENTPOSTINVOKE:
-                obj.__tool_spec__.binding.python.type = PythonToolKind.AGENTPOSTINVOKE
-
-        obj.__tool_spec__.binding.python.requirements = requirements
-
-        if __supported_characters_pattern.match(obj.__tool_spec__.name) is None:
-            raise typer.BadParameter(f"Tool name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Name: \"{obj.__tool_spec__.name}\"")
-
-        elif resolved_package_root is None:
-            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
-            obj.__tool_spec__.binding.python.function = f"{file_name.replace('.py', '')}:{fn}"
-
-        else:
-            pkg = package[1:]
-            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
-            obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
-
-        if app_id and len(app_id):
-            obj.__tool_spec__.binding.python.connections = parse_app_ids(app_id)
-
-        validate_python_connections(obj)
-        tools.append(obj)
-
-    
-
-    return tools
-    
-
-
 async def import_flow_tool(file: str) -> None:
     
     '''
@@ -845,8 +548,14 @@ class ToolsController:
                 "Toolkit": {}, 
                 "App ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
+
             for column in column_args:
                 table.add_column(column,**column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", justify="center" )
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
@@ -896,6 +605,9 @@ class ToolsController:
                     app_ids=app_ids
                 )
 
+                if is_private_workspace:
+                    entry.is_global = tool.__tool_spec__.workspace == GLOBAL_WORKSPACE_NAME
+
                 if format == ListFormats.JSON:
                     tool_details.append(entry)
                 else:
@@ -924,6 +636,8 @@ class ToolsController:
             for tool in tools:
                 exist = False
                 tool_id = None
+                existing_tool_workspace_id = None
+                cross_workspace_update = False
 
                 existing_tools = self.get_client().get_draft_by_name(tool.__tool_spec__.name)
                 if len(existing_tools) > 1:
@@ -934,6 +648,20 @@ class ToolsController:
                     existing_tool = existing_tools[0]
                     exist = True
                     tool_id = existing_tool.get("id")
+                    # Store the workspace_id of the existing tool for update operations
+                    existing_tool_workspace_id = existing_tool.get("workspace_id")
+                    
+                    # Check if tool is in a different workspace
+                    workspace_context = WorkspaceContext()
+                    active_workspace_id = workspace_context.get_active_workspace_id()
+                    
+                    if existing_tool_workspace_id and active_workspace_id and existing_tool_workspace_id != active_workspace_id:
+                        cross_workspace_update = True
+                        # Get workspace names for info message
+                        tool_workspace_name = GLOBAL_WORKSPACE_NAME if existing_tool_workspace_id == GLOBAL_WORKSPACE_ID else f"workspace {existing_tool_workspace_id}"
+                        active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
+                        
+                        logger.info(f"Tool '{tool.__tool_spec__.name}' belongs to {tool_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
@@ -969,49 +697,9 @@ class ToolsController:
 
                             zip_tool_artifacts.writestr("tool-spec.json", tool.dumps_spec())
                         
-                        cfg = Config()
-                        registry_type = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TYPE_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_TYPE_OPT]
-                        skip_version_check = cfg.read(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT) or DEFAULT_CONFIG_FILE_CONTENT[PYTHON_REGISTRY_HEADER][PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT]
-
-                        requirements = []
-                        if resolved_requirements_file is not None:
-                            exclude_ibm_watsonx_orchestrate = not registry_type == RegistryType.SKIP
-                            requirements = get_requirement_lines(requirements_file=resolved_requirements_file, remove_trailing_newlines=False, exclude_ibm_watsonx_orchestrate=exclude_ibm_watsonx_orchestrate)
-
-                        # Ensure there is a newline at the end of the file
-                        if len(requirements) > 0 and not requirements[-1].endswith("\n"):
-                            requirements[-1] = requirements[-1]+"\n"
-
-
-                        version = __version__
-                        if registry_type == RegistryType.LOCAL:
-                            logger.warning(f"Using a local registry which is for development purposes only")
-                            requirements.append(f"/packages/ibm_watsonx_orchestrate-0.6.0-py3-none-any.whl\n")
-                        elif registry_type == RegistryType.PYPI:
-                            if not skip_version_check:
-                                wheel_file = get_whl_in_registry(registry_url='https://pypi.org/simple/ibm-watsonx-orchestrate', version=version)
-                                if not wheel_file:
-                                    logger.error(f"Could not find ibm-watsonx-orchestrate@{version} on https://pypi.org/project/ibm-watsonx-orchestrate")
-                                    exit(1)
-                            requirements.append(f"ibm-watsonx-orchestrate=={version}\n")
-                        elif registry_type == RegistryType.TESTPYPI:
-                            override_version = cfg.get(PYTHON_REGISTRY_HEADER, PYTHON_REGISTRY_TEST_PACKAGE_VERSION_OVERRIDE_OPT) or version
-                            wheel_file = get_whl_in_registry(registry_url='https://test.pypi.org/simple/ibm-watsonx-orchestrate', version=override_version)
-                            if not wheel_file:
-                                logger.error(f"Could not find ibm-watsonx-orchestrate@{override_version} on https://test.pypi.org/project/ibm-watsonx-orchestrate")
-                                exit(1)
-                            requirements.append(f"ibm-watsonx-orchestrate @ {wheel_file}\n")
-                        elif registry_type == RegistryType.SKIP: # Skip automatically adding the ADK as a dependency
-                            if self.requirements_file:
-                                logger.warning("Skipping adding 'ibm-watsonx-orchestrate' to tool requirements. Please ensure the requirements.txt contains the correct package.")
-                            else:
-                                BadRequest("Cannot skip addition of 'ibm-watsonx-orchestrate' to tool requirements. Please provide a 'requirements.txt' file or use 'orchestrate env acticate <env_name> --registry pypi'")
-                        else:
-                            logger.error(f"Unrecognized registry type provided to orchestrate env activate local --registry <registry>")
-                            exit(1)
+                        requirements = get_formated_requirements_lines(requirement_file=resolved_requirements_file)
                         requirements_file = path.join(tmpdir, 'requirements.txt')
 
-                        requirements = list(dict.fromkeys(requirements))
 
                         with safe_open(requirements_file, 'w') as fp:
                             fp.writelines(requirements)
@@ -1068,7 +756,8 @@ class ToolsController:
 
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
                 if exist:
-                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
+                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact,
+                                   skip_workspace_param=cross_workspace_update)
                 else:
                     self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
@@ -1114,12 +803,13 @@ class ToolsController:
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
-    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str) -> None:
+    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str, skip_workspace_param: bool = False) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
         logger.info(f"Existing Tool '{tool.__tool_spec__.name}' found. Updating...")
 
-        self.get_client().update(tool_id, tool_spec)
+        # For cross-workspace updates, skip workspace injection in the client
+        self.get_client().update(tool_id, tool_spec, skip_workspace_injection=skip_workspace_param)
 
         if tool_artifact is not None:
             match self.tool_kind:
@@ -1208,7 +898,8 @@ class ToolsController:
                     logger.warning(f"Skipping '{name}', could not find uploaded OpenAPI specification for this tool.")
                     return None
                 else:
-                    BadRequest(f"Could not find tool artifacts for tool '{name}'")
+                    logger.warning(f"Could not find tool artifacts for tool '{name}'") # changed this from a bad request else the whole exporting of a workspace stops.
+                    return None
             except Exception as e:
                 logger.warning(f"Error downloading artifacts for tool '{name}': {str(e)}")
                 return None
@@ -1241,22 +932,26 @@ class ToolsController:
                 logger.error(f"Could not find tool spec for tool '{name}'")
                 sys.exit(1)
         
-        # Check if its an MCP tool if so call toolkit export instead
-        kind = _get_kind_from_spec(spec)
-        if kind == ToolKind.mcp:
+        # Check if its an Toolkit tool if so call toolkit export instead
+        toolkit = spec.get("toolkit_id")
+        if toolkit:
             name_parts = name.split(":")
 
             if len(name_parts) < 2:
-                BadRequest(f"The tool '{name}' does not match the naming scheme expected of an MCP tool '<toolkit_name>:<tool_name>'")
+                BadRequest(f"The tool '{name}' does not match the naming scheme expected of a Toolkit tool '<toolkit_name>:<tool_name>'")
             toolkit_name = name_parts[0]
             tc = ToolkitController()
-            tc.export_toolkit(
-                name=toolkit_name,
-                output_file=toolkit_output_file or output_file,
-                zip_file_out=zip_file_out,
-                connections_output_path=connections_output_path,
-                workspace_id=workspace_id
-            )
+            try:
+                tc.export_toolkit(
+                    name=toolkit_name,
+                    output_file=toolkit_output_file or output_file,
+                    zip_file_out=zip_file_out,
+                    connections_output_path=connections_output_path,
+                    workspace_id=workspace_id
+                )
+            except Exception as e:
+                # Log warning and continue - toolkit may not exist or may have been renamed - needed when exporting a workspace  
+                logger.warning(f"Could not export toolkit '{toolkit_name}' for MCP tool '{name}': {str(e)}")
             return
         
         logger.info(f"Exporting tool definition for '{name}' to '{output_path}'")
@@ -1266,7 +961,8 @@ class ToolsController:
         connection_ids = _get_connection_ids_from_spec(spec)
         connection_ids = [c for c in connection_ids if c]
         connections = get_connections_client().get_drafts_by_ids(connection_ids)
-        app_ids = [conn.app_id for conn in connections]
+        # Fix NoneType error: connections can be None
+        app_ids = [conn.app_id for conn in (connections or [])]
 
         if not tool_artifact or not tool_artifact.content:
             return
@@ -1298,7 +994,9 @@ class ToolsController:
                 flow_data = json.loads(flow_definition_content)
                 tools_in_flow = get_all_tools_in_flow(flow_data)
 
-                for t in tools_in_flow:
+                # Fix NoneType error: tools_in_flow can be None
+                # fixes [WARNING] - Could not export tool 'collaborator_agents_flow': 'NoneType' object is not iterable
+                for t in (tools_in_flow or []):
                     self.export_tool(
                         name=t,
                         output_path=f"{output_file.parent}/{t}",
@@ -1308,6 +1006,9 @@ class ToolsController:
                     )
             except Exception as e:
                 logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
+        
+        # Return True to indicate successful export
+        return True
 
     def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
         
