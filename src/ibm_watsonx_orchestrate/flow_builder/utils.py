@@ -877,7 +877,7 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
             for tool in embedded_tools:
                 if tool not in tools:
                     tools.append(tool)
-    
+
     return tools
 
 # Dynamic Forms Helper Functions
