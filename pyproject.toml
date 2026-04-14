@@ -72,9 +72,6 @@ pythonpath = [
     "packages/clients",
     "packages/agentic-sdk",
 ]
-norecursedirs = [
-    "tests/integration_tests/agentic_sdk/langchain", # requires .env
-]
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -100,7 +97,7 @@ include = [
 orchestrate = "ibm_watsonx_orchestrate.cli.main:app"
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}" --ignore=tests/integration_tests/agentic_sdk/langchain"
+test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = [
   "- coverage combine",
