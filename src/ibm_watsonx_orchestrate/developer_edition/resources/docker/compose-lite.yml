@@ -321,7 +321,7 @@ services:
       TOOL_RELEVANCE_THRESHOLD: '0.8'
       CATALOG_SEARCH_LIMIT: '20'
       CATALOG_TOOL_SELECT_LIMIT: '10'
-      FLOW_SOURCE_KIND: 'adk/python'
+      FLOW_SOURCE_KIND: 'bw_AI'
       #got from extra wxo-server
       RECOMMEND_MODELS: ${PREFERRED_MODELS}
       MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
