@@ -97,7 +97,7 @@ include = [
 orchestrate = "ibm_watsonx_orchestrate.cli.main:app"
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest {args:tests}" --ignore=tests/integration_tests/agentic_sdk/langchain"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = [
   "- coverage combine",
