@@ -84,6 +84,8 @@ class TestWxOEmbeddingsInitialization:
         mock_client_class.assert_called_once_with(
             api_key="test-api-key",
             instance_url="https://api.example.com",
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
             local=False,
@@ -130,9 +132,11 @@ class TestWxOEmbeddingsInitialization:
         mock_client_class.assert_called_once_with(
             api_key=None,
             instance_url=None,
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
-            local=False,
+            local=True,
             execution_context=execution_context,
             session=None
         )
@@ -143,6 +147,8 @@ class TestWxOEmbeddingsInitialization:
         assert embeddings._user_id == "runtime-user"
         assert embeddings._tenant_id == "runtime-tenant"
         
+        # Verify base URL - runs-on mode doesn't add /orchestrate
+        assert embeddings.openai_api_base == "http://proxy.internal/v1/orchestrate/gateway/model"
         # Verify headers contain runtime token
         assert embeddings.default_headers["Authorization"] == "Bearer runtime-token-456"
         assert embeddings.default_headers["X-User-ID"] == "runtime-user"
@@ -165,9 +171,11 @@ class TestWxOEmbeddingsInitialization:
         mock_client_class.assert_called_once_with(
             api_key=None,
             instance_url=None,
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
-            local=False,
+            local=True,
             execution_context=None,
             session=mock_local_session
         )
@@ -179,7 +187,7 @@ class TestWxOEmbeddingsInitialization:
         assert embeddings._tenant_id is None
         
         # Verify base URL for local mode
-        assert embeddings.openai_api_base == "http://localhost:4321/api/v1/gateway/model"
+        assert embeddings.openai_api_base == "http://localhost:4321/api/v1/orchestrate/gateway/model"
         assert embeddings.default_headers["Authorization"] == "Bearer local-token-789"
     
     @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.Client')
@@ -200,6 +208,8 @@ class TestWxOEmbeddingsInitialization:
         mock_client_class.assert_called_once_with(
             api_key="local-token",
             instance_url="http://localhost:4321",
+            iam_url=None,
+            auth_type=None,
             verify=None,
             authenticator=None,
             local=True,
@@ -209,6 +219,8 @@ class TestWxOEmbeddingsInitialization:
         
         assert embeddings.model == "openai/text-embedding-3-small"
         assert embeddings._session == mock_local_session
+        # Verify base URL for local mode
+        assert embeddings.openai_api_base == "http://localhost:4321/api/v1/orchestrate/gateway/model"
     
     @patch('ibm_watsonx_orchestrate_sdk.langchain.embeddings.Client')
     def test_init_with_verify_parameter(self, mock_client_class, mock_runs_elsewhere_session):
@@ -228,6 +240,8 @@ class TestWxOEmbeddingsInitialization:
         mock_client_class.assert_called_once_with(
             api_key="test-api-key",
             instance_url="https://api.example.com",
+            iam_url=None,
+            auth_type=None,
             verify=False,
             authenticator=None,
             local=False,
