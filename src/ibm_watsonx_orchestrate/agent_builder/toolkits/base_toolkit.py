@@ -6,7 +6,7 @@ import yaml
 
 from typing import List
 from pathlib import Path
-from .types import ToolkitSpec, ToolkitMCPInputSpec
+from .types import ToolkitSpec, ToolkitMCPInputSpec, ToolkitKind, ToolkitPythonInputSpec
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -74,7 +74,17 @@ class BaseToolkit:
         if not content.get("spec_version"):
                 raise BadRequest(f"Field 'spec_version' not provided. Please ensure provided spec conforms to a valid spec format")
         
-        input_spec = ToolkitMCPInputSpec.model_validate(content)
+        kind = content.get("kind")
+        match kind:
+            case ToolkitKind.MCP:
+                input_spec = ToolkitMCPInputSpec.model_validate(content)
+            case ToolkitKind.PYTHON:
+                input_spec = ToolkitPythonInputSpec.model_validate(content)
+            case None:
+                raise BadRequest(f"Field 'kind' not provided. Please ensure provided spec conforms to a valid spec format")
+            case _:
+                raise BadRequest(f"Unvalid value '{kind}' provided for field 'kind'. Please ensure provided spec conforms to a valid spec format")
+        
         spec = ToolkitSpec.generate_toolkit_spec(input_spec)
 
         return BaseToolkit(spec=spec)
