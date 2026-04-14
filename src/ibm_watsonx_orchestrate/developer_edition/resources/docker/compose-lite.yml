@@ -21,7 +21,7 @@ services:
     command: redis-server --loglevel warning
 
   wxo-server-db:
-    image: us.icr.io/watson-orchestrate/development/wxo-server-db:07-04-2026-bwAI
+    image: ${DB_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-db:${DBTAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -182,7 +182,7 @@ services:
       '
 
   ui:
-    image: us.icr.io/watson-orchestrate/development/wxo-chat:20260406-agent_architect_phase_2-3490-f1987a9-amd64
+    image: ${UI_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-chat:${UITAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -228,7 +228,7 @@ services:
       - ui-data:/data
 
   wxo-builder:
-    image: us.icr.io/watson-orchestrate/development/wxo-builder:20260402-develop-6020-b980b68
+    image: ${BUILDER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-builder:${BUILDER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     environment:
@@ -265,6 +265,7 @@ services:
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
       THREAD_ENCODER_SECRET: 'asdsd'
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -275,7 +276,7 @@ services:
       retries: 5
 
   wxo-agent-architect-server:
-    image: us.icr.io/watson-orchestrate/development/wxo-server-server:20260331-bwaiworkflownamellmretry-8130-011d344
+    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     profiles: [agent-builder]
     platform: linux/amd64
     restart: unless-stopped
@@ -340,7 +341,7 @@ services:
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
       TRM_BASE_URL: http://tools-runtime-manager:8080
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
       # POSTGRES_POOL_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:6432/postgres
       CELERY_BROKER_URL: redis://wxo-server-redis:6379/0
       AGENT_GATEWAY_URI: http://wxo-agent-gateway:8989
@@ -426,7 +427,7 @@ services:
       AGENTOPS_BACKEND_URL: https://frontend-server:443
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
-      POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
       WXO_SERVER_BASE_URL: http://wxo-server:4321
 
   wxo-server-minio:
@@ -519,7 +520,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/watson-orchestrate/development/wxo-server-server:20260325-folder_move_bwai-7747-fe58df9
+    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
