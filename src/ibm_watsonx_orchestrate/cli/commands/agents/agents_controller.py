@@ -61,6 +61,10 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.agent_builder.agents.a2a_discovery import A2ADiscoveryService
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.client.connections import get_connections_client
+from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -2968,3 +2972,54 @@ class AgentsController:
         except Exception as e:
             logger.error(f"Failed to download agent package: {e}")
             sys.exit(1)
+
+
+    def discover_and_import_agent(
+        self,
+        base_url: str,
+        endpoint: str = ".well-known/agent-card.json",
+        agent_name: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> None:
+        """
+        Discover an A2A agent from a well-known URI and import it directly.
+        
+        Args:
+            base_url: Base URL of the A2A agent
+            endpoint: Well-known endpoint path for the agent card
+            agent_name: Override agent name (defaults to name from agent card)
+            app_id: Connection app_id for authentication (optional)
+        """
+                
+        try:
+            with A2ADiscoveryService() as discovery_client:
+                logger.info(f"Discovering A2A agent from {base_url}/{endpoint}")
+    
+                wxo_spec = discovery_client.discover_and_convert(
+                    base_url=base_url,
+                    endpoint=endpoint,
+                    agent_name=agent_name,
+                    app_id=app_id
+                )
+                
+                discovered_name = wxo_spec.get('name', 'unknown')
+                
+                logger.info(f"Publishing discovered agent: {discovered_name}")
+                
+                # Convert the spec dictionary to an ExternalAgent object
+                agent = ExternalAgent.model_validate(wxo_spec)
+                
+                # Directly publish the converted agent object
+                self.publish_or_update_agents([agent])
+                
+                                            
+        except requests.RequestException as e:
+            logger.error(f"Failed to discover agent from {base_url}: {str(e)}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid agent card format: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unexpected error during agent discovery: {str(e)}")
+            sys.exit(1)
+
