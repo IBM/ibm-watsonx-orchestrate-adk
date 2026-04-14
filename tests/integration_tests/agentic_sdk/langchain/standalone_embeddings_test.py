@@ -59,9 +59,9 @@ class TestResult:
         self.details = details or {}
 
 
-def test_embed_query(environment: str, api_key: str, base_url: str,
-                     model: str, iam_url: str | None = None,
-                     auth_type: str | None = None) -> TestResult:
+def run_embed_query(environment: str, api_key: str, base_url: str,
+                    model: str, iam_url: str | None = None,
+                    auth_type: str | None = None) -> TestResult:
     """Test basic embed_query functionality."""
     start_time = datetime.now()
     test_text = "What is the capital of France?"
@@ -114,7 +114,7 @@ def test_embed_query(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_embed_documents(environment: str, api_key: str, base_url: str,
+def run_embed_documents(environment: str, api_key: str, base_url: str,
                         model: str, iam_url: str | None = None,
                         auth_type: str | None = None) -> TestResult:
     """Test embed_documents functionality."""
@@ -177,7 +177,7 @@ def test_embed_documents(environment: str, api_key: str, base_url: str,
         )
 
 
-async def test_aembed_query(environment: str, api_key: str, base_url: str,
+async def run_aembed_query(environment: str, api_key: str, base_url: str,
                            model: str, iam_url: str | None = None,
                            auth_type: str | None = None) -> TestResult:
     """Test async aembed_query functionality."""
@@ -231,7 +231,7 @@ async def test_aembed_query(environment: str, api_key: str, base_url: str,
         )
 
 
-async def test_aembed_documents(environment: str, api_key: str, base_url: str,
+async def run_aembed_documents(environment: str, api_key: str, base_url: str,
                                model: str, iam_url: str | None = None,
                                auth_type: str | None = None) -> TestResult:
     """Test async aembed_documents functionality."""
@@ -293,7 +293,7 @@ async def test_aembed_documents(environment: str, api_key: str, base_url: str,
         )
 
 
-def test_similarity_search(environment: str, api_key: str, base_url: str,
+def run_similarity_search(environment: str, api_key: str, base_url: str,
                           model: str, iam_url: str | None = None,
                           auth_type: str | None = None) -> TestResult:
     """Test embeddings for similarity search use case."""
@@ -423,14 +423,14 @@ def run_integration_tests():
     
     # Define test functions
     sync_test_functions = [
-        test_embed_query,
-        test_embed_documents,
-        test_similarity_search,
+        run_embed_query,
+        run_embed_documents,
+        run_similarity_search,
     ]
     
     async_test_functions = [
-        test_aembed_query,
-        test_aembed_documents,
+        run_aembed_query,
+        run_aembed_documents,
     ]
     
     # Run tests
