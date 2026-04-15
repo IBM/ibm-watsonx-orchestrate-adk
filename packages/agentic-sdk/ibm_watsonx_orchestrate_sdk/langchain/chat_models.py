@@ -172,7 +172,6 @@ class ChatWxO(ChatOpenAI):
             )
             ```
         """
-        # 
         if not any([local, execution_context, session]) and is_local_dev(instance_url):
             local = True
     
@@ -225,14 +224,11 @@ class ChatWxO(ChatOpenAI):
         # Construct API base URL for gateway passthrough
         # Session base_url format by mode:
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
-        # - runs-elsewhere: {instance_url}/v1/orchestrate (already has /orchestrate)
-        # - runs-on: api_proxy_url (already includes /orchestrate)
+        # - runs-elsewhere: {instance_url}/v1/orchestrate
+        # - runs-on: api_proxy_url (already includes path)
         api_base_url = f"{agentic_session.base_url}"
-        
-        # Only add /orchestrate if not already present (for local mode)
-        if "/orchestrate" not in api_base_url:
+        if local or agentic_session.mode == "local":
             api_base_url += "/orchestrate"
-        
         api_base_url += "/gateway/model"
         
         # Initialize parent ChatOpenAI with passthrough configuration
