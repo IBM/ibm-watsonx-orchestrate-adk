@@ -19,12 +19,12 @@ SDK wheel.
 
 ## Standard Lima Flow
 
-1. Start the standard developer edition stack:
+1. Install the matching TestPyPI prerelease and start the standard developer edition stack:
 
 ```bash
-pip install -e .
+pip install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple ibm-watsonx-orchestrate==2.7.0.dev6291
 orchestrate server start -e .env
-orchestrate env activate local
+orchestrate env activate local --registry testpypi --test-package-version-override 2.7.0.dev6291
 ```
 
 2. Ensure the runtime stack provides:
@@ -37,8 +37,7 @@ DEPLOYMENT_PLATFORM=lite-laptop
 3. Import the example agent:
 
 ```bash
-./.venv/bin/orchestrate agents import \
-  --experimental-package-root examples/custom_agents/local_memory_sdk_agent
+orchestrate agents import --experimental-package-root examples/custom_agents/local_memory_sdk_agent
 ```
 
 4. Validate with a two-turn chat:
