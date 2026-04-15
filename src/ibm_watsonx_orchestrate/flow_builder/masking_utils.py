@@ -20,8 +20,8 @@ class MaskingPolicy(str, Enum):
     
     Attributes:
         MASK_ALL: Mask the entire value
-        MASK_LAST4: Mask all but the last 4 characters
-        MASK_FIRST4: Mask all but the first 4 characters
+        MASK_LAST4: Mask the last 4 characters
+        MASK_FIRST4: Mask the first 4 characters
         MASK_VIA_REGEX: Mask using a regex pattern
     """
     MASK_ALL = "mask-all"
