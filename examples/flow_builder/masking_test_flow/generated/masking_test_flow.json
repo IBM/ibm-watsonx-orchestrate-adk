@@ -129,9 +129,7 @@
                     "type": "object",
                     "properties": {
                       "value": {
-                        "type": "string",
-                        "x-ibm-is-sensitive": true,
-                        "x-ibm-masking-policy": "mask-all"
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -225,7 +223,7 @@
           "spec": {
             "kind": "user",
             "name": "additional_ssn",
-            "display_name": "Additional SSN",
+            "display_name": "Passport number",
             "owners": [
               "__current_user__"
             ],
@@ -233,16 +231,14 @@
               {
                 "name": "additional_ssn",
                 "kind": "text",
-                "text": "Enter additional SSN if needed",
+                "text": "Enter the passport number",
                 "direction": "input",
-                "display_name": "Additional SSN",
+                "display_name": "Passport number",
                 "output_schema": {
                   "type": "object",
                   "properties": {
                     "value": {
-                      "type": "string",
-                      "x-ibm-is-sensitive": true,
-                      "x-ibm-masking-policy": "mask-last4"
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -378,7 +374,7 @@
           "spec": {
             "kind": "user",
             "name": "display_additional_ssn",
-            "display_name": "Masked SSN (from user input)",
+            "display_name": "Passport number (from user input)",
             "owners": [
               "__current_user__"
             ],
@@ -386,9 +382,9 @@
               {
                 "name": "display_additional_ssn",
                 "kind": "text",
-                "text": "SSN from user input (masked): {flow.userflow_4.additional_ssn.output.value}",
+                "text": "Passport number (masked): {flow.userflow_4.additional_ssn.output.value}",
                 "direction": "output",
-                "display_name": "Masked SSN (from user input)",
+                "display_name": "Passport number (from user input)",
                 "input_schema": {
                   "type": "object",
                   "properties": {
@@ -608,9 +604,7 @@
         "ssn": {
           "type": "string",
           "title": "Ssn",
-          "description": "Social Security Number (sensitive)",
-          "x-ibm-is-sensitive": true,
-          "x-ibm-masking-policy": "mask-all"
+          "description": "Social Security Number (sensitive)"
         }
       }
     },
@@ -661,9 +655,7 @@
         "auth_token": {
           "type": "string",
           "title": "Auth Token",
-          "description": "Authentication token",
-          "x-ibm-is-sensitive": true,
-          "x-ibm-masking-policy": "mask-first4"
+          "description": "Authentication token"
         }
       }
     },
@@ -727,9 +719,7 @@
         "masked_ssn": {
           "type": "string",
           "title": "Masked Ssn",
-          "description": "Masked SSN for display",
-          "x-ibm-is-sensitive": true,
-          "x-ibm-masking-policy": "mask-first4"
+          "description": "Masked SSN for display"
         }
       }
     },
@@ -750,6 +740,19 @@
           "type": "string",
           "title": "Ssn",
           "description": "Social Security Number (will be masked)"
+        },
+        "middle_name": {
+          "title": "Middle Name",
+          "description": "Optional middle name (will be masked if provided)",
+          "default": "__null__",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -770,9 +773,21 @@
         "health_insurance": {
           "type": "string",
           "title": "Health Insurance",
-          "description": "Health insurance number",
+          "description": "Health insurance number"
+        },
+        "middle_name": {
+          "title": "Middle Name",
+          "description": "Optional middle name (nullable string)",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "x-ibm-is-sensitive": true,
-          "x-ibm-masking-policy": "mask-first4"
+          "x-ibm-masking-policy": "mask-all"
         },
         "status": {
           "type": "string",
@@ -818,9 +833,7 @@
         "token": {
           "type": "string",
           "title": "Token",
-          "description": "Authentication token (sensitive)",
-          "x-ibm-is-sensitive": true,
-          "x-ibm-masking-policy": "mask-all"
+          "description": "Authentication token (sensitive)"
         },
         "expires_in": {
           "type": "integer",
@@ -869,6 +882,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-04-15T02:21:55.251593+00:00"
+    "compiled_on": "2026-04-15T19:07:25.297669+00:00"
   }
 }
