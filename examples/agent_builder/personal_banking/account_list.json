@@ -1,0 +1,27 @@
+[
+  {
+    "account_id": "CHK-001",
+    "account_type": "checking",
+    "balance": 1000
+  },
+  {
+    "account_id": "SAV-002",
+    "account_type": "savings",
+    "balance": 1000
+  },
+  {
+    "account_id": "CHK-003",
+    "account_type": "checking",
+    "balance": 1000
+  },
+  {
+    "account_id": "SAV-004",
+    "account_type": "savings",
+    "balance": 1000
+  },
+  {
+    "account_id": "CHK-005",
+    "account_type": "checking",
+    "balance": 1000
+  }
+]
