@@ -17,7 +17,7 @@ class TestChatWxOInitialization:
         # Mock AgenticSession for runs-elsewhere mode
         mock_session = Mock(spec=AgenticSession)
         mock_session.mode = "runs-elsewhere"
-        mock_session.base_url = "http://localhost:4321/v1/orchestrate"  # runs-elsewhere format
+        mock_session.base_url = "http://localhost:4321/v1"
         mock_session.access_token = None
         mock_session.authenticator = Mock()
         mock_session.authenticator.token_manager.get_token.return_value = "test-token-123"

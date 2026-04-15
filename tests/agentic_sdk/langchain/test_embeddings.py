@@ -138,7 +138,7 @@ class TestWxOEmbeddingsInitialization:
             auth_type=None,
             verify=None,
             authenticator=None,
-            local=True,
+            local=False, # technically 'runs-on' mode
             execution_context=execution_context,
             session=None
         )
@@ -177,7 +177,7 @@ class TestWxOEmbeddingsInitialization:
             auth_type=None,
             verify=None,
             authenticator=None,
-            local=True,
+            local=False, # technically 'runs-on' mode
             execution_context=None,
             session=mock_local_session
         )
