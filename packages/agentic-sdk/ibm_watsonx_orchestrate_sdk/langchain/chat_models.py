@@ -172,9 +172,10 @@ class ChatWxO(ChatOpenAI):
             )
             ```
         """
-        if not local and is_local_dev(instance_url):
+        # 
+        if not any([local, execution_context, session]) and is_local_dev(instance_url):
             local = True
-
+    
         # Create Client instance using agentic-sdk
         client_instance = Client(
             api_key=api_key,
@@ -190,7 +191,10 @@ class ChatWxO(ChatOpenAI):
         
         # Get session from client
         agentic_session = client_instance.session
-        
+        # update 'local' if session is a local session
+        if is_local_dev(agentic_session.base_url):
+            local = True
+
         # Extract authentication token
         if agentic_session.access_token:
             auth_key = agentic_session.access_token
@@ -221,11 +225,14 @@ class ChatWxO(ChatOpenAI):
         # Construct API base URL for gateway passthrough
         # Session base_url format by mode:
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
-        # - runs-elsewhere: {instance_url}/v1/orchestrate
-        # - runs-on: api_proxy_url (already includes path)
+        # - runs-elsewhere: {instance_url}/v1/orchestrate (already has /orchestrate)
+        # - runs-on: api_proxy_url (already includes /orchestrate)
         api_base_url = f"{agentic_session.base_url}"
-        if agentic_session.mode == "local":
+        
+        # Only add /orchestrate if not already present (for local mode)
+        if "/orchestrate" not in api_base_url:
             api_base_url += "/orchestrate"
+        
         api_base_url += "/gateway/model"
         
         # Initialize parent ChatOpenAI with passthrough configuration

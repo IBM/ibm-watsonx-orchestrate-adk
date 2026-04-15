@@ -121,7 +121,7 @@ class WxOEmbeddings(OpenAIEmbeddings):
         Raises:
             ValueError: If required parameters are missing or session has no authentication
         """
-        if not local and is_local_dev(instance_url):
+        if not any([local, execution_context, session]) and is_local_dev(instance_url):
             local = True
 
         # Create Client instance using agentic-sdk
@@ -139,7 +139,10 @@ class WxOEmbeddings(OpenAIEmbeddings):
         
         # Get session from client
         agentic_session = client_instance.session
-        
+        # update 'local' if session is a local session
+        if is_local_dev(agentic_session.base_url):
+            local = True
+
         # Extract authentication token
         if agentic_session.access_token:
             auth_key = agentic_session.access_token
@@ -173,7 +176,7 @@ class WxOEmbeddings(OpenAIEmbeddings):
         # - runs-elsewhere: {instance_url}/v1/orchestrate
         # - runs-on: api_proxy_url (already includes path)
         api_base_url = f"{agentic_session.base_url}"
-        if agentic_session.mode == "local":
+        if local or agentic_session.mode == "local":
             api_base_url += "/orchestrate"
         api_base_url += "/gateway/model"
 
