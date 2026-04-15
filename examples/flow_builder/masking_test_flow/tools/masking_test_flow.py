@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END
 )
-from ibm_watsonx_orchestrate.flow_builder.masking_utils import MaskingPolicy
+from ibm_watsonx_orchestrate.flow_builder.masking_utils import InputPolicy, MaskingPolicy
 from ibm_watsonx_orchestrate.flow_builder.types import ForeachPolicy, UserFieldKind
 from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
 
@@ -136,9 +136,9 @@ self.output.masked_ssn = flow.input.ssn
     user_input_field = user_flow.field(
         direction="input",
         name="additional_ssn",
-        display_name="Additional SSN",
+        display_name="Passport number",
         kind=UserFieldKind.Text,
-        text="Enter additional SSN if needed"
+        text="Enter the passport number"
     )
 
     user_output_lastName = user_flow.field(
@@ -147,6 +147,14 @@ self.output.masked_ssn = flow.input.ssn
         display_name="Last name (from field input) ",
         kind=UserFieldKind.Text,
         text="Last name (masked all ) {flow.Application.Application.output[\"Last name\"]}",
+    )
+
+    user_output_middle_name = user_flow.field(
+        direction="output",
+        name="display_middle_name",
+        display_name="Middle name (from tool) ",
+        kind=UserFieldKind.Text,
+        text="Middle name (masked first 4 ) {flow.process_user_data.output.middle_name}",
     )
 
     user_output_ssn = user_flow.field(
@@ -164,7 +172,7 @@ self.output.masked_ssn = flow.input.ssn
         kind=UserFieldKind.Text,
         text="Health insurance (masked first 4 ) {flow.process_user_data.output.health_insurance}",
     )
-    
+
     user_output_token = user_flow.field(
         direction="output",
         name="display_masked_token",
@@ -176,9 +184,9 @@ self.output.masked_ssn = flow.input.ssn
     user_output_additional_ssn = user_flow.field(
         direction="output",
         name="display_additional_ssn",
-        display_name="Masked SSN (from user input)",
+        display_name="Passport number (from user input)",
         kind=UserFieldKind.Text,
-        text="SSN from user input (masked): {flow.userflow_4.additional_ssn.output.value}",
+        text="Passport number (masked): {flow.userflow_4.additional_ssn.output.value}",
     )
 
     user_output_codeblock = user_flow.field(
@@ -200,7 +208,8 @@ self.output.masked_ssn = flow.input.ssn
     # User flow edges
     user_flow.edge(START, user_input_field)
     user_flow.edge(user_input_field, user_output_lastName)
-    user_flow.edge(user_output_lastName, user_output_ssn)
+    user_flow.edge(user_output_lastName, user_output_middle_name)
+    user_flow.edge(user_output_middle_name, user_output_ssn)
     user_flow.edge(user_output_ssn, user_output_token)
     user_flow.edge(user_output_token, user_output_codeblock)
     user_flow.edge(user_output_codeblock, user_output_additional_ssn)
@@ -271,12 +280,13 @@ self.output.processing_notes = [
     aflow.mask_property(f"flow.{process_data_script.spec.name}.output.masked_ssn", masking_policy=MaskingPolicy.MASK_FIRST4)
 
     # Mask user flow field
-    aflow.mask_property(f"flow.userflow_4.additional_ssn.output", masking_policy=MaskingPolicy.MASK_LAST4)
+    aflow.mask_property(f"flow.userflow_4.additional_ssn.output", masking_policy=MaskingPolicy.MASK_LAST4, input_policy=InputPolicy.MASK_WHILE_TYPING)
     # Mask form field 
-    aflow.mask_property(f"flow.userflow_3.ApplicationForm.output.lastName", masking_policy=MaskingPolicy.MASK_ALL)
+    aflow.mask_property(f"flow.userflow_3.ApplicationForm.output.lastName", masking_policy=MaskingPolicy.MASK_ALL, input_policy=InputPolicy.MASK_WHILE_TYPING)
 
     # Mask tool outputs (commented out - uncomment when Python tools are enabled)
     aflow.mask_property(f"flow.{process_tool_node.spec.name}.output.health_insurance", masking_policy=MaskingPolicy.MASK_FIRST4)
-    aflow.mask_property(f"flow.{validate_creds_node.spec.name}.output.token", masking_policy=MaskingPolicy.MASK_ALL)
+    aflow.mask_property(f"flow.{validate_creds_node.spec.name}.output.token", masking_policy=MaskingPolicy.MASK_LAST4)
 
+    aflow.mask_property(f"flow.{process_tool_node.spec.name}.output.middle_name", MaskingPolicy.MASK_FIRST4)
     return aflow
