@@ -282,14 +282,43 @@ class PropertyMaskingHelper:
     ) -> None:
         """
         Validate that the target schema is a string schema and therefore maskable.
+        
+        Supports:
+        - Direct string type: {"type": "string"}
+        - Nullable string with anyOf: {"anyOf": [{"type": "string"}, {"type": "null"}]}
+        - Nullable string with oneOf: {"oneOf": [{"type": "string"}, {"type": "null"}]}
         """
-        if not hasattr(property_schema, 'type') or property_schema.type != 'string':
-            property_type = getattr(property_schema, 'type', 'unknown')
-            raise ValueError(
-                f"Only string properties can be masked. "
-                f"Property type is '{property_type}'. "
-                f"Arrays, objects, numbers, and booleans cannot be masked."
-            )
+        
+        # Check for direct string type
+        if hasattr(property_schema, 'type') and property_schema.type == 'string':
+            return
+        
+        # Check for anyOf or oneOf with string and null
+        for field_name in ['anyOf', 'oneOf']:
+            if hasattr(property_schema, field_name):
+                options = getattr(property_schema, field_name)
+                if options is not None and isinstance(options, list):
+                    has_string = False
+                    has_invalid_type = False
+                    
+                    for option in options:
+                        if hasattr(option, 'type'):
+                            if option.type == 'string':
+                                has_string = True
+                            elif option.type != 'null':
+                                has_invalid_type = True
+                    
+                    if has_string and not has_invalid_type:
+                        return
+        
+        # If we get here, the schema is not maskable
+        property_type = getattr(property_schema, 'type', None)
+        raise ValueError(
+            f"Only string properties can be masked. "
+            f"Property type is '{property_type}'. "
+            f"Arrays, objects, numbers, and booleans cannot be masked. "
+            f"For nullable strings, use anyOf or oneOf with string and null types only."
+        )
 
     @staticmethod
     def _validate_regex_config(regex_config: Optional[dict]) -> dict:
