@@ -11,7 +11,7 @@ fi
 ARCHITECT_MIGRATIONS_FILE="/var/lib/postgresql/applied_migrations/architect_migrations.txt"
 touch "$ARCHITECT_MIGRATIONS_FILE"
 
-for file in /docker-entrypoint-initdb.d/agent_architecture/migrations/*.sql; do
+for file in /docker-entrypoint-initdb.d/*.sql; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
         
