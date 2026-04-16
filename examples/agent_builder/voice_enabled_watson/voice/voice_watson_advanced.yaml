@@ -1,0 +1,73 @@
+# Advanced example with all advanced optional fields
+
+name: watson_voice_config
+llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for additional transcription content
+speech_to_text:
+  provider: watson_stt
+  watson_stt_config:
+    api_url: "https://api.us-south.speech-to-text.watson.cloud.ibm.com/instances/your-instance-id" # Required
+    api_key: "example-stt-key" # Required
+    model: "en-US"  # Required (e.g. "en-US", "en-US_Telephony")
+    background_audio_suppression: 0  # Optional: 0.0-1.0, background noise suppression level
+    language_customization_id: null  # Optional: Language customization ID
+    inactivity_timeout: 30  # Optional: Seconds of inactivity before stopping (-1 for no timeout)
+    profanity_filter: false  # Optional: filter profanity in transcript
+    smart_formatting: true  # Optional: enable smart formatting (converts dates, currency, etc. to readable format)
+    speaker_labels: null  # Optional: Enable speaker labels (beta)
+    redaction: false  # Optional: Numbers with three or more consecutive digits are redacted
+    low_latency: false  # Optional: Enable low latency mode. Available only for some next-generation models (https://cloud.ibm.com/docs/speech-to-text?topic=speech-to-text-models-ng).
+    learning_opt_out: true  # Optional: opt out of data collection for learning
+    watson_metadata: null  # Optional: Value for x-watson-metadata header
+    smart_formatting_version: null # Optional: Version of smart formatting to use
+    customization_weight: null  # Optional: Weight for custom language model (0.0 to 1.0)
+    character_insertion_bias: null  # Optional: Bias for character insertion (-1.0 to 1.0)
+    end_of_phrase_silence_time: 0.8  # Optional: seconds of silence indicating end of phrase
+text_to_speech:
+  provider: watson_tts
+  watson_tts_config:
+    api_url: "https://api.us-south.text-to-speech.watson.cloud.ibm.com/instances/your-instance-id"  # Required
+    api_key: "your-watson-tts-api-key"  # Required
+    voice: "en-US_AllisonV3Voice"  # Required, e.g., en-US_VictoriaNatural
+    language: "en-US"  # Optional: language code
+    rate_percentage: 0  # Optional: rate percentage for speech synthesis
+    pitch_percentage: 0  # Optional: pitch percentage for speech synthesis
+    customization_id: null  # Optional: Custom ID for the Watson TTS service
+    meta_id: null  # Optional: Meta ID for the Watson TTS service
+    learning_opt_out: true  # Optional: opt out of data collection for learning
+language: "en-us"  # Optional: default language for the voice configuration (default: en-us)
+
+
+# Optional top-level voice configuration advanced settings
+# Voice Activity Detection (VAD)
+vad:
+  enabled: true  # Enable Voice Activity Detection, default is true
+  provider: "silero_vad"
+  silero_vad_config:
+    confidence: 0.7  # The confidence threshold for speech detection (between 0.0 and 1.0), default is 0.7
+    start_seconds: 0.2  # The time in seconds speech must be detected before transitioning to SPEAKING state, default is 0.2
+    stop_seconds: 0.8  # The time in seconds silence must be detected before transitioning to QUIET state, default is 0.8
+    min_volume: 0.6  # The minimum audio volume threshold for speech detection (between 0.0 and 1.0), default is 0.6
+
+# Dual-Tone Multi-Frequency (DTMF)
+dtmf_input:
+  inter_digit_timeout_ms: 2500  # The amount of time (ms) to wait for a new DTMF digit, default is 2500 ms
+  termination_key: "#"  # The DTMF termination key that signals the end of DTMF input
+  maximum_count: 10  # Maximum number of digits a user can enter
+  ignore_speech: true  # Disable speech recognition during collection of DTMF digits, default is true
+
+# User Idle Handler
+user_idle_handler:
+  enabled: true  # Enable idle handling. If false, we disconnect on timeout without playing a prompt
+  idle_timeout: 7  # Idle timeout in seconds before triggering the handler (default 7s)
+  idle_max_reprompts: 2  # How many times to replay before ending the session (0 = end immediately)
+  idle_timeout_message: "Are you still there? Please let me know if you need any help."  # Message to play on idle; language-specific variants may override this
+  idle_hangup_message: ""  # Final message to play before disconnecting after idle reprompts are exhausted
+
+# Agent Idle Handler (Audio Cues & Hold Music)
+agent_idle_handler:
+  typing_enabled: true  # Enable typing indicator
+  typing_duration_seconds: 5  # Duration of typing indicator in seconds (0-30)
+  audio_clip_id: "guitar_1"  # Audio clip to play during hold
+  hold_audio_seconds: 15  # Duration of hold audio in seconds (0-120)
+  pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"  # The text to play for the user before playing on-hold audio
+  hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."  # The text to play to the user periodically while on hold

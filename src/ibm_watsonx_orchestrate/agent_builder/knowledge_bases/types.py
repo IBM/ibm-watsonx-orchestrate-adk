@@ -382,6 +382,10 @@ class KnowledgeBaseListEntry(BaseModel):
     description: Optional[str] = Field(description="A description of the content contained in a knowledge base")
     app_id: Optional[str] = Field(description="The app id for a connection that connects the knowledge base to an external knowledge store")
     id: Optional[str] = Field(description="Unique identifier of the knowledge base")
+    is_global: Optional[bool] = Field(default=None, description="Is the knowledge base present in the global workspace")
 
     def get_row_details(self):
-        return [self.name, self.description, self.app_id, self.id]
+        row = [self.name, self.description, self.app_id, self.id]
+        if self.is_global is not None:
+            row.append("[green bold]✔[/green bold]" if self.is_global else "[red bold]x[/red bold]")
+        return row

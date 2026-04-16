@@ -20,10 +20,12 @@ from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIExceptio
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME, GLOBAL_WORKSPACE_ID, WorkspaceContext
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -148,7 +150,21 @@ class KnowledgeBaseController:
 
                 existing = list(filter(lambda ex: ex.get('name') == kb.name, existing_knowledge_bases))
                 if len(existing) > 0:
+                    
+                    # Check for cross-workspace update
+                    existing_kb_workspace_id = existing[0].get('workspace_id')
+                    workspace_context = WorkspaceContext()
+                    active_workspace_id = workspace_context.get_active_workspace_id()
+                    
+                    if existing_kb_workspace_id and active_workspace_id and existing_kb_workspace_id != active_workspace_id:
+                        # Get workspace names for info message
+                        kb_workspace_name = GLOBAL_WORKSPACE_NAME if existing_kb_workspace_id == GLOBAL_WORKSPACE_ID else f"workspace {existing_kb_workspace_id}"
+                        active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
+                        
+                        logger.info(f"Knowledge Base '{kb.name}' belongs to {kb_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
+                    
                     logger.info(f"Existing knowledge base '{kb.name}' found. Updating...")
+                    
                     self.update_knowledge_base(existing[0].get("id"), kb=kb, file_dir=file_dir)
                     continue
 
@@ -485,9 +501,14 @@ class KnowledgeBaseController:
                 "App ID": {},
                 "ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
             
             for column in column_args:
                 table.add_column(column, **column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", justify="center" )
             
             connections_dict = build_connections_map("connection_id")
             
@@ -503,8 +524,10 @@ class KnowledgeBaseController:
                     name=kb.name,
                     id=str(kb.id),
                     description=kb.description,
-                    app_id=app_id
+                    app_id=app_id,
                 )
+                if is_private_workspace:
+                    entry.is_global = kb.workspace == GLOBAL_WORKSPACE_NAME
                 if format == ListFormats.JSON:
                     knowledge_base_details.append(entry)
                 else:
@@ -600,13 +623,19 @@ class KnowledgeBaseController:
                 else:
                     zip_file_out = ZipFile(output_path, "w")
                     
-                kb_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
-                kb_yaml_bytes = kb_yaml.encode("utf-8")
-                kb_yaml_file = io.BytesIO(kb_yaml_bytes)
-                zip_file_out.writestr(
-                    f"{output_path.stem}/{knowledge_base.name}.yaml",
-                    kb_yaml_file.getvalue()
-                )
+                kb_file_path = f"{output_path.stem}/knowledge_bases/{knowledge_base.name}.yaml"
+                
+                # Check if knowledge base already exists in zip
+                if check_file_in_zip(file_path=kb_file_path, zip_file=zip_file_out):
+                    logger.warning(f"Skipping knowledge base '{knowledge_base.name}', already exists in the output folder")
+                else:
+                    kb_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                    kb_yaml_bytes = kb_yaml.encode("utf-8")
+                    kb_yaml_file = io.BytesIO(kb_yaml_bytes)
+                    zip_file_out.writestr(
+                        kb_file_path,
+                        kb_yaml_file.getvalue()
+                    )
 
                 if app_id:
                     export_connection(output_file=f"{output_path.stem}/{connections_output_path}", app_id=app_id, zip_file_out=zip_file_out)
@@ -619,16 +648,22 @@ class KnowledgeBaseController:
                     yaml.dump(knowledge_base_spec, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
             case '':
                 if zip_file_out:
-                    knowledge_base_spec_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
-                    knowledge_base_spec_yaml_bytes = knowledge_base_spec_yaml.encode("utf-8")
-                    knowledge_base_spec_yaml_file = BytesIO(knowledge_base_spec_yaml_bytes)
-                    zip_file_out.writestr(
-                        f"{output_path}/{knowledge_base.name}.yaml",
-                        knowledge_base_spec_yaml_file.getvalue()
-                    )
+                    kb_file_path = f"{output_path}/{knowledge_base.name}.yaml"
+                    
+                    # Check if knowledge base already exists in zip
+                    if check_file_in_zip(file_path=kb_file_path, zip_file=zip_file_out):
+                        logger.warning(f"Skipping knowledge base '{knowledge_base.name}', already exists in the output folder")
+                    else:
+                        knowledge_base_spec_yaml = yaml.dump(knowledge_base_spec, sort_keys=False, default_flow_style=False, allow_unicode=True)
+                        knowledge_base_spec_yaml_bytes = knowledge_base_spec_yaml.encode("utf-8")
+                        knowledge_base_spec_yaml_file = BytesIO(knowledge_base_spec_yaml_bytes)
+                        zip_file_out.writestr(
+                            kb_file_path,
+                            knowledge_base_spec_yaml_file.getvalue()
+                        )
 
-                    if app_id:
-                        export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
+                        if app_id:
+                            export_connection(output_file=connections_output_path, app_id=app_id, zip_file_out=zip_file_out)
 
         
         logger.info(f"Successfully exported for knowledge base {logEnding} to '{output_path}'")

@@ -85,6 +85,22 @@ services:
     networks:
       - default
 
+  wxo-knowledge-mcp-server:
+    image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      WXO_SERVER_BASE_URL: http://wxo-server:4321
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - default
+
   ai-gateway:
     image: ${AI_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/ai-gateway:${AI_GATEWAY_TAG:-latest}
     platform: linux/amd64
@@ -247,6 +263,7 @@ services:
       AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+      LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -567,6 +584,7 @@ services:
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
@@ -655,6 +673,12 @@ services:
       MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SECURE_FILE_DOWNLOAD: ${SECURE_FILE_DOWNLOAD:-false}
+      INTERNAL_REQUEST_IDENTIFIER: ${INTERNAL_REQUEST_IDENTIFIER}
+      INTERNAL_REQUEST_HEADER_KEY: ${INTERNAL_REQUEST_HEADER_KEY:-x-watson-service-key}
+      INTERNAL_REQUEST_HEADER_VALUE: ${INTERNAL_REQUEST_HEADER_VALUE:-internal}
+      FILE_GRANT_EXPIRY_HOURS: 1
+      KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -719,6 +743,7 @@ services:
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       SERVER_TYPE: CELERY
       BAM_API_KEY: ${BAM_API_KEY}
@@ -804,10 +829,11 @@ services:
       MEMORY_REMOTE_DELETE_LIMIT: ${MEMORY_REMOTE_DELETE_LIMIT:-50}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
 
   opensearch:
-    image: ${OPENSEARCH_IMAGE:-opensearchproject/opensearch:2.11.0}
+    image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
     restart: unless-stopped
     environment:
       - discovery.type=single-node
@@ -894,6 +920,7 @@ services:
     networks:
       - default
       - memory-network
+
   tools-runtime-manager:
     image: us.icr.io/watson-orchestrate/production/tools-runtime-manager:20260408-develop-2153-20a2d24
     platform: linux/amd64
@@ -935,6 +962,7 @@ services:
       STORAGE_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
       TEMPUS_HOST_NAME: http://wxo-tempus-runtime:9044
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
@@ -946,6 +974,10 @@ services:
       TRM_CLIENT_MASK_VALUE: ${TRM_CLIENT_MASK_VALUE:-<REDACTED>}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      SECURE_FILE_DOWNLOAD: ${SECURE_FILE_DOWNLOAD:-false}
+      PROXY_ORIGINAL_URL_HEADER_KEY: "X-Original-URL"
+      INTERNAL_REQUEST_HEADER_KEY: ${INTERNAL_REQUEST_HEADER_KEY:-x-watson-service-key}
+      INTERNAL_REQUEST_HEADER_VALUE: ${INTERNAL_REQUEST_HEADER_VALUE:-internal}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -961,6 +993,8 @@ services:
       - $HOME/.kube/config:/root/.kube/config
       - tools-runtime-data:/shared-data
       - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
       VOLUME_MOUNT_PATH: "/shared-data"
@@ -984,6 +1018,7 @@ services:
       TR_IBM_TELEMETRY_ENDPOINT: ${TR_IBM_TELEMETRY_ENDPOINT:-none}
       TR_API_MASK_ATTRS: ${TR_API_MASK_ATTRS:-client.address,http.host,http.server_name,http.url,net.host.port,net.peer.ip,net.peer.port}
       TR_API_MASK_VALUE: ${TR_API_MASK_VALUE:-<REDACTED>}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
@@ -1302,6 +1337,7 @@ services:
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
       TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
+      CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
