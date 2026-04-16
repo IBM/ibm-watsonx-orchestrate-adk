@@ -99,7 +99,7 @@ def build_runs_on_session(
 ) -> AgenticSession:
     access_token = normalize_access_token(str(execution_context.get("access_token") or ""))
     api_proxy_url = str(
-        execution_context.get("api_proxy_url") or get_runs_on_default_api_proxy_url()
+        get_runs_on_default_api_proxy_url() or execution_context.get("api_proxy_url") or ""
     ).rstrip("/")
     thread_id = str(execution_context.get("thread_id") or "").strip()
     mode_hint = get_agentic_mode_hint()
