@@ -503,6 +503,72 @@ class MultiFileConstraints:
         self.accepted_file_extensions = accepted_file_extensions
         self.text = text
 
+class WXOUser(str):
+    """
+    A custom type representing a watsonx Orchestrate User reference.
+    
+    This class extends str to represent a user identifier (user ID) that can be
+    used in watsonx Orchestrate flows and tools. The user reference is a string
+    that identifies a specific user in the system.
+    
+    User information can be accessed using system functions:
+    - user.get_name() or system.user.get_name(user) - returns the user's name
+    - user.get_email() or system.user.get_email(user) - returns the user's email
+    - user.get_id() or system.user.get_id(user) - returns the user's ID
+
+    """
+
+    @classmethod
+    def validate(cls, value: Any) -> "WXOUser":
+        """
+        Validates that the value is a valid user reference (string).
+        
+        Args:
+            value: The value to validate
+            
+        Returns:
+            A WXOUser instance
+            
+        Raises:
+            TypeError: If the value is not a string
+        """
+        if not isinstance(value, str):
+            raise TypeError("User reference must be a string (user ID)")
+        return cls(value)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """
+        Defines the Pydantic core schema for validation and serialization.
+        """
+        return core_schema.no_info_wrap_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda v: str(v))
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        """
+        Defines the JSON schema representation for OpenAPI/JSON Schema generation.
+        
+        Returns a schema with format "wxo-user" to indicate this is a user reference.
+        This format is used by the watsonx Orchestrate system to properly handle
+        user references in flows and tools.
+        """
+        return {
+            "type": "string",
+            "title": "User reference",
+            "format": "wxo-user",
+            "description": "A user ID or reference identifying a Watsonx Orchestrate user.",
+        }
+
+
 class ToolListEntry(BaseModel):
     name: str = Field(description="The name of the tool")
     description: Optional[str] = Field(description="A description of the purpose of the tool")
