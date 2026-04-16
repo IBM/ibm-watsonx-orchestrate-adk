@@ -4,6 +4,9 @@ This example is a custom LangGraph agent that uses the published
 `ibm-watsonx-orchestrate-sdk` package to read and write memory through
 `wxo-server`.
 
+For the exact current SDK signatures, valid `memory_type` values, and
+copy-paste working examples, see [SDK_MEMORY_REFERENCE.md](/Users/suyash/Documents/GitHub/wxo-clients/examples/custom_agents/local_memory_sdk_agent/SDK_MEMORY_REFERENCE.md).
+
 ## What It Demonstrates
 
 - request-scoped `execution_context` coming from TRM
