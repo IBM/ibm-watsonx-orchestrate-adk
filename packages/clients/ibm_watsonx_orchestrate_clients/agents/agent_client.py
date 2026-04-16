@@ -166,6 +166,9 @@ class AgentClient(BaseWXOClient):
 
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"{self.base_endpoint}/{agent_id}")
+
+    def update_schedulable(self, agent_id: str, is_schedulable: bool) -> None:
+        self._patch(f"{self.base_endpoint}/{agent_id}", data={ "is_schedulable": is_schedulable })
     
     def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         return self.get_drafts_by_names([agent_name], workspace_id=workspace_id, include_global=include_global)
