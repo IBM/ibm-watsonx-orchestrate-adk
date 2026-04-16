@@ -26,6 +26,7 @@ def test_from_execution_context_hydrates_identity_from_jwt():
 
     assert client.session.mode == "runs-on"
     assert client.session.base_url == "http://example.local/api/v1"
+    assert client.session.verify is False
     assert client.session.identity is not None
     assert client.session.identity.thread_id == "thread-123"
     assert client.session.identity.tenant_id == "1b297b48-a9fa-481d-8eab-afde3244fa75"
@@ -186,9 +187,41 @@ def test_runs_on_constructor_uses_env_defaults(monkeypatch):
 
     assert client.session.mode == "runs-on"
     assert client.session.base_url == "http://env.example.local/api/v1"
+    assert client.session.verify is False
     assert client.session.identity is not None
     assert client.session.identity.thread_id == "thread-456"
     assert client.session.identity.deployment_platform == "lite-laptop"
+
+
+def test_runs_on_from_runnable_config_disables_tls_verification_by_default():
+    client = Client.from_runnable_config(
+        {
+            "configurable": {
+                "execution_context": {
+                    "access_token": TEST_TOKEN,
+                    "api_proxy_url": "https://wo-api.example.svc.cluster.local:8000",
+                    "thread_id": "thread-789",
+                }
+            }
+        }
+    )
+
+    assert client.session.mode == "runs-on"
+    assert client.session.verify is False
+
+
+def test_runs_on_explicit_verify_override_is_preserved():
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "https://wo-api.example.svc.cluster.local:8000",
+            "thread_id": "thread-999",
+        },
+        verify=True,
+    )
+
+    assert client.session.mode == "runs-on"
+    assert client.session.verify is True
 
 
 def test_runs_on_without_execution_context_has_clear_error(monkeypatch):

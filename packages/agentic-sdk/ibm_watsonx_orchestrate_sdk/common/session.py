@@ -128,11 +128,12 @@ def build_runs_on_session(
     deployment_platform = str(
         execution_context.get("deployment_platform") or get_runs_on_default_deployment_platform() or ""
     ).strip() or None
+    resolved_verify = False if verify is None else verify
 
     return AgenticSession(
         mode="runs-on",
         base_url=api_proxy_url,
-        verify=verify,
+        verify=resolved_verify,
         access_token=access_token,
         identity=RequestIdentity(
             tenant_id=tenant_id,
