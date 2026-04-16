@@ -1,7 +1,7 @@
 import typer
 from typing import List
 from typing_extensions import Annotated, Optional
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import ToolkitKind, Language, ToolkitTransportKind, ToolkitDeploymentTiers
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController
 from pathlib import Path
 import logging
@@ -94,7 +94,14 @@ def add_toolkit(
             "--allowed-context",
             help='Context keys to forward to remote MCP servers. Only "tenant_id" and "agent_id" are allowed. Only applicable for remote MCP toolkits.'
         )
-    ] = None
+    ] = None,
+    tier: Annotated[
+        Optional[ToolkitDeploymentTiers],
+        typer.Option(
+            "--tier",
+            help="Choose a dedicated deployment tier for the python toolkit. Optional for kind 'python'"
+        )
+    ] = None,
 ):
     toolkit_controller = ToolkitController()
     toolkit = toolkit_controller.create_toolkit(
@@ -109,7 +116,8 @@ def add_toolkit(
         transport=transport,
         tools=tools,
         app_id=app_id,
-        allowed_context=allowed_context
+        allowed_context=allowed_context,
+        tier=tier
     )
     toolkit_controller.publish_or_update_toolkits([toolkit])
 
