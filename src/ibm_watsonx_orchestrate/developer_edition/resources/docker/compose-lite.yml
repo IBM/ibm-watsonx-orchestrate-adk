@@ -216,9 +216,9 @@ services:
       WXO_VOICE_URL: http://localhost:9876/v1
       DPS_CACHE_URL: http://localhost:18083
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
-      WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
       ENABLE_AGENT_DEBUG: "true"
-      
+      WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -262,10 +262,12 @@ services:
       ENABLE_PARTNER_NATIVE_AGENT_CONFIGURATION: "true"
       LLM_DEFAULT_FLOW_MODEL: ${DEFAULT_FLOW_LLM_MODEL}
       WDU_RUNTIME_SOURCE: ${WDU_RUNTIME_SOURCE:-none}
-      AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
+      AGENT_ARCHITECT_ENDPOINT: http://wxo-agent-architect-server:4321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+      THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -276,7 +278,7 @@ services:
       retries: 5
 
   wxo-agent-architect-server:
-    image: ${AGENT_ARCHITECT_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-architect-server:${AGENT_ARCHITECT_TAG:-latest}
+    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     profiles: [agent-builder]
     platform: linux/amd64
     restart: unless-stopped
@@ -286,6 +288,7 @@ services:
       - ./sdk:/packages
       - tools:/tools
       - architect-migrations:/app/migrations
+      - ${CERT_BUNDLE_PATH:-/dev/null}:/etc/ssl/certs/custom-bundle.crt:ro
     command: >
       bash -c '
          export PYTHONPATH="/tmp/monkey:$PYTHONPATH"
@@ -295,8 +298,8 @@ services:
 
          uvicorn --host 0.0.0.0 --port 4321 --log-config /app/config/logs/log_conf.yaml --log-level debug --workers 5 wo_archer.api.main:app &
 
-         for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
-         curl --silent --fail http://127.0.0.1:4321/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
+         for i in {1..40}; do curl --silent --fail http://127.0.0.1:4321/v1/health/alive && echo "[INFO] HTTP Service ready" && break || echo "[INFO] Waiting for HTTP service..." && sleep 10; done;
+         curl --silent --fail http://127.0.0.1:4321/v1/health/alive || (echo "[ERROR] HTTP service failed to start" && exit 1);
 
          wait
        '
@@ -314,6 +317,21 @@ services:
       - default
       - jaeger-network
     environment:
+      TEMPUS_RUNTIME_ENDPOINT: http://wxo-tempus-runtime:9044
+      ARCHITECT_REDIS_LISTENER_ENABLED: 'architect'
+      SERVICE_NAME_ARCHITECT: 'architect'
+      TOOL_RELEVANCE_THRESHOLD: '0.8'
+      CATALOG_SEARCH_LIMIT: '20'
+      CATALOG_TOOL_SELECT_LIMIT: '10'
+      FLOW_SOURCE_KIND: 'bw_AI'
+      #got from extra wxo-server
+      RECOMMEND_MODELS: ${PREFERRED_MODELS}
+      MCP_GATEWAY_ENABLED: ${MCP_GATEWAY_ENABLED}
+      SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS}
+      SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
       ARCH_LLM_MODEL_ID: ${ARCH_LLM_MODEL_ID:-watsonx/meta-llama/llama-3-2-90b-vision-instruct}
       WXO_SERVER_URL: http://wxo-server:4321
       TEAM_SERVER_ENDPOINT: ${TEAM_SERVER_ENDPOINT}
