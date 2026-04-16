@@ -38,7 +38,7 @@ from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import
 from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
 from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.models.types import ModelListEntry
-from tests.cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
+from cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
 
 
 class MockModelsClient():
@@ -397,7 +397,7 @@ class MockAgent:
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
 
-    def update(self, agent_id, agent_spec):
+    def update(self, agent_id, agent_spec, skip_workspace_injection=False):
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
     

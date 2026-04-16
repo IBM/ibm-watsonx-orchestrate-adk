@@ -129,7 +129,7 @@ class AgentClient(BaseWXOClient):
         response = self._post(self.base_endpoint, data=transformed_payload)
         return AgentUpsertResponse.model_validate(response)
 
-    def get(self, workspace_id: Optional[str] = None) -> dict:
+    def get(self, workspace_id: Optional[str] = None, include_global: bool = True) -> dict:
         params = {'include_hidden': 'true'}
         
         # If workspace_id is explicitly provided, use it; otherwise use active workspace context
@@ -137,6 +137,9 @@ class AgentClient(BaseWXOClient):
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params['include'] = "global"
         
         query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
         agents = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{query_string}"))
@@ -149,9 +152,11 @@ class AgentClient(BaseWXOClient):
         
         return agents
 
-    def update(self, agent_id: str, data: dict) -> AgentUpsertResponse:
+    def update(self, agent_id: str, data: dict, skip_workspace_injection: bool = False) -> AgentUpsertResponse:
         # Resolve workspace field and inject active workspace context
-        data = resolve_and_inject_workspace(data)
+        # Skip injection for cross-workspace updates
+        if not skip_workspace_injection:
+            data = resolve_and_inject_workspace(data)
         
         # Transform payload for API
         transformed_payload = transform_agents_from_flat_agent_spec(data)
@@ -162,10 +167,10 @@ class AgentClient(BaseWXOClient):
     def delete(self, agent_id: str) -> dict:
         return self._delete(f"{self.base_endpoint}/{agent_id}")
     
-    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None) -> List[dict]:
-        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id)
+    def get_draft_by_name(self, agent_name: str, workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
+        return self.get_drafts_by_names([agent_name], workspace_id=workspace_id, include_global=include_global)
 
-    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_names(self, agent_names: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         formatted_agent_names = [f"names={x}" for x  in agent_names]
         params = {'include_hidden': 'true'}
         
@@ -176,18 +181,22 @@ class AgentClient(BaseWXOClient):
             # Add workspace filtering if applicable
             params = add_workspace_query_param(params)
         
+        if include_global:
+            params['include'] = "global"
+        
         # Build query string with names and other params
         query_parts = formatted_agent_names + [f"{k}={v}" for k, v in params.items()]
         return transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}?{'&'.join(query_parts)}"))
     
-    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None) -> dict | str:
+    def get_draft_by_id(self, agent_id: str, workspace_id: Optional[str] = None, include_global: bool = True) -> dict | str:
         if agent_id is None:
             return ""
         else:
             try:
                 # If workspace_id is explicitly provided, use it; otherwise use active workspace context
-                if workspace_id is not None:
+                if workspace_id is not None and not include_global:
                     params = {'workspace_id': workspace_id}
+
                     query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
                     agent = transform_agents_to_flat_agent_spec(self._get(f"{self.base_endpoint}/{agent_id}?{query_string}"))
                 else:
@@ -198,7 +207,7 @@ class AgentClient(BaseWXOClient):
                     return ""
                 raise(e)
     
-    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None) -> List[dict]:
+    def get_drafts_by_ids(self, agent_ids: List[str], workspace_id: Optional[str] = None, include_global: bool = True) -> List[dict]:
         formatted_agent_ids = [f"ids={x}" for x  in agent_ids]
         params = {'include_hidden': 'true'}
         
@@ -207,6 +216,9 @@ class AgentClient(BaseWXOClient):
             params['workspace_id'] = workspace_id
         else:
             params = add_workspace_query_param(params)
+        
+        if include_global:
+            params["include"] = "global"
         
         # Build query string with ids and other params
         query_parts = formatted_agent_ids + [f"{k}={v}" for k, v in params.items()]

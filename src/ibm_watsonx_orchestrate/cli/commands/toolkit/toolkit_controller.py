@@ -21,9 +21,11 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id, check_file_in_z
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.toolkits.utils import extract_python_toolkit_tools_from_folder
+
 import typer
 import json
 from rich.console import Console
@@ -191,15 +193,24 @@ class ToolkitController:
     def publish_or_update_toolkits(self, toolkits: List[BaseToolkit]) -> None:
         for toolkit in toolkits:
             spec = toolkit.__toolkit_spec__
+            kind = self.__get_kind_from_spec(spec)
+            toolkit_config = self.__get_toolkit_config_from_spec(spec, kind)
+            existing_toolkit_id = None
 
             client = self.get_client()
             draft_toolkits = client.get_draft_by_name(toolkit_name=spec.name)
-            if len(draft_toolkits) > 0:
-                logger.error(f"Existing toolkit found with name '{spec.name}'. Failed to create toolkit.")
+
+            if len(draft_toolkits) > 1:
+                logger.error(f"Multiple toolkits with the name '{spec.name}' found. Failed to update toolkit")
                 sys.exit(1)
-            
-            kind = self.__get_kind_from_spec(spec)
-            toolkit_config = self.__get_toolkit_config_from_spec(spec, kind)
+
+            if len(draft_toolkits) > 0:
+                if kind == ToolkitKind.MCP:
+                    logger.error(f"Existing MCP toolkit found with name '{spec.name}'. Failed to create toolkit.")
+                    sys.exit(1)
+                else:
+                    existing_tool = draft_toolkits[0]
+                    existing_toolkit_id = existing_tool.get("id")
             
             if isinstance(toolkit_config.connections, List):
                 toolkit_config.connections = self.__remap_connections(toolkit_config.connections)
@@ -214,6 +225,7 @@ class ToolkitController:
                     sys.exit(1)
 
             console = Console()
+            zip_file_path = None
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Handle zip file or directory
@@ -223,8 +235,8 @@ class ToolkitController:
                     else:
                         zip_file_path = os.path.join(tmpdir, os.path.basename(f"{package_root.rstrip(os.sep)}.zip"))
                         with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as mcp_zip_tool_artifacts:
-                            if kind==ToolkitKind.PYTHON:
-                                self._populate_zip(package_root, mcp_zip_tool_artifacts, location="tools", ignore=["requirements.txt", "bundle-format"])
+                            if kind == ToolkitKind.PYTHON:
+                                self._populate_zip(package_root, mcp_zip_tool_artifacts, ignore=["requirements.txt", "bundle-format"])
                             else:
                                 self._populate_zip(package_root, mcp_zip_tool_artifacts)
 
@@ -269,57 +281,115 @@ class ToolkitController:
                                 fp.writelines(requirements_lines)
                             zip_tool_artifacts.write(temp_requirements_file, arcname='requirements.txt')
                             zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
-
-
-                # Create toolkit metadata
-                payload = spec.model_dump(exclude_unset=True)
-
-
-                try:
-                    with Progress(
-                        SpinnerColumn(spinner_name="dots"),
-                        TextColumn("[progress.description]{task.description}"),
-                        transient=True,
-                        console=console,
-                    ) as progress:
-                        progress.add_task(description="Creating toolkit...", total=None)
-                        new_toolkit = self.get_client().create_toolkit(payload)
-                except ClientAPIException as e:
-                    error_msg = "Unknown error"
-                    try:
-                        # Don't rely on truthiness of response object - check if it's not None
-                        if e.response is not None and hasattr(e.response, 'text'):
-                            response_text = e.response.text
-                            if response_text:
-                                try:
-                                    error_data = json.loads(response_text)
-                                    error_msg = error_data.get('detail', response_text)
-                                except:
-                                    error_msg = response_text
-                            else:
-                                error_msg = str(e)
-                        else:
-                            error_msg = str(e)
-                    except Exception:
-                        error_msg = str(e)
                     
-                    logger.error(f"Failed to create toolkit: {error_msg}")
-                    sys.exit(1)
+                if existing_toolkit_id:
+                    self.update_toolkit(toolkit_id=existing_toolkit_id, toolkit=toolkit, toolkit_artifact=zip_file_path)
+                else:
+                    self.publish_toolkit(toolkit=toolkit, toolkit_artifact=zip_file_path)
 
-                toolkit_id = new_toolkit["id"]
+    def publish_toolkit(self, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
 
-                # Upload zip file
-                if package_root:
-                    with Progress(
-                        SpinnerColumn(spinner_name="dots"),
-                        TextColumn("[progress.description]{task.description}"),
-                        transient=True,
-                        console=console,
-                    ) as progress:
-                        progress.add_task(description="Uploading toolkit zip file...", total=None)
-                        self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=zip_file_path)
+        # Create toolkit metadata
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
 
-            logger.info(f"Successfully imported tool kit {spec.name}")
+        console = Console()
+
+        try:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Creating toolkit...", total=None)
+                new_toolkit = self.get_client().create_toolkit(payload)
+        except ClientAPIException as e:
+            error_msg = "Unknown error"
+            try:
+                # Don't rely on truthiness of response object - check if it's not None
+                if e.response is not None and hasattr(e.response, 'text'):
+                    response_text = e.response.text
+                    if response_text:
+                        try:
+                            error_data = json.loads(response_text)
+                            error_msg = error_data.get('detail', response_text)
+                        except:
+                            error_msg = response_text
+                    else:
+                        error_msg = str(e)
+                else:
+                    error_msg = str(e)
+            except Exception:
+                error_msg = str(e)
+            
+            logger.error(f"Failed to create toolkit: {error_msg}")
+            sys.exit(1)
+
+        toolkit_id = new_toolkit["id"]
+
+        # Upload zip file
+        if toolkit_artifact:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Uploading toolkit zip file...", total=None)
+                self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+
+        logger.info(f"Successfully imported tool kit {toolkit.__toolkit_spec__.name}")
+
+    def update_toolkit(self, toolkit_id: str, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
+        logger.info(f"Existing toolkit '{toolkit.__toolkit_spec__.name}' found. Updating...")
+        # Create toolkit metadata
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
+
+        console = Console()
+
+        try:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Updating toolkit...", total=None)
+                new_toolkit = self.get_client().update_toolkit(toolkit_id, payload)
+        except ClientAPIException as e:
+            error_msg = "Unknown error"
+            try:
+                # Don't rely on truthiness of response object - check if it's not None
+                if e.response is not None and hasattr(e.response, 'text'):
+                    response_text = e.response.text
+                    if response_text:
+                        try:
+                            error_data = json.loads(response_text)
+                            error_msg = error_data.get('detail', response_text)
+                        except:
+                            error_msg = response_text
+                    else:
+                        error_msg = str(e)
+                else:
+                    error_msg = str(e)
+            except Exception:
+                error_msg = str(e)
+            
+            logger.error(f"Failed to update toolkit: {error_msg}")
+            sys.exit(1)
+
+        # Upload zip file
+        if toolkit_artifact:
+            with Progress(
+                SpinnerColumn(spinner_name="dots"),
+                TextColumn("[progress.description]{task.description}"),
+                transient=True,
+                console=console,
+            ) as progress:
+                progress.add_task(description="Uploading toolkit zip file...", total=None)
+                self.get_client().upload(toolkit_id=toolkit_id, zip_file_path=toolkit_artifact)
+
+        logger.info(f"Successfully updated toolkit {toolkit.__toolkit_spec__.name}")
 
     def _populate_zip(self, package_root: str, zipfile: zipfile.ZipFile, location: Optional[str] = None, ignore: List[str] = []) -> str:
         for root, _, files in os.walk(package_root):
@@ -481,12 +551,12 @@ class ToolkitController:
             new_toolkits.append(BaseToolkit(toolkit_spec))
         return new_toolkits
     
-    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None) -> Tuple[List[BaseToolkit], List[List[str]]]:
+    def _fetch_and_parse_toolkits(self, workspace_id: Optional[str] = None, include_global: bool = True) -> Tuple[List[BaseToolkit], List[List[str]]]:
         parse_errors = []
         client = self.get_client()
         
         # Use client method directly - it handles workspace_id parameter properly
-        response = client.get(workspace_id=workspace_id)
+        response = client.get(workspace_id=workspace_id, include_global=include_global)
 
         toolkits = []
         for toolkit in (response or []):
@@ -532,8 +602,14 @@ class ToolkitController:
                 "Tools": {},
                 "App ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
+
             for column in column_args:
                 table.add_column(column,**column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", justify="center")
 
             connections_client = get_connections_client()
             connections = connections_client.list()
@@ -565,6 +641,8 @@ class ToolkitController:
                     tools = toolkit.__toolkit_spec__.tools,
                     app_ids = app_ids
                 )
+                if is_private_workspace:
+                    entry.is_global = toolkit.__toolkit_spec__.workspace == GLOBAL_WORKSPACE_NAME
                 if format == ListFormats.JSON:
                     toolkit_details.append(entry)
                 else:

@@ -1,17 +1,11 @@
-# Define apps
+orchestrate env activate local
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# Create connections
+for flow_tool in $(ls "${SCRIPT_DIR}/tools"); do
+  orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
+done
 
-# Set credentials
-
-# Import tools that have auth
-
-# Import tools with no auth
-
-# Import flows
-orchestrate tools import -k flow -f ./tools/Book_a_flight_flow.json
-
-# Import knowledge base
-
-# Import agents
-orchestrate agents import -f ./agents/Book_a_flight_agent.yaml
+# import hello message agent
+for agent in $(ls "${SCRIPT_DIR}/agents"); do
+  orchestrate agents import -f ${SCRIPT_DIR}/agents/${agent}
+done
