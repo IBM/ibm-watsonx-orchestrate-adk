@@ -193,6 +193,22 @@ def test_runs_on_constructor_uses_env_defaults(monkeypatch):
     assert client.session.identity.deployment_platform == "lite-laptop"
 
 
+def test_runs_on_env_api_proxy_url_overrides_execution_context(monkeypatch):
+    monkeypatch.setenv("WXO_AGENTIC_MODE", "runs-on")
+    monkeypatch.setenv("WXO_API_PROXY_URL", "http://env.example.local/api/v1")
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "http://context.example.local/api/v1",
+            "thread_id": "thread-456",
+        }
+    )
+
+    assert client.session.mode == "runs-on"
+    assert client.session.base_url == "http://env.example.local/api/v1"
+
+
 def test_runs_on_from_runnable_config_disables_tls_verification_by_default():
     client = Client.from_runnable_config(
         {
