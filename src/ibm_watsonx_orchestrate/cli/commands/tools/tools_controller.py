@@ -48,7 +48,8 @@ from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
-from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 import yaml
 from  ibm_watsonx_orchestrate import __version__
 
@@ -210,15 +211,22 @@ def get_connection_ids(app_ids: list[str] | str = None, environment: str = None,
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
     
-async def import_flow_tool(file: str) -> None:
+    return tools
+    
+
+async def import_flow_tool(file: str, save_flow_json: str | None = None) -> None:
     
     '''
     Import a flow tool from a file. The file can be either a python file or a json file.
     If the file is a python file, it should contain a flow model builder function decorated with the @flow decorator.
     If the file is a json file, it should contain a flow model in json format.
-    Also, a connection will be created for the flow if one does not exists and the environment token will be used.  This is a 
+    Also, a connection will be created for the flow if one does not exists and the environment token will be used.  This is a
     workaround until flow bindings are supported in the server.
     The function will return a list of tools created from the flow model.
+    
+    Args:
+        file: Path to the flow file (Python or JSON)
+        save_flow_json: Optional path to save the compiled flow JSON file
     '''
 
     theme = rich.theme.Theme({"model.name": "bold cyan"})
@@ -314,10 +322,21 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     except Exception as e:
         raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
     
+    # Save the compiled flow JSON if requested
+    if save_flow_json and model:
+        try:
+            output_path = Path(save_flow_json).absolute()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(model, f, indent=2, ensure_ascii=False)
+            console.print(f"\n[green]✓[/green] Flow JSON saved to: [cyan]{output_path}[/cyan]")
+        except Exception as e:
+            console.print(f"\n[yellow]⚠[/yellow] Warning: Failed to save flow JSON to {save_flow_json}: {e}")
+    
     tool = create_flow_json_tool(name=model["spec"]["name"],
-                                 description=model["spec"]["description"], 
-                                 permission="read_only", 
-                                 flow_model=model)   
+                                 description=model["spec"]["description"],
+                                 permission="read_only",
+                                 flow_model=model)
     tools = [tool]
     # tools = import_flow_support_tools(model=model)
     # tools.append(tool)
@@ -480,7 +499,7 @@ class ToolsController:
                     connection_id = connection.connection_id
                 tools = run_coroutine_sync(import_openapi_tool(file=args["file"], connection_id=connection_id))
             case "flow":
-                tools = run_coroutine_sync(import_flow_tool(file=args["file"]))
+                tools = run_coroutine_sync(import_flow_tool(file=args["file"], save_flow_json=args.get("save_flow_json")))
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")
@@ -547,8 +566,14 @@ class ToolsController:
                 "Toolkit": {}, 
                 "App ID": {"overflow": "fold"}
             }
+
+            is_private_workspace = not is_global_workspace_active()
+
             for column in column_args:
                 table.add_column(column,**column_args[column])
+            
+            if is_private_workspace:
+                table.add_column("Global", justify="center" )
 
             for tool in tools:
                 tool_binding = tool.__tool_spec__.binding
@@ -598,6 +623,9 @@ class ToolsController:
                     app_ids=app_ids
                 )
 
+                if is_private_workspace:
+                    entry.is_global = tool.__tool_spec__.workspace == GLOBAL_WORKSPACE_NAME
+
                 if format == ListFormats.JSON:
                     tool_details.append(entry)
                 else:
@@ -626,6 +654,8 @@ class ToolsController:
             for tool in tools:
                 exist = False
                 tool_id = None
+                existing_tool_workspace_id = None
+                cross_workspace_update = False
 
                 existing_tools = self.get_client().get_draft_by_name(tool.__tool_spec__.name)
                 if len(existing_tools) > 1:
@@ -636,6 +666,20 @@ class ToolsController:
                     existing_tool = existing_tools[0]
                     exist = True
                     tool_id = existing_tool.get("id")
+                    # Store the workspace_id of the existing tool for update operations
+                    existing_tool_workspace_id = existing_tool.get("workspace_id")
+                    
+                    # Check if tool is in a different workspace
+                    workspace_context = WorkspaceContext()
+                    active_workspace_id = workspace_context.get_active_workspace_id()
+                    
+                    if existing_tool_workspace_id and active_workspace_id and existing_tool_workspace_id != active_workspace_id:
+                        cross_workspace_update = True
+                        # Get workspace names for info message
+                        tool_workspace_name = GLOBAL_WORKSPACE_NAME if existing_tool_workspace_id == GLOBAL_WORKSPACE_ID else f"workspace {existing_tool_workspace_id}"
+                        active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
+                        
+                        logger.info(f"Tool '{tool.__tool_spec__.name}' belongs to {tool_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
@@ -730,7 +774,8 @@ class ToolsController:
 
                         zip_tool_artifacts.writestr("bundle-format", "2.0.0\n")
                 if exist:
-                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact)
+                    self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact,
+                                   skip_workspace_param=cross_workspace_update)
                 else:
                     self.publish_tool(tool=tool, tool_artifact=tool_artifact)
 
@@ -776,12 +821,13 @@ class ToolsController:
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
 
-    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str) -> None:
+    def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str, skip_workspace_param: bool = False) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
 
         logger.info(f"Existing Tool '{tool.__tool_spec__.name}' found. Updating...")
 
-        self.get_client().update(tool_id, tool_spec)
+        # For cross-workspace updates, skip workspace injection in the client
+        self.get_client().update(tool_id, tool_spec, skip_workspace_injection=skip_workspace_param)
 
         if tool_artifact is not None:
             match self.tool_kind:

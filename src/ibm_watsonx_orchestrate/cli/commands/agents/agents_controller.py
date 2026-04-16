@@ -59,7 +59,12 @@ from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_cl
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
-from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.agent_builder.agents.a2a_discovery import A2ADiscoveryService
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.client.connections import get_connections_client
+from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -1345,14 +1350,20 @@ class AgentsController:
             external_client = self.get_external_client()
             assistant_client = self.get_assistant_client()
 
-            existing_native_agents = native_client.get_draft_by_name(agent_name)
-            existing_native_agents = [Agent.model_validate(agent) for agent in existing_native_agents]
-            existing_external_clients = external_client.get_draft_by_name(agent_name)
-            existing_external_clients = [ExternalAgent.model_validate(agent) for agent in existing_external_clients]
-            existing_assistant_clients = assistant_client.get_draft_by_name(agent_name)
-            existing_assistant_clients = [AssistantAgent.model_validate(agent) for agent in existing_assistant_clients]
+            existing_native_agents_raw = native_client.get_draft_by_name(agent_name)
+            existing_external_agents_raw = external_client.get_draft_by_name(agent_name)
+            existing_assistant_agents_raw = assistant_client.get_draft_by_name(agent_name)
+            
+            # Store workspace_id separately before model validation (it gets dropped during validation)
+            # Format: [(agent_object, workspace_id), ...]
+            existing_native_agents = [(Agent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                     for agent_dict in existing_native_agents_raw]
+            existing_external_agents = [(ExternalAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                       for agent_dict in existing_external_agents_raw]
+            existing_assistant_agents = [(AssistantAgent.model_validate(agent_dict), agent_dict.get('workspace_id'))
+                                        for agent_dict in existing_assistant_agents_raw]
 
-            all_existing_agents = existing_external_clients + existing_native_agents + existing_assistant_clients
+            all_existing_agents = existing_external_agents + existing_native_agents + existing_assistant_agents
 
             agent = self.dereference_agent_dependencies(agent)
 
@@ -1375,15 +1386,30 @@ class AgentsController:
                 sys.exit(1)
 
             if len(all_existing_agents) > 0:
-                existing_agent = all_existing_agents[0]
+                existing_agent, existing_agent_workspace_id = all_existing_agents[0]
                 agent_name = agent.name
+                cross_workspace_update = False
 
                 if agent_name == existing_agent.name:
                     if agent_kind != existing_agent.kind:
                         logger.error(f"An agent with the name '{agent_name}' already exists with a different kind. Failed to create agent")
                         sys.exit(1)
+                    
+                    # Check if agent is in a different workspace
+                    workspace_context = WorkspaceContext()
+                    active_workspace_id = workspace_context.get_active_workspace_id()
+                    
+                    if existing_agent_workspace_id and active_workspace_id and existing_agent_workspace_id != active_workspace_id:
+                        cross_workspace_update = True
+                        # Get workspace names for info message
+                        agent_workspace_name = GLOBAL_WORKSPACE_NAME if existing_agent_workspace_id == GLOBAL_WORKSPACE_ID else f"workspace {existing_agent_workspace_id}"
+                        active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
+                        
+                        agent_type = "Agent" if isinstance(existing_agent, Agent) else ("External Agent" if isinstance(existing_agent, ExternalAgent) else "Assistant Agent")
+                        logger.info(f"{agent_type} '{agent_name}' belongs to {agent_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
+                    
                     agent_id = existing_agent.id
-                    self.update_agent(agent_id=agent_id, agent=agent)
+                    self.update_agent(agent_id=agent_id, agent=agent, skip_workspace_injection=cross_workspace_update)
             else:
                 self.publish_agent(agent)
 
@@ -1695,12 +1721,14 @@ class AgentsController:
             logger.info(f"Assistant Agent '{agent.name}' imported successfully")
 
     def update_agent(
-        self, agent_id: str, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent, **kwargs
+        self, agent_id: str, agent: Agent | CustomAgent | ExternalAgent | AssistantAgent,
+        skip_workspace_injection: bool = False, **kwargs
     ) -> None:
         if isinstance(agent, Agent):
             logger.info(f"Existing Agent '{agent.name}' found. Updating...")
             exclude_fields = {'custom_agent_file_path'} if hasattr(agent, 'custom_agent_file_path') else None
-            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields))
+            response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
+                                                      skip_workspace_injection=skip_workspace_injection)
             _raise_guidelines_warning(response)
 
             # Handle custom agent artifact upload for updates
@@ -1737,11 +1765,13 @@ class AgentsController:
 
         if isinstance(agent, ExternalAgent):
             logger.info(f"Existing External Agent '{agent.name}' found. Updating...")
-            self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True))
+            self.get_external_client().update(agent_id, agent.model_dump(exclude_none=True),
+                                            skip_workspace_injection=skip_workspace_injection)
             logger.info(f"External Agent '{agent.name}' updated successfully")
         if isinstance(agent, AssistantAgent):
             logger.info(f"Existing Assistant Agent '{agent.name}' found. Updating...")
-            self.get_assistant_client().update(agent_id, agent.model_dump(exclude_none=True, by_alias=True))
+            self.get_assistant_client().update(agent_id, agent.model_dump(exclude_none=True, by_alias=True),
+                                             skip_workspace_injection=skip_workspace_injection)
             logger.info(f"Assistant Agent '{agent.name}' updated successfully")
 
     @staticmethod
@@ -1816,7 +1846,7 @@ class AgentsController:
                 knowledge_bases.append(id)
         return knowledge_bases
     
-    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind, workspace_id: Optional[str] = None) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
+    def _fetch_and_parse_agents(self, target_agent_kind: AgentKind, workspace_id: Optional[str] = None, include_global: bool = True) -> tuple[List[Agent] | List[ExternalAgent] | List[AssistantAgent], List[List[str]]]:
         parse_errors = []
         target_kind_display_name = None
         target_kind_class = None
@@ -1839,7 +1869,7 @@ class AgentsController:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
         # Use client method directly - it handles workspace_id parameter 
-        response = agent_client.get(workspace_id=workspace_id)
+        response = agent_client.get(workspace_id=workspace_id, include_global=include_global)
         
         agents = []
         for agent in response:
@@ -2074,6 +2104,8 @@ class AgentsController:
                 "external": None 
         }
 
+        is_private_workspace = not is_global_workspace_active()
+
         if kind == AgentKind.NATIVE or kind is None:
             native_agents, new_parse_errors = self._fetch_and_parse_agents(AgentKind.NATIVE)
             parse_errors += new_parse_errors
@@ -2115,8 +2147,12 @@ class AgentsController:
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
                     }
+
                     for column in column_args:
                         native_table.add_column(column, **column_args[column])
+
+                    if is_private_workspace:
+                        native_table.add_column("Global", justify="center")
 
                     for agent in resolved_native_agents:
                         # If agent.plugins might be a list of tuples
@@ -2138,7 +2174,7 @@ class AgentsController:
                                     elif isinstance(p, str):
                                         plugin_strings.append(p)
                         agent_name = self._format_agent_display_name(agent)
-                        native_table.add_row(
+                        row = [
                             agent_name,
                             agent.description,
                             agent.llm,
@@ -2148,7 +2184,10 @@ class AgentsController:
                             ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
-                        )
+                        ]
+                        if is_private_workspace:
+                            row.append("[green bold]✔[/green bold]" if agent.workspace == GLOBAL_WORKSPACE_NAME else "[red bold]x[/red bold]")
+                        native_table.add_row(*row)
                     if format == ListFormats.Table:
                         output_dictionary["native"] = rich_table_to_markdown(native_table)
                     else:
@@ -2195,9 +2234,13 @@ class AgentsController:
                     for column in column_args:
                         external_table.add_column(column, **column_args[column])
                     
+                    if is_private_workspace:
+                        external_table.add_column("Global", justify="center")
+                    
+
                     for agent in resolved_external_agents:
                         agent_name = self._format_agent_display_name(agent)
-                        external_table.add_row(
+                        row = [
                             agent_name,
                             agent.title,
                             agent.description,
@@ -2207,8 +2250,12 @@ class AgentsController:
                             str(agent.config),
                             agent.nickname,
                             agent.app_id,
-                            agent.id
-                        )
+                            agent.id,
+                        ]
+                        if is_private_workspace:
+                            row.append("[green bold]✔[/green bold]" if agent.workspace == GLOBAL_WORKSPACE_NAME else "[red bold]x[/red bold]")
+                        external_table.add_row(*row)
+
                     if format == ListFormats.Table:
                         output_dictionary["external"] = rich_table_to_markdown(external_table)
                     else:
@@ -2250,13 +2297,17 @@ class AgentsController:
                         "Environment ID": {"overflow": "fold"},
                         "ID": {"overflow": "fold"}
                     }
-                    
+
                     for column in column_args:
                         assistants_table.add_column(column, **column_args[column])
                     
+                    if is_private_workspace:
+                        assistants_table.add_column("Global", justify="center" )
+                    
+
                     for agent in resolved_assistant_agents:
                         agent_name = self._format_agent_display_name(agent)
-                        assistants_table.add_row(
+                        row = [
                             agent_name,
                             agent.title,
                             agent.description,
@@ -2266,8 +2317,12 @@ class AgentsController:
                             agent.config.service_instance_url,
                             agent.config.assistant_id,
                             agent.config.environment_id,
-                            agent.id
-                        )
+                            agent.id,
+                        ]
+                        if is_private_workspace:
+                            row.append("[green bold]✔[/green bold]" if agent.workspace == GLOBAL_WORKSPACE_NAME else "[red bold]x[/red bold]")
+                        assistants_table.add_row(*row)
+
                     if format == ListFormats.Table:
                         output_dictionary["assistant"] = rich_table_to_markdown(assistants_table)
                     else:
@@ -2369,7 +2424,7 @@ class AgentsController:
 
         return native_result + external_result + assistant_result
 
-    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None, workspace_id: Optional[str] = None) -> None:
+    def export_agent(self, name: str, kind: AgentKind, output_path: str, agent_only_flag: bool=False, zip_file_out: zipfile.ZipFile | None = None, with_tool_spec_file: bool = False, exclude: List[str] | None = None, workspace_id: Optional[str] = None) -> bool:
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
         output_file_name = output_file.stem
@@ -2386,7 +2441,7 @@ class AgentsController:
 
             # Download the custom agent package directly
             self.download_agent_artifact(agent_name=name, output_path=output_path)
-            return
+            return True
 
         # For non-custom agents, proceed with regular export logic
         if not agent_only_flag and output_file_extension != ".zip":
@@ -2399,8 +2454,8 @@ class AgentsController:
         agent = self.get_agent(name, kind, workspace_id=workspace_id)
 
         if agent.restrictions == AgentRestrictionType.NON_EDITABLE:
-            logger.error(f"Agent '{agent.name}' is not editable and cannot be exported")
-            sys.exit(1)
+            logger.warning(f"Agent '{agent.name}' is not editable and cannot be exported")
+            return False
 
         agent_spec_file_content = self.get_spec_file_content(agent, exclude=exclude, workspace_id=workspace_id)
         
@@ -2417,7 +2472,7 @@ class AgentsController:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
             with safe_open(output_path, 'w') as outfile:
                 yaml.dump(agent_spec_file_content, outfile, sort_keys=False, default_flow_style=False, allow_unicode=True)
-            return
+            return True
         
         close_file_flag = False
         if zip_file_out is None:
@@ -2436,7 +2491,7 @@ class AgentsController:
             logger.warning(f"Skipping {agent_spec_file_content.get('name')}, agent with that name already exists in the output folder")
             if close_file_flag:
                 zip_file_out.close()
-            return
+            return True
         
         zip_file_out.writestr(
             agent_file_path,
@@ -2578,6 +2633,8 @@ class AgentsController:
         if close_file_flag:
             logger.info(f"Successfully wrote agents and tools to '{output_path}'")
             zip_file_out.close()
+        
+        return True
 
 
     def deploy_agent(self, name: str):
@@ -2915,3 +2972,54 @@ class AgentsController:
         except Exception as e:
             logger.error(f"Failed to download agent package: {e}")
             sys.exit(1)
+
+
+    def discover_and_import_agent(
+        self,
+        base_url: str,
+        endpoint: str = ".well-known/agent-card.json",
+        agent_name: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> None:
+        """
+        Discover an A2A agent from a well-known URI and import it directly.
+        
+        Args:
+            base_url: Base URL of the A2A agent
+            endpoint: Well-known endpoint path for the agent card
+            agent_name: Override agent name (defaults to name from agent card)
+            app_id: Connection app_id for authentication (optional)
+        """
+                
+        try:
+            with A2ADiscoveryService() as discovery_client:
+                logger.info(f"Discovering A2A agent from {base_url}/{endpoint}")
+    
+                wxo_spec = discovery_client.discover_and_convert(
+                    base_url=base_url,
+                    endpoint=endpoint,
+                    agent_name=agent_name,
+                    app_id=app_id
+                )
+                
+                discovered_name = wxo_spec.get('name', 'unknown')
+                
+                logger.info(f"Publishing discovered agent: {discovered_name}")
+                
+                # Convert the spec dictionary to an ExternalAgent object
+                agent = ExternalAgent.model_validate(wxo_spec)
+                
+                # Directly publish the converted agent object
+                self.publish_or_update_agents([agent])
+                
+                                            
+        except requests.RequestException as e:
+            logger.error(f"Failed to discover agent from {base_url}: {str(e)}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid agent card format: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unexpected error during agent discovery: {str(e)}")
+            sys.exit(1)
+

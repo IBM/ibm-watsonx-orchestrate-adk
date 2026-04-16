@@ -1312,6 +1312,7 @@ class TestExportModelSelection:
         mock_model_selection_client = MockModelSelectionClient()
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+            patch("builtins.open", mock_open()) as mock_file_open, \
             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.dump", wraps = yaml.dump) as yaml_dump_spy:
             instantiate_client_mock.return_value = mock_model_selection_client
 

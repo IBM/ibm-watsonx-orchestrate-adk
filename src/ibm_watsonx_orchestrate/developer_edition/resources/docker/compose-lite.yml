@@ -254,6 +254,7 @@ services:
       ENABLE_THIRD_PARTY_MODELS: "true"
       ENABLE_CM_A2A_AGENTS: "false"
       ENABLE_REMOTE_MCP_SERVER: "true"
+      ENABLE_AGENT_RECORD_TEST_CASES: "true"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
@@ -263,6 +264,7 @@ services:
       AGENT_ARCHITECT_ENDPOINT: http://host.docker.internal:5321
       ENABLE_MORE_MODELS_ACCESSIBLE: "true"
       ENABLE_MANUAL_DEPRECATION_NOTIFICATION_LLAMA: "true"
+      LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -1335,6 +1337,7 @@ services:
       FLOW_GENERAL_DEFAULT_LLM: ${DEFAULT_FLOW_LLM_MODEL}
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
       TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
+      CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
