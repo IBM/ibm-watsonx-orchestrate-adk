@@ -77,7 +77,7 @@ class MockSDKResponse:
 
 
 class MockToolClient:
-    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False, get_draft_by_name_response=None, download_tools_artifact_response=None, get_draft_by_id_response=None):
+    def __init__(self, expected=None, get_response=[], tool_name="", file_path="", already_existing=False, get_draft_by_name_response=None, download_tools_artifact_response=None, get_draft_by_id_response=None, workspace_id=None):
         self.expected = expected
         self.get_response = get_response
         self.tool_name = tool_name
@@ -87,6 +87,7 @@ class MockToolClient:
         self.get_draft_by_name_response = get_draft_by_name_response
         self.download_tools_artifact_response = download_tools_artifact_response
         self.get_draft_by_id_response = get_draft_by_id_response
+        self.workspace_id = workspace_id
 
     def create(self, spec):
         for key in self.expected:
@@ -96,7 +97,7 @@ class MockToolClient:
     def get(self):
         return self.get_response
 
-    def update(self, name, spec):
+    def update(self, name, spec, skip_workspace_injection=False):
         for key in self.expected:
             assert spec[key] == self.expected[key]
 
@@ -1994,5 +1995,5 @@ def test_langflow_tool_update():
         tools_controller = ToolsController()
         tools_controller.publish_or_update_tools(tools)
 
-        mock_update.assert_called_once_with(tool_id=tool_id,tool=tools[0],tool_artifact=None)
+        mock_update.assert_called_once_with(tool_id=tool_id,tool=tools[0],tool_artifact=None,skip_workspace_param=False)
     

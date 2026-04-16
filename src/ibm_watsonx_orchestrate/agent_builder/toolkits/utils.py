@@ -19,8 +19,7 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
             raise BadRequest("The package root for python toolkits must be a valid folder")
         
         with tempfile.TemporaryDirectory(prefix=f"{folder_path.stem}_", dir='/tmp') as temp_dir:
-            tools_dir = os.path.join(temp_dir, "tools")
-            shutil.copytree(folder_path, tools_dir, dirs_exist_ok=True)
+            shutil.copytree(folder_path, temp_dir, dirs_exist_ok=True)
             sys.path.insert(0, temp_dir)
             temp_path = Path(temp_dir)
             tools = []
@@ -37,7 +36,7 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
                 # Get all Python files
                 python_files = python_files = list(temp_path.rglob('*.py'))
                 for file in python_files:
-                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path))
+                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False))
             finally:
                 # Remove temp directory from path
                 if temp_dir in sys.path:

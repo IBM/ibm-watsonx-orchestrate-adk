@@ -24,6 +24,10 @@ class PythonToolKind(str, Enum):
     AGENTPREINVOKE = 'agent_pre_invoke'
     AGENTPOSTINVOKE = 'agent_post_invoke'
 
+class ToolResponseFormat(str, Enum):
+    CONTENT = 'content'
+    CONTENT_AND_ARTIFACT = 'content_and_artifact'
+
 class JsonSchemaTokens(str, Enum):
     NONE = '__null__'
 
@@ -52,8 +56,14 @@ class JsonSchemaObject(BaseModel):
     in_field: Optional[Literal['query', 'header', 'path', 'body']] = Field(None, alias='in')
     aliasName: str | None = None
     wrap_data: Optional[bool] = True
+    # Multifile:
+    minItems: int | None = None
+    maxItems: int | None = None
+    maxSizePerFile: int | None = None
+    maxTotalSize: int | None = None
+    acceptedFileExtensions: list[str] | None = None
     "Runtime feature where the sdk can provide the original name of a field before prefixing"
-
+    
     @model_validator(mode='after')
     def normalize_type_field(self) -> 'JsonSchemaObject':
         if isinstance(self.type, list):
@@ -142,22 +152,11 @@ class OpenApiToolBinding(BaseModel):
     callback: Optional[CallbackBinding] = None
     acknowledgement: Optional[AcknowledgementBinding] = None
 
-    @model_validator(mode='after')
-    def validate_openapi_tool_binding(self, info: ValidationInfo):
-        context = getattr(info, "context", None)
-
-        if len(self.servers) != 1:
-            if isinstance(context, str) and context == "list":
-                logger.warning("OpenAPI definition must include exactly one server")
-            else:
-                raise BadRequest("OpenAPI definition must include exactly one server")
-        return self
-
 
 class PythonToolBinding(BaseModel):
     function: str
     requirements: Optional[List[str]] = []
-    connections: dict[str, str] = None
+    connections: Optional[dict[str, str]] = None
     type: Optional[str] = None
     agent_run_paramater: Optional[str] = None
 
@@ -190,7 +189,7 @@ class McpToolBinding(BaseModel):
     connections: Dict[str, str] | None
 
 class FlowToolBinding(BaseModel):
-    flow_id: str
+    flow_id: Optional[str] = None
     model: Optional[dict] = None
 
 class LangflowToolBinding(BaseModel):
@@ -242,11 +241,13 @@ class ToolSpec(BaseModel):
     display_name: str | None = None
     description: str
     permission: ToolPermission
-    input_schema: ToolRequestBody = None
-    output_schema: ToolResponseBody = None
+    input_schema: Optional[ToolRequestBody] = None
+    output_schema: Optional[ToolResponseBody] = None
     binding: ToolBinding = None
     toolkit_id: str | None = None
     is_async: bool = False
+    response_format: ToolResponseFormat = ToolResponseFormat.CONTENT
+    workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     def is_custom_join_tool(self) -> bool:
         if self.binding.python is None:
@@ -297,6 +298,11 @@ class ToolSpec(BaseModel):
 CONNECTION_TIMEOUT_SECONDS = 30
 READ_TIMEOUT_SECONDS = 30
 X_AMZ_META_HEADER_PREFIX = os.getenv("X_AMZ_META_HEADER_PREFIX", "x-amz-meta-")
+SECURE_FILE_DOWNLOAD = os.getenv("SECURE_FILE_DOWNLOAD", "false").lower() == "true"
+WXO_PATH_PREFIX = os.getenv("WXO_PATH_PREFIX", "v1/files/")
+INTERNAL_REQUEST_IDENTIFIER = os.getenv("INTERNAL_REQUEST_IDENTIFIER")
+INTERNAL_REQUEST_HEADER_KEY = os.getenv("INTERNAL_REQUEST_HEADER_KEY", "x-watson-service-key")
+INTERNAL_REQUEST_HEADER_VALUE = os.getenv("INTERNAL_REQUEST_HEADER_VALUE", "internal")
 
 
 class WXOFile(str):
@@ -327,7 +333,29 @@ class WXOFile(str):
     def get_content(cls, url: str) -> bytes:
         """Retuns the contents"""
         try:
-            res = requests.get(url)
+            # Build headers dictionary
+            headers = {}
+
+            # Check for misconfiguration: WXO URL without SECURE_FILE_DOWNLOAD enabled
+            if not SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                logger.warning(
+                    f"Detected WXO URL (contains '{WXO_PATH_PREFIX}') but SECURE_FILE_DOWNLOAD is disabled. "
+                    "This may result in 401 Unauthorized errors. "
+                    "Set SECURE_FILE_DOWNLOAD=true to enable authentication for WXO URLs."
+                )
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+            res = requests.get(url, headers=headers if headers else None)
             return res.content
         except Exception as e:
             raise e
@@ -335,10 +363,53 @@ class WXOFile(str):
     @classmethod
     def _get_headers(cls, url: str) -> dict:
         try:
-            res = requests.get(url, 
-                               headers={'Range': 'bytes=0-0'}, 
-                               timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
-            return res.headers
+            # Build headers dictionary
+            headers = {'Range': 'bytes=0-0'}
+
+            # Check for misconfiguration: WXO URL without SECURE_FILE_DOWNLOAD enabled
+            if not SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                logger.warning(
+                    f"Detected WXO URL (contains '{WXO_PATH_PREFIX}') but SECURE_FILE_DOWNLOAD is disabled. "
+                    "This may result in 401 Unauthorized errors. "
+                    "Set SECURE_FILE_DOWNLOAD=true to enable authentication for WXO URLs."
+                )
+
+            # Add authentication headers only if SECURE_FILE_DOWNLOAD is true
+            # AND the URL contains WXO_PATH_PREFIX (indicating it needs auth)
+            if SECURE_FILE_DOWNLOAD and WXO_PATH_PREFIX in url:
+                headers[INTERNAL_REQUEST_HEADER_KEY] = INTERNAL_REQUEST_HEADER_VALUE
+                headers['Authorization'] = f'Bearer {INTERNAL_REQUEST_IDENTIFIER}'
+
+                # Add tenant ID header if TENANT_ID is present in environment
+                tenant_id = os.getenv("TENANT_ID")
+                if tenant_id:
+                    headers['X-Tenant-ID'] = tenant_id
+
+                # For WXO URLs, disable automatic redirects to capture metadata headers
+                # from the initial response before the 302 redirect to S3
+                res = requests.get(url,
+                                   headers=headers,
+                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+                                   allow_redirects=False)
+
+                # If we get a redirect response (302), follow it manually to get S3 headers
+                if res.status_code == 302 and 'Location' in res.headers:
+                    # Follow the redirect to get the actual S3 URL
+                    s3_url = res.headers['Location']
+                    s3_res = requests.get(s3_url,
+                                          headers={'Range': 'bytes=0-0'},
+                                          timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+
+                    # Return S3 headers
+                    return s3_res.headers
+
+                return res.headers
+            else:
+                # For direct S3 URLs, use default behavior with automatic redirects
+                res = requests.get(url,
+                                   headers=headers,
+                                   timeout=(CONNECTION_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS))
+                return res.headers
         except Exception as e:
             raise e
 
@@ -370,6 +441,133 @@ class WXOFile(str):
             "description": "A URL identifying the File to be used.",
         }
 
+class MultiFileConstraints:
+    # Maximum file size limit: 30MB in bytes
+    MAX_FILE_SIZE_LIMIT = 30 * 1024 * 1024  # 31,457,280 bytes
+    
+    def __init__(
+        self,
+        *,
+        min_files: int = 1,
+        max_files: int = 100,
+        max_size_per_file: int | None = None,
+        max_total_size: int | None = None,
+        accepted_file_extensions: list[str] | None = None,
+        text: str | None = None,
+    ):
+        # Validate max_size_per_file
+        if max_size_per_file is not None and max_size_per_file > self.MAX_FILE_SIZE_LIMIT:
+            max_size_mb = max_size_per_file / (1024 * 1024)
+            limit_mb = self.MAX_FILE_SIZE_LIMIT / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({max_size_mb:.2f}MB) exceeds the maximum allowed limit of {limit_mb:.0f}MB. "
+                f"Please set max_size_per_file to {self.MAX_FILE_SIZE_LIMIT} bytes or less."
+            )
+            sys.exit(1)
+        
+        # Validate max_total_size
+        if max_total_size is not None and max_total_size > self.MAX_FILE_SIZE_LIMIT:
+            max_total_mb = max_total_size / (1024 * 1024)
+            limit_mb = self.MAX_FILE_SIZE_LIMIT / (1024 * 1024)
+            logger.error(
+                f"max_total_size ({max_total_mb:.2f}MB) exceeds the maximum allowed limit of {limit_mb:.0f}MB. "
+                f"Please set max_total_size to {self.MAX_FILE_SIZE_LIMIT} bytes or less."
+            )
+            sys.exit(1)
+        
+        # Validate max_size_per_file is not greater than max_total_size
+        if (max_size_per_file is not None and max_total_size is not None and
+            max_size_per_file > max_total_size):
+            per_file_mb = max_size_per_file / (1024 * 1024)
+            total_mb = max_total_size / (1024 * 1024)
+            logger.error(
+                f"max_size_per_file ({per_file_mb:.2f}MB) cannot be greater than max_total_size ({total_mb:.2f}MB). "
+                f"Please set max_size_per_file to {max_total_size} bytes or less."
+            )
+            sys.exit(1)
+        
+        self.min_files = min_files
+        self.max_files = max_files
+        self.max_size_per_file = max_size_per_file
+
+        # Calculate max_total_size, capping at platform limit
+        if max_total_size is not None:
+            self.max_total_size = max_total_size
+        elif max_size_per_file is not None:
+            # Auto-calculate but cap at platform limit to avoid backend rejection
+            calculated_total = max_files * max_size_per_file
+            self.max_total_size = min(calculated_total, self.MAX_FILE_SIZE_LIMIT)
+        else:
+            self.max_total_size = None
+
+        self.accepted_file_extensions = accepted_file_extensions
+        self.text = text
+
+class WXOUser(str):
+    """
+    A custom type representing a watsonx Orchestrate User reference.
+    
+    This class extends str to represent a user identifier (user ID) that can be
+    used in watsonx Orchestrate flows and tools. The user reference is a string
+    that identifies a specific user in the system.
+    
+    User information can be accessed using system functions:
+    - user.get_name() or system.user.get_name(user) - returns the user's name
+    - user.get_email() or system.user.get_email(user) - returns the user's email
+    - user.get_id() or system.user.get_id(user) - returns the user's ID
+
+    """
+
+    @classmethod
+    def validate(cls, value: Any) -> "WXOUser":
+        """
+        Validates that the value is a valid user reference (string).
+        
+        Args:
+            value: The value to validate
+            
+        Returns:
+            A WXOUser instance
+            
+        Raises:
+            TypeError: If the value is not a string
+        """
+        if not isinstance(value, str):
+            raise TypeError("User reference must be a string (user ID)")
+        return cls(value)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        """
+        Defines the Pydantic core schema for validation and serialization.
+        """
+        return core_schema.no_info_wrap_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda v: str(v))
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        """
+        Defines the JSON schema representation for OpenAPI/JSON Schema generation.
+        
+        Returns a schema with format "wxo-user" to indicate this is a user reference.
+        This format is used by the watsonx Orchestrate system to properly handle
+        user references in flows and tools.
+        """
+        return {
+            "type": "string",
+            "title": "User reference",
+            "format": "wxo-user",
+            "description": "A user ID or reference identifying a Watsonx Orchestrate user.",
+        }
+
 
 class ToolListEntry(BaseModel):
     name: str = Field(description="The name of the tool")
@@ -377,10 +575,14 @@ class ToolListEntry(BaseModel):
     type: Optional[str] = Field(description="The type of the tool"),
     toolkit: Optional[str] = Field(description="The name of the Toolkit the tool belongs. Empty if the tool is not from a Toolkit"),
     app_ids: Optional[List[str]] = Field(description="A list of app_ids that show what connections are bound to a tool")
+    is_global: Optional[bool] = Field(default=None, description="Is the tool present in the global workspace")
 
     def get_row_details(self):
         app_ids = ", ".join(self.app_ids) if self.app_ids else ""
-        return [self.name, self.description, self.type, self.toolkit, app_ids]
+        row = [self.name, self.description, self.type, self.toolkit, app_ids]
+        if self.is_global is not None:
+            row.append("[green bold]✔[/green bold]" if self.is_global else "[red bold]x[/red bold]")
+        return row
     
 # ---------------------------------------------------------------------------
 # Plugin Tools Models
