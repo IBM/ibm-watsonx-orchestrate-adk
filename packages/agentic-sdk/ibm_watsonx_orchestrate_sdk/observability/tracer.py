@@ -145,6 +145,11 @@ class Tracer:
     # Span creation -- context-manager based
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _current_context():
+        from opentelemetry import context
+        return context.get_current()
+
     def start_span(
         self,
         name: str,
@@ -162,7 +167,7 @@ class Tracer:
         if attributes:
             merged.update(attributes)
 
-        otel_span = self._tracer.start_span(name, attributes=merged)
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)
 
     def start_llm_span(
@@ -186,7 +191,7 @@ class Tracer:
         if attributes:
             merged.update(attributes)
 
-        otel_span = self._tracer.start_span(name, attributes=merged)
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return LLMSpanWrapper(otel_span, model=model, provider=provider)
 
     def start_tool_span(
@@ -204,7 +209,7 @@ class Tracer:
         if attributes:
             merged.update(attributes)
 
-        otel_span = self._tracer.start_span(name, attributes=merged)
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return ToolSpanWrapper(otel_span, tool_name=tool_name, tool_input=tool_input)
 
     def start_agent_span(
@@ -222,7 +227,7 @@ class Tracer:
         if attributes:
             merged.update(attributes)
 
-        otel_span = self._tracer.start_span(name, attributes=merged)
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return AgentSpanWrapper(otel_span, agent_name=agent_name, framework=framework)
 
     # ------------------------------------------------------------------
