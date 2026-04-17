@@ -53,10 +53,13 @@ class SpanWrapper:
 
     def __init__(self, span: "Span") -> None:
         self._span = span
+        self._token = None
 
     # --- context manager protocol ---
 
     def __enter__(self) -> "SpanWrapper":
+        from opentelemetry import context, trace
+        self._token = context.attach(trace.set_span_in_context(self._span))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
@@ -64,6 +67,10 @@ class SpanWrapper:
             self._span.set_status(_error_status(str(exc_val)))
             self._span.record_exception(exc_val)
         self._span.end()
+        if self._token is not None:
+            from opentelemetry import context
+            context.detach(self._token)
+            self._token = None
         return None
 
     # --- public helpers ---
