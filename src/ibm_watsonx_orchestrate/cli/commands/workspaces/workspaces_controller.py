@@ -81,31 +81,34 @@ class WorkspacesController:
 
     # ==================== WORKSPACE CRUD OPERATIONS ====================
 
-    def _validate_workspace_name(self, name: str):
-        # Name must be 1-40 characters, can contain letters, numbers, spaces, underscores, and hyphens
-        # Must not be empty or only whitespace
-        if not name or not name.strip():
+    def _validate_workspace_name(self, name: str) -> str:
+        normalized_name = name.strip()
+        
+        # Name must not be empty or only whitespace
+        if not normalized_name:
             logger.error("Workspace name cannot be empty or only whitespace.")
             sys.exit(1)
         
         # Check maximum length (API enforces 40 characters)
-        if len(name) > 40:
-            logger.error(f"Invalid workspace name. Name must be at most 40 characters long (current length: {len(name)}).")
+        if len(normalized_name) > 40:
+            logger.error(f"Invalid workspace name. Name must be at most 40 characters long (current length: {len(normalized_name)}).")
             sys.exit(1)
         
-        # Allow letters, numbers, spaces, underscores, and hyphens
-        # Name should start with a letter or number (not special characters)
-        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9 _-]*$', name.strip()):
+        # Name must start with a letter (backend requirement)
+        # Can contain letters, numbers, spaces, and underscores after the first character
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9 _]*$', normalized_name):
             logger.error(
-                f"Invalid workspace name '{name}'. "
-                "Name must start with a letter or number and can contain only alphanumeric characters, spaces, underscores, and hyphens."
+                f"Invalid workspace name '{normalized_name}'. "
+                "Name must start with a letter and can contain only alphanumeric characters, spaces, and underscores."
             )
             sys.exit(1)
+        
+        return normalized_name
 
     def create_or_update_workspace(self, name: str, description: Optional[str] = None):
         """Create or update a workspace (upsert)."""
         self._check_ibm_cloud_env()
-        self._validate_workspace_name(name)
+        name = self._validate_workspace_name(name)
         
         try:
             client = self.get_client()
@@ -591,7 +594,7 @@ class WorkspacesController:
                 for agent_kind in [AgentKind.NATIVE, AgentKind.EXTERNAL, AgentKind.ASSISTANT]:
                     try:
                         # Fetch agents from the target workspace (not active workspace)
-                        agents, parse_errors = agents_controller._fetch_and_parse_agents(agent_kind, workspace_id=workspace_id)
+                        agents, parse_errors = agents_controller._fetch_and_parse_agents(agent_kind, workspace_id=workspace_id, include_global=False)
                         
                         # Log any parse errors
                         if parse_errors:
@@ -604,14 +607,16 @@ class WorkspacesController:
                                 try:
                                     logger.info(f"Exporting {agent_kind.value} agent: {agent_name}")
                                     # Pass output_path directly - agent export will use its stem as folder prefix
-                                    agents_controller.export_agent(
+                                    was_exported = agents_controller.export_agent(
                                         name=agent_name,
                                         kind=agent_kind,
                                         output_path=output_path,
                                         zip_file_out=zip_file,
                                         workspace_id=workspace_id
                                     )
-                                    exported_agents.add(agent_name)
+                                    # Only count agent if it was actually exported
+                                    if was_exported:
+                                        exported_agents.add(agent_name)
                                 except Exception as e:
                                     logger.warning(f"Could not export {agent_kind.value} agent '{agent_name}': {str(e)}")
                                 
@@ -624,7 +629,7 @@ class WorkspacesController:
                         
                         # Get all tools from the target workspace (not active workspace)
                         tool_client = tools_controller.get_client()
-                        response = tool_client.get(workspace_id=workspace_id)
+                        response = tool_client.get(workspace_id=workspace_id, include_global=False)
                         
                         for tool_spec in (response or []):
                             tool_name = tool_spec.get('name')
@@ -641,7 +646,8 @@ class WorkspacesController:
                                         output_path=tool_path,
                                         zip_file_out=zip_file,
                                         spec=tool_spec,
-                                        connections_output_path=f"{output_file_name}/connections/"
+                                        connections_output_path=f"{output_file_name}/connections/",
+                                        workspace_id=workspace_id
                                     )
                                 except Exception as e:
                                     logger.warning(f"Could not export tool '{tool_name}': {str(e)}")
@@ -650,12 +656,11 @@ class WorkspacesController:
                     logger.warning(f"Could not export standalone tools: {str(e)}")
                 
                 # Export standalone toolkits
-                standalone_toolkit_count = 0
                 try:
                     toolkit_controller = ToolkitController()
                     
                     # Get all toolkits from the target workspace (not active workspace)
-                    toolkits, _ = toolkit_controller._fetch_and_parse_toolkits(workspace_id=workspace_id)
+                    toolkits, _ = toolkit_controller._fetch_and_parse_toolkits(workspace_id=workspace_id, include_global=False)
                     
                     for toolkit in toolkits:
                         toolkit_name = toolkit.__toolkit_spec__.name
@@ -665,6 +670,7 @@ class WorkspacesController:
                         # Check if toolkit was already exported
                         toolkit_path = f"{output_file_name}/toolkits/{toolkit_name}.yaml"
                         if check_file_in_zip(file_path=toolkit_path, zip_file=zip_file):
+                            logger.warning(f"Skipping {toolkit_name}, toolkit with that name already exists in the output folder")
                             continue
                         
                         try:
@@ -673,9 +679,9 @@ class WorkspacesController:
                                 name=toolkit_name,
                                 output_file=toolkit_path,
                                 zip_file_out=zip_file,
-                                connections_output_path=f"{output_file_name}/connections/"
+                                connections_output_path=f"{output_file_name}/connections/",
+                                workspace_id=workspace_id
                             )
-                            standalone_toolkit_count += 1
                         except Exception as e:
                             logger.warning(f"Could not export toolkit '{toolkit_name}': {str(e)}")
                                 
@@ -683,13 +689,12 @@ class WorkspacesController:
                     logger.warning(f"Could not export standalone toolkits: {str(e)}")
                 
                 # Export knowledge bases
-                knowledge_base_count = 0
                 try:
                         kb_controller = KnowledgeBaseController()
                         
                         # Get all knowledge bases from the target workspace (not active workspace)
                         kb_client = kb_controller.get_client()
-                        knowledge_bases = kb_client.get(workspace_id=workspace_id)
+                        knowledge_bases = kb_client.get(workspace_id=workspace_id, include_global=False)
                         
                         for kb in (knowledge_bases or []):
                             kb_name = kb.get('name')
@@ -704,7 +709,6 @@ class WorkspacesController:
                                         zip_file_out=zip_file,
                                         connections_output_path=f"{output_file_name}/connections/"
                                     )
-                                    knowledge_base_count += 1
                                 except Exception as e:
                                     logger.warning(f"Could not export knowledge base '{kb_name}': {str(e)}")
                                     
@@ -721,10 +725,36 @@ class WorkspacesController:
                             tool_folders.add(parts[0])
                 total_tools_count = len(tool_folders)
                 
+                # Count all toolkits in the toolkits folder (both from agents and standalone)
+                toolkit_prefix = f"{output_file_name}/toolkits/"
+                toolkit_names = set()
+                
+                for item in zip_file.namelist():
+                    if item.startswith(toolkit_prefix) and item.endswith('.yaml'):
+                        # Extract the path after the prefix
+                        relative_path = item[len(toolkit_prefix):]
+                        # Get the first component (either the .yaml file or the directory name)
+                        first_component = relative_path.split('/')[0]
+                        if first_component:
+                            toolkit_names.add(first_component)
+                
+                toolkit_count = len(toolkit_names)
+                
+                # Count all knowledge bases in the knowledge_bases folder (both from agents and standalone)
+                kb_prefix = f"{output_file_name}/knowledge_bases/"
+                kb_files = set()
+                for item in zip_file.namelist():
+                    if item.startswith(kb_prefix) and item.endswith('.yaml'):
+                        # Extract just the filename without path
+                        kb_filename = item[len(kb_prefix):]
+                        if kb_filename and '/' not in kb_filename:
+                            kb_files.add(kb_filename)
+                knowledge_base_count = len(kb_files)
+                
             logger.info(f"Successfully exported workspace '{workspace_name}' to '{output_path}'")
             logger.info(f"Agents exported: {len(exported_agents)}")
             logger.info(f"Tools exported: {total_tools_count}")
-            logger.info(f"Toolkits exported: {standalone_toolkit_count}")
+            logger.info(f"Toolkits exported: {toolkit_count}")
             logger.info(f"Knowledge bases exported: {knowledge_base_count}")
             
         except Exception as e:
