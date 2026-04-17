@@ -24,7 +24,7 @@ package-data = true
 
 [tool.hatch.build]
 include = [
-    "./*"
+    "./**"
 ]
 directory="../../dist"
 

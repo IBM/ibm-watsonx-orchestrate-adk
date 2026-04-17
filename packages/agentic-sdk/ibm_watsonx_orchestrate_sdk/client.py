@@ -112,7 +112,22 @@ class Client:
                 )
 
         self._context_client: Optional[ContextClient] = None
+        self._tracer: Optional["Tracer"] = None
         self._memory_client: Optional[MemoryClient] = None
+    
+    @property
+    def observability(self) -> "Tracer":
+        """Access a zero-config :class:`Tracer` for observability.
+
+        The tracer reads its endpoint and resource attributes from
+        environment variables (``WXO_OTLP_ENDPOINT``, ``WXO_TENANT_ID``,
+        ``WXO_AGENT_ID``).  See
+        :mod:`ibm_watsonx_orchestrate_sdk.observability` for details.
+        """
+        if self._tracer is None:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import Tracer
+            self._tracer = Tracer()
+        return self._tracer
 
     @classmethod
     def from_instance_credentials(
