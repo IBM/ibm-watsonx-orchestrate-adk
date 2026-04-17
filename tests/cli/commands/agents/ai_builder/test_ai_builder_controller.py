@@ -17,7 +17,66 @@ import pytest
 from requests import ConnectionError
 from unittest.mock import patch, mock_open, MagicMock
 from rich.progress import Progress
-import os
+
+from ibm_watsonx_orchestrate_clients.model_policies.model_policies_client import ModelPoliciesClient
+from ibm_watsonx_orchestrate_clients.model_selection.model_selection_client import ModelSelectionClient
+from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
+from ibm_watsonx_orchestrate_core.types.models.types import ModelListEntry
+from cli.commands.models.test_models_controller import MockModelPoliciesClient, MockModelSelectionClient
+
+
+class MockModelsClient():
+
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+        self.list_response = list_response or []
+        self.get_draft_by_name_response = get_draft_by_name_response or []
+        self.list_all_response = list_all_response or []
+        self.base_url = 'http://localhost:4321'
+
+    def list(self):
+        return self.list_response
+
+    def list_all(self):
+        return self.list_all_response
+
+
+MOCK_MODEL_LIST_RESPONSE = [
+    ModelListEntry(
+        name='watsonx/default/llm',
+        description="123",
+        is_default=True,
+        recommended=True
+    ),
+    ModelListEntry(
+        name='virtual/watsonx/xxx/yyy',
+        description="456",
+        is_custom=True,
+    ),
+    ModelListEntry(
+        name='openai/gpt6',
+        description="789",
+        recommended=True,
+        is_denied=True,
+    )
+]
+
+
+def mock_instantiate_client(client: ModelsClient | ModelPoliciesClient | ModelSelectionClient, mock_models_client: MockModelsClient=None, mock_policies_client: MockModelPoliciesClient=None, mock_model_selection_client: MockModelSelectionClient=None) -> MockModelsClient | MockModelPoliciesClient | MockModelSelectionClient:
+    if client == ModelsClient:
+        if mock_models_client:
+             return mock_models_client
+        return MockModelsClient()
+    if client == ModelPoliciesClient:
+        if mock_policies_client:
+            return mock_policies_client
+        return MockModelPoliciesClient()
+    if client == ModelSelectionClient:
+        return mock_model_selection_client or MockModelSelectionClient()
+
+
+mock_models_client = MockModelsClient(
+            list_all_response=MOCK_MODEL_LIST_RESPONSE
+        )
 
 
 class MockCPEClient:
@@ -251,7 +310,11 @@ class TestPromptTune:
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.read_agent_yaml_and_publish_to_runtime") as mock_read_agent_yaml_and_publish_to_runtime, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client, \
+                patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
             mock_agent = Agent(
                 id="mock_id",
                 kind=AgentKind.NATIVE,
@@ -286,7 +349,11 @@ class TestPromptTune:
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client, \
+                patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
             mock_agent = Agent(
                 id="mock_id",
                 kind=AgentKind.NATIVE,
@@ -363,7 +430,11 @@ class TestCreateAgent:
         with patch(
                 "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.chat_with_agent_builder") as mock_chat_with_agent_builder, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client, \
+                patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
             
             mock_agent = Agent(
                 id="mock_id",
@@ -390,7 +461,12 @@ class TestCreateAgent:
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_agent_dependencies") as mock_reference_agent_dependencies, \
                 patch(
-                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client:
+                    "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_agent_builder_client") as mock_get_agent_builder_client, \
+                patch(
+                     "ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller:
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
             
             mock_agent = Agent(
                 id="mock_id",
@@ -462,7 +538,12 @@ class TestRefineAgentWithChat:
             patch(
                 "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_knowledge_bases_client") as mock_get_kb_client, \
             patch(
-                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_collaborators") as mock_reference_collaborators):
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.AgentsController.reference_collaborators") as mock_reference_collaborators, \
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller):
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
+
             mock_input.side_effect = ["1"]
 
             mock_get_agent = Agent(
@@ -521,7 +602,11 @@ class TestRefineAgentWithChat:
             patch(
                 "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_tool_client") as mock_get_tool_client, \
             patch(
-                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_knowledge_bases_client") as mock_get_kb_client):
+                "ibm_watsonx_orchestrate.cli.commands.agents.ai_builder.ai_builder_controller.get_knowledge_bases_client") as mock_get_kb_client, \
+            patch("ibm_watsonx_orchestrate.agent_builder.agents.types.ModelsController") as mock_models_controller):
+            mock_controller_instance = MagicMock()
+            mock_controller_instance.formatted_list_all.return_value = MOCK_MODEL_LIST_RESPONSE
+            mock_models_controller.return_value = mock_controller_instance
 
             mock_input.side_effect = ["1"]
 

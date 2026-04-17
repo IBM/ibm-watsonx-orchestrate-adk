@@ -23,7 +23,7 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import Knowledg
 from ibm_watsonx_orchestrate.agent_builder.tools import ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController, AgentKind, get_agent_details
 from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController
-from ibm_watsonx_orchestrate.agent_builder.agents.types import DEFAULT_LLM, BaseAgentSpec
+from ibm_watsonx_orchestrate.agent_builder.agents.types import BaseAgentSpec, get_default_llm
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.ai_builder.agent_builder_client import AgentBuilderClient
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
@@ -487,7 +487,7 @@ def create_agent(output_file: Path, llm: str, chat_llm: str | None, dry_run_flag
     # 3. Agent Builder
     excluded_fields = _get_excluded_fields()
     try:
-        agent = chat_with_agent_builder(agent_builder_client,chat_llm=chat_llm, description=description, dry_run_flag=dry_run_flag, output_file=output_file, llm=llm if llm else DEFAULT_LLM, excluded_fields=excluded_fields)
+        agent = chat_with_agent_builder(agent_builder_client,chat_llm=chat_llm, description=description, dry_run_flag=dry_run_flag, output_file=output_file, llm=llm if llm else get_default_llm(), excluded_fields=excluded_fields)
     except ConnectionError:
         logger.error(
             "Failed to connect to AI Builder server. Please ensure AI Builder is running via `orchestrate sever start --with-ai-builder`")

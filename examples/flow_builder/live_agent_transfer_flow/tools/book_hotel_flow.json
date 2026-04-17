@@ -1,0 +1,106 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "book_hotel_flow",
+    "initiators": [],
+    "description": "No description",
+    "schedulable": true,
+    "display_name": "book a hotel flow",
+    "input_schema": {
+      "type": "object",
+      "required": [
+        "check_in",
+        "check_out",
+        "room_type",
+        "location",
+        "total_guests"
+      ],
+      "properties": {
+        "check_in": {
+          "type": "string",
+          "description": "check in date for the hotel "
+        },
+        "location": {
+          "type": "string",
+          "default": "",
+          "description": "location of the hotel they want to book. this should be a city or neighborhood in a city. "
+        },
+        "check_out": {
+          "type": "string",
+          "description": "check out date for the hotel"
+        },
+        "room_type": {
+          "type": "string",
+          "default": "standard",
+          "description": "type of room the guest wants to book."
+        },
+        "total_guests": {
+          "type": "string",
+          "default": "",
+          "description": "the amount of guests staying in the hotel room"
+        }
+      }
+    },
+    "private_schema": {}
+  },
+  "edges": [
+    {
+      "id": "795de536-5527-4d57-b93f-661a3be9c5d9",
+      "end": "CodeBlock 2",
+      "start": "__start__"
+    },
+    {
+      "id": "c23fc61d-7f9a-4d17-8fef-13f19d0d684d",
+      "end": "__end__",
+      "start": "CodeBlock 2"
+    }
+  ],
+  "nodes": {
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "position": {
+          "x": 18,
+          "y": 382.30271146067594
+        }
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "position": {
+          "x": 0,
+          "y": -128.03263757642142
+        }
+      }
+    },
+    "CodeBlock 2": {
+      "spec": {
+        "fn": "check_in = flow['input']['check_in']\ncheck_out = flow['input']['check_out']\nroom_type = flow['input']['room_type']\nlocation = flow['input']['location']\ntotal_guests = flow['input']['total_guests']\n\ndetails = f\"Here are the details. Check in {check_in}, check out {check_out}. With a {room_type} type room in {location} for {total_guests} guests\"\n\nmessage_to_human_agent = f\"User would like to book a room. {details}\"\n\nmessage_to_chatter = f\"I'll transfer you to an agent to book your room. {details}\"\n\nflow.output.content = [\n    {\n        \"type\": \"text\",\n        \"text\": message_to_chatter,\n        \"annotations\": {\"audience\": [\"user\"]}\n    }\n]\n\n\nflow.output._meta =  {\n    \"com.ibm.orchestrate/extensions\": {\n        \"transfer_to_live_agent\": {\n            \"message_to_human_agent\": message_to_human_agent,\n            \"agent_unavailable\": \"I'm sorry, but no agents are online at the moment. Please try again later.\",\n            \"agent_available\" : \"Agent is available.\",\n            \"transfer_metadata\": {\n                \"caller_id\": \"1234567890\"\n            }\n        }\n    }\n}",
+        "kind": "script",
+        "name": "CodeBlock 2",
+        "position": {
+          "x": 2,
+          "y": 107.30271146067594
+        },
+        "display_name": "Logic block 2"
+      }
+    }
+  },
+  "schemas": {},
+  "metadata": {
+    "llm_model": "groq/openai/gpt-oss-120b",
+    "source_kind": "ui",
+    "is_under_specified": true,
+    "is_system_generated_description": true
+  },
+  "output_map": {
+    "spec": {
+      "maps": [],
+      "name": "",
+      "fallback_strategy": "ask_the_user"
+    }
+  }
+}

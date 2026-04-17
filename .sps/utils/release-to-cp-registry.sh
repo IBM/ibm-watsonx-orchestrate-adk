@@ -13,6 +13,7 @@ images=$(cat <<EOF
 wxo-server-db:${DBTAG}
 wxo-connections:${CM_TAG}
 wxo-connections-ui:${CONNECTIONS_UI_TAG}
+wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG}
 ai-gateway:${AI_GATEWAY_TAG}
 mcp-gateway:${MCP_GATEWAY_TAG}
 wxo-agent-gateway:${AGENT_GATEWAY_TAG}

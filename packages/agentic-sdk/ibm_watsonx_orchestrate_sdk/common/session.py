@@ -99,7 +99,7 @@ def build_runs_on_session(
 ) -> AgenticSession:
     access_token = normalize_access_token(str(execution_context.get("access_token") or ""))
     api_proxy_url = str(
-        execution_context.get("api_proxy_url") or get_runs_on_default_api_proxy_url()
+        get_runs_on_default_api_proxy_url() or execution_context.get("api_proxy_url") or ""
     ).rstrip("/")
     thread_id = str(execution_context.get("thread_id") or "").strip()
     mode_hint = get_agentic_mode_hint()
@@ -128,11 +128,12 @@ def build_runs_on_session(
     deployment_platform = str(
         execution_context.get("deployment_platform") or get_runs_on_default_deployment_platform() or ""
     ).strip() or None
+    resolved_verify = False if verify is None else verify
 
     return AgenticSession(
         mode="runs-on",
         base_url=api_proxy_url,
-        verify=verify,
+        verify=resolved_verify,
         access_token=access_token,
         identity=RequestIdentity(
             tenant_id=tenant_id,

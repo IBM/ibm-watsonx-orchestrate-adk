@@ -544,15 +544,21 @@ class NodeErrorHandlerConfig(BaseModel):
     error_message: Optional[str] = None
     max_retries: Optional[int] = None
     retry_interval: Optional[int] = None
+    on_error: Optional[Literal["show_message", "branch"]] = None  # Error handling to be performed on error
+    error_edge_id: Optional[str] = None  # id of the edge to use for error branching
         
     def to_json(self) -> dict[str, Any]:
         model_spec = {}
         if self.error_message:
             model_spec["error_message"] = self.error_message
-        if self.max_retries:
+        if self.max_retries is not None:
             model_spec["max_retries"] = self.max_retries
-        if self.retry_interval:
+        if self.retry_interval is not None:
             model_spec["retry_interval"] = self.retry_interval
+        if self.on_error:
+            model_spec["on_error"] = self.on_error
+        if self.error_edge_id:
+            model_spec["error_edge_id"] = self.error_edge_id
         return model_spec
 
 class ToolNodeSpec(NodeSpec):
