@@ -461,3 +461,61 @@ def agent_copy(
         destination_workspace=destination_workspace,
         source_workspace=source_workspace
     )
+
+@agents_app.command(name="discover", help='Discover and import an A2A agent from a well-known URI')
+def agent_discover(
+    url: Annotated[
+        str,
+        typer.Option("--url", "-u", help="Base URL of the A2A agent (e.g. https://example.com)"),
+    ],
+    endpoint: Annotated[
+        str,
+        typer.Option(
+            "--endpoint",
+            "-e",
+            help="Well-known endpoint path for the agent card"
+        ),
+    ] = ".well-known/agent-card.json",
+    name: Annotated[
+        Optional[str],
+        typer.Option("--name", "-n", help="Override agent name (defaults to name from agent card)"),
+    ] = None,
+    app_id: Annotated[
+        Optional[str],
+        typer.Option("--app-id", "-a", help="Connection app_id for authentication (optional)"),
+    ] = None,
+):
+    """
+    Discover and import an A2A agent from a well-known URI.
+    
+    This command fetches an agent card from a standardized endpoint (like .well-known/agent-card.json),
+    converts it to WxO external agent format, and imports it directly into your workspace.
+    
+    Authentication is handled through connections. If the agent requires authentication, provide the
+    connection app_id using the --app-id parameter. The connection must be created first using
+    'orchestrate connections add' with bearer token credentials.
+    
+    If you want to save the agent specification, you can export it later using:
+        orchestrate agents export --name <agent-name> --output <file.yaml>
+    
+    Examples:
+        # Discover a public agent (no authentication)
+        orchestrate agents discover -u https://example.com
+        
+        # Discover with custom endpoint
+        orchestrate agents discover -u https://example.com -e .well-known/agent-card.json
+                
+        # Discover using a connection for authentication
+        orchestrate agents discover -u https://example.com -a my-a2a-connection
+        
+        # Discover with custom name
+        orchestrate agents discover -u https://example.com -n my_custom_agent -a my-a2a-connection
+    """
+    
+    agents_controller = AgentsController()
+    agents_controller.discover_and_import_agent(
+        base_url=url,
+        endpoint=endpoint,
+        agent_name=name,
+        app_id=app_id,
+    )

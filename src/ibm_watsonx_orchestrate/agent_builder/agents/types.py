@@ -201,6 +201,7 @@ class AgentSpec(BaseAgentSpec):
     welcome_content: Optional[WelcomeContent] = None
     icon: Optional[str] = None
     llm_config: Optional[dict] = None
+    is_schedulable: Optional[bool] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -309,7 +310,12 @@ def validate_customer_care_fields(values: dict):
     else:
         # For non-CUSTOMER_CARE styles, toolkits are not supported
         if values.get("toolkits"):
-            raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
+            toolkits = values.get("toolkits")
+            # Note: schedulable agents will import Flow Scheduling MCP toolkits
+            if toolkits == ["scheduling_tools"] or values.get("is_schedulable") is not None:
+                pass
+            else:
+                raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
 
 # ===============================
 #      EXTERNAL AGENT TYPES
