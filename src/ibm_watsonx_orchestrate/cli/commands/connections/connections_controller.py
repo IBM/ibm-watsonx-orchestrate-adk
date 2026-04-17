@@ -18,6 +18,8 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     ConnectionConfiguration,
     ConnectionSecurityScheme,
     ConnectionType,
+    ConnectionKind,
+    ConnectionPreference,
     ConnectionResource,
     IdpConfigData,
     IdpConfigDataBody,
@@ -686,6 +688,13 @@ def configure_connection(**kwargs) -> None:
         logger.error(f"Cannot create configuration for environment '{kwargs.get('environment')}'. Local development does not support any environments other than 'draft'.")
         sys.exit(1)
 
+    # Check if oauth_auth_direct_access_flow is being used with team type
+    if kwargs.get("kind") == ConnectionKind.oauth_auth_direct_access_flow or str(kwargs.get("kind")) == str(ConnectionKind.oauth_auth_direct_access_flow):
+        # Check both 'type' (from command) and 'preference' (after mapping)
+        type_value = kwargs.get("type") or kwargs.get("preference")
+        if type_value == ConnectionPreference.TEAM or str(type_value) == str(ConnectionPreference.TEAM):
+            logger.error(f"Connection kind 'oauth_auth_direct_access_flow' can only be used with '--type member'. Team-level credentials are not supported for this auth type.")
+            sys.exit(1)
     
     idp_config_body = None
     if kwargs.get("idp_token_type") or kwargs.get("idp_token_use"):
@@ -728,6 +737,11 @@ def set_credentials_connection(
     config = client.get_config(app_id=app_id, env=environment)
     if not config:
         logger.error(f"No configuration '{environment}' found for connection '{app_id}'. Please create the connection using `orchestrate connections add --app-id {app_id}` then add a configuration `orchestrate connections configure --app-id {app_id} --environment {environment} ...`")
+        sys.exit(1)
+
+    # Check if connection uses oauth2_direct_accesstoken
+    if config.auth_type == ConnectionType.OAUTH2_DIRECT_ACCESS:
+        logger.error(f"Cannot set credentials for connection '{app_id}' with auth type '{ConnectionType.OAUTH2_DIRECT_ACCESS}'. This auth type does not support credential management through this command.")
         sys.exit(1)
 
     conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)

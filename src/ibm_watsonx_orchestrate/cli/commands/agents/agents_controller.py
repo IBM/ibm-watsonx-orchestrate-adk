@@ -1622,6 +1622,12 @@ class AgentsController:
             
             _raise_guidelines_warning(response_data)
 
+            if agent.is_schedulable is not None:
+                try:
+                    native_client.update_schedulable(response_data.id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
+
             # Check if this is a custom agent - always upload if file path provided
             if agent.style == AgentStyle.CUSTOM:
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
@@ -1730,6 +1736,12 @@ class AgentsController:
             response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
                                                       skip_workspace_injection=skip_workspace_injection)
             _raise_guidelines_warning(response)
+
+            if agent.is_schedulable is not None:
+                try:
+                    self.get_native_client().update_schedulable(agent_id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
 
             # Handle custom agent artifact upload for updates
             if agent.style == AgentStyle.CUSTOM:
@@ -2519,6 +2531,11 @@ class AgentsController:
         for tool_name in agent_tools:
 
             current_spec = tool_specs.get(tool_name)
+
+            # Skip exporting internal scheduling tools
+            if isinstance(agent, Agent) and agent.is_schedulable and (current_spec or {}).get("name", "").startswith("scheduling_tools"):
+                continue
+
             if current_spec and _get_kind_from_spec(current_spec) == ToolKind.mcp:
                 base_tool_file_path = f"{output_file_name}/toolkits/"
             else:
