@@ -400,6 +400,9 @@ class MockAgent:
     def update(self, agent_id, agent_spec, skip_workspace_injection=False):
         assert agent_spec == self.expected_agent_spec
         return AgentUpsertResponse(warning=self.creation_warning)
+
+    def update_schedulable(self, agent_id: str, is_schedulable: bool):
+        pass
     
     def _post(self, endpoint, data):
         """Mock _post method for publish_agent"""

@@ -164,6 +164,7 @@ services:
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-}
       REDIS_URL: redis://wxo-server-redis:6379/0
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      WXO_SERVER_URL: http://wxo-server:4321
     entrypoint: >
       sh -c '
         if [ ! -z "$$CALLBACK_HOST_URL" ]; then
