@@ -1,0 +1,10 @@
+language: python
+framework: langgraph
+entrypoint: hotel_agent:create_agent
+agent_name: hotel_list_agent
+display_name: Hotel List Agent with Context Compression
+agent_description: A custom LangGraph agent that lists hotels for cities and demonstrates context compression when token count exceeds 2500.
+requirements:
+  - langchain-core>=0.3.76
+  - langchain-ibm>=0.3.2
+  - langgraph>=0.6.8
