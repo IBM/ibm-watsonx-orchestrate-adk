@@ -1,0 +1,255 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Onboarding_Checklist_9502We",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Onboarcding Checklist",
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "description": ""
+                },
+                "emailID": {
+                    "type": "string",
+                    "description": "User's email ID"
+                },
+                "getcontextvariable": {
+                    "type": "string",
+                    "default": "",
+                    "description": ""
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "f2a1967a-99fd-41a5-a17c-7a3bf9a079b5",
+            "end": "CodeBlock 1",
+            "start": "__start__"
+        },
+        {
+            "id": "baba1efc-71f3-4129-ba65-1186fe53c2d0",
+            "end": "UserActivity 1",
+            "start": "CodeBlock 1"
+        },
+        {
+            "id": "1f3bebad-f964-4c3b-9a21-0b86fb81efe5",
+            "end": "__end__",
+            "start": "UserActivity 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 869
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "CodeBlock 1": {
+            "spec": {
+                "fn": "flow.private.getcontextvariable = system.context.get_variable(\"Role\")\nflow.private.emailID = system.context.get_variable(\"wxo_email_id\")\n\nemail = \"Aayush@ibm.com\"\nif flow.private.emailID == email:\n    flow.private.role=\"Product Manager\"\n\nusername = email.split(\"@\")[0]\nname = username.split(\".\")[0]\nself.output.name = name\n\n\nrole = flow.private.role\n\nif role == \"Product Manager\":\n    checklist=[\n    \"Meet your engineering and design teams\",\n    \"Understand product vision and roadmap\",\n    \"Review current features and backlog\",\n    \"Get access to product tools (Jira, Slack, dashboards)\",\n    \"Study key metrics (KPIs, user analytics)\",\n    \"Align with stakeholders on priorities\",\n    \"Shadow customer calls or demos\"\n    ]\n\nelif role == \"Developer\":\n    checklist=[\n        \"Set up development environment\",\n    \"Get access to repositories (GitHub/GitLab)\",\n    \"Clone and run the project locally\",\n    \"Review codebase structure and architecture\",\n    \"Understand deployment process\",\n    \"Fix a small bug or pick a starter task\",\n    \"Attend team stand-ups and tech syncs\"\n    ]\n\nself.output.checklist = checklist",
+                "kind": "script",
+                "name": "CodeBlock 1",
+                "position": {
+                    "x": 0,
+                    "y": 155
+                },
+                "display_name": "Verify",
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "user's name"
+                        },
+                        "checklist": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "onboarding checklist"
+                        }
+                    }
+                }
+            }
+        },
+        "UserActivity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 1",
+                "position": {
+                    "x": -20,
+                    "y": 347
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 450
+                },
+                "initiators": [],
+                "display_name": "Onboarding checklist",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "90e3e109-960b-4f3c-bd4e-1f781964c628",
+                    "end": "user_3f26ca74-2ad2-4b26-a09e-6084cc8de7e9",
+                    "start": "UserActivity 1__start__"
+                },
+                {
+                    "id": "53598909-55df-4cd2-b03b-7df5020da555",
+                    "end": "user_5a5f4cad-52f5-44c5-bd26-dd706c61ce89",
+                    "start": "user_3f26ca74-2ad2-4b26-a09e-6084cc8de7e9"
+                },
+                {
+                    "id": "bf4bb0fa-c06a-4815-a9cb-5defcdf8bb74",
+                    "end": "UserActivity 1__end__",
+                    "start": "user_5a5f4cad-52f5-44c5-bd26-dd706c61ce89"
+                }
+            ],
+            "nodes": {
+                "UserActivity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 1__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 402
+                        }
+                    }
+                },
+                "UserActivity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 1__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_3f26ca74-2ad2-4b26-a09e-6084cc8de7e9": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_3f26ca74-2ad2-4b26-a09e-6084cc8de7e9",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_4277904e-857b-4077-89ed-6c564d6d96b3",
+                                "text": "Hi {flow.Verify.output.name}, Welcome to IBM!! Here's your onboarding list:",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Welcome message"
+                    }
+                },
+                "user_5a5f4cad-52f5-44c5-bd26-dd706c61ce89": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_5a5f4cad-52f5-44c5-bd26-dd706c61ce89",
+                        "fields": [
+                            {
+                                "kind": "array",
+                                "name": "list_output_44d18f01-f150-457d-b80d-542ce7c57afd",
+                                "direction": "output",
+                                "input_map": {
+                                    "spec": {
+                                        "maps": [
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.value",
+                                                "value_expression": "flow.Verify.output.checklist"
+                                            }
+                                        ],
+                                        "name": ""
+                                    }
+                                },
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {}
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 256
+                        },
+                        "display_name": "onboarding list"
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_under_specified": true,
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

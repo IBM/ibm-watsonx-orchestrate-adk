@@ -65,6 +65,9 @@ def is_local_dev(url: str | None = None) -> bool:
     if url.startswith("http://0.0.0.0"):
         return True
 
+    if url.startswith("http://host.docker.internal"):
+        return True
+
     return False
 
 def is_ga_platform(url: str | None = None) -> bool:
