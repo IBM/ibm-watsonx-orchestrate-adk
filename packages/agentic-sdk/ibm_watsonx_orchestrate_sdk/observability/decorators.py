@@ -9,6 +9,7 @@ Usage::
 
     from ibm_watsonx_orchestrate_sdk.observability.decorators import (
         trace_call, trace_llm_call, trace_tool_call, trace_agent_call,
+        configure_tracing,
     )
 
     @trace_call(capture_input=True, capture_output=True, name="my_function")
@@ -245,3 +246,27 @@ def trace_agent_call(
         return wrapper
 
     return decorator
+
+
+# -----------------------------------------------------------------------
+# configure_tracing  --  top-level create_agent hook
+# -----------------------------------------------------------------------
+
+def configure_tracing(fn: Callable) -> Callable:
+    """Decorator for LangGraph ``create_agent`` factory functions.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(config: Any, *args: Any, **kwargs: Any) -> Any:
+        from ibm_watsonx_orchestrate_sdk.observability.tracer import _build_invocation_context
+        from opentelemetry import context as otel_context
+
+        ec = (config or {}).get("configurable", {}).get("execution_context") or {}
+        if ec:
+            ctx = _build_invocation_context(ec)
+            if ctx is not None:
+                otel_context.attach(ctx)
+
+        return fn(config, *args, **kwargs)
+
+    return wrapper
