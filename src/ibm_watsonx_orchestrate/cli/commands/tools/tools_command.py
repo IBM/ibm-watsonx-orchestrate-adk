@@ -92,9 +92,16 @@ relative to this package root folder or imported using relative imports from the
             "--save-flow-json",
             help="Path to save the compiled flow JSON file. Only applicable for flow imports (--kind=flow)"
         )
-    ] = None
+    ] = None,
+    safe: Annotated[
+        bool,
+        typer.Option(
+            "--safe",
+            help="Enable safe mode: prompt for confirmation before updating existing tools"
+        )
+    ] = False
 ):
-    tools_controller = ToolsController(kind, file, requirements_file)
+    tools_controller = ToolsController(kind, file, requirements_file, safe_mode=safe)
     if auto_discover:
         if kind != ToolKindImport.python:
             raise typer.BadParameter(f"Auto-discover is only valid for python tools")
