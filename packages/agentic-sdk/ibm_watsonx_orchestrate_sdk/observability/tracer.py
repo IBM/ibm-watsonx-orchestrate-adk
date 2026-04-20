@@ -117,6 +117,47 @@ def register_tracer(tracer: "Tracer") -> None:
     logger.info("Default tracer registered [service=%s]", tracer._config.service_name)
 
 
+def _build_invocation_context(execution_context: Dict[str, Any]) -> Optional["Context"]:
+    """Build an OTel Context from the WXO execution_context."""
+    from opentelemetry import baggage, context, trace
+    from opentelemetry.trace import SpanContext, TraceFlags, NonRecordingSpan
+
+    ctx = context.get_current()
+
+    # --- Propagate parent trace context (trace_id + span_id) ---
+    raw_trace_id = execution_context.get("trace_id")
+    raw_span_id = execution_context.get("span_id")
+    if raw_trace_id and raw_span_id:
+        try:
+            parent_span_context = SpanContext(
+                trace_id=int(raw_trace_id, 16),
+                span_id=int(raw_span_id, 16),
+                is_remote=True,
+                trace_flags=TraceFlags(TraceFlags.SAMPLED),
+            )
+            parent_span = NonRecordingSpan(parent_span_context)
+            ctx = trace.set_span_in_context(parent_span, ctx)
+        except (ValueError, TypeError):
+            logger.warning("Invalid trace_id/span_id in execution_context, ignoring")
+
+    # --- Set baggage for metadata propagation ---
+    baggage_mapping = {
+        BAGGAGE_TENANT_ID: execution_context.get("tenant_id"),
+        BAGGAGE_AGENT_ID: execution_context.get("agent_id"),
+    }
+
+    any_set = False
+    for key, value in baggage_mapping.items():
+        if value:
+            ctx = baggage.set_baggage(key, str(value), context=ctx)
+            any_set = True
+
+    # Return ctx if we set a parent span OR any baggage
+    if raw_trace_id and raw_span_id:
+        return ctx
+    return ctx if any_set else None
+
+
 class Tracer:
     """High-level, user-facing tracer that hides the OpenTelemetry SDK.
 
