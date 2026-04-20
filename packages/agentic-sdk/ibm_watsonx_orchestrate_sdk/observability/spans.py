@@ -32,7 +32,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
 )
 
 if TYPE_CHECKING:
-    from opentelemetry.trace import Span, StatusCode
+    from opentelemetry.trace import Span, Status
 
 
 def _safe_json(obj: Any) -> str:
@@ -192,11 +192,11 @@ class AgentSpanWrapper(SpanWrapper):
 # Internal helpers (avoid importing StatusCode at module level)
 # ---------------------------------------------------------------------------
 
-def _ok_status() -> "StatusCode":
+def _ok_status() -> "Status":
     from opentelemetry.trace import StatusCode, Status
     return Status(StatusCode.OK)
 
 
-def _error_status(description: str = "") -> "StatusCode":
+def _error_status(description: str = "") -> "Status":
     from opentelemetry.trace import StatusCode, Status
     return Status(StatusCode.ERROR, description)
