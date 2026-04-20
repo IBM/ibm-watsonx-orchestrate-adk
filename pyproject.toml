@@ -43,6 +43,9 @@ base_dependencies = [
     "pytz>=2025.2",
     "redis>=6.0.0",
     "websocket-client>=1.8.0,<2.0.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
 synced_packages = [
     "ibm-watsonx-orchestrate-core",
@@ -65,6 +68,7 @@ dev = [
 agentops = [
     "ibm_watsonx_orchestrate_evaluation_framework==1.4.8",
 ]
+
 [tool.pytest.ini_options]
 pythonpath = [
     "src",
@@ -76,7 +80,7 @@ pythonpath = [
 [tool.hatch.envs.default]
 dependencies = [
     "pkg[dev]",
-    "pkg[agentops]"
+    "pkg[agentops]",
 ]
 detached = true
 
@@ -117,7 +121,7 @@ omit = [
 [tool.hatch.envs.test]
 dependencies = [
     "pkg[dev]",
-    "pkg[agentops]"
+    "pkg[agentops]",
 ]
 
 [[tool.hatch.envs.test.matrix]]
