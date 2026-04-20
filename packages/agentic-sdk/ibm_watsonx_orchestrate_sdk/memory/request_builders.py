@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate_sdk.memory.models import (
     CreateMemoriesRequest,
     MemoryMessage,
     SearchMemoriesRequest,
+    normalize_memory_type,
 )
 
 
@@ -24,6 +25,7 @@ class MemoryRequestBuilder:
         sensitivity_classification: Optional[str] = None,
         source_reference: Optional[str] = None,
     ) -> CreateMemoriesRequest:
+        normalized_memory_type = normalize_memory_type(memory_type)
         normalized_messages = [
             message if isinstance(message, MemoryMessage) else MemoryMessage.model_validate(message)
             for message in messages
@@ -31,7 +33,7 @@ class MemoryRequestBuilder:
         return CreateMemoriesRequest(
             messages=normalized_messages,
             infer=infer,
-            memory_type=memory_type,
+            memory_type=normalized_memory_type,
             metadata=metadata,
             agent_id=agent_id,
             run_id=run_id,
@@ -48,10 +50,11 @@ class MemoryRequestBuilder:
         expanded_query: Optional[str] = None,
         recall: Optional[bool] = None,
     ) -> SearchMemoriesRequest:
+        normalized_memory_type = normalize_memory_type(memory_type)
         return SearchMemoriesRequest(
             query=query,
             limit=limit,
-            memory_type=memory_type,
+            memory_type=normalized_memory_type,
             expanded_query=expanded_query,
             recall=recall,
         )

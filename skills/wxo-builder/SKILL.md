@@ -688,6 +688,58 @@ def build_my_flow(aflow: Flow) -> Flow:
 - [ ] One flow per file
 - [ ] Proper ToolPermission values
 
+### ⚠️ Python Tool Self-Containment Requirement
+
+**CRITICAL: Each Python tool implementation file MUST be self-contained.**
+
+All function definitions, type definitions, and class definitions used within a Python tool file must be defined within that same file. Cross-file references between local Python files are NOT allowed.
+
+**Allowed References:**
+- ✅ Standard Python library imports (e.g., `import json`, `from typing import Optional`)
+- ✅ Common third-party packages (e.g., `import requests`, `from pydantic import BaseModel`)
+- ✅ `ibm_watsonx_orchestrate` package imports (e.g., `from ibm_watsonx_orchestrate.agent_builder.tools import tool`)
+
+**NOT Allowed:**
+- ❌ Importing functions/types from other local Python files in the same project
+- ❌ Relative imports from sibling modules (e.g., `from .utils import helper_function`)
+- ❌ Importing custom types from other local files (e.g., `from tools.shared_types import MyModel`)
+
+**Example - ❌ INCORRECT:**
+```python
+# tools/my_tool.py
+from tools.shared_utils import format_response  # ❌ NOT ALLOWED
+from .types import CustomModel  # ❌ NOT ALLOWED
+
+@tool(permission=ToolPermission.READ_ONLY)
+def my_tool(input: str) -> CustomModel:
+    return format_response(input)
+```
+
+**Example - ✅ CORRECT:**
+```python
+# tools/my_tool.py
+from pydantic import BaseModel, Field
+from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
+
+class CustomModel(BaseModel):  # ✅ Defined in same file
+    result: str = Field(description="Result")
+
+def format_response(input: str) -> str:  # ✅ Helper defined in same file
+    return f"Formatted: {input}"
+
+@tool(permission=ToolPermission.READ_ONLY)
+def my_tool(input: str) -> CustomModel:
+    """Process input and return formatted result."""
+    formatted = format_response(input)
+    return CustomModel(result=formatted)
+```
+
+**Rationale:**
+- Ensures tools are portable and can be deployed independently
+- Prevents dependency issues during tool import and execution
+- Simplifies tool maintenance and debugging
+- Aligns with watsonx Orchestrate's tool isolation model
+
 
 #### 3. **agents/[agent_name].yaml**
 Agent configuration:
@@ -706,12 +758,67 @@ style: default                                # REQUIRED - Agent style (default,
 collaborators: []                             # OPTIONAL - List of collaborator agents
 tools:                                        # REQUIRED - List of tools/flows
   - tool_or_flow_name
+knowledge_base: []                            # OPTIONAL - List of knowledge bases
+starter_prompts:                              # RECOMMENDED - Suggested prompts for users
+  is_default_prompts: false
+  prompts:
+    - id: default0
+      title: Short action title
+      prompt: Example prompt text that users can click
+      state: active
+    - id: default1
+      title: Another action
+      prompt: Another example prompt
+      state: active
+welcome_content:                              # RECOMMENDED - Welcome message for users
+  welcome_message: Welcome to [Agent Name]
+  description: Brief description of what the agent can help with
+  is_default_message: false
+```
+
+**RECOMMENDED - Starter Prompts and Welcome Content:**
+Always include `starter_prompts` and `welcome_content` to improve user experience:
+
+- **starter_prompts**: Provide 2-4 suggested prompts that guide users on what the agent can do
+  - Use clear, action-oriented titles (e.g., "Report a concern", "Create support ticket")
+  - Write prompts that demonstrate the agent's capabilities
+  - Set `is_default_prompts: false` to use custom prompts
+  - Each prompt needs a unique `id` (e.g., default0, default1, etc.)
+  - Set `state: active` for all prompts
+
+- **welcome_content**: Create a welcoming first impression
+  - `welcome_message`: A friendly greeting that includes the agent's name/purpose
+  - `description`: A brief explanation of what the agent can help with
+  - Set `is_default_message: false` to use custom content
+
+**Example from St. Mary's Hospital Agent:**
+```yaml
+starter_prompts:
+  is_default_prompts: false
+  prompts:
+    - id: default0
+      title: Report a concern
+      prompt: I need to report a concern about my care
+      state: active
+    - id: default1
+      title: Create support ticket
+      prompt: I want to create a support ticket
+      state: active
+    - id: default2
+      title: Follow up on issue
+      prompt: I need to follow up on a previous issue
+      state: active
+welcome_content:
+  welcome_message: Welcome to St. Mary's Group of Hospitals Support
+  description: I'm here to help you report concerns and create support tickets. How can I assist you today?
+  is_default_message: false
 ```
 
 **DO NOT:**
 - ❌ Omit `spec_version: v1` (will cause import errors)
 - ❌ Omit `kind: native`
 - ❌ Omit required fields like `llm`, `style`, or `tools`
+- ❌ Skip `starter_prompts` and `welcome_content` (reduces user experience quality)
 
 #### 4. **main_flow.py**
 Programmatic testing:

@@ -18,6 +18,7 @@ dependencies = [
     "ibm-watsonx-orchestrate-clients",
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
+    "langchain-openai>=1.1.0,<2.0.0"
 ]
 
 [tool.hatch.build.targets.wheel]

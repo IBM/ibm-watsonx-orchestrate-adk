@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from ibm_watsonx_orchestrate_sdk import Client
 from ibm_watsonx_orchestrate_sdk.common.base_client import BaseAgenticClient
+from ibm_watsonx_orchestrate_clients.common.base_client import BaseAPIClient
+import requests
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
 
 
 TEST_TOKEN = (
@@ -13,6 +17,29 @@ TEST_TOKEN = (
     "LTRlYWUtYjJkNy02NWIwOWI0YjRiMTYifQ."
     "iv0jmxpo3gC_WlzeoQKCcmHHqEoMpOla3K8oKuBakBw"
 )
+
+
+class DummyAPIClient(BaseAPIClient):
+    def create(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def delete(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def update(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def get(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+def _build_response(url: str) -> requests.Response:
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b"{}"
+    response.url = url
+    response.request = requests.Request("GET", url).prepare()
+    return response
 
 
 def test_from_execution_context_hydrates_identity_from_jwt():
@@ -173,6 +200,69 @@ def test_memory_type_alias_is_normalized(monkeypatch):
     }
 
 
+def test_memory_type_service_aliases_are_normalized(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_post(self, path: str, data=None, files=None):
+        captured["path"] = path
+        captured["data"] = data
+        return {"memories": [], "count": 0}
+
+    monkeypatch.setattr(BaseAgenticClient, "_post", fake_post, raising=False)
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "http://example.local/api/v1",
+            "thread_id": "thread-123",
+        }
+    )
+
+    client.memory.add_messages(
+        messages=[{"role": "user", "content": "I like text follow-up"}],
+        memory_type="profile",
+    )
+
+    assert captured["path"] == "/memories"
+    assert captured["data"] == {
+        "messages": [{"role": "user", "content": "I like text follow-up"}],
+        "memory_type": "profile_fact",
+    }
+
+
+def test_invalid_memory_type_fails_fast_with_clear_error(monkeypatch):
+    called: dict[str, object] = {}
+
+    def fake_post(self, path: str, data=None, files=None):
+        called["path"] = path
+        return {"memories": [], "count": 0}
+
+    monkeypatch.setattr(BaseAgenticClient, "_post", fake_post, raising=False)
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "http://example.local/api/v1",
+            "thread_id": "thread-123",
+        }
+    )
+
+    try:
+        client.memory.add_messages(
+            messages=[{"role": "user", "content": "remember this"}],
+            memory_type="banana",
+        )
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid memory_type")
+
+    assert "Invalid memory_type 'banana'" in message
+    assert "Supported values: conversational, profile_fact, preference, tool, outcome." in message
+    assert "Accepted aliases:" in message
+    assert "path" not in called
+
+
 def test_runs_on_constructor_uses_env_defaults(monkeypatch):
     monkeypatch.setenv("WXO_AGENTIC_MODE", "runs-on")
     monkeypatch.setenv("WXO_API_PROXY_URL", "http://env.example.local/api/v1")
@@ -238,6 +328,44 @@ def test_runs_on_explicit_verify_override_is_preserved():
 
     assert client.session.mode == "runs-on"
     assert client.session.verify is True
+
+
+def test_base_api_client_suppresses_insecure_request_warning_when_not_in_debug(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "info")
+
+    def fake_request(self, method, url, **kwargs):
+        warnings.warn("unverified https request", InsecureRequestWarning)
+        return _build_response(url)
+
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+
+    client = DummyAPIClient(base_url="https://example.local", verify=False)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        response = client._get("/memories", return_raw=True)
+
+    assert response.status_code == 200
+    assert not any(issubclass(w.category, InsecureRequestWarning) for w in caught)
+
+
+def test_base_api_client_keeps_insecure_request_warning_visible_in_debug(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "debug")
+
+    def fake_request(self, method, url, **kwargs):
+        warnings.warn("unverified https request", InsecureRequestWarning)
+        return _build_response(url)
+
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+
+    client = DummyAPIClient(base_url="https://example.local", verify=False)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        response = client._get("/memories", return_raw=True)
+
+    assert response.status_code == 200
+    assert any(issubclass(w.category, InsecureRequestWarning) for w in caught)
 
 
 def test_runs_on_without_execution_context_has_clear_error(monkeypatch):
