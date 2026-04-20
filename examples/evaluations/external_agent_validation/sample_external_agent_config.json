@@ -1,5 +1,5 @@
 {
-    "name": "<agent_name>_agent",
+    "name": "agent_name",
 	"description": "Describe Agent briefly",
 	"api_url": "https://partnerDomain/agentPath/v1/chat/completions",
 	"auth_scheme": "API_KEY",
