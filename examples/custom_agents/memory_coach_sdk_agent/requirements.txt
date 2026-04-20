@@ -1,0 +1,4 @@
+ibm-watsonx-orchestrate-sdk @ https://test-files.pythonhosted.org/packages/2d/b5/4406fa03b3c6a11ba2707cfaee2053505f9d565c0aa6bf38abd1a1008ce0/ibm_watsonx_orchestrate_sdk-2.8.0.dev6391-py3-none-any.whl#sha256=2e0725b2ae603c1356c0d4efad176f9c988b004d5704213c1a738b3f4b42dbfa
+langchain-core>=0.3.76
+langgraph>=0.6.8
+requests>=2.32.0
