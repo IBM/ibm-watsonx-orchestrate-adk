@@ -62,6 +62,7 @@ from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
 from ibm_watsonx_orchestrate.agent_builder.agents.a2a_discovery import A2ADiscoveryService
+from ibm_watsonx_orchestrate.cli.common import check_safe_mode_and_prompt
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment
@@ -269,7 +270,7 @@ def _raise_guidelines_warning(response: AgentUpsertResponse) -> None:
         logger.warning(f"Agent Configuration Issue: {response.warning}")
 
 class AgentsController:
-    def __init__(self):
+    def __init__(self, safe_mode: bool = False):
         self.native_client = None
         self.external_client = None
         self.assistant_client = None
@@ -277,6 +278,7 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.safe_mode = safe_mode
 
     def get_native_client(self):
         if not self.native_client:
@@ -1395,6 +1397,17 @@ class AgentsController:
                         logger.error(f"An agent with the name '{agent_name}' already exists with a different kind. Failed to create agent")
                         sys.exit(1)
                     
+                    # Check safe mode and prompt for confirmation if needed
+                    agent_type_name = "agent" if isinstance(existing_agent, Agent) else ("external agent" if isinstance(existing_agent, ExternalAgent) else "assistant agent")
+                    if not check_safe_mode_and_prompt(
+                        safe_mode=self.safe_mode,
+                        resource_exists=True,
+                        resource_type=agent_type_name,
+                        resource_name=agent_name
+                    ):
+                        logger.info(f"Skipping {agent_type_name} '{agent_name}'")
+                        continue
+                    
                     # Check if agent is in a different workspace
                     workspace_context = WorkspaceContext()
                     active_workspace_id = workspace_context.get_active_workspace_id()
@@ -1622,6 +1635,12 @@ class AgentsController:
             
             _raise_guidelines_warning(response_data)
 
+            if agent.is_schedulable is not None:
+                try:
+                    native_client.update_schedulable(response_data.id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
+
             # Check if this is a custom agent - always upload if file path provided
             if agent.style == AgentStyle.CUSTOM:
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
@@ -1730,6 +1749,12 @@ class AgentsController:
             response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
                                                       skip_workspace_injection=skip_workspace_injection)
             _raise_guidelines_warning(response)
+
+            if agent.is_schedulable is not None:
+                try:
+                    self.get_native_client().update_schedulable(agent_id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
 
             # Handle custom agent artifact upload for updates
             if agent.style == AgentStyle.CUSTOM:
@@ -2519,6 +2544,11 @@ class AgentsController:
         for tool_name in agent_tools:
 
             current_spec = tool_specs.get(tool_name)
+
+            # Skip exporting internal scheduling tools
+            if isinstance(agent, Agent) and agent.is_schedulable and (current_spec or {}).get("name", "").startswith("scheduling_tools"):
+                continue
+
             if current_spec and _get_kind_from_spec(current_spec) == ToolKind.mcp:
                 base_tool_file_path = f"{output_file_name}/toolkits/"
             else:

@@ -50,6 +50,7 @@ from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.cli.common import check_safe_mode_and_prompt
 import yaml
 from  ibm_watsonx_orchestrate import __version__
 
@@ -436,12 +437,13 @@ class DownloadResult(BaseModel):
     kind: ToolKind
 
 class ToolsController:
-    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None):
+    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None, safe_mode: bool = False):
         self.client = None
         self.tool_kind = tool_kind
         self.file = file
         self.cleanup_file = False
         self.requirements_file = requirements_file
+        self.safe_mode = safe_mode
 
     def get_client(self) -> ToolClient:
         if not self.client:
@@ -680,6 +682,16 @@ class ToolsController:
                         active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
                         
                         logger.info(f"Tool '{tool.__tool_spec__.name}' belongs to {tool_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
+                    
+                    # Check safe mode and prompt for confirmation if needed
+                    if not check_safe_mode_and_prompt(
+                        safe_mode=self.safe_mode,
+                        resource_exists=True,
+                        resource_type="tool",
+                        resource_name=tool.__tool_spec__.name
+                    ):
+                        logger.info(f"Skipping tool '{tool.__tool_spec__.name}'")
+                        continue
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
