@@ -112,7 +112,24 @@ class Client:
                 )
 
         self._context_client: Optional[ContextClient] = None
+        self._tracer: Optional["Tracer"] = None
         self._memory_client: Optional[MemoryClient] = None
+    
+    @property
+    def observability(self) -> "Tracer":
+        """Access a zero-config :class:`Tracer` for observability.
+
+        The OTLP endpoint is read from the ``WXO_OTLP_ENDPOINT`` environment
+        variable.  ``tenant.id`` and ``agent.id`` are propagated via
+        OpenTelemetry Baggage from the ``execution_context`` passed to
+        :func:`configure_tracing`; they are not read from environment
+        variables.  See :mod:`ibm_watsonx_orchestrate_sdk.observability`
+        for details.
+        """
+        if self._tracer is None:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import Tracer
+            self._tracer = Tracer()
+        return self._tracer
 
     @classmethod
     def from_instance_credentials(
