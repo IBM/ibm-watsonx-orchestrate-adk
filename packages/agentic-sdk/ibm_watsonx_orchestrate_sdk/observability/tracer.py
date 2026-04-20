@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_NAME,
@@ -36,9 +36,10 @@ from ibm_watsonx_orchestrate_sdk.observability.spans import (
     ToolSpanWrapper,
 )
 
-from opentelemetry.context import Context
-from opentelemetry.sdk.trace import ReadableSpan, TracerProvider as _TracerProvider
-from opentelemetry.trace import Tracer as _OtelTracer
+if TYPE_CHECKING:
+    from opentelemetry.context import Context
+    from opentelemetry.sdk.trace import ReadableSpan, TracerProvider as _TracerProvider
+    from opentelemetry.trace import Tracer as _OtelTracer
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,13 @@ Builds the appropriate OpenTelemetry SpanExporter based on TracerConfig:
   * Console exporter as a fallback (with a warning).
 """
 
-import logging
+from __future__ import annotations
 
-from opentelemetry.sdk.trace.export import SpanExporter
+import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace.export import SpanExporter
 
 from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
 

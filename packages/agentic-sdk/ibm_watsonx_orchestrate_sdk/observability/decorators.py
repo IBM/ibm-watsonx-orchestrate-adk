@@ -96,7 +96,20 @@ def trace_call(
                     span.set_attribute(ATTR_OUTPUT, _safe_json(result))
                 return result
 
-        return wrapper
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import get_default_tracer
+
+            tracer = get_default_tracer()
+            with tracer.start_span(span_name, attributes=attributes) as span:
+                if capture_input:
+                    span.set_attribute(ATTR_INPUT, _capture_args(fn, args, kwargs))
+                result = await fn(*args, **kwargs)
+                if capture_output:
+                    span.set_attribute(ATTR_OUTPUT, _safe_json(result))
+                return result
+
+        return async_wrapper if inspect.iscoroutinefunction(fn) else wrapper
 
     return decorator
 
@@ -143,7 +156,22 @@ def trace_llm_call(
                     span.set_attribute(ATTR_OUTPUT, _safe_json(result))
                 return result
 
-        return wrapper
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import get_default_tracer
+
+            tracer = get_default_tracer()
+            with tracer.start_llm_span(
+                span_name, model=model, provider=provider, attributes=attributes
+            ) as span:
+                if capture_input:
+                    span.set_attribute(ATTR_INPUT, _capture_args(fn, args, kwargs))
+                result = await fn(*args, **kwargs)
+                if capture_output:
+                    span.set_attribute(ATTR_OUTPUT, _safe_json(result))
+                return result
+
+        return async_wrapper if inspect.iscoroutinefunction(fn) else wrapper
 
     return decorator
 
@@ -191,7 +219,24 @@ def trace_tool_call(
                     span.set_attribute(ATTR_OUTPUT, _safe_json(result))
                 return result
 
-        return wrapper
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import get_default_tracer
+
+            tracer = get_default_tracer()
+            with tracer.start_tool_span(
+                span_name,
+                tool_name=resolved_tool_name,
+                attributes=attributes,
+            ) as span:
+                if capture_input:
+                    span.set_attribute(ATTR_INPUT, _capture_args(fn, args, kwargs))
+                result = await fn(*args, **kwargs)
+                if capture_output:
+                    span.set_attribute(ATTR_OUTPUT, _safe_json(result))
+                return result
+
+        return async_wrapper if inspect.iscoroutinefunction(fn) else wrapper
 
     return decorator
 
@@ -243,7 +288,25 @@ def trace_agent_call(
                     span.set_attribute(ATTR_OUTPUT, _safe_json(result))
                 return result
 
-        return wrapper
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            from ibm_watsonx_orchestrate_sdk.observability.tracer import get_default_tracer
+
+            tracer = get_default_tracer()
+            with tracer.start_agent_span(
+                span_name,
+                agent_name=resolved_agent_name,
+                framework=framework,
+                attributes=attributes,
+            ) as span:
+                if capture_input:
+                    span.set_attribute(ATTR_INPUT, _capture_args(fn, args, kwargs))
+                result = await fn(*args, **kwargs)
+                if capture_output:
+                    span.set_attribute(ATTR_OUTPUT, _safe_json(result))
+                return result
+
+        return async_wrapper if inspect.iscoroutinefunction(fn) else wrapper
 
     return decorator
 
@@ -262,11 +325,16 @@ def configure_tracing(fn: Callable) -> Callable:
         from opentelemetry import context as otel_context
 
         ec = (config or {}).get("configurable", {}).get("execution_context") or {}
+        token = None
         if ec:
             ctx = _build_invocation_context(ec)
             if ctx is not None:
-                otel_context.attach(ctx)
+                token = otel_context.attach(ctx)
 
-        return fn(config, *args, **kwargs)
+        try:
+            return fn(config, *args, **kwargs)
+        finally:
+            if token is not None:
+                otel_context.detach(token)
 
     return wrapper
