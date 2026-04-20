@@ -16,6 +16,9 @@ requires-python = ">=3.11, <3.14"
 dependencies = [
     "ibm-watsonx-orchestrate-core",
     "ibm-watsonx-orchestrate-clients",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
     "langchain-openai>=1.1.0,<2.0.0"
 ]
 
@@ -25,7 +28,7 @@ package-data = true
 
 [tool.hatch.build]
 include = [
-    "./*"
+    "./**"
 ]
 directory="../../dist"
 
