@@ -51,6 +51,7 @@ snapshots['test_flow_tool_support_wxo_file_input_output 1'] = {
                             'output_schema': {
                                 'description': 'A file url for download.',
                                 'format': 'wxo-file',
+                                'title': 'File reference',
                                 'type': 'string'
                             },
                             'tool': 'get_file'
@@ -98,6 +99,7 @@ snapshots['test_flow_tool_support_wxo_file_input_output 1'] = {
                     'output_schema': {
                         'description': 'A URL identifying the File to be used.',
                         'format': 'wxo-file',
+                        'title': 'File reference',
                         'type': 'string'
                     },
                     'schedulable': False
