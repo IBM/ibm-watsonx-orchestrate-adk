@@ -22,7 +22,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
-from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown
+from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown, check_safe_mode_and_prompt
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME, GLOBAL_WORKSPACE_ID, WorkspaceContext
@@ -106,9 +106,10 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
     return index_config.connection_id
 
 class KnowledgeBaseController:
-    def __init__(self):
+    def __init__(self, safe_mode: bool = False):
         self.client = None
         self.connections_client = None
+        self.safe_mode = safe_mode
 
     def get_client(self):
         if not self.client:
@@ -162,6 +163,16 @@ class KnowledgeBaseController:
                         active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
                         
                         logger.info(f"Knowledge Base '{kb.name}' belongs to {kb_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
+                    
+                    # Check safe mode and prompt for confirmation if needed
+                    if not check_safe_mode_and_prompt(
+                        safe_mode=self.safe_mode,
+                        resource_exists=True,
+                        resource_type="knowledge base",
+                        resource_name=kb.name
+                    ):
+                        logger.info(f"Skipping knowledge base '{kb.name}'")
+                        continue
                     
                     logger.info(f"Existing knowledge base '{kb.name}' found. Updating...")
                     

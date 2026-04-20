@@ -17,8 +17,15 @@ def knowledge_base_import(
             help='The app id of the connection to associate with this knowledge base. A application connection represents the authentication credentials needed to connection to the external knowledge source instance (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
     ] = None,
+    safe: Annotated[
+        bool,
+        typer.Option(
+            "--safe",
+            help="Enable safe mode: prompt for confirmation before updating existing knowledge bases"
+        )
+    ] = False
 ):
-    controller = KnowledgeBaseController()
+    controller = KnowledgeBaseController(safe_mode=safe)
     controller.import_knowledge_base(file=file, app_id=app_id)
 
 
