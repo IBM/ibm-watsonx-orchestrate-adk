@@ -32,10 +32,12 @@ __all__ = [
     "ToolSpanWrapper",
     "AgentSpanWrapper",
     "get_default_tracer",
+    "register_tracer",
     "trace_call",
     "trace_llm_call",
     "trace_tool_call",
     "trace_agent_call",
+    "configure_tracing",
 ]
 
 from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
@@ -44,6 +46,7 @@ from ibm_watsonx_orchestrate_sdk.observability.decorators import (
     trace_call,
     trace_llm_call,
     trace_tool_call,
+    configure_tracing,
 )
 from ibm_watsonx_orchestrate_sdk.observability.spans import (
     AgentSpanWrapper,
@@ -54,4 +57,5 @@ from ibm_watsonx_orchestrate_sdk.observability.spans import (
 from ibm_watsonx_orchestrate_sdk.observability.tracer import (
     Tracer,
     get_default_tracer,
+    register_tracer,
 )

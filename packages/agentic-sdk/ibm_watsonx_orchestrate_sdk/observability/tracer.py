@@ -99,6 +99,24 @@ def get_default_tracer() -> "Tracer":
     return _default_tracer
 
 
+def register_tracer(tracer: "Tracer") -> None:
+    """Set the module-level default tracer used by all decorators and ``get_default_tracer()``.
+
+    Call this once at startup after constructing your ``Tracer`` so that
+    ``@trace_call``, ``@trace_agent_call``, and the other decorators use
+    your configured instance instead of creating a zero-config default.
+
+    Example::
+
+        tracer = Tracer(TracerConfig(service_name="my-agent"))
+        register_tracer(tracer)
+    """
+    global _default_tracer
+    with _default_lock:
+        _default_tracer = tracer
+    logger.info("Default tracer registered [service=%s]", tracer._config.service_name)
+
+
 class Tracer:
     """High-level, user-facing tracer that hides the OpenTelemetry SDK.
 
@@ -166,7 +184,7 @@ class Tracer:
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_GENERAL}
         if attributes:
             merged.update(attributes)
-
+        
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)
 
@@ -190,7 +208,7 @@ class Tracer:
             merged[ATTR_LLM_PROVIDER] = provider
         if attributes:
             merged.update(attributes)
-
+        
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return LLMSpanWrapper(otel_span, model=model, provider=provider)
 
