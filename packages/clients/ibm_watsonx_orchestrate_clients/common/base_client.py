@@ -1,10 +1,13 @@
 import json
+import os
 import requests
+import warnings
 from abc import abstractmethod
 from contextlib import contextmanager
 
 from typing_extensions import List
 from ibm_cloud_sdk_core.authenticators import Authenticator
+from urllib3.exceptions import InsecureRequestWarning
 
 from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
 
@@ -45,6 +48,30 @@ class BaseAPIClient:
         self.api_key = api_key
         self.authenticator = authenticator
         self.verify = verify
+        self._session = requests.Session()
+
+    def _is_debug_mode(self) -> bool:
+        log_level = str(os.environ.get("LOG_LEVEL") or "").strip().lower()
+        return log_level == "debug"
+
+    def _should_suppress_insecure_request_warning(self) -> bool:
+        return self.verify is False and not self._is_debug_mode()
+
+    def _request(self, method: str, path: str, **kwargs) -> requests.Response:
+        url = f"{self.base_url}{path}"
+
+        request_kwargs = {
+            "headers": self._get_headers(),
+            "verify": self.verify,
+            **kwargs,
+        }
+
+        with ssl_handler():
+            if self._should_suppress_insecure_request_warning():
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", InsecureRequestWarning)
+                    return self._session.request(method, url, **request_kwargs)
+            return self._session.request(method, url, **request_kwargs)
 
     def _get_headers(self) -> dict:
         headers = {}
@@ -55,9 +82,7 @@ class BaseAPIClient:
         return headers
 
     def _get(self, path: str, params: dict = None, data=None, return_raw=False) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.get(url, headers=self._get_headers(), params=params, data=data, verify=self.verify)
+        response = self._request("GET", path, params=params, data=data)
         self._check_response(response)
         if not return_raw:
             return response.json()
@@ -65,16 +90,12 @@ class BaseAPIClient:
             return response
 
     def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.post(url, headers=self._get_headers(), json=data, files=files, verify=self.verify)
+        response = self._request("POST", path, json=data, files=files)
         self._check_response(response)
         return response.json() if response.text else {}
     
     def _post_nd_json(self, path: str, data: dict = None, files: dict = None) -> List[dict]:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.post(url, headers=self._get_headers(), json=data, files=files)
+        response = self._request("POST", path, json=data, files=files)
         self._check_response(response)
 
         res = []
@@ -84,39 +105,27 @@ class BaseAPIClient:
         return res
     
     def _post_form_data(self, path: str, data: dict = None, files: dict = None) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            # Use data argument instead of json so data is encoded as application/x-www-form-urlencoded
-            response = requests.post(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
+        response = self._request("POST", path, data=data, files=files)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _put(self, path: str, data: dict = None) -> dict:
-
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.put(url, headers=self._get_headers(), json=data, verify=self.verify)
+        response = self._request("PUT", path, json=data)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _patch(self, path: str, data: dict = None) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.patch(url, headers=self._get_headers(), json=data, verify=self.verify)
+        response = self._request("PATCH", path, json=data)
         self._check_response(response)
         return response.json() if response.text else {}
     
     def _patch_form_data(self, path: str, data: dict = None, files = None) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.patch(url, headers=self._get_headers(), data=data, files=files, verify=self.verify)
+        response = self._request("PATCH", path, data=data, files=files)
         self._check_response(response)
         return response.json() if response.text else {}
 
     def _delete(self, path: str, data=None) -> dict:
-        url = f"{self.base_url}{path}"
-        with ssl_handler():
-            response = requests.delete(url, headers=self._get_headers(), json=data, verify=self.verify)
+        response = self._request("DELETE", path, json=data)
         self._check_response(response)
         return response.json() if response.text else {}
 

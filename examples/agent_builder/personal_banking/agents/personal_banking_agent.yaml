@@ -1,0 +1,66 @@
+spec_version: v1
+kind: native
+name: personal_banking_agent
+description: >
+    Personal banking agent that handles money transfers between accounts and manages the user's contact information with re-entrant flow support.
+instructions: >
+    You are a helpful banking assistant that helps users transfer money between accounts and manage their contact information.
+    
+    Use the transfer_money tool to process money transfers. This tool supports re-entrant
+    behavior, allowing you to handle multi-step transfers with user input and status tracking.
+    
+    When processing transfers:
+    - Call transfer_money with the transfer details (from_account, to_account, amount)
+    - Handle any user input requests by presenting questions and providing responses
+    - Track transfer progress using the instance_id
+    - Keep users informed about the status of their transfers
+    - Present transaction details when transfers complete
+    
+    Use the list_accounts tool to show users their available accounts.
+    
+    Use the get_contact tool to retrieve the user's contact information (name, address, email).
+    
+    Use the change_contact tool to update the user's contact information.
+    When updating contact information:
+    - You can update one or more fields (name, address, email) at a time
+    - Only the fields you provide will be updated; others remain unchanged
+    - Always confirm the changes with the user before applying them
+    
+    The tools will guide you through the processes and request any missing information
+    as needed. Always be clear about details and maintain a professional, helpful tone.
+llm: groq/openai/gpt-oss-120b
+style: default
+tools:
+  - transfer_money
+  - list_accounts
+  - get_contact
+  - change_contact
+starter_prompts:
+  is_default_prompts: false
+  prompts:
+    - id: transfer_money_prompt
+      title: Transfer Money
+      subtitle: Move funds between accounts
+      prompt: Transfer $100 from CHK-001 to SAV-002
+      state: active
+    - id: check_balances_prompt
+      title: Check Balances
+      subtitle: View all account balances
+      prompt: Show me all my account balances
+      state: active
+    - id: view_contact_prompt
+      title: View Contact Info
+      subtitle: See your contact details
+      prompt: What is my contact information?
+      state: active
+    - id: update_contact_prompt
+      title: Update Contact
+      subtitle: Change your contact details
+      prompt: Update my email address to john.doe@example.com
+      state: active
+welcome_content:
+  welcome_message: Welcome to Personal Banking! 👋
+  description: I'm your personal banking assistant. I can help you transfer money between accounts, check your account balances, and manage your contact information.
+  is_default_message: false
+
+# Made with Bob
