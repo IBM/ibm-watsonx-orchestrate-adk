@@ -944,7 +944,7 @@ services:
       - memory-network
 
   tools-runtime-manager:
-    image: us.icr.io/watson-orchestrate/production/tools-runtime-manager:20260408-develop-2153-20a2d24
+    image: ${TRM_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime-manager:${TRM_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -1004,7 +1004,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   tools-runtime:
-    image: us.icr.io/watson-orchestrate/production/tools-runtime:20260408-develop-2153-20a2d24
+    image: ${TR_REGISTRY:-us.icr.io/watson-orchestrate-private}/tools-runtime:${TR_TAG:-latest}
     platform: linux/amd64
     ports:
       - "8000:8000"
@@ -1045,7 +1045,7 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
 
   agent-runtime:
-    image: us.icr.io/watson-orchestrate/development/agent-runtime:20260408-develop-2151-20a2d24
+    image: ${AR_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-runtime:${AR_TAG:-latest}
     platform: linux/amd64
     ports:
       - "8001:8000"
@@ -1062,6 +1062,7 @@ services:
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      WXO_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
 
   ########################
   # IBM AGENT-OPS
