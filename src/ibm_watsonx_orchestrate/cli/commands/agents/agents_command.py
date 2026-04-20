@@ -40,6 +40,13 @@ def agent_import(
             help='The app id of the connection to associate with this external agent. An application connection represents the server authentication credentials needed to connection to this agent (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
     ] = None,
+    safe: Annotated[
+        bool,
+        typer.Option(
+            "--safe",
+            help="Enable safe mode: prompt for confirmation before updating existing agents"
+        )
+    ] = False
 ):
     
     # Validate that either file or experimental_package_root is provided
@@ -77,7 +84,7 @@ def agent_import(
         if not os.path.exists(file):
             raise ValueError(f"File not found: {file}")
     
-    agents_controller = AgentsController()
+    agents_controller = AgentsController(safe_mode=safe)
     agent_specs = agents_controller.import_agent(
         file=file,
         app_id=app_id,
@@ -244,6 +251,13 @@ def agent_create(
             help="A list of context variable names the agent can access. Format: --context-variable var1 --context-variable var2 ... or -v var1 -v var2 ...",
         ),
     ] = None,
+    safe: Annotated[
+        bool,
+        typer.Option(
+            "--safe",
+            help="Enable safe mode: prompt for confirmation before updating existing agents"
+        )
+    ] = False
 ):
     if llm is None:
         llm = get_default_llm()
@@ -289,7 +303,7 @@ def agent_create(
             # The directory path will be passed and zipped in the controller
             custom_agent_file_path = experimental_package_root
 
-    agents_controller = AgentsController()
+    agents_controller = AgentsController(safe_mode=safe)
     
     # For custom agents, name and description are optional (read from config.yaml by backend)
     # For other agent types, they are required
