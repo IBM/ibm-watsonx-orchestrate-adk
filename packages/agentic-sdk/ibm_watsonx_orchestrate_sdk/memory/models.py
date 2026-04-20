@@ -7,16 +7,45 @@ from pydantic import BaseModel, Field, field_validator
 
 MEMORY_TYPE_ALIASES = {
     "conversation": "conversational",
+    "fact": "conversational",
+    "episodic": "conversational",
+    "profile": "profile_fact",
+    "identity": "profile_fact",
+    "preferences": "preference",
+    "task": "tool",
+    "procedure": "tool",
+    "derived_event": "outcome",
 }
+
+SUPPORTED_MEMORY_TYPES = (
+    "conversational",
+    "profile_fact",
+    "preference",
+    "tool",
+    "outcome",
+)
+
+
+def _format_invalid_memory_type_error(raw_value: str) -> str:
+    accepted_aliases = ", ".join(MEMORY_TYPE_ALIASES.keys())
+    supported_values = ", ".join(SUPPORTED_MEMORY_TYPES)
+    return (
+        f"Invalid memory_type '{raw_value}'. Supported values: {supported_values}. "
+        f"Accepted aliases: {accepted_aliases}."
+    )
 
 
 def normalize_memory_type(memory_type: Optional[str]) -> Optional[str]:
     if memory_type is None:
         return None
-    normalized = memory_type.strip().lower()
+    raw_value = memory_type.strip()
+    normalized = raw_value.lower().replace("-", "_").replace(" ", "_")
     if not normalized:
         return None
-    return MEMORY_TYPE_ALIASES.get(normalized, normalized)
+    normalized = MEMORY_TYPE_ALIASES.get(normalized, normalized)
+    if normalized not in SUPPORTED_MEMORY_TYPES:
+        raise ValueError(_format_invalid_memory_type_error(raw_value))
+    return normalized
 
 
 class MemoryMessage(BaseModel):
