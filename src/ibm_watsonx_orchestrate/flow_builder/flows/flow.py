@@ -1,5 +1,5 @@
 """
-The Flow model.  There are multiple methods to allow creation and population of 
+The Flow model.  There are multiple methods to allow creation and population of
 the Flow model.
 """
 
@@ -21,6 +21,7 @@ import copy
 import uuid
 import pytz
 import os
+import ast
 
 from typing_extensions import Self
 from pydantic import BaseModel, Field, SerializeAsAny, create_model, TypeAdapter
@@ -35,10 +36,11 @@ from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
     NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
-    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
+    StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
     UserFormButton
 )
+from ..masking_utils import MaskingPolicy, InputPolicy
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
     EndNode, Node, PromptNode, ScriptNode, StartNode, TimerNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
@@ -289,7 +291,373 @@ class Flow(Node):
             new_schema = self._add_schema(schema, title)
             return SchemaRef(ref=f"#/schemas/{new_schema.title}")
         raise AssertionError(f"schema is not a complex object: {schema}")
+    
+    def _resolve_schema_ref(
+        self,
+        schema: Union[JsonSchemaObject, SchemaRef, JsonSchemaObjectRef, ToolRequestBody, ToolResponseBody, None]
+    ) -> Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody, None]:
+        """
+        Resolve a schema reference to its actual schema object.
+        
+        This is a centralized helper method for resolving schema references across the Flow class.
+        It handles SchemaRef and JsonSchemaObjectRef by looking up the schema in self.schemas,
+        and returns other schema types as-is.
+        
+        Args:
+            schema: The schema to resolve (can be a reference or actual schema)
+            
+        Returns:
+            The resolved schema object, or None if schema is None
+            
+        Raises:
+            ValueError: If a schema reference cannot be resolved
+        """
+        if schema is None:
+            return None
+            
+        # Resolve schema references FIRST (before checking for JsonSchemaObject)
+        # JsonSchemaObjectRef is a subclass of JsonSchemaObject, so check it first
+        if isinstance(schema, (SchemaRef, JsonSchemaObjectRef)):
+            ref = getattr(schema, "ref", None)
+            if not isinstance(ref, str) or not ref.strip():
+                raise ValueError(f"Schema reference is missing or invalid: {schema}")
+            schema_name = ref.rsplit('/', 1)[-1].strip()
+            if not schema_name:
+                raise ValueError(f"Schema reference does not contain a schema name: {ref}")
+            if schema_name not in self.schemas:
+                raise ValueError(f"Schema reference '{schema_name}' not found in flow schemas")
+            resolved = self.schemas[schema_name]
+            # Recursively resolve if the result is still a reference
+            if isinstance(resolved, (SchemaRef, JsonSchemaObjectRef)):
+                return self._resolve_schema_ref(resolved)
+            return resolved
+            
+        # If it's already a concrete schema (and not a reference), return it
+        if isinstance(schema, (JsonSchemaObject, ToolRequestBody, ToolResponseBody)):
+            return schema
+            
+        return None
+    
+    def _navigate_to_property(
+        self,
+        base_schema: Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody],
+        property_chain: List[str]
+    ) -> Tuple[Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody, None], Union[str, None]]:
+        """
+        Navigate through a property chain to find the target property.
+        
+        Supports two cases:
+        1. Property within an object: Returns (parent_schema, property_name)
+        2. Primitive schema (e.g., direct string output): Returns (schema, None)
+        
+        Args:
+            base_schema: The starting schema
+            property_chain: List of property names to navigate through
+            
+        Returns:
+            Tuple of (parent_schema_or_schema, final_property_name_or_None)
+            - For object properties: (parent_schema, property_name)
+            - For primitive schemas: (schema_itself, None)
+            
+        Raises:
+            ValueError: If navigation fails
+        """
+        # Special case: Empty property chain means we're targeting the schema itself (primitive output)
+        if not property_chain:
+            return base_schema, None
+        
+        # Fast path: Single property chain
+        if len(property_chain) == 1:
+            return base_schema, property_chain[0]
+        
+        current_schema = base_schema
+        path_so_far = []
+        
+        # Navigate through all properties except the last one
+        for prop_name in property_chain[:-1]:
+            path_so_far.append(prop_name)
+            current_schema = self._resolve_property_in_schema(
+                current_schema, prop_name, path_so_far
+            )
+        
+        # Return the parent schema and the final property name
+        final_property = property_chain[-1]
+        return current_schema, final_property
+    
+    def _resolve_property_in_schema(
+        self,
+        schema: Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody],
+        prop_name: str,
+        path_so_far: List[str]
+    ) -> Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody]:
+        """
+        Helper to resolve a single property within a schema.
+        
+        Args:
+            schema: The schema to search in
+            prop_name: The property name to find
+            path_so_far: The accumulated path for error messages
+            
+        Returns:
+            The resolved schema for the property
+            
+        Raises:
+            ValueError: If property cannot be found or resolved
+        """
+        properties = getattr(schema, 'properties', None)
+        if not properties:
+            path_str = '.'.join(path_so_far)
+            raise ValueError(
+                f"Property '{prop_name}' in path '{path_str}' does not have nested properties"
+            )
+        
+        prop_schema = properties.get(prop_name)
+        if prop_schema is None:
+            path_str = '.'.join(path_so_far)
+            available = list(properties.keys())
+            raise ValueError(
+                f"Property '{prop_name}' not found in path '{path_str}'. "
+                f"Available properties: {available}"
+            )
+        
+        # Resolve if it's a reference
+        resolved = self._resolve_schema_ref(prop_schema)
+        if resolved is None:
+            raise ValueError(f"Could not resolve schema for property '{prop_name}'")
+        
+        return resolved
+    
+    def _get_node_output_schema(self, node, node_name: str, property_chain: list = None):
+        """
+        Get the output schema for a node, handling special cases based on node kind.
+        
+        Different node kinds store their output schemas in different locations:
+        - Standard nodes: output_schema directly on the node spec
+        - User nodes (kind='user'):
+          - Simple field: fields[0].output_schema.properties.value
+          - Form field: form.fields[field_name].output_schema.properties.value
+        
+        Args:
+            node: The node object
+            node_name: Name of the node (for error messages)
+            property_chain: List of properties to navigate (used for form field resolution)
+        
+        Returns:
+            Tuple of (base_schema, original_schema) where:
+            - base_schema: The resolved schema object to use for navigation
+            - original_schema: The original schema reference (for primitive output case)
+        
+        Raises:
+            ValueError: If schema cannot be extracted for the node kind
+        """
+        node_kind = getattr(node.spec, 'kind', None)
+        
+        if node_kind == 'user':
+            # For user nodes, check if we need to resolve a form field
+            return self._get_user_node_output_schema(node, node_name, property_chain or [])
+        else:
+            # Standard node - use output_schema directly
+            base_schema = self._resolve_schema_ref(node.spec.output_schema)
+            original_schema = node.spec.output_schema
+            return base_schema, original_schema
+    def _get_user_node_output_schema(self, node, node_name: str, property_chain: list):
+        """
+        Extract output schema from a user node (kind='user').
+        
+        Handles two cases:
+        1. Form field: form.fields[field_name].output_schema.properties.value (property_chain[0] is field name)
+        2. Simple field: fields[0].output_schema.properties.value (property_chain is empty or ['value'])
 
+        Only fields with direction='input' and kind='text' can be masked.
+        
+        Args:
+            node: The user node object
+            node_name: Name of the node (for error messages)
+            property_chain: List of properties - first element may be form field name
+        
+        Returns:
+            Tuple of (base_schema, original_schema)
+        
+        Raises:
+            ValueError: If the user node structure is invalid or field cannot be masked
+        """
+        from ..types import UserFieldKind
+        
+        # Check if this is a form node (has form property) or simple field node (has fields property)
+        form = getattr(node.spec, 'form', None)
+        fields = getattr(node.spec, 'fields', None)
+        
+        if form:
+            # Case 1: Form node - first property in chain is the field name
+            if not property_chain or len(property_chain) == 0:
+                raise ValueError(
+                    f"User node '{node_name}' is a form node. "
+                    f"You must specify a field name in the path, e.g., flow[\"{node_name}\"].output[\"Field Name\"]"
+                )
+            
+            field_name = property_chain[0]
+            # Use the existing form field handler.Form fields should only target the field itself (the 'value' property)
+            base_schema, original_schema = self._get_user_form_field_schema(node, node_name, field_name)
+            
+            return base_schema, original_schema
+        
+        elif fields and len(fields) > 0:
+            # Case 2: Simple field node - User interaction nodes
+            first_field = fields[0]
+            
+            # Validate field direction
+            field_direction = getattr(first_field, 'direction', None)
+            if field_direction != 'input':
+                raise ValueError(
+                    f"User node '{node_name}' field has direction '{field_direction}'. "
+                    f"Only fields with direction='input' can be masked."
+                )
+            
+            # Validate field kind
+            field_kind = getattr(first_field, 'kind', None)
+            if field_kind != UserFieldKind.Text:
+                raise ValueError(
+                    f"User node '{node_name}' field has kind '{field_kind}'. "
+                    f"Only fields with kind=UserFieldKind.Text can be masked."
+                )
+            
+            field_output_schema = getattr(first_field, 'output_schema', None)
+        else:
+            raise ValueError(
+                f"User node '{node_name}' has neither fields nor form. "
+                f"Cannot extract output schema."
+            )
+        
+        # Continue with the original simple field logic
+        field_output_schema = getattr(first_field, 'output_schema', None)
+        if not field_output_schema:
+            raise ValueError(
+                f"User node '{node_name}' field has no output_schema. "
+                f"Cannot extract schema."
+            )
+        
+        # Resolve the field's output schema
+        resolved_field_schema = self._resolve_schema_ref(field_output_schema)
+        if not resolved_field_schema:
+            raise ValueError(
+                f"Could not resolve output schema for user node '{node_name}'"
+            )
+        
+        # For user nodes, the actual value is in the 'value' property
+        if hasattr(resolved_field_schema, 'properties') and 'value' in resolved_field_schema.properties:
+            value_schema = resolved_field_schema.properties['value']
+            # Resolve if it's a reference
+            base_schema = self._resolve_schema_ref(value_schema)
+            if not base_schema:
+                raise ValueError(
+                    f"Could not resolve 'value' property schema for user node '{node_name}'"
+                )
+            # Return the value schema as both base and original
+            return base_schema, value_schema
+        else:
+            raise ValueError(
+                f"User node '{node_name}' output schema does not have a 'value' property"
+            )
+
+    def _get_user_form_field_schema(self, node, node_name: str, field_name: str):
+        """
+        Extract output schema from a specific field in a user node's form.
+        
+        User nodes with forms store their fields in spec.form.fields[]
+        Each field has an output_schema.properties.value
+        
+        Args:
+            node: The user node object
+            node_name: Name of the node (for error messages)
+            field_name: Name of the field to extract schema from
+        
+        Returns:
+            Tuple of (base_schema, original_schema)
+        
+        Raises:
+            ValueError: If the form or field structure is invalid
+        """
+        from ..types import UserFieldKind
+        
+        # Get the form from the node spec
+        form = getattr(node.spec, 'form', None)
+        if not form:
+            raise ValueError(
+                f"User node '{node_name}' has no form. "
+                f"Cannot extract field schema for '{field_name}'."
+            )
+        
+        # Get the fields list from the form
+        fields = getattr(form, 'fields', None)
+        if not fields or len(fields) == 0:
+            raise ValueError(
+                f"User node '{node_name}' form has no fields. "
+                f"Cannot extract schema for field '{field_name}'."
+            )
+        
+        # Find the field matching the field_name
+        # The field_name in the path might be the display_name, so check both name and display_name
+        matching_field = None
+        for field in fields:
+            field_display_name = getattr(field, 'display_name', None)
+            field_actual_name = getattr(field, 'name', None)
+            if field_display_name == field_name or field_actual_name == field_name:
+                matching_field = field
+                break
+        
+        if not matching_field:
+            available_fields = [getattr(f, 'display_name', getattr(f, 'name', '?')) for f in fields]
+            raise ValueError(
+                f"Field '{field_name}' not found in user node '{node_name}' form. "
+                f"Available fields: {available_fields}"
+            )
+        
+        # Validate field direction
+        field_direction = getattr(matching_field, 'direction', None)
+        if field_direction != 'input':
+            raise ValueError(
+                f"Field '{field_name}' in user node '{node_name}' has direction '{field_direction}'. "
+                f"Only fields with direction='input' can be masked."
+            )
+        
+        # Validate field kind
+        field_kind = getattr(matching_field, 'kind', None)
+        if field_kind != UserFieldKind.Text:
+            raise ValueError(
+                f"Field '{field_name}' in user node '{node_name}' has kind '{field_kind}'. "
+                f"Only fields with kind=UserFieldKind.Text can be masked."
+            )
+        
+        # Get the field's output_schema
+        field_output_schema = getattr(matching_field, 'output_schema', None)
+        if not field_output_schema:
+            raise ValueError(
+                f"Field '{field_name}' in user node '{node_name}' has no output_schema."
+            )
+        
+        # Resolve the field's output schema
+        resolved_field_schema = self._resolve_schema_ref(field_output_schema)
+        if not resolved_field_schema:
+            raise ValueError(
+                f"Could not resolve output schema for field '{field_name}' in user node '{node_name}'"
+            )
+        
+        # For user form fields, the actual value is in the 'value' property
+        if hasattr(resolved_field_schema, 'properties') and 'value' in resolved_field_schema.properties:
+            value_schema = resolved_field_schema.properties['value']
+            # Resolve if it's a reference
+            base_schema = self._resolve_schema_ref(value_schema)
+            if not base_schema:
+                raise ValueError(
+                    f"Could not resolve 'value' property schema for field '{field_name}' in user node '{node_name}'"
+                )
+            # Return the value schema as both base and original
+            return base_schema, value_schema
+        else:
+            raise ValueError(
+                f"Field '{field_name}' in user node '{node_name}' output schema does not have a 'value' property"
+            )
+    
     def _refactor_node_to_schemaref(self, node: Node):
         self._refactor_spec_to_schemaref(node.spec)
                 
@@ -468,6 +836,46 @@ class Flow(Node):
         return cast(ToolNode, node)
     
 
+    def _extract_output_properties_from_script(self, script: str) -> dict[str, JsonSchemaObject]:
+        '''
+        Extract output properties from script by parsing the AST and finding all self.output.xyz references.
+        Returns a dictionary of property names to JsonSchemaObject (with type string as default).
+        '''
+        if not script:
+            return {}
+        
+        properties = {}
+        
+        try:
+            # Parse the script into an AST
+            tree = ast.parse(script)
+            
+            # Walk through all nodes in the AST
+            for node in ast.walk(tree):
+                # Look for attribute assignments: self.output.xyz = ...
+                if isinstance(node, ast.Attribute):
+                    # Check if this is accessing an attribute on self.output
+                    if (isinstance(node.value, ast.Attribute) and
+                        isinstance(node.value.value, ast.Name) and
+                        node.value.value.id == 'self' and
+                        node.value.attr == 'output'):
+                        # node.attr is the property name (xyz in self.output.xyz)
+                        prop_name = node.attr
+                        if prop_name not in properties:
+                            # Default to string type since we can't infer the actual type from the script
+                            prop_schema = JsonSchemaObject( # type: ignore
+                                type="string",
+                                description=f"Output variable: {prop_name}"
+                            )
+                            properties[prop_name] = prop_schema
+        except SyntaxError:
+            # If the script has syntax errors, we can't parse it
+            # Return empty dict and let the script fail at runtime
+            logger.warning(f"Could not parse script for output schema extraction due to syntax error")
+            return {}
+        
+        return properties
+    
     def script(
         self,
         script: str | None = "",
@@ -479,11 +887,28 @@ class Flow(Node):
         position: Position | None = None,
         dimensions: Dimensions | None = None
     ) -> ScriptNode:
-        '''create a script node in the flow'''    
+        '''create a script node in the flow'''
         name = name if name is not None and name != "" else ""
 
         input_schema_obj = _get_json_schema_obj("input", input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
+        
+        # If no output_schema is provided, try to auto-generate from script
+        if output_schema is None and script:
+            extracted_properties = self._extract_output_properties_from_script(script)
+            if extracted_properties:
+                # Create a JsonSchemaObject with the extracted properties
+                output_schema_obj = JsonSchemaObject( # type: ignore
+                    type="object",
+                    properties=extracted_properties,
+                    title=f"{name}_output" if name else "script_output"
+                )
+                # Add the schema to the flow's schema dictionary
+                title = output_schema_obj.title if output_schema_obj.title else "script_output"
+                output_schema_obj = self._add_schema(output_schema_obj, title)
+            else:
+                output_schema_obj = _get_json_schema_obj("output", output_schema)
+        else:
+            output_schema_obj = _get_json_schema_obj("output", output_schema)
 
         script_node_spec = ScriptNodeSpec(
                                 name = name,
@@ -1205,6 +1630,242 @@ class Flow(Node):
         compiled_flow.deployed = True
 
         return compiled_flow
+
+    def _resolve_masking_node_target(
+        self,
+        node_path: List[str],
+        property_chain: List[str]
+    ) -> Tuple[
+        Union[JsonSchemaObject, ToolRequestBody, ToolResponseBody, None],
+        Optional[Union[JsonSchemaObject, SchemaRef, JsonSchemaObjectRef, ToolRequestBody, ToolResponseBody]],
+        "Flow",
+        "Node",
+        Optional[str]
+    ]:
+        """
+        Navigate nested flows and resolve the base schema for a node masking target.
+        """
+        current_flow = self
+
+        for i, node_name in enumerate(node_path):
+            if node_name not in current_flow.nodes:
+                path_so_far = '.'.join(['flow'] + node_path[:i+1])
+                raise ValueError(
+                    f"Node '{node_name}' not found in path '{path_so_far}'. "
+                    f"Available nodes: {list(current_flow.nodes.keys())}"
+                )
+
+            node = current_flow.nodes[node_name]
+
+            if i < len(node_path) - 1:
+                if not isinstance(node, Flow):
+                    path_so_far = '.'.join(['flow'] + node_path[:i+1])
+                    raise ValueError(
+                        f"Node '{node_name}' at '{path_so_far}' is not a nested flow. "
+                        f"Cannot navigate further."
+                    )
+                current_flow = node
+
+        final_node = current_flow.nodes[node_path[-1]]
+        final_node_kind = getattr(final_node.spec, 'kind', None)
+
+        base_schema, original_output_schema = current_flow._get_node_output_schema(
+            final_node,
+            node_path[-1],
+            property_chain
+        )
+
+        return base_schema, original_output_schema, current_flow, final_node, final_node_kind
+
+    def _apply_masking_to_resolved_schema(
+        self,
+        property_schema: Union[JsonSchemaObject, ToolResponseBody, ToolRequestBody],
+        masking_policy: MaskingPolicy,
+        regex_config: Optional[dict] = None,
+        input_policy: Optional[InputPolicy] = None
+    ) -> None:
+        """
+        Validate a resolved property schema and apply masking extensions.
+        """
+        from ..masking_utils import PropertyMaskingHelper
+
+        if not isinstance(property_schema, (JsonSchemaObject, ToolResponseBody, ToolRequestBody)):
+            raise ValueError(
+                f"Property schema must be JsonSchemaObject, ToolResponseBody, or ToolRequestBody, "
+                f"got {type(property_schema)}"
+            )
+
+        PropertyMaskingHelper.apply_masking_extensions(
+            property_schema,
+            masking_policy=masking_policy,
+            regex_config=regex_config,
+            input_policy=input_policy
+        )
+
+    def mask_property(
+        self,
+        property_path: str,
+        masking_policy: MaskingPolicy,
+        regex_config: Optional[dict] = None,
+        input_policy: Optional[InputPolicy] = None
+    ) -> Self:
+        """
+        Mark a property as sensitive/confidential by adding IBM masking extensions.
+        
+        Supports masking properties in:
+        - Flow input schema: flow.input.property_name
+        - Flow private schema: flow.private.property_name
+        - Node output schemas: flow.node_name.output.property_name
+        - Nested flow node outputs: flow.nested_flow.node.output.property_name
+        - Nested properties: flow.input.user.email
+        
+        Important Restrictions:
+        - Only STRING properties can be masked (arrays, objects, numbers, booleans cannot be masked)
+        - Flow output properties cannot be masked (only input, private, and node outputs)
+        
+        Args:
+            property_path: Dot-notation path to the property
+            masking_policy: Masking strategy (MaskingPolicy enum)
+                - MaskingPolicy.MASK_ALL: Completely mask the entire value
+                - MaskingPolicy.MASK_LAST4: Mask all but the last 4 characters
+                - MaskingPolicy.MASK_FIRST4: Mask all but the first 4 characters
+                - MaskingPolicy.MASK_VIA_REGEX: Use regex pattern for custom masking (requires regex_config)
+            regex_config: Configuration for mask-via-regex policy (optional)
+                Must include:
+                - "text-pattern": Regex pattern to match the text
+                - "masking-pattern": Pattern for masking (use $1, $2, etc. for capture groups)
+                Example: {
+                    "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
+                    "masking-pattern": "XXXX-XXXX-XXXX-$4"
+                }
+            input_policy: Input masking behavior (InputPolicy enum, optional)
+                - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
+                If omitted, data is only masked on output, not during input
+        
+        Returns:
+            Self for method chaining
+        
+        Raises:
+            ValueError: If path is invalid, property not found, property is not a string type,
+                       or attempting to mask flow output
+        
+        Examples:
+            
+            # Basic masking
+            flow.mask_property("flow.input.customer_id", MaskingPolicy.MASK_ALL)
+            
+            # Mask last 4 characters
+            flow.mask_property("flow.input.ssn", MaskingPolicy.MASK_LAST4)
+            
+            # Custom regex masking for credit card
+            flow.mask_property(
+                "flow.input.card_number",
+                MaskingPolicy.MASK_VIA_REGEX,
+                regex_config={
+                    "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
+                    "masking-pattern": "XXXX-XXXX-XXXX-$4"
+                }
+            )
+            
+            # Mask while typing
+            flow.mask_property(
+                "flow.input.password",
+                MaskingPolicy.MASK_ALL,
+                input_policy=InputPolicy.MASK_WHILE_TYPING
+            )
+        """
+        from ..masking_utils import PropertyMaskingHelper
+        
+        # Parse the path
+        try:
+            parsed = PropertyMaskingHelper.parse_property_path(property_path)
+        except ValueError as e:
+            raise ValueError(f"Invalid property path: {e}")
+        
+        # Get base schema based on scope
+        scope = parsed['scope']
+        node_path = parsed['node_path']
+        property_chain = parsed['property_chain']
+        
+        # Validate that we're not trying to mask flow output
+        if scope == 'output':
+            raise ValueError(
+                "Cannot mask flow output properties. "
+                "Only flow input, flow private, and node output properties can be masked."
+            )
+        
+        # Initialize for all scopes
+        original_output_schema = None
+        final_node = None
+        
+        if scope == 'input':
+            base_schema = self._resolve_schema_ref(self.spec.input_schema)
+        elif scope == 'private':
+            base_schema = self._resolve_schema_ref(self.spec.private_schema)
+        elif scope == 'node':
+            base_schema, original_output_schema, current_flow, final_node, final_node_kind = (
+                self._resolve_masking_node_target(node_path, property_chain)
+            )
+        else:
+            raise ValueError(f"Invalid scope: {scope}")
+        
+        if not base_schema:
+            raise ValueError(f"No schema found for scope '{scope}'")
+        
+        # For user nodes, _get_user_node_output_schema already handles complete resolution
+        # including form fields, so we skip _navigate_to_property
+        if scope == 'node' and final_node_kind == 'user':
+            # User nodes: schema is already fully resolved by _get_user_node_output_schema
+            property_schema = base_schema
+        else:
+            # For non-user nodes and flow input/private: navigate to the target property
+            try:
+                parent_schema, property_name = self._navigate_to_property(
+                    base_schema, property_chain
+                )
+            except ValueError as e:
+                raise ValueError(f"Cannot resolve path '{property_path}': {e}")
+            
+            # Handle two cases: property within object, or primitive schema
+            if property_name is None:
+                # Case 1: Primitive schema (e.g., node output is directly a string)
+                # For node outputs, we need to work with the actual schema object in the node spec
+                if scope == 'node' and final_node:
+                    # Use the centralized resolver to get the actual schema
+                    property_schema = current_flow._resolve_schema_ref(original_output_schema)
+                    if property_schema is None:
+                        raise ValueError(f"Could not resolve output schema for node '{node_path[-1]}'")
+                else:
+                    # For input/private, use the resolved base_schema
+                    if not isinstance(base_schema, JsonSchemaObject):
+                        raise ValueError("Cannot mask primitive output: resolved schema is not a JsonSchemaObject")
+                    property_schema = base_schema
+            else:
+                # Case 2: Property within an object schema
+                # Ensure parent_schema is resolved (shouldn't be a reference at this point)
+                parent_schema = self._resolve_schema_ref(parent_schema)
+                if parent_schema is None:
+                    raise ValueError(f"Could not resolve parent schema")
+                
+                # Get the property schema
+                if not hasattr(parent_schema, 'properties') or not parent_schema.properties:
+                    raise ValueError(f"Parent schema has no properties")
+                    
+                property_schema = parent_schema.properties[property_name]
+                
+                # Resolve if it's a reference using the centralized resolver
+                property_schema = self._resolve_schema_ref(property_schema)
+                if property_schema is None:
+                    raise ValueError(f"Could not resolve schema for property '{property_name}'")
+        
+        self._apply_masking_to_resolved_schema(
+            property_schema,
+            masking_policy=masking_policy,
+            regex_config=regex_config,
+            input_policy=input_policy
+        )
+        
+        return self
 
     def to_json(self) -> dict[str, Any]:
         flow_dict = super().to_json()
@@ -2047,3 +2708,98 @@ class UserFlow(Flow):
         node = self._add_node(node)
         return cast(UserNode, node)
     
+    def assign_to(self, policy: UserAssignmentPolicy, assignees: Optional[str] = None) -> Self:
+        '''
+        Sets the assignment policy for the user flow and optionally specifies the assignees.
+
+        Args:
+            policy (UserAssignmentPolicy): The assignment policy to use. Options:
+                - UserAssignmentPolicy.FLOW_INITIATOR: Assigns the user flow to the user who initiated the flow
+                - UserAssignmentPolicy.USER: Assigns the user flow to specific user(s) defined by the assignees parameter
+            
+            assignees (Optional[str]): Expression that resolves to the user(s) the flow is assigned to for execution.
+                Required when policy is UserAssignmentPolicy.USER. Can be one of:
+                
+                - A JSON array with a single user ID (as a string):
+                    Example: '["123002B12G"]'
+                
+                - A flow variable path that references a user:
+                    Example: 'flow.private.employee.manager'
+                    (where manager is of type User)
+                
+                The expression will be used to dynamically assign the user activity to a user at runtime.
+
+        Returns:
+            Self: The current instance of the user flow.
+            
+        Raises:
+            ValueError: If policy is UserAssignmentPolicy.USER and assignees is not provided,
+                       or if assignees is a JSON array that doesn't contain exactly one user ID.
+            
+        Examples:
+            # Assign to flow initiator
+            user_flow.assign_to(UserAssignmentPolicy.FLOW_INITIATOR)
+            
+            # Assign to specific user by ID
+            user_flow.assign_to(UserAssignmentPolicy.USER, assignees='["123002B12G"]')
+            
+            # Assign to a user referenced by a flow variable
+            user_flow.assign_to(UserAssignmentPolicy.USER, assignees='flow.private.employee.manager')
+        '''
+        
+        # Validate that assignees is provided when policy is USER
+        if policy == UserAssignmentPolicy.USER and assignees is None:
+            raise ValueError("assignees parameter is required when assignment policy is USER")
+        
+        self.get_spec().assignment_policy = policy
+        
+        # If USER policy, set up input_map and input_schema
+        if policy == UserAssignmentPolicy.USER:
+            # Determine if assignees is a JSON array (literal) or a variable expression
+            # A JSON array starts with '[' and ends with ']'
+            is_literal = assignees.strip().startswith('[') and assignees.strip().endswith(']')
+            
+            # If it's a JSON array literal, validate it contains exactly one user ID
+            if is_literal:
+                import json
+                try:
+                    parsed_array = json.loads(assignees.strip())
+                    if not isinstance(parsed_array, list):
+                        raise ValueError("assignees must be a JSON array when using literal format")
+                    if len(parsed_array) != 1:
+                        raise ValueError(f"assignees array must contain exactly one user ID, but contains {len(parsed_array)}")
+                    if not isinstance(parsed_array[0], str):
+                        raise ValueError("assignees array must contain a string user ID")
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"assignees is not a valid JSON array: {e}")
+            
+            assignment_type = "literal" if is_literal else "variable"
+            
+            # Create the input_map using DataMap and DataMapSpec
+            assignment = Assignment(
+                target_variable="self.input.assignees",
+                value_expression=assignees,
+                metadata={"assignmentType": assignment_type}
+            )
+            
+            data_map = DataMap(maps=[assignment])
+            self.input_map = DataMapSpec(spec=data_map)
+            
+            # Create and set the input_schema as ToolRequestBody
+            assignees_schema = JsonSchemaObject(
+                type="array",
+                items=JsonSchemaObject(
+                    type="string",
+                    format="wxo-user"
+                )
+            )
+            
+            input_schema = ToolRequestBody(
+                type="object",
+                properties={
+                    "assignees": assignees_schema
+                }
+            )
+            self.get_spec().input_schema = input_schema
+        
+        return self

@@ -1,0 +1,266 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "user_flow_assigned_user",
+    "display_name": "user_flow_assigned_user",
+    "description": "Example of a user flow send to a different user than the initiator.",
+    "input_schema": {
+      "$ref": "#/schemas/user_flow_assigned_user_input"
+    },
+    "private_schema": {
+      "$ref": "#/schemas/PrivateData"
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "init_data": {
+      "spec": {
+        "kind": "script",
+        "name": "init_data",
+        "display_name": "init_data",
+        "fn": "flow.private.designated = system.user.search_by_email('wxo.archer@ibm.com')[0]"
+      }
+    },
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "userflow_1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "assignees": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "wxo-user"
+              }
+            }
+          },
+          "required": []
+        },
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ],
+        "assignment_policy": "data_map"
+      },
+      "input_map": {
+        "spec": {
+          "maps": [
+            {
+              "target_variable": "self.input.assignees",
+              "value_expression": "flow.private.designated",
+              "has_no_value": false,
+              "default_value": null,
+              "metadata": {
+                "assignmentType": "variable"
+              }
+            }
+          ]
+        }
+      },
+      "nodes": {
+        "last_name": {
+          "spec": {
+            "kind": "user",
+            "name": "last_name",
+            "display_name": "Last name",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "last_name",
+                "kind": "text",
+                "text": "Enter last name",
+                "direction": "input",
+                "display_name": "Last name",
+                "output_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "last_name"
+        },
+        {
+          "start": "last_name",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "userflow_2": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_2",
+        "display_name": "userflow_2",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ],
+        "assignment_policy": "initiator"
+      },
+      "nodes": {
+        "display_first_name": {
+          "spec": {
+            "kind": "user",
+            "name": "display_first_name",
+            "display_name": "Display the name",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "display_first_name",
+                "kind": "text",
+                "text": "Welcome {flow.userflow_1[\"Last name\"].output.value}",
+                "direction": "output",
+                "display_name": "Display the name",
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "display_first_name"
+        },
+        {
+          "start": "display_first_name",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "init_data"
+    },
+    {
+      "start": "init_data",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "userflow_2"
+    },
+    {
+      "start": "userflow_2",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "user_flow_assigned_user_input": {
+      "type": "object",
+      "title": "user_flow_assigned_user_input",
+      "required": [],
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "First name",
+          "default": "John Doe"
+        }
+      }
+    },
+    "PrivateData": {
+      "type": "object",
+      "title": "PrivateData",
+      "description": "Private data schema for the flow.\n\nAttributes:\n    designated (WXOUser): The designated user for this flow",
+      "required": [
+        "designated"
+      ],
+      "properties": {
+        "designated": {
+          "type": "string",
+          "title": "User reference",
+          "description": "The designated user that will run the user flow",
+          "format": "wxo-user"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2026-04-08T13:51:32.075379+00:00"
+  }
+}
