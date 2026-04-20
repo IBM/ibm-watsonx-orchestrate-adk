@@ -26,6 +26,7 @@ class ConnectionKind(str, Enum):
     oauth_auth_client_credentials_flow = 'oauth_auth_client_credentials_flow'
     oauth_auth_on_behalf_of_flow = 'oauth_auth_on_behalf_of_flow'
     oauth_auth_token_exchange_flow = 'oauth_auth_token_exchange_flow'
+    oauth_auth_direct_access_flow = 'oauth_auth_direct_access_flow'
     key_value = 'key_value'
     kv = 'kv'
 
@@ -72,6 +73,7 @@ class ConnectionAuthType(str, Enum):
     OAUTH2_CLIENT_CREDS = 'oauth2_client_creds'
     OAUTH_ON_BEHALF_OF_FLOW = 'oauth_on_behalf_of_flow'
     OAUTH2_TOKEN_EXCHANGE = 'oauth2_token_exchange'
+    OAUTH2_DIRECT_ACCESS = 'oauth2_direct_accesstoken'
 
     def __str__(self):
         return self.value 
@@ -91,6 +93,8 @@ class ConnectionType(str, Enum):
     OAUTH2_CLIENT_CREDS = ConnectionAuthType.OAUTH2_CLIENT_CREDS.value
     OAUTH_ON_BEHALF_OF_FLOW = ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW.value
     OAUTH2_TOKEN_EXCHANGE = ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE.value
+    OAUTH2_DIRECT_ACCESS = ConnectionAuthType.OAUTH2_DIRECT_ACCESS.value
+
     KEY_VALUE = ConnectionSecurityScheme.KEY_VALUE.value
 
     def __str__(self):
@@ -134,6 +138,7 @@ CONNECTION_KIND_SCHEME_MAPPING = {
     ConnectionKind.oauth_auth_client_credentials_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_token_exchange_flow: ConnectionSecurityScheme.OAUTH2,
+    ConnectionKind.oauth_auth_direct_access_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.key_value: ConnectionSecurityScheme.KEY_VALUE,
     ConnectionKind.kv: ConnectionSecurityScheme.KEY_VALUE,
 }
@@ -144,12 +149,14 @@ CONNECTION_KIND_OAUTH_TYPE_MAPPING = {
     ConnectionKind.oauth_auth_password_flow: ConnectionAuthType.OAUTH2_PASSWORD,
     ConnectionKind.oauth_auth_client_credentials_flow: ConnectionAuthType.OAUTH2_CLIENT_CREDS,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW,
-    ConnectionKind.oauth_auth_token_exchange_flow: ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE
+    ConnectionKind.oauth_auth_token_exchange_flow: ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE,
+    ConnectionKind.oauth_auth_direct_access_flow: ConnectionAuthType.OAUTH2_DIRECT_ACCESS
 }
 
 SSO_CONNECTION_TYPES = {
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
-    ConnectionType.OAUTH2_TOKEN_EXCHANGE
+    ConnectionType.OAUTH2_TOKEN_EXCHANGE,
+    ConnectionType.OAUTH2_DIRECT_ACCESS
 }
 
 OAUTH_CONNECTION_TYPES = {
@@ -158,7 +165,8 @@ OAUTH_CONNECTION_TYPES = {
     # ConnectionType.OAUTH2_IMPLICIT,
     ConnectionType.OAUTH2_PASSWORD,
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
-    ConnectionType.OAUTH2_TOKEN_EXCHANGE
+    ConnectionType.OAUTH2_TOKEN_EXCHANGE,
+    ConnectionType.OAUTH2_DIRECT_ACCESS,
 }
 
 
