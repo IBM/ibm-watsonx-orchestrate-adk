@@ -79,13 +79,6 @@ class MemoryClient:
     def delete(self, *, memory_id: str) -> bool:
         return self._propagator.delete(memory_id)
 
-    # Compatibility helpers for the previous placeholder API.
-    def store(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> CreateMemoriesResponse:
-        return self.add_messages(
-            messages=[{"role": "user", "content": content}],
-            infer=False,
-            metadata=metadata,
-        )
-
+    # Compatibility helper for the previous placeholder API.
     def retrieve(self, query: str, limit: int = 10) -> SearchMemoriesResponse:
         return self.search(query=query, limit=limit)
