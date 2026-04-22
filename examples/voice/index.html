@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice Runtime Test</title>
+
+  <!-- Carbon Design System CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/carbon-components/css/carbon-components.min.css">
+  <script src="https://unpkg.com/carbon-components/scripts/carbon-components.min.js" defer></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+      font-family: 'IBM Plex Sans', sans-serif;
+      min-height: 100vh;
+    }
+    
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      min-height: 100vh;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .app-header {
+      background: #161616;
+      color: white;
+      padding: 1.5rem 2rem;
+      border-bottom: 3px solid #0f62fe;
+    }
+    
+    .app-header h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 400;
+    }
+    
+    .tabs-container {
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .bx--tabs {
+      padding: 0 2rem;
+    }
+    
+    .tab-content {
+      display: none;
+      padding: 2rem;
+      animation: fadeIn 0.3s ease-in;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .content-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 4px;
+      margin-bottom: 2rem;
+      border: 1px solid #e0e0e0;
+    }
+    
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: #161616;
+    }
+    
+    .field-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .keypad-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #525252;
+      margin-bottom: 0.5rem;
+      margin-top: 1rem;
+    }
+    
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      max-width: 300px;
+    }
+    
+    .keypad-button {
+      aspect-ratio: 1;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    
+    .dtmf-display {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 300;
+      min-height: 2rem;
+      color: #0f62fe;
+      margin: 1rem 0;
+    }
+    
+    .status-indicator {
+      padding: 1rem;
+      background: #f4f4f4;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #525252;
+      margin-top: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .status-indicator.active {
+      background: #d0e2ff;
+      color: #0043ce;
+    }
+    
+    /* Recording Viewer Styles */
+    .recordings-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    
+    .recording-card {
+      border: 1px solid #e0e0e0;
+      padding: 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: white;
+    }
+    
+    .recording-card:hover {
+      border-color: #0f62fe;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .recording-card.selected {
+      background: #e5f6ff;
+      border-color: #0f62fe;
+      border-width: 2px;
+    }
+    
+    .recording-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .recording-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .delete-btn {
+      padding: 0.5rem 1rem;
+      background: #da1e28;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: background 0.2s ease;
+    }
+
+    .delete-btn:hover {
+      background: #ba1b23;
+    }
+
+    .delete-btn:disabled {
+      background: #c6c6c6;
+      cursor: not-allowed;
+    }
+    
+    .recording-name {
+      font-weight: 600;
+      font-size: 1rem;
+      color: #161616;
+    }
+    
+    .recording-duration {
+      font-size: 0.875rem;
+      color: #0f62fe;
+      font-weight: 600;
+    }
+    
+    .recording-meta {
+      font-size: 0.875rem;
+      color: #525252;
+      margin-top: 0.5rem;
+    }
+    
+    .recording-stats {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+    }
+    
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .stat-label {
+      color: #525252;
+    }
+    
+    .stat-value {
+      font-weight: 600;
+      color: #161616;
+    }
+    
+    .viewer-section {
+      margin-top: 2rem;
+      display: none;
+    }
+    
+    .viewer-section.active {
+      display: block;
+    }
+    
+    .viewer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .viewer-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #161616;
+    }
+    
+    .viewer-tabs-container {
+      margin-bottom: 1.5rem;
+    }
+    
+    .viewer-tab-buttons {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .viewer-tab-btn {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #525252;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s ease;
+    }
+    
+    .viewer-tab-btn:hover {
+      color: #161616;
+    }
+    
+    .viewer-tab-btn.active {
+      color: #0f62fe;
+      border-bottom-color: #0f62fe;
+    }
+    
+    .viewer-content {
+      display: none;
+      padding: 1.5rem;
+      background: #f4f4f4;
+      border-radius: 4px;
+    }
+    
+    .viewer-content.active {
+      display: block;
+    }
+    
+    .json-viewer {
+      background: #262626;
+      color: #f4f4f4;
+      padding: 1.5rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+    
+    .json-viewer pre {
+      margin: 0;
+    }
+    
+    .audio-player-container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 4px;
+    }
+    
+    .audio-player-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #161616;
+    }
+    
+    .audio-player-container audio {
+      width: 100%;
+      margin-top: 1rem;
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: #525252;
+      font-size: 0.875rem;
+    }
+    
+    .no-data-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+    
+    .refresh-button {
+      margin-bottom: 1.5rem;
+    }
+    
+    /* Custom Modal Styles */
+    .custom-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .custom-modal-overlay.active {
+      display: flex;
+    }
+    
+    .custom-modal {
+      background: white;
+      border-radius: 4px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .custom-modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .custom-modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #161616;
+      margin: 0;
+    }
+    
+    .custom-modal-body {
+      padding: 1.5rem;
+      color: #525252;
+      line-height: 1.6;
+    }
+    
+    .custom-modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <div class="app-header">
+      <h1>Voice Runtime Test</h1>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+      <nav data-tabs class="bx--tabs" role="navigation">
+        <div class="bx--tabs-trigger" tabindex="0">
+          <a href="javascript:void(0)" class="bx--tabs-trigger-text" tabindex="-1"></a>
+          <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"></path></svg>
+        </div>
+        <ul class="bx--tabs__nav bx--tabs__nav--hidden" role="tablist">
+          <li class="bx--tabs__nav-item bx--tabs__nav-item--selected" data-target="#talk-tab" role="presentation">
+            <a tabindex="0" id="tab-link-1" class="bx--tabs__nav-link" href="javascript:void(0)" role="tab" aria-controls="talk-tab" aria-selected="true">Talk to your Agent</a>
+          </li>
+          <li class="bx--tabs__nav-item" data-target="#settings-tab" role="presentation">
+            <a tabindex="-1" id="tab-link-2" class="bx--tabs__nav-link" href="javascript:void(0)" role="tab" aria-controls="settings-tab" aria-selected="false">Connection Settings</a>
+          </li>
+          <li class="bx--tabs__nav-item" data-target="#recordings-tab" role="presentation">
+            <a tabindex="-1" id="tab-link-3" class="bx--tabs__nav-link" href="javascript:void(0)" role="tab" aria-controls="recordings-tab" aria-selected="false">Call Recordings</a>
+          </li>
+          <li class="bx--tabs__nav-item" data-target="#cdr-logs-tab" role="presentation">
+            <a tabindex="-1" id="tab-link-4" class="bx--tabs__nav-link" href="javascript:void(0)" role="tab" aria-controls="cdr-logs-tab" aria-selected="false">CDR Logs</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <!-- Tab Content: Talk to your Agent -->
+    <div id="talk-tab" class="tab-content active" role="tabpanel" aria-labelledby="tab-link-1">
+      <div class="content-section">
+        <h2 class="section-title">Begin Chatting with your Agent</h2>
+        
+        <div class="status-indicator" id="progressText">Status: Ready to connect</div>
+        
+        <div class="button-group">
+          <button class="bx--btn bx--btn--primary" id="startAudioButton">Start Audio</button>
+          <button class="bx--btn bx--btn--danger" id="stopAudioButton">Stop Audio</button>
+        </div>
+                
+        <div class="dtmf-display" id="dtmfDisplay"></div>
+        
+        <div class="keypad">
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="1">1</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="2">2</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="3">3</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="4">4</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="5">5</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="6">6</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="7">7</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="8">8</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="9">9</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="*">*</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="0">0</button>
+          <button class="bx--btn bx--btn--secondary keypad-button dtmf-btn" data-tone="#">#</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Content: Connection Settings -->
+    <div id="settings-tab" class="tab-content" role="tabpanel" aria-labelledby="tab-link-2">
+      <div class="content-section">
+        <h2 class="section-title">Connection Settings</h2>
+        
+        <div class="bx--form-item field-group">
+          <label for="agent_id" class="bx--label">Agent ID</label>
+          <input type="text" id="agent_id" class="bx--text-input" placeholder="Enter agent ID" />
+        </div>
+
+        <div class="bx--form-item field-group">
+          <label for="environment_id" class="bx--label">Environment ID</label>
+          <input type="text" id="environment_id" class="bx--text-input" placeholder="Enter environment ID" />
+        </div>
+
+        <div class="bx--form-item field-group">
+          <label for="thread_id" class="bx--label">Thread ID</label>
+          <input type="text" id="thread_id" class="bx--text-input" placeholder="Enter thread ID (optional)" />
+        </div>
+
+        <div class="bx--form-item field-group">
+          <label for="access_token" class="bx--label">Access Token</label>
+          <input type="text" id="access_token" class="bx--text-input" placeholder="Enter access token" />
+        </div>
+
+        <div class="bx--form-item field-group">
+          <label for="url" class="bx--label">WebSocket URL</label>
+          <input type="text" id="url" class="bx--text-input" placeholder="ws://localhost:8765/v1/conversation" />
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tab Content: Call Recordings -->
+    <div id="recordings-tab" class="tab-content" role="tabpanel" aria-labelledby="tab-link-3">
+      <div class="content-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2 class="section-title" style="margin-bottom: 0;">Available Recordings</h2>
+          <button class="bx--btn bx--btn--secondary bx--btn--sm" id="refreshRecordingsBtn">
+            <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" style="margin-right: 0.5rem;">
+              <path d="M26,18A10,10,0,1,1,16,8h6.1816l-3.584,3.5840a1,1,0,0,0,1.4141,1.4141l5.4141-5.4141a1,1,0,0,0,0-1.4141L20,1.1719a1,1,0,0,0-1.4141,1.4141L22.1816,6H16A12,12,0,1,0,28,18Z"></path>
+            </svg>
+            Refresh
+          </button>
+        </div>
+        
+        <div style="padding: 1rem; background-color: #e5f6ff; border-left: 3px solid #0f62fe; margin-bottom: 1.5rem; border-radius: 4px;">
+          <div style="font-size: 0.875rem; color: #161616;">
+            <strong>📡 Call Recording Server:</strong> <span id="recordingServerUrl" style="font-family: 'IBM Plex Mono', monospace; color: #0043ce;"></span>
+          </div>
+          <div style="font-size: 0.75rem; color: #525252; margin-top: 0.5rem;">
+            The recording server is running. Configure your agent's voice webhook to this endpoint.
+          </div>
+        </div>
+        
+        <div class="recordings-grid" id="recordingsList">
+          <div class="no-data">
+            <div class="no-data-icon">🎙️</div>
+            <div>No recordings found</div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem;">Start a call with recording enabled to create recordings</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="viewer-section" id="viewerSection">
+        <div class="content-section">
+          <div class="viewer-header">
+            <h3 class="viewer-title" id="viewerTitle">Recording Details</h3>
+          </div>
+          
+          <div class="viewer-tabs-container">
+            <div class="viewer-tab-buttons">
+              <button class="viewer-tab-btn active" data-tab="metadata">📋 Metadata</button>
+              <button class="viewer-tab-btn" data-tab="user-audio">👤 User Audio</button>
+              <button class="viewer-tab-btn" data-tab="agent-audio">🤖 Agent Audio</button>
+              <button class="viewer-tab-btn" data-tab="interleaved-audio">🎙️ Total Call Audio</button>
+            </div>
+          </div>
+          
+          <div class="viewer-content active" id="metadataContent">
+            <div class="json-viewer">
+              <pre id="metadataJson">Select a recording to view metadata</pre>
+            </div>
+          </div>
+          
+          <div class="viewer-content" id="userAudioContent">
+            <div class="audio-player-container">
+              <div class="audio-player-header">User Audio Stream</div>
+              <audio id="userAudioPlayer" controls></audio>
+              <div class="no-data" id="userAudioNoData" style="display: none;">No user audio available</div>
+            </div>
+          </div>
+          
+          <div class="viewer-content" id="agentAudioContent">
+            <div class="audio-player-container">
+              <div class="audio-player-header">Agent Audio Stream</div>
+              <audio id="agentAudioPlayer" controls></audio>
+              <div class="no-data" id="agentAudioNoData" style="display: none;">No agent audio available</div>
+            </div>
+          </div>
+          
+          <div class="viewer-content" id="interleavedAudioContent">
+            <div class="audio-player-container">
+              <div class="audio-player-header">Total Call Audio (Interleaved)</div>
+              <p style="color: #525252; font-size: 0.875rem; margin-bottom: 1rem;">
+                This audio combines both user and agent audio streams in chronological order based on timestamps.
+              </p>
+              <audio id="interleavedAudioPlayer" controls></audio>
+              <div class="no-data" id="interleavedAudioNoData" style="display: none;">No interleaved audio available</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Content: CDR Logs -->
+    <div id="cdr-logs-tab" class="tab-content" role="tabpanel" aria-labelledby="tab-link-4">
+      <div class="content-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2 class="section-title" style="margin-bottom: 0;">CDR Logs</h2>
+          <div style="display: flex; gap: 1rem;">
+            <button class="bx--btn bx--btn--secondary bx--btn--sm" id="refreshCDRBtn">
+              <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" style="margin-right: 0.5rem;">
+                <path d="M26,18A10,10,0,1,1,16,8h6.1816l-3.584,3.5840a1,1,0,0,0,1.4141,1.4141l5.4141-5.4141a1,1,0,0,0,0-1.4141L20,1.1719a1,1,0,0,0-1.4141,1.4141L22.1816,6H16A12,12,0,1,0,28,18Z"></path>
+              </svg>
+              Refresh
+            </button>
+            <button class="bx--btn bx--btn--danger bx--btn--sm" id="clearCDRBtn">Clear All</button>
+          </div>
+        </div>
+        
+        <div style="padding: 1rem; background-color: #e5f6ff; border-left: 3px solid #0f62fe; margin-bottom: 1.5rem; border-radius: 4px;">
+          <div style="font-size: 0.875rem; color: #161616;">
+            <strong>📡 CDR Webhook URL:</strong> <span id="cdrWebhookUrl" style="font-family: 'IBM Plex Mono', monospace; color: #0043ce;"></span>
+          </div>
+          <div style="font-size: 0.75rem; color: #525252; margin-top: 0.5rem;">
+            CDR receiver is running. Configure your agent's voice webhook to this endpoint.
+          </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+          <div style="background: white; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 4px;">
+            <div style="font-size: 0.75rem; color: #525252; margin-bottom: 0.5rem;">Total Reports</div>
+            <div style="font-size: 1.5rem; font-weight: 600;" id="cdrStatTotal">0</div>
+          </div>
+          <div style="background: white; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 4px;">
+            <div style="font-size: 0.75rem; color: #525252; margin-bottom: 0.5rem;">Successful</div>
+            <div style="font-size: 1.5rem; font-weight: 600; color: #24a148;" id="cdrStatOk">0</div>
+          </div>
+          <div style="background: white; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 4px;">
+            <div style="font-size: 0.75rem; color: #525252; margin-bottom: 0.5rem;">Failed</div>
+            <div style="font-size: 1.5rem; font-weight: 600; color: #da1e28;" id="cdrStatErr">0</div>
+          </div>
+          <div style="background: white; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 4px;">
+            <div style="font-size: 0.75rem; color: #525252; margin-bottom: 0.5rem;">Last Received</div>
+            <div style="font-size: 0.875rem; font-weight: 600;" id="cdrStatLast">—</div>
+          </div>
+        </div>
+        
+        <div id="cdrTableContainer">
+          <div class="no-data">
+            <div class="no-data-icon">📡</div>
+            <div>No CDR reports received yet</div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem;">Configure your voice runtime to send CDR webhooks</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CDR Detail Viewer -->
+      <div class="viewer-section" id="cdrViewerSection">
+        <div class="content-section">
+          <div class="viewer-header">
+            <h3 class="viewer-title" id="cdrViewerTitle">CDR Details</h3>
+          </div>
+          
+          <div class="json-viewer">
+            <pre id="cdrDetailJson">Select a CDR report to view details</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Modal -->
+  <div class="custom-modal-overlay" id="confirmModal">
+    <div class="custom-modal">
+      <div class="custom-modal-header">
+        <h3 class="custom-modal-title" id="confirmModalTitle">Confirm Action</h3>
+      </div>
+      <div class="custom-modal-body" id="confirmModalBody">
+        Are you sure you want to proceed?
+      </div>
+      <div class="custom-modal-footer">
+        <button class="bx--btn bx--btn--secondary" id="confirmModalCancel">Cancel</button>
+        <button class="bx--btn bx--btn--danger" id="confirmModalConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./wavtools/wavtools.js"></script>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>
