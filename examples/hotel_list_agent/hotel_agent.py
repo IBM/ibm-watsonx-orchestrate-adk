@@ -180,7 +180,7 @@ def create_agent(config: RunnableConfig):
         
         Process:
         1. Split messages into "old" (to compress) and "recent" (to keep)
-        2. Call client.context.summarize() to compress old messages
+        2. Call client.context.compress() to compress old messages
         3. Replace old messages with a single HumanMessage containing the summary
         4. Return [compressed_summary] + recent_messages
         
@@ -205,7 +205,7 @@ def create_agent(config: RunnableConfig):
         
         try:
             # Use SDK's context compression (similar to runs_elsewhere_example.py)
-            compressed_response = client.context.summarize(messages=dict_messages)
+            compressed_response = client.context.compress(messages=dict_messages)
             
             # Create a HumanMessage with the compressed context
             # This REPLACES all the old messages with a single summary message
