@@ -1,0 +1,8 @@
+spec_version: v1
+kind: agent
+name: hotel_list_agent
+title: Hotel List Agent with Context Compression
+description: A custom LangGraph agent that lists hotels for cities and demonstrates context compression when token count exceeds 2500.
+deployment:
+  code_bundle:
+    entrypoint: hotel_agent:create_agent
