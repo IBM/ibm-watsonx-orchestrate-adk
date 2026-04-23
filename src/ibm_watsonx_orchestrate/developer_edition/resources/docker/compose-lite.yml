@@ -1057,10 +1057,12 @@ services:
       - tools-runtime-data:/shared-data
     environment:
       DEPLOYMENT_PLATFORM: ${DEPLOYMENT_PLATFORM}
+      WXO_API_PROXY_URL: ${WXO_API_PROXY_URL}
       VOLUME_MOUNT_PATH: "/shared-data"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      WXO_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
 
   ########################
   # IBM AGENT-OPS

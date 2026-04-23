@@ -1,0 +1,4 @@
+# Integration test dependencies for ChatWxO
+ibm-watsonx-orchestrate-sdk
+python-dotenv>=1.0.0
+pydantic>=2.0.0
