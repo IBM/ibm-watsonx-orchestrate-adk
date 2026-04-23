@@ -1,91 +1,37 @@
-# Agentic SDK Memory Quick Reference
+# Agentic SDK Runs-On and Memory Guide
 
-This is the shortest reliable guide to using the SDK memory APIs on this branch.
-It reflects the current code and the current memory-service contract.
+This guide is the current reference for building `runs-on` custom agents in
+`wxo-clients` that use the Agentic SDK memory APIs.
 
-## If You Only Remember 3 Things
+It is written against the current SDK code on this branch, not against older
+placeholder memory helpers.
 
-1. In a `runs-on` agent, use:
+## What This Guide Covers
 
-```python
-client = Client(execution_context=execution_context)
-```
+- how to structure a `runs-on` LangGraph agent
+- how to initialize the SDK from runtime context
+- which memory APIs are stable today
+- which `memory_type` values are accepted
+- what metadata is useful
+- what the real memory scoping rules are
 
-2. Use only these `memory_type` values:
+## The Three SDK Modes
 
-- `conversational`
-- `profile_fact`
-- `preference`
-- `outcome`
-- `tool`
+The SDK currently supports three session modes:
 
-3. If you pass random `memory_type` values, the backend can return `422`, which often shows up in agents as a generic memory error.
+- `runs-on`
+- `runs-elsewhere`
+- `local`
 
-## The Most Common Working Pattern
+For platform custom agents, the mode you care about is `runs-on`.
 
-```python
-from ibm_watsonx_orchestrate_sdk import Client
+Use `local` only for developer-edition testing.
+Use `runs-elsewhere` only when your app or agent is running outside the WXO
+runtime and authenticates with instance credentials.
 
-client = Client(execution_context=execution_context)
+## The Recommended Runs-On Pattern
 
-search_response = client.memory.search(
-    query="What is my favorite drink?",
-    limit=3,
-)
-
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My favorite drink is coffee"}],
-    memory_type="preference",
-    infer=False,
-)
-```
-
-## Which Client Constructor Should I Use?
-
-### Local ADK
-
-Use this from local scripts or notebooks when talking to developer edition:
-
-```python
-from ibm_watsonx_orchestrate_sdk import Client
-
-client = Client()
-```
-
-This defaults to local mode and talks to:
-
-```text
-http://localhost:4321/api/v1
-```
-
-### Runs-On Agent
-
-Use this inside a custom agent running on the platform:
-
-```python
-from ibm_watsonx_orchestrate_sdk import Client
-
-client = Client(execution_context=execution_context)
-```
-
-Required runtime context:
-
-```python
-execution_context = {
-    "access_token": "...",
-    "thread_id": "...",
-    "api_proxy_url": "http://wxo-server:4321/api/v1",
-}
-```
-
-Notes:
-- `thread_id` is required
-- `access_token` is required
-- `api_proxy_url` is required unless `WXO_API_PROXY_URL` is already present in the environment
-
-### LangGraph / RunnableConfig
-
-If your runtime gives you a `RunnableConfig`, use:
+For LangGraph agents running on the platform, prefer:
 
 ```python
 from ibm_watsonx_orchestrate_sdk import Client
@@ -93,77 +39,190 @@ from ibm_watsonx_orchestrate_sdk import Client
 client = Client.from_runnable_config(config)
 ```
 
-### Runs-Elsewhere
+This is better than manually extracting `execution_context` because it keeps the
+entrypoint smaller and matches how the SDK expects runtime context to be passed
+through LangGraph.
 
-Use this when you are not inside the runtime:
+If you do need to extract it manually, this is still valid:
 
 ```python
-from ibm_watsonx_orchestrate_sdk import Client
-
-client = Client(
-    instance_url="https://api.<env>.watson-orchestrate.ibm.com/instances/<instance-id>",
-    api_key="<api-key>",
-)
+execution_context = config.get("configurable", {}).get("execution_context", {}) or {}
+client = Client(execution_context=execution_context)
 ```
 
-## Memory APIs You Can Use Today
+## What a Runs-On Agent Must Receive
 
-### Add memory
+The runtime must provide `execution_context` with at least:
+
+- `access_token`
+- `thread_id`
+- `api_proxy_url`
+
+Important detail:
+
+- the SDK uses `api_proxy_url` as-is
+- it does not append `/v1/orchestrate`
+- it does not append an instance path
+
+So the runtime value of `api_proxy_url` must already be the full base URL that
+the SDK should call.
+
+For example, if the SDK is going to call:
+
+```text
+/memories
+/memories/search
+/context/summarize
+```
+
+then `api_proxy_url` must already point at the correct orchestrate API base for
+that environment.
+
+Also note:
+
+- `WXO_API_PROXY_URL` from the environment currently overrides
+  `execution_context["api_proxy_url"]`
+- `runs-on` defaults to `verify=False` unless the caller overrides it
+
+## The Minimum File Set for a Runs-On Custom Agent
+
+The example in this folder uses the standard custom-agent package layout:
+
+- `agent.py`
+- `agent.yaml`
+- `config.yaml`
+- `requirements.txt`
+
+You only need a few things for the SDK-specific part:
+
+1. An entrypoint function, usually `create_agent(config)`
+2. The SDK in `requirements.txt`
+3. A runtime graph or callable that uses `Client.from_runnable_config(config)`
+
+## Minimal Runs-On LangGraph Agent
+
+```python
+from __future__ import annotations
+
+from typing import Annotated, TypedDict
+
+from langchain_core.messages import AIMessage, BaseMessage
+from langgraph.graph import END, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.graph.state import RunnableConfig
+
+from ibm_watsonx_orchestrate_sdk import Client
+
+
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+
+def _latest_user_message(messages: list[BaseMessage]) -> str:
+    for message in reversed(messages):
+        if getattr(message, "type", "") == "human":
+            content = getattr(message, "content", "")
+            if isinstance(content, str) and content.strip():
+                return content
+    return ""
+
+
+def create_agent(config: RunnableConfig):
+    client = Client.from_runnable_config(config)
+
+    def agent_node(state: AgentState):
+        user_text = _latest_user_message(state.get("messages", []))
+        if not user_text:
+            return {"messages": [AIMessage(content="No user message found.")]}
+
+        search_response = client.memory.search(query=user_text, limit=3)
+
+        if search_response.results:
+            memory_text = "\n".join(item.content for item in search_response.results)
+            response_text = f"I found related memories:\n{memory_text}"
+        else:
+            response_text = "I do not have anything relevant in memory yet."
+
+        return {"messages": [AIMessage(content=response_text)]}
+
+    builder = StateGraph(AgentState)
+    builder.add_node("agent", agent_node)
+    builder.set_entry_point("agent")
+    builder.add_edge("agent", END)
+    return builder.compile()
+```
+
+## Packaging and Import
+
+The example agent in this folder is imported with:
+
+```bash
+./.venv/bin/orchestrate agents import \
+  --experimental-package-root examples/custom_agents/local_memory_sdk_agent
+```
+
+That command packages the directory, creates or updates the agent definition,
+and uploads the code bundle.
+
+For custom agents, this is the path you should document and test. Importing only
+the YAML is not enough when the agent has code and dependencies.
+
+## The Memory APIs to Use
+
+The stable write API is:
+
+```python
+client.memory.add_messages(...)
+```
+
+The stable read APIs are:
+
+```python
+client.memory.search(...)
+client.memory.list(...)
+client.memory.retrieve(...)
+```
+
+Delete APIs:
+
+```python
+client.memory.delete(memory_id="...")
+client.memory.delete_all()
+```
+
+The old `store()` helper has been removed from this SDK surface. Use
+`add_messages(...)` instead.
+
+## Recommended Usage Pattern
+
+When you know what kind of memory you are writing, pass it explicitly:
 
 ```python
 client.memory.add_messages(
     messages=[{"role": "user", "content": "I prefer coffee"}],
-    infer=False,
     memory_type="preference",
+    infer=False,
     metadata={"source": "manual-test"},
 )
 ```
 
-### Add memory with metadata
+Then search with either a semantic query:
 
 ```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My name is Suyash"}],
-    infer=False,
-    memory_type="profile_fact",
-    metadata={
-        "source": "chat",
-        "scope": "user_profile",
-        "source_request_id": "req-123",
-        "wxo_memory_type": "profile_fact",
-    },
-)
+response = client.memory.search(query="favorite drink", limit=3)
 ```
 
-### Search memory
+or a semantic query plus a type filter:
 
 ```python
-results = client.memory.search(
+response = client.memory.search(
     query="favorite drink",
     limit=3,
     memory_type="preference",
 )
 ```
 
-### List memory
-
-```python
-memories = client.memory.list(limit=20, offset=0)
-```
-
-### Delete one memory
-
-```python
-client.memory.delete(memory_id="mem-123")
-```
-
-### Delete all memories for the current user
-
-```python
-client.memory.delete_all()
-```
-
-## Exact Public Method Signatures
+## Public Method Signatures
 
 ### `add_messages`
 
@@ -181,14 +240,6 @@ add_messages(
 )
 ```
 
-`metadata` is currently:
-
-```python
-dict[str, Any] | None
-```
-
-and is forwarded to the memory service as part of the create request.
-
 ### `search`
 
 ```python
@@ -202,16 +253,18 @@ search(
 )
 ```
 
+### `retrieve`
+
+```python
+retrieve(query, limit=10)
+```
+
+This is just a compatibility helper around `search(...)`.
+
 ### `list`
 
 ```python
 list(*, limit=100, offset=0)
-```
-
-### `delete_all`
-
-```python
-delete_all()
 ```
 
 ### `delete`
@@ -220,103 +273,32 @@ delete_all()
 delete(*, memory_id)
 ```
 
+### `delete_all`
+
+```python
+delete_all()
+```
+
 ## Valid Message Shape
 
-Each message must be a dict like this:
+Each message must be a non-empty object like:
 
 ```python
-{"role": "user", "content": "I like dark mode"}
+{"role": "user", "content": "I prefer coffee"}
 ```
 
-or:
+Supported roles are whatever your calling flow passes through, but the memory
+service behavior is driven mainly by `user`, `assistant`, and `tool` messages.
 
-```python
-{"role": "assistant", "content": "Got it, I will remember that"}
-```
+For `runs-on` custom agents, the most common shapes are:
 
-Current validation is simple:
-- `role` must be a non-empty string
-- `content` must be a non-empty string
-- `messages` must be a non-empty list
+- a single `user` message
+- a short `user` + `assistant` window
+- `user` + `tool` messages for procedural or tool-result memory
 
-## Metadata: What Is Supported?
+## Supported `memory_type` Values
 
-Short version:
-- yes, metadata is supported on `add_messages(...)`
-- it is an open-ended dictionary, not a strict typed SDK schema
-- use JSON-serializable values only
-- prefer top-level fields such as `memory_type`, `agent_id`, and `run_id` when those concepts already exist as first-class arguments
-
-### What the SDK Accepts
-
-The SDK accepts:
-
-```python
-metadata: dict[str, Any] | None
-```
-
-The request builder and client do not currently enforce a narrow metadata schema.
-If you pass a Python dict, it is forwarded to the backend.
-
-### What the Memory Service Does With It
-
-On create, the memory service builds a Mem0 metadata payload and merges your `metadata` into it.
-
-The service also adds platform-managed keys such as:
-- `tenant_id`
-- `memory_type`
-- `source_agent_id`
-- `source_run_id`
-- `source_request_id`
-- `source_message_roles`
-- `wxo_ingest_pass`
-
-So your metadata is supported, but it is not the only metadata present in storage.
-
-### Keys That Are Actually Useful Today
-
-These are the keys worth documenting for users:
-
-- `source_request_id`
-  - lets you pass a caller-side correlation/request id
-  - if omitted, the service generates one
-
-- `wxo_memory_type`
-  - useful when you map an internal type to one of the supported backend types
-  - example: keep original business meaning while storing under a supported canonical type
-
-- `scope`
-  - preserved in payload metadata
-  - useful if your application wants a lightweight custom grouping label
-
-- custom business metadata
-  - examples: `source`, `channel`, `case_id`, `ticket_id`, `customer_segment`
-  - these are accepted as long as the payload stays JSON-friendly
-
-### What to Put in Top-Level Fields Instead
-
-Do not treat `metadata` as a replacement for first-class fields that already exist.
-
-Prefer these top-level arguments:
-- `memory_type=...`
-- `agent_id=...`
-- `run_id=...`
-- `sensitivity_classification=...`
-- `source_reference=...`
-
-That keeps your code aligned with the actual API contract.
-
-### What Not to Assume
-
-- Do not assume metadata is validated client-side against a strict schema.
-- Do not assume arbitrary metadata keys will be surfaced back through current SDK response models.
-- Do not assume `metadata` is the right place for tenant/user scoping.
-
-The current SDK accepts metadata on write, but response models are intentionally minimal.
-
-## Valid `memory_type` Values
-
-The current memory service accepts:
+The SDK and backend currently agree on these canonical values:
 
 - `conversational`
 - `profile_fact`
@@ -324,247 +306,156 @@ The current memory service accepts:
 - `outcome`
 - `tool`
 
-The SDK only normalizes one alias by itself:
+The SDK also normalizes these aliases:
 
 - `conversation` -> `conversational`
+- `fact` -> `conversational`
+- `episodic` -> `conversational`
+- `profile` -> `profile_fact`
+- `identity` -> `profile_fact`
+- `preferences` -> `preference`
+- `task` -> `tool`
+- `procedure` -> `tool`
+- `derived_event` -> `outcome`
 
-Everything else is passed through unchanged.
+If you pass an unsupported type, the SDK now fails fast with a validation error
+instead of silently shipping a bad payload.
 
-That means this works:
+## What Metadata Is Supported
+
+`metadata` is supported on `add_messages(...)` as:
 
 ```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "I like dark mode"}],
-    memory_type="conversation",
-)
+dict[str, Any] | None
 ```
 
-and the SDK sends:
+Useful examples:
 
-```json
-{
-  "messages": [{"role": "user", "content": "I like dark mode"}],
-  "memory_type": "conversational"
+```python
+metadata={
+    "source": "chat",
+    "source_request_id": "req-123",
+    "scope": "user_profile",
+    "case_id": "case-42",
+    "ticket_id": "ticket-99",
 }
 ```
 
-## Why Users See `422` or “memory unavailable”
+Prefer top-level fields when the SDK already exposes them:
 
-This is the part users usually trip on.
+- `memory_type`
+- `agent_id`
+- `run_id`
+- `sensitivity_classification`
+- `source_reference`
 
-The SDK does not fully validate `memory_type` against the backend enum before sending the request.
+Do not bury those concepts in `metadata` unless you are intentionally adding
+extra source annotations.
 
-So if you do this:
+## Scoping Rules That Matter
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My name is Jane"}],
-    memory_type="random_type",
-)
-```
+This is one of the biggest sources of confusion.
 
-the SDK can still send it, and the memory service can return `422`.
+Managed memory is user-scoped first.
 
-In a custom agent, if that exception is caught broadly, users often see only a generic message such as:
+That means:
 
-- "memory service unavailable"
-- "I couldn't access memory right now"
+- memories are primarily stored for the current user in the current tenant
+- `agent_id` is context, not an ownership boundary
+- `run_id` is source metadata, not an ownership boundary
 
-The real issue is often just an unsupported `memory_type`.
+Practical implications:
 
-## Safe Mapping for Older/Internal Types
+- the same user can recall relevant memories across agents
+- `delete_all()` is not thread-scoped
+- `list()` is not thread-scoped
 
-If your code already uses older categories, map them before calling the SDK:
+So when you write tests, validate user-level behavior, not per-agent isolation.
 
-- `conversation` -> `conversational`
-- `profile_fact` -> `profile_fact`
-- `profile` -> `profile_fact`
-- `identity` -> `profile_fact`
-- `preference` -> `preference`
-- `fact` -> `conversational`
-- `episodic` -> `conversational`
-- `procedure` -> `tool`
-- `task` -> `tool`
-- `derived_event` -> `outcome`
+## Choosing `infer=True` vs `infer=False`
 
-Example:
+Use `infer=False` when:
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My name is Suyash"}],
-    memory_type="profile_fact",
-    metadata={"wxo_memory_type": "profile_fact"},
-)
-```
+- you already know what memory you are writing
+- you want a predictable, typed write
+- you are intentionally storing a distilled fact
 
-## Metadata Examples That Read Well in Real Code
+Use the default behavior when:
 
-### Example: preserve original internal type
+- you are providing a richer message window
+- you want backend extraction to decide what durable memory to keep
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My name is Suyash"}],
-    infer=False,
-    memory_type="profile_fact",
-    metadata={
-        "wxo_memory_type": "identity",
-        "source": "agent",
-    },
-)
-```
+For most custom agents, the safest pattern is still:
 
-Use this when your application used an internal label such as `identity`, but you want to store it under the supported backend type `profile_fact`.
+1. decide the memory type in your agent logic
+2. call `add_messages(...)` with an explicit `memory_type`
+3. use `infer=False` for deterministic writes
 
-### Example: pass a request correlation id
+## A Simple Runs-On Memory Loop
 
 ```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "I prefer email over SMS"}],
-    infer=False,
-    memory_type="preference",
-    metadata={
-        "source_request_id": "req-9fd5a2",
-        "source": "web-chat",
-    },
-)
+from ibm_watsonx_orchestrate_sdk import Client
+
+
+def remember_preference(config, text: str):
+    client = Client.from_runnable_config(config)
+    return client.memory.add_messages(
+        messages=[{"role": "user", "content": text}],
+        memory_type="preference",
+        infer=False,
+        metadata={"source": "agent"},
+    )
+
+
+def recall_preferences(config, query: str):
+    client = Client.from_runnable_config(config)
+    return client.memory.search(
+        query=query,
+        memory_type="preference",
+        limit=3,
+    )
 ```
 
-### Example: lightweight scope tag
+## Common Failure Modes
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My support ticket was escalated"}],
-    infer=False,
-    memory_type="outcome",
-    metadata={
-        "scope": "support",
-        "ticket_id": "INC-1042",
-    },
-)
-```
+### 1. `execution_context.api_proxy_url is required`
 
-### Example: scoped runtime context plus metadata
+The runtime did not provide `api_proxy_url`, and `WXO_API_PROXY_URL` was not set.
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "I must complete MFA before password reset"}],
-    infer=False,
-    memory_type="tool",
-    agent_id="agent-123",
-    run_id="run-456",
-    metadata={
-        "source": "workflow",
-        "case_id": "case-789",
-    },
-)
-```
+### 2. TLS warnings or hostname errors on `runs-on`
 
-In this pattern:
-- `agent_id` and `run_id` stay in first-class fields
-- custom business fields stay in `metadata`
+The SDK uses the `api_proxy_url` exactly as provided. If that host has a cert
+that does not match the hostname, requests will fail unless the environment is
+intentionally configured for unverified internal HTTPS.
 
-## Copy-Paste Examples
+### 3. Invalid `memory_type`
 
-### Save a preference
+This is now an SDK validation error, not a backend surprise.
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "I prefer email over SMS"}],
-    memory_type="preference",
-    infer=False,
-)
-```
+### 4. Empty search results
 
-### Save a profile fact
+This is a valid outcome. Do not treat an empty search result as a transport or
+SDK failure.
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "My name is Suyash"}],
-    memory_type="profile_fact",
-    infer=False,
-)
-```
+## What to Test for a Runs-On Agent
 
-### Save general conversation context
+At minimum:
 
-```python
-client.memory.add_messages(
-    messages=[{"role": "user", "content": "I mentioned my Honda Civic earlier"}],
-    memory_type="conversational",
-    infer=False,
-)
-```
+1. agent initializes from `RunnableConfig`
+2. `client.memory.add_messages(...)` succeeds with an explicit type
+3. `client.memory.search(...)` returns a typed response object
+4. empty search results are handled cleanly
+5. invalid `memory_type` fails fast with a clear error
 
-### Search only preferences
+## Recommended Mental Model
 
-```python
-client.memory.search(
-    query="communication preference",
-    limit=5,
-    memory_type="preference",
-)
-```
+- `runs-on` is the runtime integration path
+- `Client.from_runnable_config(config)` is the cleanest constructor for
+  LangGraph agents
+- `add_messages(...)` is the main write API
+- `search(...)` is the main read API
+- memory is user-scoped, not agent-owned
+- `api_proxy_url` must already be the correct API base path
 
-### Search everything
-
-```python
-client.memory.search(
-    query="What do you remember about me?",
-    limit=5,
-)
-```
-
-## What the Responses Look Like
-
-Note:
-- current SDK write/search/list response models do not expose a top-level `metadata` field back to the caller
-- metadata is supported on write and used downstream, but the SDK currently returns a simplified model
-
-### `add_messages`
-
-```python
-response = client.memory.add_messages(...)
-print(response.count)
-print(response.memories[0].mem0_id)
-print(response.memories[0].content)
-```
-
-### `search`
-
-```python
-response = client.memory.search(query="coffee")
-for item in response.results:
-    print(item.mem0_id, item.score, item.memory_type, item.content)
-```
-
-### `list`
-
-```python
-response = client.memory.list(limit=20, offset=0)
-print(response.total)
-for item in response.memories:
-    print(item.mem0_id, item.memory_type, item.content)
-```
-
-## Local Example Agent in This Repo
-
-The working example agent is:
-
-- `local_memory_sdk_agent`
-
-Import it with:
-
-```bash
-./.venv/bin/orchestrate agents import \
-  --experimental-package-root examples/custom_agents/local_memory_sdk_agent
-```
-
-## Practical Recommendation
-
-If you want the least surprising setup:
-
-- use `Client(execution_context=execution_context)` in `runs-on`
-- use only the supported `memory_type` values
-- treat `profile_fact` as supported
-- map older internal labels before calling the SDK
-- if users report “memory unavailable”, inspect the underlying exception before assuming the service is down
+If you keep those six points straight, most of the SDK memory usage becomes
+predictable.
