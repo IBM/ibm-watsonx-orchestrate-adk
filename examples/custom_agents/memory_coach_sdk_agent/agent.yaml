@@ -1,0 +1,10 @@
+spec_version: v1
+kind: agent
+name: memory_coach_sdk_agent
+title: Memory Coach SDK Agent
+description: A custom LangGraph agent that classifies user memory intent, recalls relevant memories, and stores new profile facts, preferences, and outcomes through the agentic SDK.
+deployment:
+  code_bundle:
+    entrypoint: agent:create_agent
+
+# Made with Bob
