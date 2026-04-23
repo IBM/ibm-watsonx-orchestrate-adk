@@ -3020,6 +3020,10 @@ class AgentsController:
             agent_name: Override agent name (defaults to name from agent card)
             app_id: Connection app_id for authentication (optional)
         """
+        
+        # Sanitize agent_name if provided
+        if agent_name:
+            agent_name = agent_name.lower().replace(" ", "_")
                 
         try:
             with A2ADiscoveryService() as discovery_client:
