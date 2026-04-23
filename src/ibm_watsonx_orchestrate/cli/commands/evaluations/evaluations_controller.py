@@ -115,7 +115,8 @@ class EvaluationsController:
                 model_id="meta-llama/llama-3-3-70b-instruct"
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
-            "langfuse_enabled": langfuse_enabled
+            "langfuse_enabled": langfuse_enabled,
+            "is_adk": True
         }
 
         if config_file:
