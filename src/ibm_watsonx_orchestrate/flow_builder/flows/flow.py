@@ -1702,170 +1702,170 @@ class Flow(Node):
             input_policy=input_policy
         )
 
-    def mask_property(
-        self,
-        property_path: str,
-        masking_policy: MaskingPolicy,
-        regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
-    ) -> Self:
-        """
-        Mark a property as sensitive/confidential by adding IBM masking extensions.
+    # def mask_property(
+    #     self,
+    #     property_path: str,
+    #     masking_policy: MaskingPolicy,
+    #     regex_config: Optional[dict] = None,
+    #     input_policy: Optional[InputPolicy] = None
+    # ) -> Self:
+    #     """
+    #     Mark a property as sensitive/confidential by adding IBM masking extensions.
         
-        Supports masking properties in:
-        - Flow input schema: flow.input.property_name
-        - Flow private schema: flow.private.property_name
-        - Node output schemas: flow.node_name.output.property_name
-        - Nested flow node outputs: flow.nested_flow.node.output.property_name
-        - Nested properties: flow.input.user.email
+    #     Supports masking properties in:
+    #     - Flow input schema: flow.input.property_name
+    #     - Flow private schema: flow.private.property_name
+    #     - Node output schemas: flow.node_name.output.property_name
+    #     - Nested flow node outputs: flow.nested_flow.node.output.property_name
+    #     - Nested properties: flow.input.user.email
         
-        Important Restrictions:
-        - Only STRING properties can be masked (arrays, objects, numbers, booleans cannot be masked)
-        - Flow output properties cannot be masked (only input, private, and node outputs)
+    #     Important Restrictions:
+    #     - Only STRING properties can be masked (arrays, objects, numbers, booleans cannot be masked)
+    #     - Flow output properties cannot be masked (only input, private, and node outputs)
         
-        Args:
-            property_path: Dot-notation path to the property
-            masking_policy: Masking strategy (MaskingPolicy enum)
-                - MaskingPolicy.MASK_ALL: Completely mask the entire value
-                - MaskingPolicy.MASK_LAST4: Mask all but the last 4 characters
-                - MaskingPolicy.MASK_FIRST4: Mask all but the first 4 characters
-                - MaskingPolicy.MASK_VIA_REGEX: Use regex pattern for custom masking (requires regex_config)
-            regex_config: Configuration for mask-via-regex policy (optional)
-                Must include:
-                - "text-pattern": Regex pattern to match the text
-                - "masking-pattern": Pattern for masking (use $1, $2, etc. for capture groups)
-                Example: {
-                    "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
-                    "masking-pattern": "XXXX-XXXX-XXXX-$4"
-                }
-            input_policy: Input masking behavior (InputPolicy enum, optional)
-                - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
-                If omitted, data is only masked on output, not during input
+    #     Args:
+    #         property_path: Dot-notation path to the property
+    #         masking_policy: Masking strategy (MaskingPolicy enum)
+    #             - MaskingPolicy.MASK_ALL: Completely mask the entire value
+    #             - MaskingPolicy.MASK_LAST4: Mask all but the last 4 characters
+    #             - MaskingPolicy.MASK_FIRST4: Mask all but the first 4 characters
+    #             - MaskingPolicy.MASK_VIA_REGEX: Use regex pattern for custom masking (requires regex_config)
+    #         regex_config: Configuration for mask-via-regex policy (optional)
+    #             Must include:
+    #             - "text-pattern": Regex pattern to match the text
+    #             - "masking-pattern": Pattern for masking (use $1, $2, etc. for capture groups)
+    #             Example: {
+    #                 "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
+    #                 "masking-pattern": "XXXX-XXXX-XXXX-$4"
+    #             }
+    #         input_policy: Input masking behavior (InputPolicy enum, optional)
+    #             - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
+    #             If omitted, data is only masked on output, not during input
         
-        Returns:
-            Self for method chaining
+    #     Returns:
+    #         Self for method chaining
         
-        Raises:
-            ValueError: If path is invalid, property not found, property is not a string type,
-                       or attempting to mask flow output
+    #     Raises:
+    #         ValueError: If path is invalid, property not found, property is not a string type,
+    #                    or attempting to mask flow output
         
-        Examples:
+    #     Examples:
             
-            # Basic masking
-            flow.mask_property("flow.input.customer_id", MaskingPolicy.MASK_ALL)
+    #         # Basic masking
+    #         flow.mask_property("flow.input.customer_id", MaskingPolicy.MASK_ALL)
             
-            # Mask last 4 characters
-            flow.mask_property("flow.input.ssn", MaskingPolicy.MASK_LAST4)
+    #         # Mask last 4 characters
+    #         flow.mask_property("flow.input.ssn", MaskingPolicy.MASK_LAST4)
             
-            # Custom regex masking for credit card
-            flow.mask_property(
-                "flow.input.card_number",
-                MaskingPolicy.MASK_VIA_REGEX,
-                regex_config={
-                    "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
-                    "masking-pattern": "XXXX-XXXX-XXXX-$4"
-                }
-            )
+    #         # Custom regex masking for credit card
+    #         flow.mask_property(
+    #             "flow.input.card_number",
+    #             MaskingPolicy.MASK_VIA_REGEX,
+    #             regex_config={
+    #                 "text-pattern": "^(\\d{4})-(\\d{4})-(\\d{4})-(\\d{4})$",
+    #                 "masking-pattern": "XXXX-XXXX-XXXX-$4"
+    #             }
+    #         )
             
-            # Mask while typing
-            flow.mask_property(
-                "flow.input.password",
-                MaskingPolicy.MASK_ALL,
-                input_policy=InputPolicy.MASK_WHILE_TYPING
-            )
-        """
-        from ..masking_utils import PropertyMaskingHelper
+    #         # Mask while typing
+    #         flow.mask_property(
+    #             "flow.input.password",
+    #             MaskingPolicy.MASK_ALL,
+    #             input_policy=InputPolicy.MASK_WHILE_TYPING
+    #         )
+    #     """
+    #     from ..masking_utils import PropertyMaskingHelper
         
-        # Parse the path
-        try:
-            parsed = PropertyMaskingHelper.parse_property_path(property_path)
-        except ValueError as e:
-            raise ValueError(f"Invalid property path: {e}")
+    #     # Parse the path
+    #     try:
+    #         parsed = PropertyMaskingHelper.parse_property_path(property_path)
+    #     except ValueError as e:
+    #         raise ValueError(f"Invalid property path: {e}")
         
-        # Get base schema based on scope
-        scope = parsed['scope']
-        node_path = parsed['node_path']
-        property_chain = parsed['property_chain']
+    #     # Get base schema based on scope
+    #     scope = parsed['scope']
+    #     node_path = parsed['node_path']
+    #     property_chain = parsed['property_chain']
         
-        # Validate that we're not trying to mask flow output
-        if scope == 'output':
-            raise ValueError(
-                "Cannot mask flow output properties. "
-                "Only flow input, flow private, and node output properties can be masked."
-            )
+    #     # Validate that we're not trying to mask flow output
+    #     if scope == 'output':
+    #         raise ValueError(
+    #             "Cannot mask flow output properties. "
+    #             "Only flow input, flow private, and node output properties can be masked."
+    #         )
         
-        # Initialize for all scopes
-        original_output_schema = None
-        final_node = None
+    #     # Initialize for all scopes
+    #     original_output_schema = None
+    #     final_node = None
         
-        if scope == 'input':
-            base_schema = self._resolve_schema_ref(self.spec.input_schema)
-        elif scope == 'private':
-            base_schema = self._resolve_schema_ref(self.spec.private_schema)
-        elif scope == 'node':
-            base_schema, original_output_schema, current_flow, final_node, final_node_kind = (
-                self._resolve_masking_node_target(node_path, property_chain)
-            )
-        else:
-            raise ValueError(f"Invalid scope: {scope}")
+    #     if scope == 'input':
+    #         base_schema = self._resolve_schema_ref(self.spec.input_schema)
+    #     elif scope == 'private':
+    #         base_schema = self._resolve_schema_ref(self.spec.private_schema)
+    #     elif scope == 'node':
+    #         base_schema, original_output_schema, current_flow, final_node, final_node_kind = (
+    #             self._resolve_masking_node_target(node_path, property_chain)
+    #         )
+    #     else:
+    #         raise ValueError(f"Invalid scope: {scope}")
         
-        if not base_schema:
-            raise ValueError(f"No schema found for scope '{scope}'")
+    #     if not base_schema:
+    #         raise ValueError(f"No schema found for scope '{scope}'")
         
-        # For user nodes, _get_user_node_output_schema already handles complete resolution
-        # including form fields, so we skip _navigate_to_property
-        if scope == 'node' and final_node_kind == 'user':
-            # User nodes: schema is already fully resolved by _get_user_node_output_schema
-            property_schema = base_schema
-        else:
-            # For non-user nodes and flow input/private: navigate to the target property
-            try:
-                parent_schema, property_name = self._navigate_to_property(
-                    base_schema, property_chain
-                )
-            except ValueError as e:
-                raise ValueError(f"Cannot resolve path '{property_path}': {e}")
+    #     # For user nodes, _get_user_node_output_schema already handles complete resolution
+    #     # including form fields, so we skip _navigate_to_property
+    #     if scope == 'node' and final_node_kind == 'user':
+    #         # User nodes: schema is already fully resolved by _get_user_node_output_schema
+    #         property_schema = base_schema
+    #     else:
+    #         # For non-user nodes and flow input/private: navigate to the target property
+    #         try:
+    #             parent_schema, property_name = self._navigate_to_property(
+    #                 base_schema, property_chain
+    #             )
+    #         except ValueError as e:
+    #             raise ValueError(f"Cannot resolve path '{property_path}': {e}")
             
-            # Handle two cases: property within object, or primitive schema
-            if property_name is None:
-                # Case 1: Primitive schema (e.g., node output is directly a string)
-                # For node outputs, we need to work with the actual schema object in the node spec
-                if scope == 'node' and final_node:
-                    # Use the centralized resolver to get the actual schema
-                    property_schema = current_flow._resolve_schema_ref(original_output_schema)
-                    if property_schema is None:
-                        raise ValueError(f"Could not resolve output schema for node '{node_path[-1]}'")
-                else:
-                    # For input/private, use the resolved base_schema
-                    if not isinstance(base_schema, JsonSchemaObject):
-                        raise ValueError("Cannot mask primitive output: resolved schema is not a JsonSchemaObject")
-                    property_schema = base_schema
-            else:
-                # Case 2: Property within an object schema
-                # Ensure parent_schema is resolved (shouldn't be a reference at this point)
-                parent_schema = self._resolve_schema_ref(parent_schema)
-                if parent_schema is None:
-                    raise ValueError(f"Could not resolve parent schema")
+    #         # Handle two cases: property within object, or primitive schema
+    #         if property_name is None:
+    #             # Case 1: Primitive schema (e.g., node output is directly a string)
+    #             # For node outputs, we need to work with the actual schema object in the node spec
+    #             if scope == 'node' and final_node:
+    #                 # Use the centralized resolver to get the actual schema
+    #                 property_schema = current_flow._resolve_schema_ref(original_output_schema)
+    #                 if property_schema is None:
+    #                     raise ValueError(f"Could not resolve output schema for node '{node_path[-1]}'")
+    #             else:
+    #                 # For input/private, use the resolved base_schema
+    #                 if not isinstance(base_schema, JsonSchemaObject):
+    #                     raise ValueError("Cannot mask primitive output: resolved schema is not a JsonSchemaObject")
+    #                 property_schema = base_schema
+    #         else:
+    #             # Case 2: Property within an object schema
+    #             # Ensure parent_schema is resolved (shouldn't be a reference at this point)
+    #             parent_schema = self._resolve_schema_ref(parent_schema)
+    #             if parent_schema is None:
+    #                 raise ValueError(f"Could not resolve parent schema")
                 
-                # Get the property schema
-                if not hasattr(parent_schema, 'properties') or not parent_schema.properties:
-                    raise ValueError(f"Parent schema has no properties")
+    #             # Get the property schema
+    #             if not hasattr(parent_schema, 'properties') or not parent_schema.properties:
+    #                 raise ValueError(f"Parent schema has no properties")
                     
-                property_schema = parent_schema.properties[property_name]
+    #             property_schema = parent_schema.properties[property_name]
                 
-                # Resolve if it's a reference using the centralized resolver
-                property_schema = self._resolve_schema_ref(property_schema)
-                if property_schema is None:
-                    raise ValueError(f"Could not resolve schema for property '{property_name}'")
+    #             # Resolve if it's a reference using the centralized resolver
+    #             property_schema = self._resolve_schema_ref(property_schema)
+    #             if property_schema is None:
+    #                 raise ValueError(f"Could not resolve schema for property '{property_name}'")
         
-        self._apply_masking_to_resolved_schema(
-            property_schema,
-            masking_policy=masking_policy,
-            regex_config=regex_config,
-            input_policy=input_policy
-        )
+    #     self._apply_masking_to_resolved_schema(
+    #         property_schema,
+    #         masking_policy=masking_policy,
+    #         regex_config=regex_config,
+    #         input_policy=input_policy
+    #     )
         
-        return self
+    #     return self
 
     def to_json(self) -> dict[str, Any]:
         flow_dict = super().to_json()
