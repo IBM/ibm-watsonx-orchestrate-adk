@@ -225,15 +225,23 @@ class Tracer:
 
     @staticmethod
     def _current_context():
-        from opentelemetry import context, trace
+        from opentelemetry import baggage as otel_baggage, context, trace
 
         ctx = context.get_current()
+        ec = _execution_context_var.get()
 
         current_span = trace.get_current_span(ctx)
         if current_span.get_span_context().is_valid:
+            if ec:
+                for baggage_key, ec_key in (
+                    (BAGGAGE_TENANT_ID, "tenant_id"),
+                    (BAGGAGE_AGENT_ID, "agent_id"),
+                ):
+                    val = ec.get(ec_key)
+                    if val and not otel_baggage.get_baggage(baggage_key, ctx):
+                        ctx = otel_baggage.set_baggage(baggage_key, str(val), context=ctx)
             return ctx
-            
-        ec = _execution_context_var.get()
+
         if ec is not None:
             built = _build_invocation_context(ec)
             if built is not None:
