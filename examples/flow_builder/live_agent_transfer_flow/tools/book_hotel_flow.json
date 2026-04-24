@@ -1,7 +1,7 @@
 {
   "spec": {
     "kind": "flow",
-    "name": "book_a_hotel_flow",
+    "name": "book_hotel_flow",
     "initiators": [],
     "description": "No description",
     "schedulable": true,

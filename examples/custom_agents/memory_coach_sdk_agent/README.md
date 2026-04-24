@@ -11,6 +11,10 @@ Unlike the earlier heuristic-only POC, this version uses the LLM for both:
 - planning whether to search/store memory
 - generating the final user-facing response
 
+For the current Agentic SDK memory surface, valid `memory_type` values, and
+the recommended `runs-on` construction pattern, see
+[`../local_memory_sdk_agent/SDK_MEMORY_REFERENCE.md`](../local_memory_sdk_agent/SDK_MEMORY_REFERENCE.md).
+
 ## Runtime Requirements
 
 This agent expects an environment variable:

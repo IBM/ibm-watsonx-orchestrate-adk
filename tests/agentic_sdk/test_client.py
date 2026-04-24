@@ -170,6 +170,43 @@ def test_memory_client_supports_list_and_delete_routes(monkeypatch):
     assert delete_response is True
 
 
+def test_memory_client_retrieve_compatibility_helper_delegates_to_search(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_post(self, path: str, data=None, files=None):
+        captured["path"] = path
+        captured["data"] = data
+        return {
+            "results": [
+                {
+                    "mem0_id": "mem-1",
+                    "content": "prefers coffee",
+                    "memory_type": "preference",
+                    "score": 0.99,
+                }
+            ],
+            "total": 1,
+            "query": data["query"],
+        }
+
+    monkeypatch.setattr(BaseAgenticClient, "_post", fake_post, raising=False)
+
+    client = Client(
+        execution_context={
+            "access_token": TEST_TOKEN,
+            "api_proxy_url": "http://example.local/api/v1",
+            "thread_id": "thread-123",
+        }
+    )
+
+    response = client.memory.retrieve("coffee preference", limit=3)
+
+    assert captured["path"] == "/memories/search"
+    assert captured["data"] == {"query": "coffee preference", "limit": 3}
+    assert response.total == 1
+    assert not hasattr(client.memory, "store")
+
+
 def test_memory_type_alias_is_normalized(monkeypatch):
     captured: dict[str, object] = {}
 
