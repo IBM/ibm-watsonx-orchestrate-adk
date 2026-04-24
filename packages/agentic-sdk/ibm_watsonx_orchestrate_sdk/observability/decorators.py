@@ -316,25 +316,19 @@ def trace_agent_call(
 # -----------------------------------------------------------------------
 
 def configure_tracing(fn: Callable) -> Callable:
-    """Decorator for LangGraph ``create_agent`` factory functions.
+    """
+    Decorator for LangGraph ``create_agent`` factory functions.
+    Extracts ``execution_context`` from the LangGraph config and stores it
     """
 
     @functools.wraps(fn)
     def wrapper(config: Any, *args: Any, **kwargs: Any) -> Any:
-        from ibm_watsonx_orchestrate_sdk.observability.tracer import _build_invocation_context
-        from opentelemetry import context as otel_context
+        from ibm_watsonx_orchestrate_sdk.observability.tracer import store_execution_context
 
         ec = (config or {}).get("configurable", {}).get("execution_context") or {}
-        token = None
         if ec:
-            ctx = _build_invocation_context(ec)
-            if ctx is not None:
-                token = otel_context.attach(ctx)
+            store_execution_context(ec)
 
-        try:
-            return fn(config, *args, **kwargs)
-        finally:
-            if token is not None:
-                otel_context.detach(token)
+        return fn(config, *args, **kwargs)
 
     return wrapper

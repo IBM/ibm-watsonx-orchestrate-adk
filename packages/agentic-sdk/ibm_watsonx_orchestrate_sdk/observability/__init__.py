@@ -33,6 +33,7 @@ __all__ = [
     "AgentSpanWrapper",
     "get_default_tracer",
     "register_tracer",
+    "store_execution_context",
     "trace_call",
     "trace_llm_call",
     "trace_tool_call",
@@ -58,4 +59,5 @@ from ibm_watsonx_orchestrate_sdk.observability.tracer import (
     Tracer,
     get_default_tracer,
     register_tracer,
+    store_execution_context,
 )

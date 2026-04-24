@@ -377,10 +377,10 @@ class TestConfigureTracing:
         fn.assert_called_once_with({"configurable": {}}, "arg1", kw="val")
 
     def test_execution_context_present_missing_impl_raises(self, monkeypatch):
-        """Without the stub, calling with execution_context raises ImportError."""
+        """Without store_execution_context, calling with execution_context raises ImportError."""
         import ibm_watsonx_orchestrate_sdk.observability.tracer as _tracer_mod
 
-        monkeypatch.delattr(_tracer_mod, "_build_invocation_context", raising=False)
+        monkeypatch.delattr(_tracer_mod, "store_execution_context", raising=False)
         fn = MagicMock(return_value="noop")
         with pytest.raises(ImportError):
             configure_tracing(fn)({"configurable": {"execution_context": {"tenant_id": "t1"}}})

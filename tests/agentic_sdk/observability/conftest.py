@@ -39,6 +39,7 @@ def memory_tracer(monkeypatch):
     register_tracer(tracer)
     yield tracer, exporter
     tracer_module._default_tracer = old
+    tracer_module._execution_context_var.set(None)
 
 
 @pytest.fixture
@@ -49,6 +50,7 @@ def traced(monkeypatch):
     register_tracer(tracer)
     yield exporter
     tracer_module._default_tracer = old
+    tracer_module._execution_context_var.set(None)
 
 
 def get_attrs(span) -> dict:
