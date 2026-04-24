@@ -1,6 +1,6 @@
 ### How to run evaluation
 
-1. Run `import-all.sh` 
+1. Run `bash import-all.sh` 
 2. Run `orchestrate evaluations evaluate -p ./examples/evaluations/evaluate/  -o ./debug -e .env_file`
 🚨 Note: we expect `WATSONX_APIKEY, WATSONX_SPACE_ID` or `WO_INSTANCE, WO_API_KEY` be part of the environment variables or specified in .env_file. 
 
@@ -9,7 +9,7 @@ To run the evaluator with IBM Cloud Pak for Data (with or without IFM), see:
 - examples/evaluations/cpd/README.md 
 
 ### Agentops Evaluation
-The `orchestrate evaluations evaluate` command is the only `evaluations` command that supports non-legacy evaluation. To enable this mode, set the following environment variable:
+The `orchestrate evaluations evaluate` command is the only `evaluations` command that supports non-legacy evaluation. The command uses legacy evaluation by default. To use non-legacy evaluation, set the following environment variable:
 
 ```bash
 export USE_LEGACY_EVAL=FALSE
