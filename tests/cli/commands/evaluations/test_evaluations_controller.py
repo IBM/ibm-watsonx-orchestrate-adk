@@ -6,26 +6,41 @@ import yaml
 import csv
 import shutil
 import json
+
 try:
-    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import (
+        EvaluationsController,
+        EvaluateMode,
+    )
     from ibm_watsonx_orchestrate.cli.config import AUTH_MCSP_TOKEN_OPT
+
     # Suppresses fuzzywuzzy warning coming from eval
     from warnings import filterwarnings
+
     filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
 
-    from agentops.arg_configs import TestConfig, AttackGeneratorConfig, AttackConfig, QuickEvalConfig
-except ImportError:
-    pytest.skip(allow_module_level=True)
-    
+    from agentops.arg_configs import (
+        TestConfig,
+        AttackGeneratorConfig,
+        AttackConfig,
+        QuickEvalConfig,
+    )
+except ImportError as e:
+    import traceback
+
+    traceback.print_exc()
+    pytest.skip(f"Missing required dependencies: {e}", allow_module_level=True)
+
+
 @pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
     # Setup - ensure we start with a clean state
     test_output_dir = Path("test_output")
     if test_output_dir.exists():
         shutil.rmtree(test_output_dir)
-    
+
     yield  # Run the tests
-    
+
     # Cleanup after all tests in this module
     if test_output_dir.exists():
         shutil.rmtree(test_output_dir)
@@ -34,10 +49,13 @@ def cleanup_test_output():
 class MockConfig:
     def __init__(self, a=None, b=None):
         pass
+
     def get_active_env_config(self, a=None):
         return "test-url"
+
     def get_active_env(self):
         return "test-tenant"
+
     def get(self, a=None):
         return {"test-tenant": {AUTH_MCSP_TOKEN_OPT: "test-token"}}
 
@@ -48,9 +66,12 @@ class TestEvaluationsController:
         return EvaluationsController()
 
     def test_get_env_config(self, controller):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.Config", MockConfig) :
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.Config",
+            MockConfig,
+        ):
             url, tenant_name, token = controller._get_env_config()
-            
+
             assert url == "test-url"
             assert tenant_name == "test-tenant"
             assert token == "test-token"
@@ -62,22 +83,25 @@ class TestEvaluationsController:
             "auth_config": {
                 "url": "test-url",
                 "tenant_name": "test-tenant",
-                "token": "test-token"
+                "token": "test-token",
             },
-            "llm_user_config": {
-                "model_id": "test-model"
-            }
+            "llm_user_config": {"model_id": "test-model"},
         }
 
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".yaml", delete=False
+        ) as tmp:
             yaml.dump(config_content, tmp)
             tmp.flush()
             config_file_path = tmp.name
 
         try:
-            with patch("agentops.main.main") as mock_evaluate, \
-                 patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
-                
+            with patch("agentops.main.main") as mock_evaluate, patch.object(
+                controller,
+                "_get_env_config",
+                return_value=("test-url", "test-tenant", "test-token"),
+            ):
+
                 controller.evaluate(config_file=config_file_path)
                 mock_evaluate.assert_called_once()
                 actual_config = mock_evaluate.call_args[0][0]
@@ -86,7 +110,7 @@ class TestEvaluationsController:
                 assert actual_config.output_dir == "test_output"
         finally:
             Path(config_file_path).unlink()
-    
+
     def test_quick_eval_with_config_file(self, controller):
         config_content = {
             "test_paths": ["test/path1", "test/path2"],
@@ -94,21 +118,21 @@ class TestEvaluationsController:
             "auth_config": {
                 "url": "test-url",
                 "tenant_name": "test-tenant",
-                "token": "test-token"
+                "token": "test-token",
             },
-            "llm_user_config": {
-                "model_id": "test-model"
-            }
+            "llm_user_config": {"model_id": "test-model"},
         }
 
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".yaml", delete=False
+        ) as tmp:
             yaml.dump(config_content, tmp)
             tmp.flush()
             config_file_path = tmp.name
 
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".py", delete=False) as tmp:
             tmp.write(
-            """
+                """
                 def tool1():
                     '''A test tool'''
                     pass
@@ -122,13 +146,20 @@ class TestEvaluationsController:
             tools_file = tmp.name
 
         try:
-            with patch("agentops.quick_eval.main") as mock_evaluate, \
-                 patch.object(controller, "_get_env_config", return_value=("test-url", "test-tenant", "test-token")):
-                
-                controller.evaluate(config_file=config_file_path, tools_path=tools_file, mode=EvaluateMode.referenceless)
+            with patch("agentops.quick_eval.main") as mock_evaluate, patch.object(
+                controller,
+                "_get_env_config",
+                return_value=("test-url", "test-tenant", "test-token"),
+            ):
+
+                controller.evaluate(
+                    config_file=config_file_path,
+                    tools_path=tools_file,
+                    mode=EvaluateMode.referenceless,
+                )
                 mock_evaluate.assert_called_once()
                 actual_config = mock_evaluate.call_args[0][0]
-                
+
                 assert isinstance(actual_config, QuickEvalConfig)
                 assert actual_config.test_paths == ["test/path1", "test/path2"]
                 assert actual_config.output_dir == "test_output"
@@ -137,19 +168,24 @@ class TestEvaluationsController:
             Path(config_file_path).unlink()
             Path(tools_file).unlink()
 
-
     def test_record(self, controller, monkeypatch, tmp_path):
         monkeypatch.setenv("HOME", str(tmp_path))
         (tmp_path / ".cache" / "orchestrate").mkdir(parents=True, exist_ok=True)
         (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
         mock_runs = []
         # Mock get_recent_runs to prevent HTTP requests but allow record_chats to execute
-        with patch("agentops.record.record_chat.get_recent_runs", return_value=mock_runs), \
-             patch.object(controller, "_get_env_config", return_value=("https://test-url", "test-tenant", "test-token")), \
-             patch("time.sleep", side_effect=KeyboardInterrupt):  # Simulate Ctrl+C
+        with patch(
+            "agentops.record.record_chat.get_recent_runs", return_value=mock_runs
+        ), patch.object(
+            controller,
+            "_get_env_config",
+            return_value=("https://test-url", "test-tenant", "test-token"),
+        ), patch(
+            "time.sleep", side_effect=KeyboardInterrupt
+        ):  # Simulate Ctrl+C
             output_dir = "test_output"
             controller.record(output_dir)
-            
+
             assert Path(output_dir).exists()
 
     def test_generate(self, controller):
@@ -164,7 +200,8 @@ class TestEvaluationsController:
         # Create temporary directory with mock tool file
         tools_dir = tempfile.mkdtemp()
         tools_file = Path(tools_dir) / "test_tool.py"
-        tools_file.write_text("""
+        tools_file.write_text(
+            """
 def tool1():
     '''A test tool'''
     pass
@@ -172,28 +209,37 @@ def tool1():
 def tool2():
     '''Another test tool'''
     pass
-""")
+"""
+        )
 
         example_json = {
             "utterance": "test story",
             "tools": ["tool1", "tool2"],
             "expected": {
                 "tools": ["tool1", "tool2"],
-                "args": [{"arg1": "val1"}, {"arg2": "val2"}]
-            }
+                "args": [{"arg1": "val1"}, {"arg2": "val2"}],
+            },
         }
 
         try:
-            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.build_snapshot") as mock_build_snapshot, \
-                 patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.generate_test_cases_from_stories") as mock_generate, \
-                 patch("agentops.batch_annotate.load_example", return_value=example_json), \
-                 patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AgentsController") as mock_agent_controller:
+            with patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.build_snapshot"
+            ) as mock_build_snapshot, patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.generate_test_cases_from_stories"
+            ) as mock_generate, patch(
+                "agentops.batch_annotate.load_example", return_value=example_json
+            ), patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AgentsController"
+            ) as mock_agent_controller:
 
                 mock_agent = MagicMock()
                 mock_agent_controller_instance = MagicMock()
                 mock_agent_controller.return_value = mock_agent_controller_instance
                 mock_agent_controller_instance.get_agent.return_value = mock_agent
-                mock_agent_controller_instance.get_agent_tool_names.return_value = ["tool1", "tool2"]
+                mock_agent_controller_instance.get_agent_tool_names.return_value = [
+                    "tool1",
+                    "tool2",
+                ]
 
                 output_dir = "test_output"
                 controller.generate(stories_path, tools_dir, output_dir)
@@ -221,7 +267,7 @@ def tool2():
                 "Summary (Average),15.0,7.5,3.5,0.0,0.29,0.0,1.0,0.5,2.26\n"
             )
             metrics_file.write_text(csv_content)
-            
+
             # Create messages file
             message_file = messages_dir / "data_complex.messages.analyze.json"
             message_content = [
@@ -229,21 +275,21 @@ def tool2():
                     "message": {
                         "role": "user",
                         "content": "test message",
-                        "type": "text"
+                        "type": "text",
                     },
-                    "reason": None
+                    "reason": None,
                 },
                 {
                     "message": {
                         "role": "assistant",
                         "content": "test response",
-                        "type": "text"
+                        "type": "text",
                     },
-                    "reason": None
-                }
+                    "reason": None,
+                },
             ]
             message_file.write_text(json.dumps(message_content, indent=2))
-            
+
             # Create metrics file
             metrics_file = messages_dir / "data_complex.metrics.json"
             metrics_content = {
@@ -252,61 +298,68 @@ def tool2():
                 "relevant_tool_calls": 3,
                 "correct_tool_calls": 3,
                 "total_routing_calls": 2,
-                "expected_routing_calls": 2
+                "expected_routing_calls": 2,
             }
             metrics_file.write_text(json.dumps(metrics_content, indent=2))
 
-            with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze") as mock_analyze:
+            with patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze"
+            ) as mock_analyze:
                 controller.analyze(data_path=temp_dir)
                 mock_analyze.assert_called_once_with(data_path=temp_dir)
-                
 
     def test_external_validate(self, controller):
-        config = {
-                "auth_scheme": "api_key",
-                "api_url": "test-url"
-            }
+        config = {"auth_scheme": "api_key", "api_url": "test-url"}
         test_data = ["input1", "input2"]
         credential = "test-cred"
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentValidation") as mock_validator_class:
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentValidation"
+        ) as mock_validator_class:
             for add_context in [True, False]:
                 mock_validator = MagicMock()
                 mock_validator_class.return_value = mock_validator
                 mock_validator.call_validation.return_value = ["result1", "result2"]
 
-                result = controller.external_validate(config, test_data, credential, add_context=add_context)
-                
+                result = controller.external_validate(
+                    config, test_data, credential, add_context=add_context
+                )
+
                 mock_validator_class.assert_called_once_with(
                     credential=credential,
                     auth_scheme=config["auth_scheme"],
-                    service_url=config["api_url"]
+                    service_url=config["api_url"],
                 )
-                
+
                 assert mock_validator.call_validation.call_count == 2
                 mock_validator.call_validation.assert_any_call("input1", add_context)
                 mock_validator.call_validation.assert_any_call("input2", add_context)
-                
+
                 assert len(result) == 2
                 assert result[0] == ["result1", "result2"]
                 assert result[1] == ["result1", "result2"]
 
                 mock_validator_class.reset_mock()
-    
+
     def test_generate_performance_test(self, controller):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentPerformanceTest") as mock_validator_class:
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.ExternalAgentPerformanceTest"
+        ) as mock_validator_class:
             mock_validator = MagicMock()
             mock_validator_class.return_value = mock_validator
             mock_validator.generate_tests.return_value = ["result1"]
 
-            controller.generate_performance_test(agent_name="dummy_agent", test_data=[("dummy story", "dummy_response")])
-            mock_validator_class.assert_called_once_with(
-                agent_name="dummy_agent",
-                test_data=[("dummy story", "dummy_response")]
+            controller.generate_performance_test(
+                agent_name="dummy_agent", test_data=[("dummy story", "dummy_response")]
             )
-                
+            mock_validator_class.assert_called_once_with(
+                agent_name="dummy_agent", test_data=[("dummy story", "dummy_response")]
+            )
+
     def test_generate_red_teaming_attacks(self, controller):
-        with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.attack_generator.main") as mock_gen:
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.attack_generator.main"
+        ) as mock_gen:
             mock_gen.return_value = ["attack1"]
 
             controller.generate_red_teaming_attacks(
