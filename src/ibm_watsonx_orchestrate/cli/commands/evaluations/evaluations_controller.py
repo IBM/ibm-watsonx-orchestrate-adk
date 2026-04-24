@@ -95,7 +95,7 @@ class EvaluationsController:
 
     def evaluate(self, config_file: Optional[str] = None, test_paths: Optional[str] = None, output_dir: Optional[str] = None, tools_path: str = None, mode: str = EvaluateMode.default, langfuse_enabled: Optional[bool] = False) -> None:
         url, tenant_name, token = self._get_env_config()
-
+ 
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
@@ -112,9 +112,11 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
+                model_id="meta-llama/llama-3-3-70b-instruct"
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
-            "langfuse_enabled": langfuse_enabled
+            "langfuse_enabled": langfuse_enabled,
+            "is_adk": True
         }
 
         if config_file:
