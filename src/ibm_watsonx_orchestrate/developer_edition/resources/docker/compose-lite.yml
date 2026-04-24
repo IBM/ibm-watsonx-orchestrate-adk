@@ -524,7 +524,7 @@ services:
       - wxo-server-redis
 
   wxo-server:
-    image: us.icr.io/watson-orchestrate/production/wxo-server-server:20260408-develop-8470-75ac517
+    image: ${SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-server:${SERVER_TAG:-latest}
     platform: linux/amd64
     restart: unless-stopped
     ports:
