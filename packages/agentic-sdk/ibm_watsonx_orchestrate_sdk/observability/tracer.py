@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
@@ -44,6 +45,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _BAGGAGE_KEYS = (BAGGAGE_TENANT_ID, BAGGAGE_AGENT_ID)
+
+# ---------------------------------------------------------------------------
+# Request-scoped execution context (trace_id, span_id, tenant_id, agent_id)
+# ---------------------------------------------------------------------------
+_execution_context_var: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+    "wxo_execution_context", default=None,
+)
+
+
+def store_execution_context(ec: Dict[str, Any]) -> None:
+    """Store the execution context for the current async/thread scope.
+
+    Called by ``@configure_tracing`` so that all subsequent span-creating
+    decorators in the same request automatically inherit the parent trace.
+    """
+    _execution_context_var.set(ec)
+    logger.debug("Stored execution context: trace_id=%s", ec.get("trace_id"))
 
 
 class BaggageSpanProcessor:
@@ -207,8 +225,21 @@ class Tracer:
 
     @staticmethod
     def _current_context():
-        from opentelemetry import context
-        return context.get_current()
+        from opentelemetry import context, trace
+
+        ctx = context.get_current()
+
+        current_span = trace.get_current_span(ctx)
+        if current_span.get_span_context().is_valid:
+            return ctx
+            
+        ec = _execution_context_var.get()
+        if ec is not None:
+            built = _build_invocation_context(ec)
+            if built is not None:
+                return built
+
+        return ctx
 
     def start_span(
         self,
