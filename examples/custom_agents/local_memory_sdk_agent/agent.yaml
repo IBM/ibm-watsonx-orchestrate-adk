@@ -1,0 +1,8 @@
+spec_version: v1
+kind: agent
+name: local_memory_sdk_agent
+title: Local Memory SDK Agent
+description: A custom LangGraph agent that uses the agentic SDK memory facade against wxo-server.
+deployment:
+  code_bundle:
+    entrypoint: agent:create_agent

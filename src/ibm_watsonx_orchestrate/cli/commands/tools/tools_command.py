@@ -85,9 +85,23 @@ relative to this package root folder or imported using relative imports from the
             "--function",
             help="Used to specify a function for autodiscover, all other functions will not be converted. (Default behavior is to convert all top level functions found)"
         )
-    ] = None
+    ] = None,
+    save_flow_json: Annotated[
+        Optional[str],
+        typer.Option(
+            "--save-flow-json",
+            help="Path to save the compiled flow JSON file. Only applicable for flow imports (--kind=flow)"
+        )
+    ] = None,
+    safe: Annotated[
+        bool,
+        typer.Option(
+            "--safe",
+            help="Enable safe mode: prompt for confirmation before updating existing tools"
+        )
+    ] = False
 ):
-    tools_controller = ToolsController(kind, file, requirements_file)
+    tools_controller = ToolsController(kind, file, requirements_file, safe_mode=safe)
     if auto_discover:
         if kind != ToolKindImport.python:
             raise typer.BadParameter(f"Auto-discover is only valid for python tools")
@@ -112,6 +126,7 @@ relative to this package root folder or imported using relative imports from the
             requirements_file=requirements_file,
             package_root=package_root,
             name=name,
+            save_flow_json=save_flow_json,
         )
         tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
     finally:

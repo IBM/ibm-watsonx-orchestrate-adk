@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ibm-watsonx-orchestrate-sdk"
+dynamic = ["version"]
+description = "IBM watsonx Orchestrate Agentic SDK - Advanced AI capabilities and services"
+authors = [
+    { name = "IBM", email = "support@ibm.com" }
+]
+#readme = { file = "README.md", content-type = 'text/markdown'}
+license = {text = "MIT License"}
+license-files = ["LICENSE"]
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "ibm-watsonx-orchestrate-core",
+    "ibm-watsonx-orchestrate-clients",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "langchain-openai>=1.1.0,<2.0.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ibm_watsonx_orchestrate_sdk"]
+package-data = true
+
+[tool.hatch.build]
+include = [
+    "./**"
+]
+directory="../../dist"
+
+[tool.hatch.version]
+path = "../../src/ibm_watsonx_orchestrate/__init__.py"
+validate-bump=false

@@ -61,6 +61,11 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.agent_builder.agents.a2a_discovery import A2ADiscoveryService
+from ibm_watsonx_orchestrate.cli.common import check_safe_mode_and_prompt
+from ibm_watsonx_orchestrate.utils.file_manager import safe_open
+from ibm_watsonx_orchestrate.client.connections import get_connections_client
+from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +270,7 @@ def _raise_guidelines_warning(response: AgentUpsertResponse) -> None:
         logger.warning(f"Agent Configuration Issue: {response.warning}")
 
 class AgentsController:
-    def __init__(self):
+    def __init__(self, safe_mode: bool = False):
         self.native_client = None
         self.external_client = None
         self.assistant_client = None
@@ -273,6 +278,7 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.safe_mode = safe_mode
 
     def get_native_client(self):
         if not self.native_client:
@@ -1391,6 +1397,17 @@ class AgentsController:
                         logger.error(f"An agent with the name '{agent_name}' already exists with a different kind. Failed to create agent")
                         sys.exit(1)
                     
+                    # Check safe mode and prompt for confirmation if needed
+                    agent_type_name = "agent" if isinstance(existing_agent, Agent) else ("external agent" if isinstance(existing_agent, ExternalAgent) else "assistant agent")
+                    if not check_safe_mode_and_prompt(
+                        safe_mode=self.safe_mode,
+                        resource_exists=True,
+                        resource_type=agent_type_name,
+                        resource_name=agent_name
+                    ):
+                        logger.info(f"Skipping {agent_type_name} '{agent_name}'")
+                        continue
+                    
                     # Check if agent is in a different workspace
                     workspace_context = WorkspaceContext()
                     active_workspace_id = workspace_context.get_active_workspace_id()
@@ -1618,6 +1635,12 @@ class AgentsController:
             
             _raise_guidelines_warning(response_data)
 
+            if agent.is_schedulable is not None:
+                try:
+                    native_client.update_schedulable(response_data.id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
+
             # Check if this is a custom agent - always upload if file path provided
             if agent.style == AgentStyle.CUSTOM:
                 custom_agent_file_path = getattr(agent, 'custom_agent_file_path', None) or kwargs.get('custom_agent_file_path')
@@ -1726,6 +1749,12 @@ class AgentsController:
             response = self.get_native_client().update(agent_id, agent.model_dump(exclude_none=True, exclude=exclude_fields),
                                                       skip_workspace_injection=skip_workspace_injection)
             _raise_guidelines_warning(response)
+
+            if agent.is_schedulable is not None:
+                try:
+                    self.get_native_client().update_schedulable(agent_id, agent.is_schedulable)
+                except Exception as e:
+                    logger.warning(f"Could not update agent schedulable: {e}")
 
             # Handle custom agent artifact upload for updates
             if agent.style == AgentStyle.CUSTOM:
@@ -2515,6 +2544,11 @@ class AgentsController:
         for tool_name in agent_tools:
 
             current_spec = tool_specs.get(tool_name)
+
+            # Skip exporting internal scheduling tools
+            if isinstance(agent, Agent) and agent.is_schedulable and (current_spec or {}).get("name", "").startswith("scheduling_tools"):
+                continue
+
             if current_spec and _get_kind_from_spec(current_spec) == ToolKind.mcp:
                 base_tool_file_path = f"{output_file_name}/toolkits/"
             else:
@@ -2968,3 +3002,58 @@ class AgentsController:
         except Exception as e:
             logger.error(f"Failed to download agent package: {e}")
             sys.exit(1)
+
+
+    def discover_and_import_agent(
+        self,
+        base_url: str,
+        endpoint: str = ".well-known/agent-card.json",
+        agent_name: Optional[str] = None,
+        app_id: Optional[str] = None,
+    ) -> None:
+        """
+        Discover an A2A agent from a well-known URI and import it directly.
+        
+        Args:
+            base_url: Base URL of the A2A agent
+            endpoint: Well-known endpoint path for the agent card
+            agent_name: Override agent name (defaults to name from agent card)
+            app_id: Connection app_id for authentication (optional)
+        """
+        
+        # Sanitize agent_name if provided
+        if agent_name:
+            agent_name = agent_name.lower().replace(" ", "_")
+                
+        try:
+            with A2ADiscoveryService() as discovery_client:
+                logger.info(f"Discovering A2A agent from {base_url}/{endpoint}")
+    
+                wxo_spec = discovery_client.discover_and_convert(
+                    base_url=base_url,
+                    endpoint=endpoint,
+                    agent_name=agent_name,
+                    app_id=app_id
+                )
+                
+                discovered_name = wxo_spec.get('name', 'unknown')
+                
+                logger.info(f"Publishing discovered agent: {discovered_name}")
+                
+                # Convert the spec dictionary to an ExternalAgent object
+                agent = ExternalAgent.model_validate(wxo_spec)
+                
+                # Directly publish the converted agent object
+                self.publish_or_update_agents([agent])
+                
+                                            
+        except requests.RequestException as e:
+            logger.error(f"Failed to discover agent from {base_url}: {str(e)}")
+            sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid agent card format: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unexpected error during agent discovery: {str(e)}")
+            sys.exit(1)
+
