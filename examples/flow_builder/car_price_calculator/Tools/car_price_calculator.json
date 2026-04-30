@@ -1,0 +1,983 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "car_price_calculator_897bx",
+        "initiators": [],
+        "description": "This flow will fetch quote for your car",
+        "display_name": "Car price calculator",
+        "input_schema": {},
+        "output_schema": {}
+    },
+    "edges": [
+        {
+            "id": "cb774d56-71dc-4f77-98e0-e826fb62d632",
+            "end": "UserActivity 1",
+            "start": "__start__"
+        },
+        {
+            "id": "48709a9d-258f-478f-a011-b31f31990b9c",
+            "end": "Branch 1",
+            "start": "UserActivity 1"
+        },
+        {
+            "id": "52918a80-5315-466e-937f-c589e68e9aa2",
+            "end": "CodeBlock 3",
+            "start": "Branch 1",
+            "display_name": "Yes"
+        },
+        {
+            "id": "bfa887b9-dc15-4dec-9fee-1a2684b81ee6",
+            "end": "UserActivity 2",
+            "start": "Branch 1",
+            "display_name": "No"
+        },
+        {
+            "id": "872a9724-6460-4a2c-9f44-3d9d1381efff",
+            "end": "__end__",
+            "start": "UserActivity 2"
+        },
+        {
+            "id": "4a57eaa5-309d-4162-bbc5-71200b62c955",
+            "end": "__end__",
+            "start": "UserActivity 3"
+        },
+        {
+            "id": "a2790947-3dd0-40c8-bfe1-db4a54d97627",
+            "end": "UserActivity 3",
+            "start": "prompt_02f1a375-81c3-49ca-b7ba-b32f55cf6b3e"
+        },
+        {
+            "id": "8c39233a-025d-4d62-9920-275e78a01432",
+            "end": "prompt_02f1a375-81c3-49ca-b7ba-b32f55cf6b3e",
+            "start": "CodeBlock 3"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 7.498023356579679,
+                    "y": 2731.1588160181864
+                }
+            }
+        },
+        "Branch 1": {
+            "spec": {
+                "kind": "branch",
+                "name": "Branch 1",
+                "position": {
+                    "x": 0,
+                    "y": 1753
+                },
+                "evaluator": {
+                    "conditions": [
+                        {
+                            "default": false,
+                            "edge_id": "52918a80-5315-466e-937f-c589e68e9aa2",
+                            "metadata": {
+                                "id": "e81148ca-5caf-4c20-84d9-4a9c015f8f5e",
+                                "conditions": [
+                                    {
+                                        "value": "True",
+                                        "isValid": true,
+                                        "dataType": "boolean",
+                                        "operator": "is",
+                                        "variableName": "flow[\"Get car details\"][\"Would you like to proceed with the quote?\"].output.value"
+                                    }
+                                ]
+                            },
+                            "expression": "flow[\"Get car details\"][\"Would you like to proceed with the quote?\"].output.value is True"
+                        },
+                        {
+                            "default": true,
+                            "edge_id": "bfa887b9-dc15-4dec-9fee-1a2684b81ee6",
+                            "metadata": {
+                                "id": "c8a483aa-ae9a-469e-a4de-a9006293c8d2"
+                            }
+                        }
+                    ]
+                },
+                "display_name": "Proceed",
+                "match_policy": "FIRST_MATCH"
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "CodeBlock 3": {
+            "spec": {
+                "fn": "",
+                "kind": "script",
+                "name": "CodeBlock 3",
+                "position": {
+                    "x": -190.40710401936838,
+                    "y": 1899
+                },
+                "display_name": "Details for code block"
+            }
+        },
+        "UserActivity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 1",
+                "position": {
+                    "x": -20,
+                    "y": 201
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 1472
+                },
+                "initiators": [],
+                "display_name": "Get car details"
+            },
+            "edges": [
+                {
+                    "id": "c359a04b-384a-467d-b4a7-7539bcb0a143",
+                    "end": "CodeBlock 1",
+                    "start": "UserActivity 1__start__"
+                },
+                {
+                    "id": "7d283377-8d69-46c3-931b-18d06f9f7c72",
+                    "end": "user_3840d949-bbf3-483b-ab06-eab811ca71eb",
+                    "start": "CodeBlock 1"
+                },
+                {
+                    "id": "9fc75945-60b3-4c4e-b838-9577966e7faf",
+                    "end": "prompt_905b99eb-b399-446b-b97d-de4f754c4508",
+                    "start": "user_3840d949-bbf3-483b-ab06-eab811ca71eb"
+                },
+                {
+                    "id": "9f65c50d-60bc-4ee8-94de-88746ab56101",
+                    "end": "user_a705c5f5-e018-4b79-b526-1c9ca0f278e3",
+                    "start": "prompt_905b99eb-b399-446b-b97d-de4f754c4508"
+                },
+                {
+                    "id": "70063c30-e6b4-4acc-92a7-34dcb2badef0",
+                    "end": "user_65b59e00-7d9b-4efd-b074-09aa8073eb81",
+                    "start": "user_a705c5f5-e018-4b79-b526-1c9ca0f278e3"
+                },
+                {
+                    "id": "de6c6f45-1f81-408c-a11b-3ffa3cc257a3",
+                    "end": "user_d7236b8f-a14c-43db-92b8-eaf9bf187c3a",
+                    "start": "user_65b59e00-7d9b-4efd-b074-09aa8073eb81"
+                },
+                {
+                    "id": "49fa0799-f282-4485-9f78-2988c7e0ff41",
+                    "end": "CodeBlock 2",
+                    "start": "user_d7236b8f-a14c-43db-92b8-eaf9bf187c3a"
+                },
+                {
+                    "id": "7d01e456-c0ed-4ada-83a9-cdf2c7c49827",
+                    "end": "user_810a8c44-e22a-49c8-8ad1-d29abb97a3da",
+                    "start": "CodeBlock 2"
+                },
+                {
+                    "id": "fa695deb-8e38-46a5-926a-b56fd7fe97b8",
+                    "end": "user_5e799f47-5273-43a2-b0a4-647f428d1770",
+                    "start": "user_810a8c44-e22a-49c8-8ad1-d29abb97a3da"
+                },
+                {
+                    "id": "f03a5308-9332-4e63-9c61-8d2774aab3ea",
+                    "end": "UserActivity 1__end__",
+                    "start": "user_5e799f47-5273-43a2-b0a4-647f428d1770"
+                }
+            ],
+            "nodes": {
+                "CodeBlock 1": {
+                    "spec": {
+                        "fn": "self.output.brands = [\n    \"Acura\",\n    \"Alfa Romeo\",\n    \"Aston Martin\",\n    \"Audi\",\n    \"Bentley\",\n    \"BMW\",\n    \"Bugatti\",\n    \"Buick\",\n    \"Cadillac\",\n    \"Chevrolet\",\n    \"Chrysler\",\n    \"Citroën\",\n    \"Dacia\",\n    \"Dodge\",\n    \"Ferrari\",\n    \"Fiat\",\n    \"Ford\",\n    \"Genesis\",\n    \"GMC\",\n    \"Honda\",\n    \"Hyundai\",\n    \"Infiniti\",\n    \"Jaguar\",\n    \"Jeep\",\n    \"Kia\",\n    \"Koenigsegg\",\n    \"Lamborghini\",\n    \"Land Rover\",\n    \"Lexus\",\n    \"Lincoln\",\n    \"Lotus\",\n    \"Maserati\",\n    \"Mazda\",\n    \"McLaren\",\n    \"Mercedes-Benz\",\n    \"Mini\",\n    \"Mitsubishi\",\n    \"Nissan\",\n    \"Pagani\",\n    \"Peugeot\",\n    \"Polestar\",\n    \"Porsche\",\n    \"Ram\",\n    \"Renault\",\n    \"Rolls-Royce\",\n    \"Saab\",\n    \"Subaru\",\n    \"Suzuki\",\n    \"Tesla\",\n    \"Toyota\",\n    \"Volkswagen\",\n    \"Volvo\"\n  ]",
+                        "kind": "script",
+                        "name": "CodeBlock 1",
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Car Brands",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "brands": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "list of brands\n"
+                                }
+                            }
+                        }
+                    }
+                },
+                "CodeBlock 2": {
+                    "spec": {
+                        "fn": "# Read registration date from previous node (MM/DD/YYYY format)\nreg_date_str = flow[\"Get car details\"][\"Registration Date\"].output.value\n\n# Parse the date\nreg_date = datetime.datetime.strptime(reg_date_str, \"%Y-%m-%d\").date()\n    \n# Calculate integer age in years\ntoday = datetime.date.today()\nage_years = today.year - reg_date.year - (\n    (today.month, today.day) < (reg_date.month, reg_date.day)\n)\n    \n# Pass the age down the flow\nself.output.age = age_years\n\nself.output.quote = 4236.90",
+                        "kind": "script",
+                        "name": "CodeBlock 2",
+                        "position": {
+                            "x": 20,
+                            "y": 986
+                        },
+                        "display_name": "Calculate quote",
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "age": {
+                                    "type": "integer",
+                                    "description": "car age\n"
+                                },
+                                "quote": {
+                                    "type": "number",
+                                    "description": "car price\n"
+                                }
+                            }
+                        }
+                    }
+                },
+                "UserActivity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 1__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 1424
+                        }
+                    }
+                },
+                "UserActivity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 1__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_3840d949-bbf3-483b-ab06-eab811ca71eb": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_3840d949-bbf3-483b-ab06-eab811ca71eb",
+                        "fields": [
+                            {
+                                "kind": "any",
+                                "name": "choice_d5969239-7137-4915-ae39-b7ff8a8933c0",
+                                "direction": "input",
+                                "input_map": {
+                                    "spec": {
+                                        "maps": [
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.choices",
+                                                "value_expression": "flow[\"Get car details\"][\"Car Brands\"].output.brands"
+                                            },
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.display_text",
+                                                "value_expression": ""
+                                            },
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.display_items",
+                                                "value_expression": "[]"
+                                            }
+                                        ],
+                                        "name": ""
+                                    }
+                                },
+                                "input_schema": {
+                                    "type": "object",
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "required": [
+                                        "choices"
+                                    ],
+                                    "properties": {
+                                        "choices": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "display_text": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                },
+                                "output_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "object",
+                                            "properties": {}
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 256
+                        },
+                        "display_name": "Select Brand"
+                    }
+                },
+                "user_5e799f47-5273-43a2-b0a4-647f428d1770": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_5e799f47-5273-43a2-b0a4-647f428d1770",
+                        "fields": [
+                            {
+                                "kind": "boolean",
+                                "name": "boolean_e5f115bb-1aec-4a9d-9455-ae329c4184e9",
+                                "direction": "input",
+                                "output_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 1278
+                        },
+                        "display_name": "Would you like to proceed with the quote?"
+                    }
+                },
+                "user_65b59e00-7d9b-4efd-b074-09aa8073eb81": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_65b59e00-7d9b-4efd-b074-09aa8073eb81",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_f27b5d75-19c7-48c1-bb3e-b502130ef835",
+                                "text": "Can you please share your vehicle's registration date?",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 694
+                        },
+                        "display_name": "Prompt for registration date"
+                    }
+                },
+                "user_810a8c44-e22a-49c8-8ad1-d29abb97a3da": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_810a8c44-e22a-49c8-8ad1-d29abb97a3da",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_06aa6cd5-4969-4d3f-b5fc-adb61c8218a3",
+                                "text": "The quote for your {flow[\"Get car details\"][\"Calculate quote\"].output.age} year old {flow[\"Get car details\"][\"Select Brand\"].output.value} {flow[\"Get car details\"][\"Select Model\"].output.value} is {flow[\"Get car details\"][\"Calculate quote\"].output.quote}USD",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 1132
+                        },
+                        "display_name": "Display summary"
+                    }
+                },
+                "user_a705c5f5-e018-4b79-b526-1c9ca0f278e3": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_a705c5f5-e018-4b79-b526-1c9ca0f278e3",
+                        "fields": [
+                            {
+                                "kind": "any",
+                                "name": "choice_81924746-27db-4a7e-9ead-f99bd99f424b",
+                                "direction": "input",
+                                "input_map": {
+                                    "spec": {
+                                        "maps": [
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.choices",
+                                                "value_expression": "flow[\"Get car details\"][\"List Models\"].output.Models.model"
+                                            },
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.display_text",
+                                                "value_expression": ""
+                                            },
+                                            {
+                                                "metadata": {
+                                                    "assignmentType": "variable"
+                                                },
+                                                "has-no-value": false,
+                                                "target_variable": "self.input.display_items",
+                                                "value_expression": "[]"
+                                            }
+                                        ],
+                                        "name": ""
+                                    }
+                                },
+                                "input_schema": {
+                                    "type": "object",
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "required": [
+                                        "choices"
+                                    ],
+                                    "properties": {
+                                        "choices": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "display_text": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                },
+                                "output_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "object",
+                                            "properties": {}
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 548
+                        },
+                        "display_name": "Select Model"
+                    }
+                },
+                "user_d7236b8f-a14c-43db-92b8-eaf9bf187c3a": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_d7236b8f-a14c-43db-92b8-eaf9bf187c3a",
+                        "fields": [
+                            {
+                                "kind": "date",
+                                "name": "date_8a0e30e3-202d-4186-8c59-cab23f21755f",
+                                "direction": "input",
+                                "output_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string",
+                                            "format": "date"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 840
+                        },
+                        "display_name": "Registration Date"
+                    }
+                },
+                "prompt_905b99eb-b399-446b-b97d-de4f754c4508": {
+                    "spec": {
+                        "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+                        "kind": "prompt",
+                        "name": "prompt_905b99eb-b399-446b-b97d-de4f754c4508",
+                        "metadata": {
+                            "creativity_slider_position": "4",
+                            "creativity_slider_manual_override": false
+                        },
+                        "position": {
+                            "x": 20,
+                            "y": 402
+                        },
+                        "test_data": [
+                            {
+                                "value": "Toyota\n",
+                                "source": "self.input.Brand"
+                            }
+                        ],
+                        "description": "",
+                        "user_prompt": "Get a list of car models for this brand:{self.input.Brand}",
+                        "display_name": "List Models",
+                        "input_schema": {
+                            "type": "object",
+                            "required": [
+                                "Brand"
+                            ],
+                            "properties": {
+                                "Brand": {
+                                    "type": "string",
+                                    "description": "brand"
+                                }
+                            }
+                        },
+                        "output_schema": {
+                            "type": "object",
+                            "properties": {
+                                "Models": {
+                                    "type": "object",
+                                    "properties": {
+                                        "model": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Car models"
+                                        }
+                                    },
+                                    "description": "List of car models for the selected brand"
+                                }
+                            }
+                        },
+                        "system_prompt": "You're an assistant who has knowledge about cars",
+                        "llm_parameters": {
+                            "top_k": 25,
+                            "top_p": 0.75,
+                            "temperature": 0.3,
+                            "max_new_tokens": 939,
+                            "min_new_tokens": 50,
+                            "stop_sequences": [
+                                "Human",
+                                "AI"
+                            ]
+                        },
+                        "prompt_examples": [],
+                        "error_handler_config": {
+                            "max_retries": 0,
+                            "error_message": "Something went wrong while running 'List Models'",
+                            "retry_interval": 1000
+                        },
+                        "include_agent_context": false
+                    },
+                    "input_map": {
+                        "spec": {
+                            "maps": [
+                                {
+                                    "metadata": {
+                                        "assignmentType": "variable"
+                                    },
+                                    "has-no-value": false,
+                                    "target_variable": "self.input.Brand",
+                                    "value_expression": "flow[\"Get car details\"][\"Select Brand\"].output.value"
+                                }
+                            ],
+                            "name": "",
+                            "fallback_strategy": "no_value"
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "UserActivity 2": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 2",
+                "position": {
+                    "x": 248.80654493111672,
+                    "y": 1913.2654826634387
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "User activity 2"
+            },
+            "edges": [
+                {
+                    "id": "6bb29e55-aa34-4776-ba4c-e17b20f276df",
+                    "end": "user_e68698d7-7a76-454b-a777-026fab1fed48",
+                    "start": "UserActivity 2__start__"
+                },
+                {
+                    "id": "5e9042b2-bff0-426a-aa26-d834b938db65",
+                    "end": "UserActivity 2__end__",
+                    "start": "user_e68698d7-7a76-454b-a777-026fab1fed48"
+                }
+            ],
+            "nodes": {
+                "UserActivity 2__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 2__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "UserActivity 2__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 2__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_e68698d7-7a76-454b-a777-026fab1fed48": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_e68698d7-7a76-454b-a777-026fab1fed48",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_877b9b60-d545-4e53-a8aa-6a1129205d03",
+                                "text": "You have decided to not go ahead with the quote. Thanks for visiting Auto Trader. ",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "End message"
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "UserActivity 3": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 3",
+                "position": {
+                    "x": -210.40710401936838,
+                    "y": 2214
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "User activity 3"
+            },
+            "edges": [
+                {
+                    "id": "ee0a14bd-70c2-4c77-a3e9-bf9419d40a41",
+                    "end": "user_0eb6405a-4910-420f-979c-a2f320d81ac7",
+                    "start": "UserActivity 3__start__"
+                },
+                {
+                    "id": "8a6f3bdc-b03f-482b-856a-73e3115f56a9",
+                    "end": "UserActivity 3__end__",
+                    "start": "user_0eb6405a-4910-420f-979c-a2f320d81ac7"
+                }
+            ],
+            "nodes": {
+                "UserActivity 3__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 3__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "UserActivity 3__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 3__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_0eb6405a-4910-420f-979c-a2f320d81ac7": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_0eb6405a-4910-420f-979c-a2f320d81ac7",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_16316022-f76e-45b7-8575-fbff18ad1db6",
+                                "text": "{flow[\"Generate Email\"].output.value}",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Message 1"
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "prompt_02f1a375-81c3-49ca-b7ba-b32f55cf6b3e": {
+            "spec": {
+                "llm": "groq/openai/gpt-oss-120b",
+                "kind": "prompt",
+                "name": "prompt_02f1a375-81c3-49ca-b7ba-b32f55cf6b3e",
+                "metadata": {
+                    "creativity_slider_position": "4",
+                    "creativity_slider_manual_override": false
+                },
+                "position": {
+                    "x": -174.40710401936838,
+                    "y": 2039
+                },
+                "test_data": [
+                    {
+                        "value": "Toyota",
+                        "source": "self.input.Brand"
+                    },
+                    {
+                        "value": "Civic",
+                        "source": "self.input.Model"
+                    },
+                    {
+                        "value": 20000,
+                        "source": "self.input.quote"
+                    },
+                    {
+                        "value": "Dave Smith\n",
+                        "source": "self.input.Customer"
+                    },
+                    {
+                        "value": "Auto Traders",
+                        "source": "self.input.Company"
+                    },
+                    {
+                        "value": 15,
+                        "source": "self.input.Age"
+                    }
+                ],
+                "description": "",
+                "user_prompt": "Write a crisp and clear email to customer that the quote of their car has been finalised. And use these specifics for context:{self.input.Brand},{self.input.Model}, {self.input.Age} and {self.input.quote}. Just write the body of the email to Cutomer {self.input.Customer} from Company {self.input.Company}",
+                "display_name": "Generate Email",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "Brand",
+                        "Model",
+                        "quote",
+                        "Customer",
+                        "Company",
+                        "Age"
+                    ],
+                    "properties": {
+                        "Age": {
+                            "type": "integer",
+                            "description": "Car's age"
+                        },
+                        "Brand": {
+                            "type": "string",
+                            "description": "Car brand\n"
+                        },
+                        "Model": {
+                            "type": "string",
+                            "description": "Car model"
+                        },
+                        "quote": {
+                            "type": "number",
+                            "description": "Car price in US Dollars"
+                        },
+                        "Company": {
+                            "type": "string",
+                            "description": "Company name"
+                        },
+                        "Customer": {
+                            "type": "string",
+                            "description": "Customer name\n"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "system_prompt": "You are an assistant who is assisting a customer selling their car to your company. You have to send confirmation details to customer.",
+                "llm_parameters": {
+                    "top_k": 25,
+                    "top_p": 0.75,
+                    "temperature": 0.3,
+                    "max_new_tokens": 603,
+                    "min_new_tokens": 50,
+                    "stop_sequences": [
+                        "Human",
+                        "AI"
+                    ]
+                },
+                "prompt_examples": [],
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Generate Email'",
+                    "retry_interval": 1000
+                },
+                "include_agent_context": false
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "default_value": "0",
+                            "target_variable": "self.input.Age",
+                            "value_expression": "flow[\"Get car details\"][\"Calculate quote\"].output.age"
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "target_variable": "self.input.Brand",
+                            "value_expression": "flow[\"Get car details\"][\"Select Brand\"].output.value"
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "target_variable": "self.input.Model",
+                            "value_expression": "flow[\"Get car details\"][\"Select Model\"].output.value"
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "target_variable": "self.input.quote",
+                            "value_expression": "flow[\"Get car details\"][\"Calculate quote\"].output.quote"
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "pyExpression"
+                            },
+                            "has-no-value": false,
+                            "default_value": "",
+                            "target_variable": "self.input.Company",
+                            "value_expression": "\"Auto Trader\""
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "automap"
+                            },
+                            "has-no-value": false,
+                            "default_value": "Dave Franco",
+                            "target_variable": "self.input.Customer",
+                            "value_expression": ""
+                        }
+                    ],
+                    "name": "",
+                    "fallback_strategy": "no_value"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "is_system_generated_description": false
+    }
+}

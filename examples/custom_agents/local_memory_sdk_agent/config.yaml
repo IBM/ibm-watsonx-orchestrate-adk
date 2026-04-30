@@ -1,0 +1,10 @@
+language: python
+framework: langgraph
+entrypoint: agent:create_agent
+agent_name: local_memory_sdk_agent
+display_name: Local Memory SDK Agent
+agent_description: A custom LangGraph agent that uses the agentic SDK memory facade against wxo-server.
+requirements:
+  - ibm-watsonx-orchestrate-sdk @ https://test-files.pythonhosted.org/packages/1e/79/b1313ce9433a1957b54d6ff589e6417bd70da67fc480883c48e041e02e93/ibm_watsonx_orchestrate_sdk-2.9.0.dev6437-py3-none-any.whl#sha256=0bf65893611e2d7bc802e2098a654681fa000786f04986f155ecafb951c0c385
+  - langchain-core>=0.3.76
+  - langgraph>=0.6.8

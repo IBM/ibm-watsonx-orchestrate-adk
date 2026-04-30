@@ -781,7 +781,7 @@ def get_form_schema_template(template_type: str) -> Dict[str, Any]:
     Get a schema template by type
     
     Args:
-        template_type: The type of template to get ('text', 'boolean', etc.)
+        template_type: The type of template to get ('text', 'boolean', etc.')
         
     Returns:
         dict: A dictionary containing the template schemas
@@ -794,6 +794,10 @@ def get_form_schema_template(template_type: str) -> Dict[str, Any]:
         template_type = "choice"
     elif template_type == "array":
         template_type = "list"
+    elif template_type == "date-range":
+        template_type = "date_range"
+    elif template_type == "time-range":
+        template_type = "time_range"
 
     if template_type not in FORM_SCHEMA_TEMPLATES:
         raise ValueError(f"Unknown template type: {template_type}")
@@ -873,6 +877,7 @@ def get_all_tools_in_flow(flow: dict) -> list[str]:
             for tool in embedded_tools:
                 if tool not in tools:
                     tools.append(tool)
+
     return tools
 
 # Dynamic Forms Helper Functions
