@@ -50,6 +50,7 @@ from ibm_watsonx_orchestrate.flow_builder.utils import get_all_tools_in_flow
 from ibm_watsonx_orchestrate.agent_builder.tools.types import PythonToolKind
 from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.cli.common import check_safe_mode_and_prompt
 import yaml
 from  ibm_watsonx_orchestrate import __version__
 
@@ -211,15 +212,22 @@ def get_connection_ids(app_ids: list[str] | str = None, environment: str = None,
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
     
-async def import_flow_tool(file: str) -> None:
+    return tools
+    
+
+async def import_flow_tool(file: str, save_flow_json: str | None = None) -> None:
     
     '''
     Import a flow tool from a file. The file can be either a python file or a json file.
     If the file is a python file, it should contain a flow model builder function decorated with the @flow decorator.
     If the file is a json file, it should contain a flow model in json format.
-    Also, a connection will be created for the flow if one does not exists and the environment token will be used.  This is a 
+    Also, a connection will be created for the flow if one does not exists and the environment token will be used.  This is a
     workaround until flow bindings are supported in the server.
     The function will return a list of tools created from the flow model.
+    
+    Args:
+        file: Path to the flow file (Python or JSON)
+        save_flow_json: Optional path to save the compiled flow JSON file
     '''
 
     theme = rich.theme.Theme({"model.name": "bold cyan"})
@@ -315,10 +323,21 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     except Exception as e:
         raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
     
+    # Save the compiled flow JSON if requested
+    if save_flow_json and model:
+        try:
+            output_path = Path(save_flow_json).absolute()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(model, f, indent=2, ensure_ascii=False)
+            console.print(f"\n[green]✓[/green] Flow JSON saved to: [cyan]{output_path}[/cyan]")
+        except Exception as e:
+            console.print(f"\n[yellow]⚠[/yellow] Warning: Failed to save flow JSON to {save_flow_json}: {e}")
+    
     tool = create_flow_json_tool(name=model["spec"]["name"],
-                                 description=model["spec"]["description"], 
-                                 permission="read_only", 
-                                 flow_model=model)   
+                                 description=model["spec"]["description"],
+                                 permission="read_only",
+                                 flow_model=model)
     tools = [tool]
     # tools = import_flow_support_tools(model=model)
     # tools.append(tool)
@@ -418,12 +437,13 @@ class DownloadResult(BaseModel):
     kind: ToolKind
 
 class ToolsController:
-    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None):
+    def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None, safe_mode: bool = False):
         self.client = None
         self.tool_kind = tool_kind
         self.file = file
         self.cleanup_file = False
         self.requirements_file = requirements_file
+        self.safe_mode = safe_mode
 
     def get_client(self) -> ToolClient:
         if not self.client:
@@ -481,7 +501,7 @@ class ToolsController:
                     connection_id = connection.connection_id
                 tools = run_coroutine_sync(import_openapi_tool(file=args["file"], connection_id=connection_id))
             case "flow":
-                tools = run_coroutine_sync(import_flow_tool(file=args["file"]))
+                tools = run_coroutine_sync(import_flow_tool(file=args["file"], save_flow_json=args.get("save_flow_json")))
             case "skill":
                 tools = []
                 logger.warning("Skill Import not implemented yet")
@@ -662,6 +682,16 @@ class ToolsController:
                         active_workspace_name = workspace_context.get_active_workspace_name() or "current workspace"
                         
                         logger.info(f"Tool '{tool.__tool_spec__.name}' belongs to {tool_workspace_name}, but you are currently in {active_workspace_name}. Attempting cross-workspace update...")
+                    
+                    # Check safe mode and prompt for confirmation if needed
+                    if not check_safe_mode_and_prompt(
+                        safe_mode=self.safe_mode,
+                        resource_exists=True,
+                        resource_type="tool",
+                        resource_name=tool.__tool_spec__.name
+                    ):
+                        logger.info(f"Skipping tool '{tool.__tool_spec__.name}'")
+                        continue
 
                 tool_artifact = None
                 if self.tool_kind == ToolKind.python:
