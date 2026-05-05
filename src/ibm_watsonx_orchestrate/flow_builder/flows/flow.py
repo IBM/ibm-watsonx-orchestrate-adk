@@ -47,7 +47,8 @@ from ..node import (
 )
 from ..types import (
     AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
-    NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema
+    NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
+    FlowCallback, FlowCallbackEventKind
 )
 
 from ..data_map import DataMap, DataMapSpec
@@ -76,7 +77,14 @@ class FlowEdge(BaseModel):
     id: str | None = None
 
 class Flow(Node):
-    '''Flow represents a flow that will be run by wxO Flow engine.'''
+    '''
+    Flow represents a flow that will be run by wxO Flow engine.
+    
+    Callbacks are part of the FlowSpec (self.spec.callbacks) and are configured during
+    flow construction. When the flow is compiled, callbacks are serialized into the
+    FlowSpec JSON. During flow execution, the flow engine automatically invokes the
+    configured callback tools when the specified events occur.
+    '''
     output_map: DataMapSpec | None = None
     nodes: dict[str, SerializeAsAny[Node]] = {}
     edges: List[FlowEdge] = []
@@ -1446,6 +1454,36 @@ class Flow(Node):
             self.output_map.spec = flow_output_map_spec
         else:
             self.output_map = DataMapSpec(spec = flow_output_map_spec)
+        return self
+    
+    def add_callback(
+        self,
+        tool: str,
+        events: List[FlowCallbackEventKind],
+        batch_interval: int | None = None
+    ) -> Self:
+        """
+        Add a callback to the flow specification.
+        
+        Callbacks are part of the FlowSpec and will be invoked by the flow engine
+        when the specified events occur during flow execution.
+        
+        Args:
+            tool: Tool identifier (can be tool_name, toolkit:tool_name, or toolkit:tool_name:uuid)
+            events: List of FlowCallbackEventKind events that should trigger this callback
+            batch_interval: Optional batch interval in milliseconds (server default if not specified)
+            
+        Returns:
+            Self for method chaining
+        """
+        callback = FlowCallback(
+            tool=tool,
+            events=events,
+            batch_interval=batch_interval
+        )
+        # Cast spec to FlowSpec to access callbacks attribute
+        flow_spec = cast(FlowSpec, self.spec)
+        flow_spec.callbacks.append(callback)
         return self
     
     def map_flow_output_with_none(self, target_output_variable: str) -> Self:
