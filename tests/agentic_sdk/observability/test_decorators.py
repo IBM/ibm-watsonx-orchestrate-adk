@@ -8,6 +8,8 @@ from unittest.mock import MagicMock
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_FRAMEWORK,
     ATTR_AGENT_NAME,
+    ATTR_GEN_AI_REQUEST_MODEL,
+    ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_INPUT,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
@@ -180,6 +182,8 @@ class TestTraceLLMCall:
         call()
         attrs = get_attrs(traced.get_finished_spans()[0])
         assert attrs[ATTR_LLM_MODEL] == "claude-3"
+        assert attrs[ATTR_GEN_AI_REQUEST_MODEL] == "claude-3"
+        assert attrs[ATTR_GEN_AI_RESPONSE_MODEL] == "claude-3"
         assert attrs[ATTR_LLM_PROVIDER] == "anthropic"
 
     def test_captures_input_and_output(self, traced):

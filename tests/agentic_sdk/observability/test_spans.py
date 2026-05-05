@@ -14,6 +14,8 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_FRAMEWORK,
     ATTR_AGENT_NAME,
     ATTR_AGENT_OUTPUT,
+    ATTR_GEN_AI_REQUEST_MODEL,
+    ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_LLM_COMPLETION_TOKENS,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROMPT_TOKENS,
@@ -173,6 +175,8 @@ class TestLLMSpanWrapper:
         LLMSpanWrapper(span, model="gpt-4", provider="openai")
         attrs = recorded_attrs(span)
         assert (ATTR_LLM_MODEL, "gpt-4") in attrs
+        assert (ATTR_GEN_AI_REQUEST_MODEL, "gpt-4") in attrs
+        assert (ATTR_GEN_AI_RESPONSE_MODEL, "gpt-4") in attrs
         assert (ATTR_LLM_PROVIDER, "openai") in attrs
 
     def test_skips_none_model_and_provider(self):
@@ -194,6 +198,7 @@ class TestLLMSpanWrapper:
         assert (ATTR_LLM_COMPLETION_TOKENS, 20) in attrs
         assert (ATTR_LLM_TOTAL_TOKENS, 30) in attrs
         assert (ATTR_LLM_RESPONSE_MODEL, "gpt-4-0613") in attrs
+        assert (ATTR_GEN_AI_RESPONSE_MODEL, "gpt-4-0613") in attrs
         assert (ATTR_LLM_STOP_REASON, "stop") in attrs
 
     def test_record_completion_auto_sums_total(self):
