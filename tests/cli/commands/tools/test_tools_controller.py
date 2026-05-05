@@ -5,7 +5,13 @@ from unittest.mock import call
 
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool
 from ibm_watsonx_orchestrate.agent_builder.tools.python_tool import PythonTool
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import DownloadResult, ToolsController, ToolKind, _get_kind_from_spec
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import (
+    DownloadResult,
+    ToolsController,
+    ToolKind,
+    _get_kind_from_spec,
+    validate_app_ids,
+)
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolPermission, ToolSpec
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import OpenAPITool
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
@@ -1828,6 +1834,45 @@ def test_export_tool_invalid_output_file(caplog):
     assert f"Exporting tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
     assert f"Successfully exported tool definition for '{mock_tool_name}' to '{mock_output_file}'" not in captured
     assert f"Output file must end with the extension '.zip'. Provided file '{mock_output_file}' ends with 'txt'"
+
+def test_validate_langflow_app_ids_accepts_bearer_token():
+    mock_conn = ListConfigsResponse(
+        **{
+            "connection_id": "cid",
+            "app_id": "myapp",
+            "environment": "draft",
+            "security_scheme": "bearer_token",
+        }
+    )
+    with mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client"
+    ) as mock_get_client, mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev",
+        return_value=True,
+    ):
+        mock_get_client.return_value.list.return_value = [mock_conn]
+        validate_app_ids(kind=ToolKind.langflow, app_id=["myapp"])
+
+
+def test_validate_langflow_app_ids_rejects_api_key_scheme():
+    mock_conn = ListConfigsResponse(
+        **{
+            "connection_id": "cid",
+            "app_id": "myapp",
+            "environment": "draft",
+            "security_scheme": "api_key_auth",
+        }
+    )
+    with mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.get_connections_client"
+    ) as mock_get_client, mock.patch(
+        "ibm_watsonx_orchestrate.cli.commands.tools.tools_controller.is_local_dev",
+        return_value=True,
+    ):
+        mock_get_client.return_value.list.return_value = [mock_conn]
+        with pytest.raises(SystemExit):
+            validate_app_ids(kind=ToolKind.langflow, app_id=["myapp"])
+
 
 def test_langflow_tool_import():
 

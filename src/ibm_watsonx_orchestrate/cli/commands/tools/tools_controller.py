@@ -123,6 +123,17 @@ def _get_connection_environments() -> List[ConnectionEnvironment]:
     else:
         return [env.value for env in ConnectionEnvironment]
 
+
+def _supported_langflow_connection_schemes() -> set[ConnectionSecurityScheme]:
+    """Connection schemes allowed when binding Langflow tools via --app-id."""
+    return {
+        ConnectionSecurityScheme.KEY_VALUE,
+        ConnectionSecurityScheme.BEARER_TOKEN,
+        ConnectionSecurityScheme.BASIC_AUTH,
+        ConnectionSecurityScheme.OAUTH2,
+    }
+
+
 def validate_app_ids(kind: ToolKind, **args) -> None:
     
     environments = _get_connection_environments()
@@ -177,9 +188,8 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
             case ToolKind.openapi:
                 continue
 
-            # Validate that the connection is key_value when the tool in langflow
             case ToolKind.langflow:
-                permitted_connections_types.append(ConnectionSecurityScheme.KEY_VALUE)
+                permitted_connections_types = list(_supported_langflow_connection_schemes())
 
         imported_connection = imported_connections.get(app_id)
 
@@ -196,7 +206,11 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 continue
 
             if conn.security_scheme not in permitted_connections_types:
-                logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
+                supported = ", ".join(sorted(s.value for s in permitted_connections_types))
+                logger.error(
+                    f"{conn.security_scheme} application connections can not be bound to {kind.value} tools. "
+                    f"Supported schemes: {supported}."
+                )
                 exit(1)
 
 
@@ -650,9 +664,15 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
         raise BadRequest(f"Failed to load langflow tool from file {file}")
     
     validate_app_ids(kind=ToolKind.langflow, app_ids=app_id)
-    connections = get_connection_ids(app_ids=app_id, environment='draft')
-    
-    tool = create_langflow_tool(tool_definition=imported_tool, connections=connections)
+    conn_entries = get_connections(app_ids=app_id, environment="draft", allow_missing=True)
+    connections = {k: v.connection_id for k, v in conn_entries.items()}
+    connection_schemes = {k: v.security_scheme for k, v in conn_entries.items()}
+
+    tool = create_langflow_tool(
+        tool_definition=imported_tool,
+        connections=connections,
+        connection_schemes=connection_schemes or None,
+    )
 
     return tool    
 

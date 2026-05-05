@@ -10,6 +10,17 @@ from ibm_watsonx_orchestrate_core.types.connections import ConnectionEnvironment
 import logging
 logger = logging.getLogger(__name__)
 
+
+def _rows_from_applications_response(res: object) -> list:
+    """Normalize GET /connections/applications payloads whether wrapped or a bare array."""
+    if isinstance(res, dict):
+        rows = res.get("applications")
+        return list(rows) if rows else []
+    if isinstance(res, list):
+        return res
+    return []
+
+
 class ListConfigsResponse(BaseModel):
     connection_id: str = None,
     app_id: str = None
@@ -52,10 +63,52 @@ class GetConnectionResponse(BaseModel):
 class ConnectionsClient(BaseWXOClient):
     def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: MCSPAuthenticator = None):
         super(ConnectionsClient, self).__init__(base_url, api_key, is_local, verify, authenticator)
+        self._local_base_url_fallback = None
         if is_local_dev(base_url):
             self.base_url = f"{base_url.rstrip('/')}/api/v1/orchestrate"
+            # Some local connection-manager builds expose /api/v1/* routes
+            # instead of /api/v1/orchestrate/*. Retry once on 404 against this base.
+            self._local_base_url_fallback = f"{base_url.rstrip('/')}/api/v1"
         else:
             self.base_url = f"{base_url.rstrip('/')}/v1/orchestrate"
+
+    def _with_local_fallback(self, fn):
+        try:
+            return fn()
+        except ClientAPIException as e:
+            if (
+                self._local_base_url_fallback is None
+                or e.response is None
+                or e.response.status_code != 404
+            ):
+                raise e
+
+            original_base_url = self.base_url
+            try:
+                self.base_url = self._local_base_url_fallback
+                return fn()
+            finally:
+                self.base_url = original_base_url
+
+    def _get(self, path: str, params: dict = None, data=None, return_raw=False) -> dict:
+        return self._with_local_fallback(
+            lambda: super()._get(path=path, params=params, data=data, return_raw=return_raw)
+        )
+
+    def _post(self, path: str, data: dict = None, files: dict = None) -> dict:
+        return self._with_local_fallback(
+            lambda: super()._post(path=path, data=data, files=files)
+        )
+
+    def _patch(self, path: str, data: dict = None) -> dict:
+        return self._with_local_fallback(
+            lambda: super()._patch(path=path, data=data)
+        )
+
+    def _delete(self, path: str, data=None) -> dict:
+        return self._with_local_fallback(
+            lambda: super()._delete(path=path, data=data)
+        )
     """
     Client to handle CRUD operations for Connections endpoint
     """
@@ -91,9 +144,8 @@ class ConnectionsClient(BaseWXOClient):
     def list(self) -> List[ListConfigsResponse]:
         try:
             res = self._get(f"/connections/applications?include_details=true")
-            import json
-            json.dumps(res)
-            return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
+            rows = _rows_from_applications_response(res)
+            return [ListConfigsResponse.model_validate(conn) for conn in rows]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
             raise e
@@ -188,9 +240,8 @@ class ConnectionsClient(BaseWXOClient):
             return []
         try:
             res = self._get(f"/connections/applications?include_details=true&connectionIds={','.join(conn_ids)}")
-            import json
-            json.dumps(res)
-            return [ListConfigsResponse.model_validate(conn) for conn in res.get("applications", [])]
+            rows = _rows_from_applications_response(res)
+            return [ListConfigsResponse.model_validate(conn) for conn in rows]
         except ValidationError as e:
             logger.error("Recieved unexpected response from server")
             raise e

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import rich
 
 from ibm_watsonx_orchestrate.agent_builder.connections.types import ConnectionSecurityScheme
+from typing import Optional
 from ibm_watsonx_orchestrate.langflow.langflow_utils import parse_langflow_model
 from .base_tool import BaseTool
 from .types import LangflowToolBinding, ToolBinding, ToolPermission, ToolRequestBody, ToolResponseBody, ToolSpec
@@ -73,6 +74,18 @@ def langflow_input_schema(tool_definition: dict = None) -> ToolRequestBody:
     required= ["input"]
   )
 
+def _langflow_placeholder_hint(scheme: Optional[ConnectionSecurityScheme]) -> str:
+    if scheme is None:
+        return "Use <app_id>_<variable> in the flow; credentials merge into Langflow variables at runtime."
+    hints = {
+        ConnectionSecurityScheme.KEY_VALUE: "<app_id>_<KEY> — values merge as Langflow/env variables.",
+        ConnectionSecurityScheme.BEARER_TOKEN: "Bearer token from connection; also exposed via LANGFLOW_REQUEST_VARIABLES / x-langflow-global-var-*.",
+        ConnectionSecurityScheme.BASIC_AUTH: "Username/password fields from the connection configuration.",
+        ConnectionSecurityScheme.OAUTH2: "OAuth access token from connection at runtime; refresh handled by the connection service.",
+    }
+    return hints.get(scheme, f"Scheme {scheme.value}: map payload keys to <app_id>_<key> where applicable.")
+
+
 def langflow_output_schema(tool_definition: dict = None):
 
   chat_output_nodes = extract_langflow_nodes(tool_definition=tool_definition,node_type=LANGFLOW_CHAT_OUTPUT_LABEL)
@@ -92,7 +105,8 @@ def langflow_output_schema(tool_definition: dict = None):
 def create_langflow_tool(
     tool_definition: dict,
     connections: dict = None,
-    show_details: bool = True
+    show_details: bool = True,
+    connection_schemes: dict[str, Optional[ConnectionSecurityScheme]] | None = None,
     ) -> LangflowTool:
 
   name = tool_definition.get('name')
@@ -168,8 +182,16 @@ def create_langflow_tool(
         rich.print("[bold yellow]Warning:[/bold yellow] Some required api key(s) were not set in the flow. Please adjust the flow to include them.")
       rich.print("Ensure each credential follows the <app-id>_<variable> naming convention within the Langflow model.")
 
-      for connection in connections:
-          rich.print(f"* Connection: {connection} → Suggested naming: {connection}_<variable>")
+      if connections:
+        schemes = connection_schemes or {}
+        for app_id_key in connections:
+          scheme = schemes.get(app_id_key)
+          rich.print(
+            f"* Bound app-id: [bold]{app_id_key}[/bold] → connection_id: {connections[app_id_key]}"
+          )
+          if scheme is not None:
+            rich.print(f"  Connection type: [cyan]{scheme.value}[/cyan]")
+          rich.print(f"  Naming / variables: {_langflow_placeholder_hint(scheme)}")
 
   spec = ToolSpec(
     name=name,
