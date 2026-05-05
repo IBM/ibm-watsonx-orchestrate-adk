@@ -2833,13 +2833,11 @@ class AgentsController:
             client = native_client
             agent_type_name = "native"
         elif len(existing_external_agents) > 0:
-            agent = existing_external_agents[0]
-            client = external_client
-            agent_type_name = "external"
+            logger.error("Copying external agents is not currently supported.")
+            sys.exit(1)
         elif len(existing_assistant_agents) > 0:
-            agent = existing_assistant_agents[0]
-            client = assistant_client
-            agent_type_name = "assistant"
+            logger.error("Copying assistant agents is not currently supported.")
+            sys.exit(1)
         else:
             logger.error(f"No agent found with name '{agent_name}' in workspace '{source_workspace}'")
             sys.exit(1)
