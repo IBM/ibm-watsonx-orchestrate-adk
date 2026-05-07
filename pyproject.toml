@@ -43,9 +43,6 @@ base_dependencies = [
     "pytz>=2025.2",
     "redis>=6.0.0",
     "websocket-client>=1.8.0,<2.0.0",
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
 synced_packages = [
     "ibm-watsonx-orchestrate-core",
@@ -62,6 +59,9 @@ dev = [
     "coverage[toml]>=6.5",
     "black~=22.3.0",
     "pylint~=2.16.4",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
 
 
