@@ -1364,6 +1364,7 @@ services:
       TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
       CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444
       EVENT_CALLBACK_ENABLED: true
+      SCHEDULER_USE_PUBLIC_PREVIEW_SCHEDULER: true
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
