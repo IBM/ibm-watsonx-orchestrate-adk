@@ -1,5 +1,6 @@
 """LangChain embeddings wrapper for IBM watsonx Orchestrate AI Gateway."""
 
+import httpx
 from typing import Any, Dict, List, Optional
 
 from ibm_cloud_sdk_core.authenticators import Authenticator
@@ -180,12 +181,19 @@ class WxOEmbeddings(OpenAIEmbeddings):
             api_base_url += "/orchestrate"
         api_base_url += "/gateway/model"
 
+        # Configure HTTP client with SSL verification settings
+        # For runs-on mode, verify is typically False to allow internal cluster communication
+        http_client = None
+        if agentic_session.verify is not None:
+            http_client = httpx.Client(verify=agentic_session.verify)
+
         super().__init__(
             api_key="dummy",  # Ignored by gateway
             base_url=api_base_url,
             model=model,
             default_headers=headers,
             check_embedding_ctx_length=False,  # Disable tokenization - gateway expects raw text
+            http_client=http_client,
             **kwargs,
         )
 
