@@ -88,7 +88,9 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exc
         requirements = [x.strip() for x in requirements]
 
     if exclude_ibm_watsonx_orchestrate:
-        requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
+        # Remove mentions of main adk package (or clients/core sub package)
+        # Allow ibm-watsonx-orchestrate-sdk
+        requirements = [x for x in requirements if (not x.startswith("ibm-watsonx-orchestrate") or x.startswith("ibm-watsonx-orchestrate-sdk"))]
     requirements = list(dict.fromkeys(requirements))
 
     return requirements
