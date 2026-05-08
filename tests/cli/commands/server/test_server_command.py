@@ -966,6 +966,7 @@ def test_server_start_with_doc_processing_checks_memory(monkeypatch, tmp_path):
                 with_connections_ui=False,
                 with_langflow=False,
                 with_ai_builder=False,
+                sequential_image_pull=False,
                 cert_bundle_path=None
             )
         
@@ -1041,6 +1042,7 @@ def test_server_start_with_doc_processing_checks_memory_lima(monkeypatch, tmp_pa
                 with_connections_ui=False,
                 with_langflow=False,
                 with_ai_builder=False,
+                sequential_image_pull=False,
                 cert_bundle_path=None
             )
         

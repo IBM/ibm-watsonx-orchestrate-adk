@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import MutableMapping, Tuple
 from urllib.parse import urlparse
 
+from ibm_watsonx_orchestrate_core.utils.exceptions import ConnectionUpgradeRequiredException, ImagePullException
+
 from ibm_watsonx_orchestrate.cli.config import Config
 from ibm_watsonx_orchestrate.utils.environment import EnvService
 from ibm_watsonx_orchestrate.developer_edition.vm_host.vm_manager import get_vm_manager
@@ -49,7 +51,10 @@ class DockerOCIContainerMediaTypes(str, Enum):
 
     def __str__(self) -> str:
         return str(self.value)
+    
 
+# Docker Host Configs & Env Keys
+MAX_DOCKER_LOGIN_RETRIES=int(os.environ.get("WXO_DEVELOPER_EDITION_DOCKER_RETRIES", 3))
 
 class DockerUtils:
 
@@ -1362,13 +1367,24 @@ class DockerLoginService:
         """
         vm = get_vm_manager()
         logger.info(f"Logging into Docker registry inside {vm.__class__.__name__}: {registry_url} ...")
-        result = vm.run_docker_command(
-            ["login", "-u", username, "--password-stdin", registry_url],
-            input=api_key,        
-            capture_output=True,
-        )
 
-        if result.returncode != 0:
+        retry_limit = MAX_DOCKER_LOGIN_RETRIES
+        while retry_limit > 0:
+            retry_limit -= 1
+            try:
+                result = vm.run_docker_command(
+                    ["login", "-u", username, "--password-stdin", registry_url],
+                    input=api_key,        
+                    capture_output=True,
+                    check=True,
+                )
+            except ConnectionUpgradeRequiredException:
+                continue
+            else:
+                break
+
+
+        if retry_limit <= 0 or result.returncode != 0:
             err = result.stderr if result.stderr else "Unknown error"
             logger.error(f"Error logging into Docker:\n{err}")
             sys.exit(1)
@@ -1438,7 +1454,12 @@ class DockerComposeCore:
         logger.info(
             f"Starting docker-compose {friendly_name} service inside {vm.__class__.__name__}..."
         )
-        return vm.run_docker_command(command, capture_output=True, env=compose_env)
+        
+        try:
+            return vm.run_docker_command(command, capture_output=True, env=compose_env)
+        except ConnectionUpgradeRequiredException as e:
+            raise ImagePullException(f"Error batch downloading images, try using '--pre-pull'")
+        
 
     def services_up(self, profiles: list[str], final_env_file: Path, supplementary_compose_args: list[str]) -> subprocess.CompletedProcess[bytes]:
         final_env_file = path_for_vm(final_env_file)
@@ -1462,8 +1483,63 @@ class DockerComposeCore:
         vm = get_vm_manager()
 
         # vm.run_docker_command will prepend "docker"
-        return vm.run_docker_command(command, capture_output=False)
+        try:
+            return vm.run_docker_command(command, capture_output=False)
+        except ConnectionUpgradeRequiredException as e:
+            raise ImagePullException(f"Error batch downloading images, try using '--pre-pull'")
+            
+
+    def list_compose_images( self, final_env_file: Path):
+        final_env_file = path_for_vm(final_env_file)
+        compose_path = path_for_vm(self.__env_service.get_compose_file())
+
+        command: list[str] = ["compose"]
+        command += [
+            "-f", str(compose_path),
+            "--env-file", str(final_env_file),
+            "config", "--images"
+        ]
+        vm = get_vm_manager()
+        image_list = vm.run_docker_command(command, capture_output=True)
+        return image_list.stdout.split('\n')
     
+    def list_local_images(self):
+        command = [
+            "images",
+            "--format",
+            "{{.Repository}}:{{.Tag}}"
+        ]
+        vm = get_vm_manager()
+        image_list = vm.run_docker_command(command, capture_output=True)
+        return image_list.stdout.split('\n')
+    
+    def pull_images_sequentially( self, final_env_file: Path):        
+        image_manifest = self.list_compose_images(final_env_file)
+        local_images = self.list_local_images()
+        for img in image_manifest:
+            if img in local_images:
+                logger.info(f"Found {img}")
+                continue
+            retry_limit = MAX_DOCKER_LOGIN_RETRIES
+            while (retry_limit > 0):
+                retry_limit -= 1
+                try:
+                    self.pull_single_image(img)
+                except ConnectionUpgradeRequiredException:
+                    continue
+                else:
+                    break
+            if retry_limit <= 0:
+                logger.warning(f"Unable to pull '{img}', continuing...")
+
+
+    def pull_single_image(self, image_uri: str):
+        logger.info(f"Pulling {image_uri}")
+        command = [ "image", "pull", image_uri ]
+        vm = get_vm_manager()
+        return vm.run_docker_command(command, capture_output=False, check=True)
+
+
     def service_down (self, service_name: str, friendly_name: str, final_env_file: Path, is_reset: bool = False) -> subprocess.CompletedProcess[bytes]:
         base_command = self.__ensure_docker_compose_installed()
         final_env_file = path_for_vm(final_env_file)
