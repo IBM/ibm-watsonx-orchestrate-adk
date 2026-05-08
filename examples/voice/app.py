@@ -289,7 +289,7 @@ async def delete_recording(recording_id: str) -> JSONResponse:
         # Delete all files in the recording directory
         shutil.rmtree(recording_dir)
         
-        _logger.info("Deleted recording: %s", _sanitize_for_log(recording_id))
+        _logger.info("Deleted recording successfully")
         
         return JSONResponse({
             "message": "Recording deleted successfully",
