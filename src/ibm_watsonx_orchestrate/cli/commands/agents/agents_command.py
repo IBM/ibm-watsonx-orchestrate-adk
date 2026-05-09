@@ -211,7 +211,7 @@ def agent_create(
         List[str],
         typer.Option(
             "--collaborators",
-            help="A list of agent names you wish for the agent to be able to collaborate with. Format --colaborators agent1 --collaborators agent2 ...",
+            help="A list of agent names you wish for the agent to be able to collaborate with. Format --collaborators agent1 --collaborators agent2 ...",
         ),
     ] = None,
     tools: Annotated[

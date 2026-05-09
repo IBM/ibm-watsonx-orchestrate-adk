@@ -39,7 +39,7 @@ app.add_typer(agents_app, name="agents", help='Interact with the agents in your 
 app.add_typer(tools_app, name="tools", help='Interact with the tools in your active env')
 app.add_typer(toolkits_app, name="toolkits", help="Interact with the toolkits in your active env")
 app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledge your agents can search through to your active env")
-app.add_typer(connections_app, name="connections", help='Interact with the agents in your active env')
+app.add_typer(connections_app, name="connections", help='Manage authentication connections for tools in your active env')
 app.add_typer(voice_configurations_app, name="voice-configs", help="Configure voice providers to enable voice interaction with your agents")
 app.add_typer(server_app, name="server", help='Manipulate your local Orchestrate Developer Edition server [requires entitlement]')
 app.add_typer(chat_app, name="chat", help='Launch the chat ui and CLI chat interface for your local Developer Edition server [requires entitlement]')
