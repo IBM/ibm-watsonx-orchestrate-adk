@@ -23,7 +23,7 @@ import typer
 from rich.panel import Panel
 
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, ToolSpec, ToolListEntry
-from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools, get_requirement_lines, get_resolved_py_tool_reqs_file, get_package_root, get_connection_environments, get_formated_requirements_lines
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools, get_requirement_lines, get_resolved_py_tool_reqs_file, get_package_root, get_formated_requirements_lines
 from ibm_watsonx_orchestrate.agent_builder.tools.flow_tool import create_flow_json_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.langflow_tool import LangflowTool, create_langflow_tool
 from ibm_watsonx_orchestrate.agent_builder.tools.openapi_tool import create_openapi_json_tools_from_uri
@@ -82,9 +82,26 @@ class ToolKindImport(str, Enum):
     flow = ToolKind.flow.value
     langflow = ToolKind.langflow.value
 
+def _get_connection_environments() -> List[ConnectionEnvironment]:
+    if is_local_dev():
+        return [ConnectionEnvironment.DRAFT]
+    else:
+        return [env.value for env in ConnectionEnvironment]
+
+
+def _supported_langflow_connection_schemes() -> set[ConnectionSecurityScheme]:
+    """Connection schemes allowed when binding Langflow tools via --app-id."""
+    return {
+        ConnectionSecurityScheme.KEY_VALUE,
+        ConnectionSecurityScheme.BEARER_TOKEN,
+        ConnectionSecurityScheme.BASIC_AUTH,
+        ConnectionSecurityScheme.OAUTH2,
+    }
+
+
 def validate_app_ids(kind: ToolKind, **args) -> None:
     
-    environments = get_connection_environments()
+    environments = _get_connection_environments()
     
     app_ids = args.get("app_id")
     if not app_ids:
@@ -136,9 +153,12 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
             case ToolKind.openapi:
                 continue
 
-            # Validate that the connection is key_value when the tool in langflow
+            # Validate Langflow bindings against supported connection security schemes
             case ToolKind.langflow:
-                permitted_connections_types.append(ConnectionSecurityScheme.KEY_VALUE)
+                permitted_connections_types = list(_supported_langflow_connection_schemes())
+
+            case _:
+                continue
 
         imported_connection = imported_connections.get(app_id)
 
@@ -155,7 +175,11 @@ def validate_app_ids(kind: ToolKind, **args) -> None:
                 continue
 
             if conn.security_scheme not in permitted_connections_types:
-                logger.error(f"{conn.security_scheme} application connections can not be bound to {kind.value} tools")
+                supported = ", ".join(sorted(s.value for s in permitted_connections_types))
+                logger.error(
+                    f"{conn.security_scheme} application connections can not be bound to {kind.value} tools. "
+                    f"Supported schemes: {supported}."
+                )
                 exit(1)
 
 def validate_params(kind: ToolKind, **args) -> None:
@@ -371,9 +395,9 @@ async def import_langflow_tool(file: str, app_id: List[str] = None):
     except Exception:
         raise BadRequest(f"Failed to load langflow tool from file {file}")
     
-    validate_app_ids(kind=ToolKind.langflow, app_ids=app_id)
-    connections = get_connection_ids(app_ids=app_id, environment='draft')
-    
+    validate_app_ids(kind=ToolKind.langflow, app_id=app_id)
+    connections = get_connection_ids(app_ids=app_id, environment="draft")
+
     tool = create_langflow_tool(tool_definition=imported_tool, connections=connections)
 
     return tool    
