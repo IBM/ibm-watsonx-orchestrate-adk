@@ -291,8 +291,6 @@ def validate_customer_care_fields(values: dict):
             unsupported_fields.append("guidelines")
         if values.get("collaborators"):
             unsupported_fields.append("collaborators")
-        if values.get("welcome_content"):
-            unsupported_fields.append("welcome_content")
         if values.get("custom_join_tool"):
             unsupported_fields.append("custom_join_tool")
 
