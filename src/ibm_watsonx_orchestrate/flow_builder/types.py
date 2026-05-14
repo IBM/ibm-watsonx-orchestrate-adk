@@ -3565,7 +3565,7 @@ class DecisionsCondition(BaseModel):
 
     def not_equal(self, value: Union[numbers.Number, date, str]) -> Self:
         self._check_type_is_number_or_date_or_str(value)
-        self._condition = f"== {self._format_value(value)}"
+        self._condition = f"!= {self._format_value(value)}"
         return self
     
     def contains(self, value: str) -> Self:
