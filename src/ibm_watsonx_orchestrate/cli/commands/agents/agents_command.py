@@ -259,7 +259,7 @@ def agent_create(
         )
     ] = False
 ):
-    if llm is None:
+    if llm is None and style != AgentStyle.CUSTOM:
         llm = get_default_llm()
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
