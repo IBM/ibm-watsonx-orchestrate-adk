@@ -35,7 +35,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 ## Prerequisites
 ### The Agent Developer Kit (ADK)
 **Python 3.11-3.13**  
-  Ensure you have Python 3.11-3.13 installed.
+  Ensure you have Python 3.11-3.14 installed.
 
 ### watsonx Orchestrate Developer Edition
 **Machine Specs**
