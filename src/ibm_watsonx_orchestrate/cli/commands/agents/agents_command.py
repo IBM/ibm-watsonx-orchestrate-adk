@@ -427,18 +427,18 @@ def undeploy_agent(
     agents_controller = AgentsController()
     agents_controller.undeploy_agent(name=name)
 
-@agents_app.command(name="experimental-connect", help="Connect connections to an agent", hidden=True)
-def experimental_connect_connections(
+@agents_app.command(name="connect", help="Connect connections to an agent")
+def connect_connections(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the agent to connect connections to"),
     ],
-    connection_ids: Annotated[
+    app_ids: Annotated[
         List[str],
         typer.Option(
-            "--connection-id",
-            "-c",
-            help="Connection app_id to connect. Multiple can be specified: --connection-id conn1 --connection-id conn2",
+            "--app-id",
+            "-a",
+            help="Connection app_id to connect. Multiple can be specified: --app-id conn1 --app-id conn2",
         ),
     ],
 ):
@@ -446,13 +446,13 @@ def experimental_connect_connections(
     Connect one or more connections to a custom agent.
     
     This command uses the PATCH /orchestrate/agents/{id} endpoint to associate
-    connections with an agent by their connection IDs.
+    connections with an agent by their app IDs.
     
     Example:
-        wxo agents experimental-connect --name my-agent --connection-id conn1 --connection-id conn2
+        wxo agents connect --name my-agent --app-id conn1 --app-id conn2
     """
     agents_controller = AgentsController()
-    agents_controller.connect_connections_to_agent(agent_name=name, connection_ids=connection_ids)
+    agents_controller.connect_connections_to_agent(agent_name=name, connection_ids=app_ids)
 
 @agents_app.command(name="copy", help='Copy an agent to a different workspace')
 def agent_copy(
