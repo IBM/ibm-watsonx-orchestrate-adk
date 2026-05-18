@@ -126,8 +126,8 @@
                 "kind": "start",
                 "name": "__start__",
                 "position": {
-                    "x": 360.3026676096267,
-                    "y": 403.9954000684239
+                    "x": 375.86157230821635,
+                    "y": 237.08791892903002
                 }
             }
         },
@@ -136,8 +136,8 @@
                 "kind": "user_flow",
                 "name": "UserActivity 1",
                 "position": {
-                    "x": -129.76850410119823,
-                    "y": 568.5738351434507
+                    "x": -116.2904957307415,
+                    "y": 430.21951670140305
                 },
                 "dimensions": {
                     "width": 1226,
@@ -231,8 +231,8 @@
                         "kind": "branch",
                         "name": "Branch 1",
                         "position": {
-                            "x": 828.8952166970695,
-                            "y": 352.2080712250513
+                            "x": 784.8952166970694,
+                            "y": 360.20807122505136
                         },
                         "evaluator": {
                             "conditions": [
@@ -268,24 +268,17 @@
                 },
                 "CodeBlock 1": {
                     "spec": {
-                        "fn": "self.output.cities = [\n    \"Amsterdam\",\n    \"Atlanta\",\n    \"Bangalore\",\n    \"Bangkok\",\n    \"Barcelona\",\n    \"Beijing\",\n    \"Boston\",\n    \"Charlotte\",\n    \"Chicago\",\n    \"Dallas\",\n    \"Delhi\",\n    \"Denver\",\n    \"Detroit\",\n    \"Doha\",\n    \"Dubai\",\n    \"Frankfurt\",\n    \"Guangzhou\",\n    \"Hong Kong\",\n    \"Houston\",\n    \"Istanbul\",\n    \"Jakarta\",\n    \"Kuala Lumpur\",\n    \"Las Vegas\",\n    \"London\",\n    \"Los Angeles\",\n    \"Madrid\",\n    \"Mexico City\",\n    \"Miami\",\n    \"Minneapolis\",\n    \"Mumbai\",\n    \"New York\",\n    \"Orlando\",\n    \"Paris\",\n    \"Philadelphia\",\n    \"Phoenix\",\n    \"Rome\",\n    \"San Francisco\",\n    \"São Paulo\",\n    \"Seattle\",\n    \"Seoul\",\n    \"Shanghai\",\n    \"Singapore\",\n    \"Sydney\",\n    \"Tokyo\",\n    \"Toronto\",\n    \"Vancouver\",\n    \"Vienna\",\n    \"Zurich\"\n  ]\n\nself.output.airports = [\n  { \"city\": \"Amsterdam\", \"airport_code\": \"AMS\" },\n  { \"city\": \"Atlanta\", \"airport_code\": \"ATL\" },\n  { \"city\": \"Bangalore\", \"airport_code\": \"BLR\" },\n  { \"city\": \"Bangkok\", \"airport_code\": \"BKK\" },\n  { \"city\": \"Barcelona\", \"airport_code\": \"BCN\" },\n  { \"city\": \"Beijing\", \"airport_code\": \"PEK\" },\n  { \"city\": \"Boston\", \"airport_code\": \"BOS\" },\n  { \"city\": \"Charlotte\", \"airport_code\": \"CLT\" },\n  { \"city\": \"Chicago\", \"airport_code\": \"ORD\" },\n  { \"city\": \"Dallas\", \"airport_code\": \"DFW\" },\n  { \"city\": \"Delhi\", \"airport_code\": \"DEL\" },\n  { \"city\": \"Denver\", \"airport_code\": \"DEN\" },\n  { \"city\": \"Detroit\", \"airport_code\": \"DTW\" },\n  { \"city\": \"Doha\", \"airport_code\": \"DOH\" },\n  { \"city\": \"Dubai\", \"airport_code\": \"DXB\" },\n  { \"city\": \"Frankfurt\", \"airport_code\": \"FRA\" },\n  { \"city\": \"Guangzhou\", \"airport_code\": \"CAN\" },\n  { \"city\": \"Hong Kong\", \"airport_code\": \"HKG\" },\n  { \"city\": \"Houston\", \"airport_code\": \"IAH\" },\n  { \"city\": \"Istanbul\", \"airport_code\": \"IST\" },\n  { \"city\": \"Jakarta\", \"airport_code\": \"CGK\" },\n  { \"city\": \"Kuala Lumpur\", \"airport_code\": \"KUL\" },\n  { \"city\": \"Las Vegas\", \"airport_code\": \"LAS\" },\n  { \"city\": \"London\", \"airport_code\": \"LHR\" },\n  { \"city\": \"Los Angeles\", \"airport_code\": \"LAX\" },\n  { \"city\": \"Madrid\", \"airport_code\": \"MAD\" },\n  { \"city\": \"Mexico City\", \"airport_code\": \"MEX\" },\n  { \"city\": \"Miami\", \"airport_code\": \"MIA\" },\n  { \"city\": \"Minneapolis\", \"airport_code\": \"MSP\" },\n  { \"city\": \"Mumbai\", \"airport_code\": \"BOM\" },\n  { \"city\": \"New York\", \"airport_code\": \"JFK\" },\n  { \"city\": \"Orlando\", \"airport_code\": \"MCO\" },\n  { \"city\": \"Paris\", \"airport_code\": \"CDG\" },\n  { \"city\": \"Philadelphia\", \"airport_code\": \"PHL\" },\n  { \"city\": \"Phoenix\", \"airport_code\": \"PHX\" },\n  { \"city\": \"Rome\", \"airport_code\": \"FCO\" },\n  { \"city\": \"San Francisco\", \"airport_code\": \"SFO\" },\n  { \"city\": \"São Paulo\", \"airport_code\": \"GRU\" },\n  { \"city\": \"Seattle\", \"airport_code\": \"SEA\" },\n  { \"city\": \"Seoul\", \"airport_code\": \"ICN\" },\n  { \"city\": \"Shanghai\", \"airport_code\": \"PVG\" },\n  { \"city\": \"Singapore\", \"airport_code\": \"SIN\" },\n  { \"city\": \"Sydney\", \"airport_code\": \"SYD\" },\n  { \"city\": \"Tokyo\", \"airport_code\": \"HND\" },\n  { \"city\": \"Toronto\", \"airport_code\": \"YYZ\" },\n  { \"city\": \"Vancouver\", \"airport_code\": \"YVR\" },\n  { \"city\": \"Vienna\", \"airport_code\": \"VIE\" },\n  { \"city\": \"Zurich\", \"airport_code\": \"ZRH\" }\n]",
+                        "fn": "self.output.airports = [\n  { \"city\": \"Amsterdam\", \"airport_code\": \"AMS\" },\n  { \"city\": \"Atlanta\", \"airport_code\": \"ATL\" },\n  { \"city\": \"Bangalore\", \"airport_code\": \"BLR\" },\n  { \"city\": \"Bangkok\", \"airport_code\": \"BKK\" },\n  { \"city\": \"Barcelona\", \"airport_code\": \"BCN\" },\n  { \"city\": \"Beijing\", \"airport_code\": \"PEK\" },\n  { \"city\": \"Boston\", \"airport_code\": \"BOS\" },\n  { \"city\": \"Charlotte\", \"airport_code\": \"CLT\" },\n  { \"city\": \"Chicago\", \"airport_code\": \"ORD\" },\n  { \"city\": \"Dallas\", \"airport_code\": \"DFW\" },\n  { \"city\": \"Delhi\", \"airport_code\": \"DEL\" },\n  { \"city\": \"Denver\", \"airport_code\": \"DEN\" },\n  { \"city\": \"Detroit\", \"airport_code\": \"DTW\" },\n  { \"city\": \"Doha\", \"airport_code\": \"DOH\" },\n  { \"city\": \"Dubai\", \"airport_code\": \"DXB\" },\n  { \"city\": \"Frankfurt\", \"airport_code\": \"FRA\" },\n  { \"city\": \"Guangzhou\", \"airport_code\": \"CAN\" },\n  { \"city\": \"Hong Kong\", \"airport_code\": \"HKG\" },\n  { \"city\": \"Houston\", \"airport_code\": \"IAH\" },\n  { \"city\": \"Istanbul\", \"airport_code\": \"IST\" },\n  { \"city\": \"Jakarta\", \"airport_code\": \"CGK\" },\n  { \"city\": \"Kuala Lumpur\", \"airport_code\": \"KUL\" },\n  { \"city\": \"Las Vegas\", \"airport_code\": \"LAS\" },\n  { \"city\": \"London\", \"airport_code\": \"LHR\" },\n  { \"city\": \"Los Angeles\", \"airport_code\": \"LAX\" },\n  { \"city\": \"Madrid\", \"airport_code\": \"MAD\" },\n  { \"city\": \"Mexico City\", \"airport_code\": \"MEX\" },\n  { \"city\": \"Miami\", \"airport_code\": \"MIA\" },\n  { \"city\": \"Minneapolis\", \"airport_code\": \"MSP\" },\n  { \"city\": \"Mumbai\", \"airport_code\": \"BOM\" },\n  { \"city\": \"New York\", \"airport_code\": \"JFK\" },\n  { \"city\": \"Orlando\", \"airport_code\": \"MCO\" },\n  { \"city\": \"Paris\", \"airport_code\": \"CDG\" },\n  { \"city\": \"Philadelphia\", \"airport_code\": \"PHL\" },\n  { \"city\": \"Phoenix\", \"airport_code\": \"PHX\" },\n  { \"city\": \"Rome\", \"airport_code\": \"FCO\" },\n  { \"city\": \"San Francisco\", \"airport_code\": \"SFO\" },\n  { \"city\": \"São Paulo\", \"airport_code\": \"GRU\" },\n  { \"city\": \"Seattle\", \"airport_code\": \"SEA\" },\n  { \"city\": \"Seoul\", \"airport_code\": \"ICN\" },\n  { \"city\": \"Shanghai\", \"airport_code\": \"PVG\" },\n  { \"city\": \"Singapore\", \"airport_code\": \"SIN\" },\n  { \"city\": \"Sydney\", \"airport_code\": \"SYD\" },\n  { \"city\": \"Tokyo\", \"airport_code\": \"HND\" },\n  { \"city\": \"Toronto\", \"airport_code\": \"YYZ\" },\n  { \"city\": \"Vancouver\", \"airport_code\": \"YVR\" },\n  { \"city\": \"Vienna\", \"airport_code\": \"VIE\" },\n  { \"city\": \"Zurich\", \"airport_code\": \"ZRH\" }\n]",
                         "kind": "script",
                         "name": "CodeBlock 1",
                         "position": {
                             "x": 53,
                             "y": 131
                         },
-                        "display_name": "Get list of cities",
+                        "display_name": "Get list of airports",
                         "output_schema": {
                             "type": "object",
                             "properties": {
-                                "cities": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "description": "List of cities for top 50 airports"
-                                },
                                 "airports": {
                                     "type": "array",
                                     "items": {
@@ -309,7 +302,7 @@
                 },
                 "CodeBlock 2": {
                     "spec": {
-                        "fn": "def get_airport_code(city_name):\n    # Normalize city name (case-insensitive search)\n    city_name = city_name.strip().lower()\n\n    # Search for city in the list\n    for entry in flow[\"Book a flight\"][\"Get list of cities\"].output.airports:\n        if entry[\"city\"].lower() == city_name:\n            return entry[\"airport_code\"]\n    \n    # If not found\n    return None\n\nself.output.departureCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Departure City\"]\nself.output.departureAirport = get_airport_code(self.output.departureCity)\nself.output.arrivalCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Arrival City\"]\nself.output.arrivalAirport = get_airport_code(self.output.arrivalCity)\nself.output.tripType = flow[\"Book a flight\"][\"Search available flights\"].output[\"Trip Type\"]\nself.output.startDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Start Date\"]\nself.output.returnDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Return Date\"]\nself.output.ticketClass = flow[\"Book a flight\"][\"Search available flights\"].output[\"Ticket Class\"]\nself.output.travelers = flow[\"Book a flight\"][\"Search available flights\"].output.Travelers\n\nflow.private.outboundFlights = [\n    {\n        \"airline\": \"British Airways BA117\",\n        \"duration\": \"7h 55m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"720 USD\",\n        \"time\": \"10:30 AM – 02:25 PM\",\n        \"boarding\": \"10:00 AM\",\n        \"gate\": \"B14\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS3\",\n        \"duration\": \"8h 10m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"695 USD\",\n        \"time\": \"02:00 PM – 05:10 PM\",\n        \"boarding\": \"01:00 PM\",\n        \"gate\": \"D17\"\n    },\n    {\n        \"airline\": \"Delta DL1\",\n        \"duration\": \"11h 15m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"640 USD\",\n        \"time\": \"09:15 AM – 08:30 PM\",\n        \"boarding\": \"08:45 AM\",\n        \"gate\": \"C10\"\n    },\n    {\n        \"airline\": \"United Airlines UA15\",\n        \"duration\": \"8h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"12:45 PM – 04:50 PM\",\n        \"boarding\": \"12:15 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"American Airlines AA101\",\n        \"duration\": \"12h 20m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"660 USD\",\n        \"time\": \"07:30 AM – 07:50 PM\",\n        \"boarding\": \"07:00 AM\",\n        \"gate\": \"A17\"\n    }\n]\n\nflow.private.returnFlights = [\n    {\n        \"airline\": \"British Airways BA116\",\n        \"duration\": \"6h 50m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"06:30 PM – 06:20 AM\",\n        \"boarding\": \"04:30 PM\",\n        \"gate\": \"B10\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS4\",\n        \"duration\": \"7h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"690 USD\",\n        \"time\": \"08:15 PM – 07:20 AM\",\n        \"boarding\": \"07:45 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"Delta DL2\",\n        \"duration\": \"10h 40m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"635 USD\",\n        \"time\": \"05:45 PM – 08:25 AM\",\n        \"boarding\": \"03:15 PM\",\n        \"gate\": \"B11\"\n    },\n    {\n        \"airline\": \"United Airlines UA16\",\n        \"duration\": \"7h 25m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"705 USD\",\n        \"time\": \"09:00 PM – 09:25 AM\",\n        \"boarding\": \"08:30 PM\",\n        \"gate\": \"C5\"\n    },\n    {\n        \"airline\": \"American Airlines AA100\",\n        \"duration\": \"11h 10m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"645 USD\",\n        \"time\": \"04:15 PM – 06:25 AM\",\n        \"boarding\": \"02:45 PM\",\n        \"gate\": \"C1\"\n    }\n]\n",
+                        "fn": "self.output.departureCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Departure City\"].city\nself.output.departureAirport = flow[\"Book a flight\"][\"Search available flights\"].output[\"Departure City\"].airport_code\nself.output.arrivalCity = flow[\"Book a flight\"][\"Search available flights\"].output[\"Arrival City\"].city\nself.output.arrivalAirport = flow[\"Book a flight\"][\"Search available flights\"].output[\"Arrival City\"].airport_code\nself.output.tripType = flow[\"Book a flight\"][\"Search available flights\"].output[\"Trip Type\"]\nself.output.startDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Start Date\"]\nself.output.returnDate = flow[\"Book a flight\"][\"Search available flights\"].output[\"Return Date\"]\nself.output.ticketClass = flow[\"Book a flight\"][\"Search available flights\"].output[\"Ticket Class\"]\nself.output.travelers = flow[\"Book a flight\"][\"Search available flights\"].output.Travelers\n\nflow.private.outboundFlights = [\n    {\n        \"airline\": \"British Airways BA117\",\n        \"duration\": \"7h 55m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"720 USD\",\n        \"time\": \"10:30 AM – 02:25 PM\",\n        \"boarding\": \"10:00 AM\",\n        \"gate\": \"B14\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS3\",\n        \"duration\": \"8h 10m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"695 USD\",\n        \"time\": \"02:00 PM – 05:10 PM\",\n        \"boarding\": \"01:00 PM\",\n        \"gate\": \"D17\"\n    },\n    {\n        \"airline\": \"Delta DL1\",\n        \"duration\": \"11h 15m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"640 USD\",\n        \"time\": \"09:15 AM – 08:30 PM\",\n        \"boarding\": \"08:45 AM\",\n        \"gate\": \"C10\"\n    },\n    {\n        \"airline\": \"United Airlines UA15\",\n        \"duration\": \"8h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"12:45 PM – 04:50 PM\",\n        \"boarding\": \"12:15 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"American Airlines AA101\",\n        \"duration\": \"12h 20m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"660 USD\",\n        \"time\": \"07:30 AM – 07:50 PM\",\n        \"boarding\": \"07:00 AM\",\n        \"gate\": \"A17\"\n    }\n]\n\nflow.private.returnFlights = [\n    {\n        \"airline\": \"British Airways BA116\",\n        \"duration\": \"6h 50m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"710 USD\",\n        \"time\": \"06:30 PM – 06:20 AM\",\n        \"boarding\": \"04:30 PM\",\n        \"gate\": \"B10\"\n    },\n    {\n        \"airline\": \"Virgin Atlantic VS4\",\n        \"duration\": \"7h 05m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"690 USD\",\n        \"time\": \"08:15 PM – 07:20 AM\",\n        \"boarding\": \"07:45 PM\",\n        \"gate\": \"C9\"\n    },\n    {\n        \"airline\": \"Delta DL2\",\n        \"duration\": \"10h 40m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"635 USD\",\n        \"time\": \"05:45 PM – 08:25 AM\",\n        \"boarding\": \"03:15 PM\",\n        \"gate\": \"B11\"\n    },\n    {\n        \"airline\": \"United Airlines UA16\",\n        \"duration\": \"7h 25m\",\n        \"stop\": \"Nonstop\",\n        \"price\": \"705 USD\",\n        \"time\": \"09:00 PM – 09:25 AM\",\n        \"boarding\": \"08:30 PM\",\n        \"gate\": \"C5\"\n    },\n    {\n        \"airline\": \"American Airlines AA100\",\n        \"duration\": \"11h 10m\",\n        \"stop\": \"1 stop\",\n        \"price\": \"645 USD\",\n        \"time\": \"04:15 PM – 06:25 AM\",\n        \"boarding\": \"02:45 PM\",\n        \"gate\": \"C1\"\n    }\n]\n",
                         "kind": "script",
                         "name": "CodeBlock 2",
                         "position": {
@@ -437,8 +430,8 @@
                         "kind": "script",
                         "name": "CodeBlock 4",
                         "position": {
-                            "x": 940.4257892331669,
-                            "y": 500.2080712250513
+                            "x": 954.9379330490901,
+                            "y": 475.5739155552191
                         },
                         "display_name": "Make booking",
                         "output_schema": {
@@ -453,7 +446,7 @@
                         "name": "UserActivity 1__end__",
                         "position": {
                             "x": 490,
-                            "y": 739.7321933851892
+                            "y": 776
                         }
                     }
                 },
@@ -475,7 +468,7 @@
                             {
                                 "kind": "text",
                                 "name": "text_output_04b6a68b-7d09-47cd-8a9d-7c2026176d7a",
-                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                                    \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                                    \n    {flow[\"Book a flight\"][\"Get flight details\"].output.departureCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundStops})                                                                                                          \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                                    \n    <div>                                                                                                                                   \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundAirline}                                                                                                                                     \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.startDate}                                                                                                                                    \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundBoarding}                                                                                                                                \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundGate}                                                                                                                                  \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Seat:</strong><br> 23C                                                                                                                                  \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n</div>                                                                                                                                    \n",
+                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                        \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                        \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                        \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                        \n  </div>                                                                                                                        \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                        \n    {flow[\"Book a flight\"][\"Get flight details\"].output.departureCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundStops})                                                                                              \n  </div>                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                        \n    <div>                                                                                                                       \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundAirline}                                                                                                                         \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.startDate}                                                                                                                        \n    </div>                                                                                                                        \n  </div>                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundBoarding}                                                                                                                    \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.outboundGate}                                                                                                                      \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Seat:</strong><br> 23C                                                                                                                      \n    </div>                                                                                                                        \n  </div>                                                                                                                        \n</div>                                                                                                                        \n",
                                 "direction": "output",
                                 "input_schema": {
                                     "type": "object",
@@ -507,6 +500,17 @@
                                 {
                                     "kind": "any",
                                     "name": "field_daae1468-340d-4543-aa8f-f1dbca81b059",
+                                    "metadata": {
+                                        "builderui:columnOrder": [
+                                            "airline",
+                                            "stop",
+                                            "duration",
+                                            "time",
+                                            "price",
+                                            "gate",
+                                            "boarding"
+                                        ]
+                                    },
                                     "uiSchema": {
                                         "ui:title": "Choose your flight",
                                         "ui:widget": "Table",
@@ -529,10 +533,11 @@
                                                 },
                                                 {
                                                     "metadata": {
-                                                        "assignmentType": "blank"
+                                                        "assignmentType": "variable"
                                                     },
-                                                    "has-no-value": true,
-                                                    "target_variable": "self.input.display_text"
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": "item.airline"
                                                 },
                                                 {
                                                     "metadata": {
@@ -540,7 +545,7 @@
                                                     },
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
-                                                    "value_expression": "[\"item.airline\",\"item.duration\",\"item.price\",\"item.stop\",\"item.time\"]"
+                                                    "value_expression": "[\"item.airline\",\"item.stop\",\"item.duration\",\"item.time\",\"item.price\"]"
                                                 }
                                             ],
                                             "name": ""
@@ -607,6 +612,10 @@
                                         "type": "object",
                                         "title": "Choose your flight",
                                         "properties": {
+                                            "gate": {
+                                                "type": "string",
+                                                "title": "Gate"
+                                            },
                                             "stop": {
                                                 "type": "string",
                                                 "title": "Stop"
@@ -622,6 +631,10 @@
                                             "airline": {
                                                 "type": "string",
                                                 "title": "Airline"
+                                            },
+                                            "boarding": {
+                                                "type": "string",
+                                                "title": "Boarding"
                                             },
                                             "duration": {
                                                 "type": "string",
@@ -671,8 +684,8 @@
                         ],
                         "owners": [],
                         "position": {
-                            "x": 431.7483961465429,
-                            "y": 650.3245174602748
+                            "x": 413.2752853957224,
+                            "y": 616.0173117801794
                         },
                         "display_name": "Price summary"
                     }
@@ -748,7 +761,7 @@
                             {
                                 "kind": "text",
                                 "name": "text_output_739026dd-c26c-4f82-a3b0-b5e89ad249a1",
-                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                                    \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                                    \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                                    \n    {flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.departureCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnStops})                                                                                                          \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnAirline}                                                                                                                                    \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.returnDate}                                                                                                                                    \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnBoarding}                                                                                                                               \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnGate}                                                                                                                           \n    </div>                                                                                                                                    \n    <div>                                                                                                                                    \n      <strong>Seat:</strong><br> 11A                                                                                                                                  \n    </div>                                                                                                                                    \n  </div>                                                                                                                                    \n</div>                                                                                                                                    \n",
+                                "text": "<div style=\"width:300px;background:#ffffff;border:1px solid #ddd;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-family:Arial,sans-serif;padding:20px;text-align:left;\">                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;\">                                                                                                                        \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.arrivalAirport}</div>                                                                                                                        \n    <div style=\"font-size:1.5em;\">✈️</div>                                                                                                                        \n    <div style=\"font-weight:bold;font-size:1.2em;\">{flow[\"Book a flight\"][\"Get flight details\"].output.departureAirport}</div>                                                                                                                        \n  </div>                                                                                                                        \n  <div style=\"color:#666;font-size:0.9em;margin-bottom:10px;\">                                                                                                                        \n    {flow[\"Book a flight\"][\"Get flight details\"].output.arrivalCity}→{flow[\"Book a flight\"][\"Get flight details\"].output.departureCity} ({flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnStops})                                                                                              \n  </div>                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;margin-bottom:8px;\">                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Flight:</strong><br>{flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnAirline}                                                                                                                        \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Date:</strong><br> {flow[\"Book a flight\"][\"Get flight details\"].output.returnDate}                                                                                                                        \n    </div>                                                                                                                        \n  </div>                                                                                                                        \n  <div style=\"display:flex;justify-content:space-between;font-size:0.9em;\">                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Boarding:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnBoarding}                                                                                                                   \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Gate:</strong><br> {flow[\"Book a flight\"][\"Prepare flight summary\"].output.returnGate}                                                                                                               \n    </div>                                                                                                                        \n    <div>                                                                                                                        \n      <strong>Seat:</strong><br> 11A                                                                                                                      \n    </div>                                                                                                                        \n  </div>                                                                                                                        \n</div>                                                                                                                        \n",
                                 "direction": "output",
                                 "input_schema": {
                                     "type": "object",
@@ -780,6 +793,17 @@
                                 {
                                     "kind": "any",
                                     "name": "field_923f4373-89f8-4dbf-a5f5-6da03749d91d",
+                                    "metadata": {
+                                        "builderui:columnOrder": [
+                                            "airline",
+                                            "stop",
+                                            "duration",
+                                            "time",
+                                            "price",
+                                            "gate",
+                                            "boarding"
+                                        ]
+                                    },
                                     "uiSchema": {
                                         "ui:title": "Choose your flight",
                                         "ui:widget": "Table",
@@ -813,7 +837,7 @@
                                                     },
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
-                                                    "value_expression": "[\"item.airline\",\"item.duration\",\"item.price\",\"item.stop\",\"item.time\"]"
+                                                    "value_expression": "[\"item.airline\",\"item.stop\",\"item.duration\",\"item.time\",\"item.price\"]"
                                                 }
                                             ],
                                             "name": ""
@@ -877,7 +901,38 @@
                                 "required": [],
                                 "properties": {
                                     "field_923f4373-89f8-4dbf-a5f5-6da03749d91d": {
-                                        "title": "Choose your flight"
+                                        "type": "object",
+                                        "title": "Choose your flight",
+                                        "properties": {
+                                            "gate": {
+                                                "type": "string",
+                                                "title": "Gate"
+                                            },
+                                            "stop": {
+                                                "type": "string",
+                                                "title": "Stop"
+                                            },
+                                            "time": {
+                                                "type": "string",
+                                                "title": "Time"
+                                            },
+                                            "price": {
+                                                "type": "string",
+                                                "title": "Price"
+                                            },
+                                            "airline": {
+                                                "type": "string",
+                                                "title": "Airline"
+                                            },
+                                            "boarding": {
+                                                "type": "string",
+                                                "title": "Boarding"
+                                            },
+                                            "duration": {
+                                                "type": "string",
+                                                "title": "Duration"
+                                            }
+                                        }
                                     }
                                 },
                                 "additionalProperties": false
@@ -914,26 +969,19 @@
                                             "maps": [
                                                 {
                                                     "metadata": {
-                                                        "assignmentType": "automap"
+                                                        "assignmentType": "variable"
                                                     },
-                                                    "has-no-value": true,
-                                                    "target_variable": "self.input.default"
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of airports\"].output.airports"
                                                 },
                                                 {
                                                     "metadata": {
                                                         "assignmentType": "variable"
                                                     },
                                                     "has-no-value": false,
-                                                    "target_variable": "self.input.choices",
-                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of cities\"].output.cities"
-                                                },
-                                                {
-                                                    "metadata": {
-                                                        "assignmentType": "variable"
-                                                    },
-                                                    "has-no-value": true,
                                                     "target_variable": "self.input.display_text",
-                                                    "value_expression": ""
+                                                    "value_expression": "item.city"
                                                 },
                                                 {
                                                     "metadata": {
@@ -942,6 +990,13 @@
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
                                                     "value_expression": "[]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default"
                                                 }
                                             ],
                                             "name": ""
@@ -998,26 +1053,19 @@
                                             "maps": [
                                                 {
                                                     "metadata": {
-                                                        "assignmentType": "automap"
+                                                        "assignmentType": "variable"
                                                     },
-                                                    "has-no-value": true,
-                                                    "target_variable": "self.input.default"
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of airports\"].output.airports"
                                                 },
                                                 {
                                                     "metadata": {
                                                         "assignmentType": "variable"
                                                     },
                                                     "has-no-value": false,
-                                                    "target_variable": "self.input.choices",
-                                                    "value_expression": "flow[\"Book a flight\"][\"Get list of cities\"].output.cities"
-                                                },
-                                                {
-                                                    "metadata": {
-                                                        "assignmentType": "variable"
-                                                    },
-                                                    "has-no-value": true,
                                                     "target_variable": "self.input.display_text",
-                                                    "value_expression": ""
+                                                    "value_expression": "item.city"
                                                 },
                                                 {
                                                     "metadata": {
@@ -1026,6 +1074,13 @@
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
                                                     "value_expression": "[]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default"
                                                 }
                                             ],
                                             "name": ""
@@ -1085,14 +1140,6 @@
                                                         "assignmentType": "pyExpression"
                                                     },
                                                     "has-no-value": false,
-                                                    "target_variable": "self.input.default",
-                                                    "value_expression": "\"Round Trip\""
-                                                },
-                                                {
-                                                    "metadata": {
-                                                        "assignmentType": "pyExpression"
-                                                    },
-                                                    "has-no-value": false,
                                                     "target_variable": "self.input.choices",
                                                     "value_expression": "[\"Round Trip\",\"One-way\"]"
                                                 },
@@ -1110,6 +1157,14 @@
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
                                                     "value_expression": "[]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "\"Round Trip\""
                                                 }
                                             ],
                                             "name": ""
@@ -1168,7 +1223,7 @@
                                                     "metadata": {
                                                         "assignmentType": "automap"
                                                     },
-                                                    "has-no-value": true,
+                                                    "has-no-value": false,
                                                     "target_variable": "self.input.default"
                                                 }
                                             ],
@@ -1208,6 +1263,7 @@
                                         },
                                         "additionalProperties": false
                                     },
+                                    "__previousMultiple": false,
                                     "uiSchemaParkingLot": {}
                                 },
                                 {
@@ -1226,7 +1282,7 @@
                                                     "metadata": {
                                                         "assignmentType": "automap"
                                                     },
-                                                    "has-no-value": true,
+                                                    "has-no-value": false,
                                                     "target_variable": "self.input.default"
                                                 }
                                             ],
@@ -1266,6 +1322,7 @@
                                         },
                                         "additionalProperties": false
                                     },
+                                    "__previousMultiple": false,
                                     "uiSchemaParkingLot": {}
                                 },
                                 {
@@ -1282,19 +1339,11 @@
                                             "maps": [
                                                 {
                                                     "metadata": {
-                                                        "assignmentType": "literal"
-                                                    },
-                                                    "has-no-value": false,
-                                                    "target_variable": "self.input.default",
-                                                    "value_expression": "\"Economy\""
-                                                },
-                                                {
-                                                    "metadata": {
                                                         "assignmentType": "pyExpression"
                                                     },
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.choices",
-                                                    "value_expression": "[\"Economy\",\"Premium Economy\", \"Business\"]"
+                                                    "value_expression": "[\"Economy\", \"Premium Economy\", \"Business\", \"First Class\"]"
                                                 },
                                                 {
                                                     "metadata": {
@@ -1310,6 +1359,14 @@
                                                     "has-no-value": false,
                                                     "target_variable": "self.input.display_items",
                                                     "value_expression": "[]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "\"Economy\""
                                                 }
                                             ],
                                             "name": ""
@@ -1367,7 +1424,7 @@
                                                     "metadata": {
                                                         "assignmentType": "automap"
                                                     },
-                                                    "has-no-value": false,
+                                                    "has-no-value": true,
                                                     "target_variable": "self.input.default"
                                                 }
                                             ],
@@ -1411,39 +1468,47 @@
                                 {
                                     "kind": "cancel",
                                     "name": "cancel",
-                                    "visible": true,
+                                    "visible": false,
                                     "display_name": "Cancel"
                                 }
                             ],
                             "jsonSchema": {
                                 "type": "object",
-                                "required": [],
+                                "required": [
+                                    "field_bebf2e89-dd49-4eb8-aeef-4bfe6ac8fe64",
+                                    "field_8c5970ee-1fd2-46d7-b87e-bac78745542f",
+                                    "field_5a49b522-c2cd-4ea9-a382-07e4f2bbd0b8",
+                                    "field_d5c5f06d-0bbc-46e3-a8ce-3ec557a529d9",
+                                    "field_f9e968a1-2278-4277-a485-94c9452b0cb2",
+                                    "field_ca6b5c73-9960-4205-9395-d3b601c1293a",
+                                    "field_d539db2e-928f-4e74-b30b-89d119058427"
+                                ],
                                 "properties": {
                                     "field_5a49b522-c2cd-4ea9-a382-07e4f2bbd0b8": {
-                                        "title": "Arrival City"
+                                        "title": "Arrival City (Required)"
                                     },
                                     "field_8c5970ee-1fd2-46d7-b87e-bac78745542f": {
                                         "type": "string",
-                                        "title": "Return Date",
+                                        "title": "Return Date (Required)",
                                         "format": "date"
                                     },
                                     "field_bebf2e89-dd49-4eb8-aeef-4bfe6ac8fe64": {
                                         "type": "string",
-                                        "title": "Start Date",
+                                        "title": "Start Date (Required)",
                                         "format": "date"
                                     },
                                     "field_ca6b5c73-9960-4205-9395-d3b601c1293a": {
-                                        "title": "Ticket Class"
+                                        "title": "Ticket Class (Required)"
                                     },
                                     "field_d539db2e-928f-4e74-b30b-89d119058427": {
                                         "type": "integer",
-                                        "title": "Travelers"
+                                        "title": "Travelers (Required)"
                                     },
                                     "field_d5c5f06d-0bbc-46e3-a8ce-3ec557a529d9": {
-                                        "title": "Departure City"
+                                        "title": "Departure City (Required)"
                                     },
                                     "field_f9e968a1-2278-4277-a485-94c9452b0cb2": {
-                                        "title": "Trip Type"
+                                        "title": "Trip Type (Required)"
                                     }
                                 },
                                 "additionalProperties": false

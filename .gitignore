@@ -80,3 +80,6 @@ coverage/
 # Ignore local examples
 examples/local/
 examples/*/local/
+
+# IBM Bob
+.bob

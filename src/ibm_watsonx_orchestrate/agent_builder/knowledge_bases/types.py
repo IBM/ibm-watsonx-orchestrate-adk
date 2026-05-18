@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
@@ -126,17 +126,24 @@ class GenerationConfiguration(BaseModel):
 
 class FieldMapping(BaseModel):
     """
-    example
-
+    Maps search result fields to output fields.
+    
+    Example:
     {
         "title": "title",
         "body": "text",
-        "url": "some-url"
+        "url": "some-url",
+        "custom_fields": {
+            "score": "_score",
+            "department": "dept",
+            "last_updated": "updated_at"
+        }
     }
     """
     title: Optional[str] = None
     body: Optional[str] = None
     url: Optional[str] = None
+    custom_fields: Optional[Dict[str, str]] = None
 
 class MilvusConnection(BaseModel):
     """
@@ -221,6 +228,7 @@ class CustomSearchConnection(BaseModel):
     url: str
     filter: Optional[str] = None
     metadata: Optional[dict] = None
+    field_mapping: Optional[FieldMapping] = None
 
 class AstraDBConnection(BaseModel):
     """
@@ -339,12 +347,38 @@ class ConversationalSearchConfig(BaseModel):
     query_source: QuerySource = QuerySource.Agent
     agent_query_description: str = "The query to search for in the knowledge base"
     supports_full_document: Optional[bool] = None
+    
+    # Dynamic input schema support
+    input_schema: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def validate_agent_query_description(self) -> 'ConversationalSearchConfig':
         if self.query_source == QuerySource.Agent and len(self.agent_query_description) == 0:
             raise ValueError("Provide a non-empty agent_query_description when query source is `Agent`")
         return self
+    
+    @model_validator(mode='after')
+    def validate_input_schema(self) -> 'ConversationalSearchConfig':
+        """Validate that input_schema is only used with Agent query_source and without document modes."""
+        if self.input_schema is None:
+            return self
+
+        # input_schema only supported when query_source is Agent
+        if self.query_source != QuerySource.Agent:
+            raise ValueError(
+                "input_schema is only supported when query_source is 'Agent'. "
+                f"Current query_source is '{self.query_source.value}'."
+            )
+
+        # input_schema not supported with document modes
+        if self.supports_full_document:
+            raise ValueError(
+                "input_schema is not supported when supports_full_document=True or full_documents_only=True. "
+                "Dynamic input schema only works with standard search mode."
+            )
+
+        return self
+
 
 class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
     embeddings_model_name: Optional[str] = None

@@ -1,0 +1,487 @@
+openapi: 3.0.3
+info:
+  title: watsonx Orchestrate Agentic Workflow (Flow) Callback API
+  description: |
+    OpenAPI specification for watsonx Orchestrate Agentic Workflow (Flow) callback handler.
+    This API receives flow execution events as fire-and-forget notifications.
+  version: 1.0.0
+  contact:
+    name: watsonx Orchestrate Flow Team
+
+servers:
+  - url: https://api.example.com
+    description: Production server
+  - url: https://staging-api.example.com
+    description: Staging server
+
+paths:
+  /flow/callback:
+    post:
+      summary: Handle Flow Callback Events
+      description: |
+        Receives an array of flow execution events from watsonx Orchestrate Agentic Workflow (Flow).
+        This is a fire-and-forget endpoint - no response data is expected.
+        The Flow engine will send various event types during flow execution lifecycle.
+        Multiple events can be batched together for efficient processing.
+      operationId: handleFlowCallback
+      tags:
+        - Flow Callbacks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/FlowCallbackEventPayload'
+              description: Array of flow callback event payloads
+            examples:
+              singleEvent:
+                summary: Single Event
+                value:
+                  - event:
+                      id: "flow-inst-12345_2026-04-01T16:30:00.000Z"
+                      type: "flow:on_flow_start"
+                      created_at: "2026-04-01T16:30:00.000Z"
+                      instance_id: "flow-inst-12345"
+                      flow_name: "Purchase Approval Flow"
+                      environment_id: "draft"
+                      state: "working"
+              
+              multipleEvents:
+                summary: Multiple Events (Batch)
+                value:
+                  - event:
+                      id: "flow-inst-12345_2026-04-01T16:30:00.000Z"
+                      type: "flow:on_flow_start"
+                      created_at: "2026-04-01T16:30:00.000Z"
+                      instance_id: "flow-inst-12345"
+                      flow_name: "Purchase Approval Flow"
+                      environment_id: "draft"
+                      state: "working"
+                  - event:
+                      id: "flow-inst-12345_2026-04-01T16:30:15.000Z"
+                      type: "task:on_task_wait"
+                      created_at: "2026-04-01T16:30:15.000Z"
+                      instance_id: "flow-inst-12345"
+                      flow_name: "Purchase Approval Flow"
+                      environment_id: "draft"
+                      state: "input_required"
+                      task_id: "task-67890"
+                      task_name: "approval_form"
+                      task_display_name: "Approval Form"
+                    elicitation:
+                      mode: "form"
+                      message: "Please review and approve the purchase request"
+                      elicitationId: "task-67890"
+                      requestedSchema:
+                        type: "object"
+                        properties:
+                          approved:
+                            type: "boolean"
+                          comments:
+                            type: "string"
+                      meta:
+                        assignee: "user@example.com"
+                        response_items:
+                          - response_type: "option"
+                            name: "approved"
+                            text: "Approve this request?"
+                            id: "approved"
+                            options:
+                              - label: "Yes"
+                                value: "true"
+                              - label: "No"
+                                value: "false"
+                  - event:
+                      id: "flow-inst-12345_2026-04-01T16:35:00.000Z"
+                      type: "flow:on_flow_end"
+                      created_at: "2026-04-01T16:35:00.000Z"
+                      instance_id: "flow-inst-12345"
+                      flow_name: "Purchase Approval Flow"
+                      environment_id: "live"
+                      state: "completed"
+                    output:
+                      result: "approved"
+                      approval_date: "2026-04-01"
+                      approver: "user@example.com"
+              
+              errorEvent:
+                summary: Error Event
+                value:
+                  - event:
+                      id: "flow-inst-12345_2026-04-01T16:32:00.000Z"
+                      type: "flow:on_flow_error"
+                      created_at: "2026-04-01T16:32:00.000Z"
+                      instance_id: "flow-inst-12345"
+                      flow_name: "Purchase Approval Flow"
+                      environment_id: "draft"
+                      state: "failed"
+                      error:
+                        message: "Failed to connect to external service"
+                        code: "SERVICE_UNAVAILABLE"
+      
+      responses:
+        '200':
+          description: |
+            Callback received successfully. 
+            No response body is required as this is a fire-and-forget operation.
+        '202':
+          description: |
+            Callback accepted for processing.
+            No response body is required as this is a fire-and-forget operation.
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    FlowCallbackEventPayload:
+      type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: '#/components/schemas/EventMetadata'
+        output:
+          type: object
+          description: Flow output data (only present when state is "completed")
+          additionalProperties: true
+        elicitation:
+          $ref: '#/components/schemas/ElicitationDetails'
+      description: Complete payload for a single flow callback event
+    
+    EventMetadata:
+      type: object
+      required:
+        - id
+        - kind
+        - created_at
+        - instance_id
+        - flow_name
+        - environment_id
+        - state
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this event instance (UUID)
+        kind:
+          type: string
+          enum:
+            - "flow:on_flow_start"
+            - "flow:on_flow_end"
+            - "flow:on_flow_error"
+            - "task:on_task_wait"
+            - "task:on_task_error"
+            - "task:on_task_message"
+          description: Kind of flow event
+          x-alternate-name: type
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the event occurred
+        instance_id:
+          type: string
+          description: Unique identifier for this flow instance
+        flow_name:
+          type: string
+          description: Name of the flow
+        environment_id:
+          type: string
+          description: Environment ID where the flow is running
+        state:
+          type: string
+          enum:
+            - "working"
+            - "input_required"
+            - "completed"
+            - "failed"
+          description: Current execution state of the flow
+        parent_instance_id:
+          type: string
+          description: Parent flow instance ID (present when this is a child flow)
+        parent_flow_name:
+          type: string
+          description: Parent flow name (present when this is a child flow)
+        task_id:
+          type: string
+          description: Task ID (present for task-related events)
+        task_name:
+          type: string
+          description: Internal task name (present for task-related events)
+        task_display_name:
+          type: string
+          description: Human-readable task display name (present for task-related events)
+        error:
+          $ref: '#/components/schemas/ErrorDetails'
+      description: Event metadata including type, timestamp, flow information, and optional task/error information
+    
+    ErrorDetails:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message describing what went wrong
+        code:
+          type: string
+          description: Optional error code for categorization
+      description: Error details (present for error events)
+    
+    ElicitationDetails:
+      type: object
+      required:
+        - mode
+        - message
+        - elicitationId
+        - requestedSchema
+        - meta
+      properties:
+        mode:
+          type: string
+          enum:
+            - "form"
+          description: Elicitation mode - currently only "form" is supported
+        message:
+          type: string
+          description: User-facing message describing what input is needed
+        elicitationId:
+          type: string
+          description: Unique identifier for this elicitation request (same as task_id)
+        requestedSchema:
+          type: object
+          additionalProperties: true
+          description: JSON Schema defining the structure and validation rules for requested input
+        meta:
+          $ref: '#/components/schemas/ElicitationMetadata'
+      description: Elicitation details for user input (only present when state is "input_required")
+    
+    ElicitationMetadata:
+      type: object
+      required:
+        - assignee
+        - response_items
+      properties:
+        assignee:
+          type: string
+          description: User ID or email of the assigned user
+        response_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseItem'
+          description: Full original ResponseItem schema array for complex input requests
+      description: Additional metadata about the elicitation request
+    
+    ResponseItem:
+      type: object
+      required:
+        - response_type
+        - name
+      properties:
+        response_type:
+          type: string
+          enum:
+            - "text"
+            - "file_upload"
+            - "file_download"
+            - "object"
+            - "date"
+            - "datetime"
+            - "time"
+            - "number"
+            - "option"
+            - "forms"
+          description: Type of response item
+        name:
+          type: string
+          description: Name identifier for the response item
+        activity_info:
+          $ref: '#/components/schemas/ActivityInfo'
+      discriminator:
+        propertyName: response_type
+        mapping:
+          text: '#/components/schemas/TextResponseItem'
+          file_upload: '#/components/schemas/FileUploadResponseItem'
+          file_download: '#/components/schemas/FileDownloadResponseItem'
+          object: '#/components/schemas/ObjectResponseItem'
+          number: '#/components/schemas/NumberResponseItem'
+          option: '#/components/schemas/OptionResponseItem'
+          forms: '#/components/schemas/FormResponseItem'
+      description: Base response item for user input requests
+    
+    ActivityInfo:
+      type: object
+      properties:
+        initiated_by:
+          type: string
+        action_status:
+          type: string
+        activity_title:
+          type: string
+      description: Activity information for response items
+    
+    TextResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - text
+            - is_list
+          properties:
+            text:
+              type: string
+            is_list:
+              type: boolean
+    
+    FileUploadResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - text
+            - source
+          properties:
+            text:
+              type: string
+            source:
+              type: string
+    
+    FileDownloadResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - files
+          properties:
+            files:
+              type: array
+              items:
+                $ref: '#/components/schemas/FileDownloadEntry'
+    
+    FileDownloadEntry:
+      type: object
+      required:
+        - url
+        - text
+        - fileName
+      properties:
+        url:
+          type: string
+          format: uri
+        text:
+          type: string
+        fileName:
+          type: string
+    
+    ObjectResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/ResponseItem'
+    
+    NumberResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - text
+          properties:
+            text:
+              type: string
+            min:
+              type: string
+            max:
+              type: string
+            default:
+              type: string
+    
+    OptionResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - text
+            - id
+            - options
+          properties:
+            text:
+              type: string
+            id:
+              type: string
+            options:
+              type: array
+              items:
+                $ref: '#/components/schemas/OptionEntry'
+            default:
+              type: string
+    
+    OptionEntry:
+      type: object
+      required:
+        - label
+        - value
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+    
+    FormResponseItem:
+      allOf:
+        - $ref: '#/components/schemas/ResponseItem'
+        - type: object
+          required:
+            - json_schema
+            - ui_schema
+          properties:
+            json_schema:
+              type: object
+              additionalProperties: true
+            ui_schema:
+              type: object
+              additionalProperties: true
+            form_data:
+              type: object
+              additionalProperties: true
+            extracted_full_choice_map:
+              type: object
+              additionalProperties: true
+            behaviours:
+              type: array
+              items:
+                type: object
+    
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+tags:
+  - name: Flow Callbacks
+    description: Endpoints for receiving flow execution events
+

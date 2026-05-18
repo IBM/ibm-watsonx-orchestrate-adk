@@ -38,7 +38,6 @@ class ToolResponse:
     else:
       self.content = content
       self.context_updates = context_updates if context_updates is not None else {}
-      self._meta = _meta
       self.structuredContent = None
 
   def has_context_updates(self) -> bool:

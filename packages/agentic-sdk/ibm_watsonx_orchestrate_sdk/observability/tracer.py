@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_NAME,
+    ATTR_GEN_AI_REQUEST_MODEL,
+    ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
@@ -285,6 +287,8 @@ class Tracer:
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_LLM}
         if model:
             merged[ATTR_LLM_MODEL] = model
+            merged[ATTR_GEN_AI_REQUEST_MODEL] = model
+            merged[ATTR_GEN_AI_RESPONSE_MODEL] = model
         if provider:
             merged[ATTR_LLM_PROVIDER] = provider
         if attributes:

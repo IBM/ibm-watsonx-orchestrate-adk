@@ -172,7 +172,7 @@ class ChatWxO(ChatOpenAI):
             )
             ```
         """
-        if not any([local, execution_context, session]) and is_local_dev(instance_url):
+        if instance_url and is_local_dev(instance_url):
             local = True
     
         # Create Client instance using agentic-sdk

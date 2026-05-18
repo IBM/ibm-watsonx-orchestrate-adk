@@ -46,7 +46,7 @@ class ServiceInstance(BaseServiceInstance):
     def _infer_auth_type(self) -> EnvironmentAuthType:
         if is_ibm_cloud_platform(self._credentials.url):
             return EnvironmentAuthType.IBM_CLOUD_IAM
-        elif is_cpd_env(self._credentials.url):
+        elif is_cpd_env(self._credentials.url, env_auth_type=self._credentials.auth_type):
             return EnvironmentAuthType.CPD
         else:
             return EnvironmentAuthType.MCSP

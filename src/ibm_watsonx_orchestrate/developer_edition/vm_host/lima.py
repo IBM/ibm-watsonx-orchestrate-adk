@@ -7,6 +7,7 @@ import os
 import logging
 import shutil
 from pathlib import Path
+from ibm_watsonx_orchestrate_core.utils.exceptions import ConnectionUpgradeRequiredException, VMLifecycleException
 import yaml
 import sys
 import requests
@@ -66,15 +67,22 @@ class LimaLifecycleManager(VMLifecycleManager):
             files("ibm_watsonx_orchestrate.developer_edition.resources.lima.bin")
             / "limactl"
         )
-        return subprocess.run(
-            [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
-            capture_output=capture_output,
-            text=True,
-            input=input,
-            env=env,
-            **kwargs
-        )
-        
+        try:
+            return subprocess.run(
+                [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
+                capture_output=capture_output,
+                text=True,
+                input=input,
+                env=env,
+                **kwargs
+            )
+        except Exception as e:
+            exception_msg = str(e).lower()
+            if all([item in exception_msg for item in ["426", "upgrade required"]]):
+                raise ConnectionUpgradeRequiredException(exception_msg)
+            else:
+                raise VMLifecycleException(exception_msg)
+
     def edit_server(self, cpus=None, memory=None, disk=None):
         return _edit_lima_vm(cpus, memory, disk)
 

@@ -8,6 +8,7 @@ from typing import List, Optional, Union
 import zipfile
 import sys
 import re
+from ibm_watsonx_orchestrate_core.utils.exceptions import ConnectionUpgradeRequiredException, VMLifecycleException
 import requests
 import time
 from ibm_watsonx_orchestrate.developer_edition.vm_host.constants import VM_NAME, DEFAULT_CPUS, DEFAULT_MEMORY
@@ -66,8 +67,15 @@ class WSLLifecycleManager(VMLifecycleManager):
         # Docker commands should implicitly run as 'orchestrate'
         # The 'shell' method should handle passing 'user="orchestrate"' to wsl_exec
         # If there's an explicit need to run docker as root, you'd add 'user="root"' to **kwags
-        return self.shell(['docker'] + _command_to_list(command), capture_output=capture_output, user="orchestrate", **kwags) # Explicitly set user for docker commands
-    
+        try:
+            return self.shell(['docker'] + _command_to_list(command), capture_output=capture_output, user="orchestrate", **kwags) # Explicitly set user for docker commands
+        except Exception as e:
+            exception_msg = str(e).lower()
+            if all([item in exception_msg for item in ["426", "upgrade required"]]):
+                raise ConnectionUpgradeRequiredException(exception_msg)
+            else:
+                raise VMLifecycleException(exception_msg)
+
     def edit_server(self, cpus=None, memory=None, disk=None):
         return _edit_wsl_vm(cpus, memory, disk)
     
