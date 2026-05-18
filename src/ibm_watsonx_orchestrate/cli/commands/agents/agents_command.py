@@ -26,13 +26,13 @@ def agent_import(
         Optional[str],
         typer.Option("--file", "-f", help="Path to a file: YAML file with agent definition"),
     ] = None,
-    experimental_package_root: Annotated[
+    package_root: Annotated[
         Optional[str],
-        typer.Option("--experimental-package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded.", hidden=True),
+        typer.Option("--package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded."),
     ] = None,
-    experimental_config_file: Annotated[
+    config_file: Annotated[
         Optional[str],
-        typer.Option("--experimental-config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --experimental-package-root.", hidden=True),
+        typer.Option("--config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
     ] = None,
     app_id: Annotated[
         Optional[str], typer.Option(
@@ -49,36 +49,36 @@ def agent_import(
     ] = False
 ):
     
-    # Validate that either file or experimental_package_root is provided
-    if not file and not experimental_package_root:
-        raise ValueError("Either --file or --experimental-package-root is required")
+    # Validate that either file or package_root is provided
+    if not file and not package_root:
+        raise ValueError("Either --file or --package-root is required")
     
-    if file and experimental_package_root:
-        raise ValueError("Specify either --file or --experimental-package-root, not both")
+    if file and package_root:
+        raise ValueError("Specify either --file or --package-root, not both")
     
-    if experimental_config_file and not experimental_package_root:
-        raise ValueError("--experimental-config-file can only be used with --experimental-package-root")
+    if config_file and not package_root:
+        raise ValueError("--config-file can only be used with --package-root")
     
     custom_agent_file_path = None
     custom_agent_config_file = None
     
-    if experimental_package_root:
+    if package_root:
         # Validate the directory exists
-        if not os.path.exists(experimental_package_root):
-            raise ValueError(f"Package root directory not found: {experimental_package_root}")
-        if not os.path.isdir(experimental_package_root):
-            raise ValueError(f"Package root must be a directory: {experimental_package_root}")
+        if not os.path.exists(package_root):
+            raise ValueError(f"Package root directory not found: {package_root}")
+        if not os.path.isdir(package_root):
+            raise ValueError(f"Package root must be a directory: {package_root}")
         
         # Validate config file if provided
-        if experimental_config_file:
-            if not os.path.exists(experimental_config_file):
-                raise ValueError(f"Config file not found: {experimental_config_file}")
-            if not os.path.isfile(experimental_config_file):
-                raise ValueError(f"Config file must be a file: {experimental_config_file}")
-            custom_agent_config_file = experimental_config_file
+        if config_file:
+            if not os.path.exists(config_file):
+                raise ValueError(f"Config file not found: {config_file}")
+            if not os.path.isfile(config_file):
+                raise ValueError(f"Config file must be a file: {config_file}")
+            custom_agent_config_file = config_file
         
-        custom_agent_file_path = experimental_package_root
-        file = experimental_package_root
+        custom_agent_file_path = package_root
+        file = package_root
     elif file:
         # Validate the file exists
         if not os.path.exists(file):
@@ -111,13 +111,13 @@ def agent_create(
         Optional[str],
         typer.Option("--file", "-f", help="Path to a file: YAML file with agent definition or ZIP file for custom style agents"),
     ] = None,
-    experimental_package_root: Annotated[
+    package_root: Annotated[
         Optional[str],
-        typer.Option("--experimental-package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded.", hidden=True),
+        typer.Option("--package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded."),
     ] = None,
-    experimental_config_file: Annotated[
+    config_file: Annotated[
         Optional[str],
-        typer.Option("--experimental-config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --experimental-package-root.", hidden=True),
+        typer.Option("--config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
     ] = None,
     title: Annotated[
         str,
@@ -270,14 +270,14 @@ def agent_create(
     custom_agent_config_file = None
     
     if style == AgentStyle.CUSTOM:
-        if not file and not experimental_package_root:
-            raise ValueError("For custom style agents, either --file or --experimental-package-root is required")
+        if not file and not package_root:
+            raise ValueError("For custom style agents, either --file or --package-root is required")
         
-        if file and experimental_package_root:
-            raise ValueError("For custom style agents, specify either --file or --experimental-package-root, not both")
+        if file and package_root:
+            raise ValueError("For custom style agents, specify either --file or --package-root, not both")
         
-        if experimental_config_file and not experimental_package_root:
-            raise ValueError("--experimental-config-file can only be used with --experimental-package-root")
+        if config_file and not package_root:
+            raise ValueError("--config-file can only be used with --package-root")
         
         if file:
             # Validate the zip file exists
@@ -285,23 +285,23 @@ def agent_create(
                 raise ValueError(f"Custom code package file not found: {file}")
             custom_agent_file_path = file
         
-        if experimental_package_root:
+        if package_root:
             # Validate the directory exists
-            if not os.path.exists(experimental_package_root):
-                raise ValueError(f"Package root directory not found: {experimental_package_root}")
-            if not os.path.isdir(experimental_package_root):
-                raise ValueError(f"Package root must be a directory: {experimental_package_root}")
+            if not os.path.exists(package_root):
+                raise ValueError(f"Package root directory not found: {package_root}")
+            if not os.path.isdir(package_root):
+                raise ValueError(f"Package root must be a directory: {package_root}")
             
             # Validate config file if provided
-            if experimental_config_file:
-                if not os.path.exists(experimental_config_file):
-                    raise ValueError(f"Config file not found: {experimental_config_file}")
-                if not os.path.isfile(experimental_config_file):
-                    raise ValueError(f"Config file must be a file: {experimental_config_file}")
-                custom_agent_config_file = experimental_config_file
+            if config_file:
+                if not os.path.exists(config_file):
+                    raise ValueError(f"Config file not found: {config_file}")
+                if not os.path.isfile(config_file):
+                    raise ValueError(f"Config file must be a file: {config_file}")
+                custom_agent_config_file = config_file
             
             # The directory path will be passed and zipped in the controller
-            custom_agent_file_path = experimental_package_root
+            custom_agent_file_path = package_root
 
     agents_controller = AgentsController(safe_mode=safe)
     
