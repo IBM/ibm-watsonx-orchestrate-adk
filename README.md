@@ -16,16 +16,16 @@
 </html>
 
 
-The IBM watsonx Orchestrate Agent Development Kit (ADK) is a set of tools designed to make it easy to build and deploy 
-agents using IBM watsonx Orchestrate. It is packaged as a Python library and command line 
-tool that allows builders to configure agents that run on the IBM watsonx Orchestrate platform. The ADK also supports 
+The IBM watsonx Orchestrate Agent Development Kit (ADK) is a set of tools designed to make it easy to build and deploy
+agents using IBM watsonx Orchestrate. It is packaged as a Python library and command line
+tool that allows builders to configure agents that run on the IBM watsonx Orchestrate platform. The ADK also supports
 integrating agents and tools built on other frameworks.
 
 These agents and tools can be run developed locally via an offering known as the watsonx Orchestrate Developer Edition,
 a fully self-contained local copy of watsonx Orchestrate that can run on your laptop or desktop where you can rapidly
 iterate in isolation.
 
-Once you are satisfied with what you built, it is possible to connect the ADK to a production instance of 
+Once you are satisfied with what you built, it is possible to connect the ADK to a production instance of
 watsonx Orchestrate to share what you have built locally with your team and run at scale!
 
 To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.com">ADK Documentation</a>!
@@ -34,7 +34,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 
 ## Prerequisites
 ### The Agent Developer Kit (ADK)
-**Python 3.11-3.13**  
+**Python 3.11-3.13**
   Ensure you have Python 3.11-3.13 installed.
 
 ### watsonx Orchestrate Developer Edition
@@ -45,7 +45,7 @@ To learn more, check out our <a href="https://developer.watson-orchestrate.ibm.c
 
 > **Note:** If you run with Document Processing enabled, you will need **at least an additional 3GB of memory** (i.e., a total of **19GB RAM**) to ensure stable operation.
 
-**A docker engine**   
+**A docker engine**
   Ensure that you have a docker engine installed capable of running docker compose.
   The watsonx Orchestrate team recommends either [Rancher](https://rancherdesktop.io/) or [Colima](https://github.com/abiosoft/colima).
 
@@ -64,33 +64,43 @@ pip install --upgrade ibm-watsonx-orchestrate
 
 
 ## The ADK command line tool
-After installation, you will have access to the WXO CLI tool. This tool can be accessed using the `orchestrate` command 
+
+After installation, you will have access to the WXO CLI tool. This tool can be accessed using the `orchestrate` command
 which exposes the following functionality.
 
 Check out our [documentation](https://developer.watson-orchestrate.ibm.com/) to get started building today!
 
 ```bash
 $ orchestrate --help
-                                                                                                                   
- Usage: orchestrate [OPTIONS] COMMAND [ARGS]...                                                                    
-                                                                                                                   
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --install-completion          Install completion for the current shell.                                         │
-│ --show-completion             Show completion for the current shell, to copy it or customize the installation.  │
-│ --help                        Show this message and exit.                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ env               Add, remove, or select the activate env other commands will interact with (either your local  │
-│                   server or a production instance)                                                              │
-│ agents            Interact with the agents in your active env                                                   │
-│ tools             Interact with the tools in your active env                                                    │
-│ knowledge-bases   Upload knowledge your agents can search through to your active env                            │
-│ connections       Interact with the agents in your active env                                                   │
-│ server            Manipulate your local Orchestrate Developer Edition server [requires an Entitlement]          │
-│ chat              Launch the chat ui for your local Developer Edition server [requires docker pull credentials] │
-│ models            List the available large language models (llms) that can be used in your agent definitions    │
-│ channels          Configure channels where your agent can exist on (such as embedded webchat)                   │
-│ settings          Configure the settings for your active env                                                    │
+
+ Usage: orchestrate [OPTIONS] COMMAND [ARGS]...
+
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --version                     Show the installed version of the ADK and Developer Edition Tags                                                                                                                          │
+│ --debug                       Enable debug mode                                                                                                                                                                         │
+│ --install-completion          Install completion for the current shell.                                                                                                                                                 │
+│ --show-completion             Show completion for the current shell, to copy it or customize the installation.                                                                                                          │
+│ --help                        Show this message and exit.                                                                                                                                                               │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ env               Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)                                                                         │
+│ agents            Interact with the agents in your active env                                                                                                                                                           │
+│ tools             Interact with the tools in your active env                                                                                                                                                            │
+│ toolkits          Interact with the toolkits in your active env                                                                                                                                                         │
+│ knowledge-bases   Upload knowledge your agents can search through to your active env                                                                                                                                    │
+│ connections       Manage authentication connections for external systems in your active env                                                                                                                             │
+│ voice-configs     Configure voice providers to enable voice interaction with your agents                                                                                                                                │
+│ server            Manipulate your local Orchestrate Developer Edition server                                                                                                                                            │
+│ chat              Launch the chat ui and CLI chat interface for your local Developer Edition server                                                                                                                     │
+│ models            List the available large language models (llms) that can be used in your agent definitions                                                                                                            │
+│ channels          Configure channels where your agent can exist on (such as embedded webchat, whatsapp, etc.)                                                                                                           │
+│ phone             Manage phone configurations (global resources that can be attached to multiple agents)                                                                                                                │
+│ evaluations       Evaluate the performance of your agents in your active env                                                                                                                                            │
+│ settings          Configure the settings for your active env                                                                                                                                                            │
+│ partners          Generate a well-structured, submission-ready agent artifact package for partner-built agents                                                                                                          │
+│ observability     Search and export trace data from the observability platform for analysis in third-party tools                                                                                                        │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -102,9 +112,9 @@ you will be able to start, activate, import into and rapidly reset a local serve
 ### Starting the Developer Edition
 
 ```bash
- orchestrate server start --help                           
-  Usage: orchestrate server start [OPTIONS]                                                                                                           
-                                                                                                                                                     
+ orchestrate server start --help
+  Usage: orchestrate server start [OPTIONS]
+
 ╭─ Options ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --env-file                     -e      TEXT  Path to a .env file that overrides default.env. Then environment variables override both.            │
 │                                              [default: None]                                                                                      │
@@ -132,7 +142,7 @@ $ orchestrate server start -e .env
 [INFO] - Starting docker-compose services...
 [+] Running 11/0
 ✔ Container docker-wxo-builder-1                    Running                                                                                                                                          0.0s
-✔ Container docker-wxo-server-redis-1               Running              
+✔ Container docker-wxo-server-redis-1               Running
 Skipping already applied migration: 00_init_db.sql
 Skipping already applied migration: 20250422.sql
 [INFO] - Migration ran successfully.
