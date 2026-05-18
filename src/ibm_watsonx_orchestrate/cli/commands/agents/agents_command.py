@@ -28,16 +28,16 @@ def agent_import(
     ] = None,
     package_root: Annotated[
         Optional[str],
-        typer.Option("--package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded."),
+        typer.Option("--package-root", help="(Custom agents only) Path to the directory containing custom agent code. The directory will be automatically zipped and uploaded."),
     ] = None,
     config_file: Annotated[
         Optional[str],
-        typer.Option("--config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
+        typer.Option("--config-file", help="(Custom agents only) Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
     ] = None,
     app_id: Annotated[
         Optional[str], typer.Option(
             '--app-id', '-a',
-            help='The app id of the connection to associate with this external agent. An application connection represents the server authentication credentials needed to connection to this agent (for example Api Keys, Basic, Bearer or OAuth credentials).'
+            help='(External agents only) The app id of the connection to associate with this agent. For custom agents, use "orchestrate agents connect" after import.'
         )
     ] = None,
     safe: Annotated[
@@ -113,11 +113,11 @@ def agent_create(
     ] = None,
     package_root: Annotated[
         Optional[str],
-        typer.Option("--package-root", help="Path to the directory containing custom agent code (for custom style agents). The directory will be automatically zipped and uploaded."),
+        typer.Option("--package-root", help="(Custom agents) Path to the directory containing custom agent code. The directory will be automatically zipped and uploaded."),
     ] = None,
     config_file: Annotated[
         Optional[str],
-        typer.Option("--config-file", help="Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
+        typer.Option("--config-file", help="(Custom agents) Path to a config.yaml file to include in the custom agent package. Only used with --package-root."),
     ] = None,
     title: Annotated[
         str,
