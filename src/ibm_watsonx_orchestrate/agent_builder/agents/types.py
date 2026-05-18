@@ -288,9 +288,6 @@ def validate_customer_care_fields(values: dict):
         if values.get("tools"):
             unsupported_fields.append("tools")
 
-        if values.get("knowledge_base"):
-            unsupported_fields.append("knowledge_base")
-
         plugins = values.get("plugins")
         if plugins:
             if isinstance(plugins, dict) and any(plugins.values()):
