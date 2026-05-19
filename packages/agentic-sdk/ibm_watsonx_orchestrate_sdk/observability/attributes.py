@@ -17,6 +17,10 @@ ATTR_SERVICE_NAME = "service.name"
 BAGGAGE_TENANT_ID = "tenant.id"
 BAGGAGE_AGENT_ID = "agent.id"
 
+# --- Trace injection context attributes ---
+ATTR_WORKSPACE_ID = "workspace.id"
+ATTR_ENVIRONMENT_NAME = "environment.name"
+
 # --- Common span attributes (capture_input / capture_output) ---
 ATTR_INPUT = "input.value"
 ATTR_OUTPUT = "output.value"

@@ -17,12 +17,14 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_NAME,
+    ATTR_ENVIRONMENT_NAME,
     ATTR_GEN_AI_REQUEST_MODEL,
     ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
     ATTR_TOOL_NAME,
+    ATTR_WORKSPACE_ID,
     BAGGAGE_AGENT_ID,
     BAGGAGE_TENANT_ID,
     SPAN_KIND_AGENT,
@@ -113,18 +115,45 @@ class BaggageSpanProcessor:
     the current OpenTelemetry Baggage context and sets them as span
     attributes so they are exported with each span.
 
+    If TracerConfig has configured values for tenant_id, agent_id, workspace_id,
+    or environment, those values are used as fallback when baggage is not available.
+
     Implements the full ``SpanProcessor`` protocol without inheriting
     from the SDK class so that the import stays lazy.
     """
+
+    def __init__(self, config: Optional[TracerConfig] = None) -> None:
+        """Initialize the processor with optional TracerConfig.
+        
+        Args:
+            config: TracerConfig instance with configured values for tenant_id,
+                   agent_id, workspace_id, and environment.
+        """
+        self._config = config
 
     def on_start(self, span: "ReadableSpan", parent_context: "Optional[Context]" = None) -> None:
         from opentelemetry import baggage, context
 
         ctx = parent_context or context.get_current()
+        
+        # Set tenant.id and agent.id from baggage or config
         for key in _BAGGAGE_KEYS:
             value = baggage.get_baggage(key, ctx)
             if value is not None:
                 span.set_attribute(key, value)
+            elif self._config:
+                # Use configured values as fallback
+                if key == BAGGAGE_TENANT_ID and self._config.tenant_id:
+                    span.set_attribute(key, self._config.tenant_id)
+                elif key == BAGGAGE_AGENT_ID and self._config.agent_id:
+                    span.set_attribute(key, self._config.agent_id)
+        
+        # Always set workspace_id and environment from config if available
+        if self._config:
+            if self._config.workspace_id:
+                span.set_attribute(ATTR_WORKSPACE_ID, self._config.workspace_id)
+            if self._config.environment:
+                span.set_attribute(ATTR_ENVIRONMENT_NAME, self._config.environment)
 
     def on_end(self, span: "ReadableSpan") -> None:
         pass
@@ -274,7 +303,8 @@ class Tracer:
         resource = Resource.create(resource_attrs)
         provider = TracerProvider(resource=resource)
 
-        provider.add_span_processor(BaggageSpanProcessor())
+        # Pass config to BaggageSpanProcessor so it can use configured values
+        provider.add_span_processor(BaggageSpanProcessor(self._config))
 
         exporter = create_exporter(self._config)
         provider.add_span_processor(BatchSpanProcessor(exporter))
