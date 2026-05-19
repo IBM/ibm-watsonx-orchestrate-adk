@@ -40,12 +40,65 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_INPUT,
     ATTR_OUTPUT,
 )
+from ibm_watsonx_orchestrate_sdk.observability.constants import (
+    SENSITIVE_KEY_PATTERNS,
+    REDACTED
+)
+
+
+def redact_sensitive_keys(data: Any) -> Any:
+    """
+    Redacts sensitive values from:
+    - dict
+    - list of dicts
+    - JSON string
+
+    Replaces matching key values with "[REDACTED]".
+    """
+
+    def is_sensitive_key(key: str) -> bool:
+        normalized_key = key.lower().replace("-", "_").strip()
+
+        return any(
+            pattern in normalized_key
+            for pattern in SENSITIVE_KEY_PATTERNS
+        )
+
+    def redact(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            redacted = {}
+
+            for key, value in obj.items():
+                if is_sensitive_key(str(key)):
+                    redacted[key] = REDACTED
+                else:
+                    redacted[key] = redact(value)
+
+            return redacted
+
+        elif isinstance(obj, list):
+            return [redact(item) for item in obj]
+        
+        elif isinstance(obj, tuple):
+            return tuple(redact(item) for item in obj)
+
+        return obj
+
+    # Handle JSON string input
+    if isinstance(data, str):
+        try:
+            parsed = json.loads(data)
+            return redact(parsed)
+        except json.JSONDecodeError:
+            return data
+
+    return redact(data)
 
 
 def _safe_json(obj: Any) -> str:
     """Best-effort JSON serialisation; falls back to ``str()``."""
     try:
-        return json.dumps(obj, default=str)
+        return json.dumps(redact_sensitive_keys(obj), default=str)
     except Exception:
         return str(obj)
 
