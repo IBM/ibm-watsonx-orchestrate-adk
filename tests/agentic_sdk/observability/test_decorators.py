@@ -20,6 +20,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     SPAN_KIND_LLM,
     SPAN_KIND_TOOL,
 )
+from ibm_watsonx_orchestrate_sdk.observability.constants import REDACTED
 from ibm_watsonx_orchestrate_sdk.observability.decorators import (
     configure_tracing,
     trace_agent_call,
@@ -159,6 +160,52 @@ class TestTraceCall:
         fn()
         assert len(traced.get_finished_spans()) == 2
 
+    def test_redacts_sensitive_input_keys(self, traced):
+        """Sensitive keys in input should be redacted when capture_input=True."""
+        @trace_call(capture_input=True)
+        def login(username, password):
+            return "logged in"
+
+        login("alice", "secret123")
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        captured = json.loads(raw)
+        assert captured["username"] == "alice"
+        assert captured["password"] == REDACTED
+
+    def test_redacts_sensitive_output_keys(self, traced):
+        """Sensitive keys in output should be redacted when capture_output=True."""
+        @trace_call(capture_output=True)
+        def get_credentials():
+            return {"username": "bob", "api_key": "key123"}
+
+        get_credentials()
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_OUTPUT]
+        captured = json.loads(raw)
+        assert captured["username"] == "bob"
+        assert captured["api_key"] == REDACTED
+
+    def test_redacts_nested_sensitive_keys(self, traced):
+        """Nested sensitive keys should be redacted."""
+        @trace_call(capture_input=True, capture_output=True)
+        def process_user(user_data):
+            return {"status": "success", "user": user_data}
+
+        process_user({"name": "charlie", "password": "pass456", "token": "tok789"})
+        
+        # Check input redaction
+        input_raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        input_captured = json.loads(input_raw)
+        assert input_captured["user_data"]["name"] == "charlie"
+        assert input_captured["user_data"]["password"] == REDACTED
+        assert input_captured["user_data"]["token"] == REDACTED
+        
+        # Check output redaction
+        output_raw = get_attrs(traced.get_finished_spans()[0])[ATTR_OUTPUT]
+        output_captured = json.loads(output_raw)
+        assert output_captured["status"] == "success"
+        assert output_captured["user"]["password"] == REDACTED
+        assert output_captured["user"]["token"] == REDACTED
+
 
 # ---------------------------------------------------------------------------
 # trace_llm_call
@@ -210,6 +257,30 @@ class TestTraceLLMCall:
             return {"text": "hi"}
 
         assert call() == {"text": "hi"}
+
+    def test_redacts_sensitive_input_in_llm_call(self, traced):
+        """Sensitive keys in LLM input should be redacted."""
+        @trace_llm_call(capture_input=True)
+        def call_llm(prompt, api_key):
+            return "response"
+
+        call_llm("Hello", "secret_key_123")
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        captured = json.loads(raw)
+        assert captured["prompt"] == "Hello"
+        assert captured["api_key"] == REDACTED
+
+    def test_redacts_sensitive_output_in_llm_call(self, traced):
+        """Sensitive keys in LLM output should be redacted."""
+        @trace_llm_call(capture_output=True)
+        def call_llm():
+            return {"response": "Hello", "session_token": "tok123"}
+
+        call_llm()
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_OUTPUT]
+        captured = json.loads(raw)
+        assert captured["response"] == "Hello"
+        assert captured["session_token"] == REDACTED
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +337,30 @@ class TestTraceToolCall:
 
         with pytest.raises(KeyError):
             fn()
+
+    def test_redacts_sensitive_input_in_tool_call(self, traced):
+        """Sensitive keys in tool input should be redacted."""
+        @trace_tool_call(capture_input=True)
+        def search_tool(query, bearer_token):
+            return []
+
+        search_tool("test query", "bearer_xyz")
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        captured = json.loads(raw)
+        assert captured["query"] == "test query"
+        assert captured["bearer_token"] == REDACTED
+
+    def test_redacts_sensitive_output_in_tool_call(self, traced):
+        """Sensitive keys in tool output should be redacted."""
+        @trace_tool_call(capture_output=True)
+        def auth_tool():
+            return {"status": "success", "access_token": "token_abc"}
+
+        auth_tool()
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_OUTPUT]
+        captured = json.loads(raw)
+        assert captured["status"] == "success"
+        assert captured["access_token"] == REDACTED
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +419,35 @@ class TestTraceAgentCall:
 
         with pytest.raises(TimeoutError):
             agent("x")
+
+    def test_redacts_sensitive_input_in_agent_call(self, traced):
+        """Sensitive keys in agent input should be redacted.
+        
+        Note: 'credentials' key itself is redacted because it matches a sensitive pattern,
+        so the entire dict value is redacted rather than just the password field.
+        """
+        @trace_agent_call(capture_input=True)
+        def agent(task, user_config):
+            return "done"
+
+        agent("process data", {"username": "admin", "password": "secret"})
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_INPUT]
+        captured = json.loads(raw)
+        assert captured["task"] == "process data"
+        assert captured["user_config"]["username"] == "admin"
+        assert captured["user_config"]["password"] == REDACTED
+
+    def test_redacts_sensitive_output_in_agent_call(self, traced):
+        """Sensitive keys in agent output should be redacted."""
+        @trace_agent_call(capture_output=True)
+        def agent(task):
+            return {"result": "completed", "api_key": "key_xyz"}
+
+        agent("task1")
+        raw = get_attrs(traced.get_finished_spans()[0])[ATTR_OUTPUT]
+        captured = json.loads(raw)
+        assert captured["result"] == "completed"
+        assert captured["api_key"] == REDACTED
 
 
 # ---------------------------------------------------------------------------
