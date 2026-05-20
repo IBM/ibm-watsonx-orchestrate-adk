@@ -257,6 +257,7 @@ services:
       ENABLE_CM_A2A_AGENTS: "false"
       ENABLE_REMOTE_MCP_SERVER: "true"
       ENABLE_AGENT_RECORD_TEST_CASES: "true"
+      DISABLE_LEGACY_TEST_EXPERIENCE: "true"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
@@ -334,7 +335,7 @@ services:
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       AI_GATEWAY_PROXY_MODELS: ${AI_GATEWAY_PROXY_MODELS}
       SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH: ${SUPPORTED_EXTERNAL_MODELS_CONFIG_PATH}
-      ARCH_LLM_MODEL_ID: ${ARCH_LLM_MODEL_ID:-watsonx/meta-llama/llama-3-2-90b-vision-instruct}
+      ARCH_LLM_MODEL_ID: ${ARCH_LLM_MODEL_ID:-groq/openai/gpt-oss-120b}
       WXO_SERVER_URL: http://wxo-server:4321
       TEAM_SERVER_ENDPOINT: ${TEAM_SERVER_ENDPOINT}
       SKILLS_CATALOG_ENDPOINT: ${SKILLS_CATALOG_ENDPOINT}
@@ -701,6 +702,8 @@ services:
       INTERNAL_REQUEST_HEADER_VALUE: ${INTERNAL_REQUEST_HEADER_VALUE:-internal}
       FILE_GRANT_EXPIRY_HOURS: 1
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
+      EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
+      CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -1361,6 +1364,8 @@ services:
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
       TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
       CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444
+      EVENT_CALLBACK_ENABLED: false
+      SCHEDULER_USE_PUBLIC_PREVIEW_SCHEDULER: true
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s
@@ -1385,7 +1390,7 @@ services:
       WO_INSTANCE: ${WO_INSTANCE}
       USE_SAAS_ML_TOOLS_RUNTIME: ${USE_SAAS_ML_TOOLS_RUNTIME}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
-      AUTHORIZATION_URL: ${AUTHORIZATION_URL}
+      AUTHORIZATION_URL: ${AUTHORIZATION_URL_HOSTNAME}
     ports:
       - 8081:8080
     healthcheck:

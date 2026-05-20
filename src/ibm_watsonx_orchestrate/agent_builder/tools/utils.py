@@ -88,7 +88,9 @@ def get_requirement_lines (requirements_file, remove_trailing_newlines=True, exc
         requirements = [x.strip() for x in requirements]
 
     if exclude_ibm_watsonx_orchestrate:
-        requirements = [x for x in requirements if not x.startswith("ibm-watsonx-orchestrate")]
+        # Remove mentions of main adk package (or clients/core sub package)
+        # Allow ibm-watsonx-orchestrate-sdk
+        requirements = [x for x in requirements if (not x.startswith("ibm-watsonx-orchestrate") or x.startswith("ibm-watsonx-orchestrate-sdk"))]
     requirements = list(dict.fromkeys(requirements))
 
     return requirements
@@ -291,12 +293,12 @@ def __get_python_tools_from_file(
             raise typer.BadParameter(f"Tool name contains unsupported characters. Only alphanumeric characters and underscores are allowed. Name: \"{obj.__tool_spec__.name}\"")
 
         elif package_root is None:
-            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
+            fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{file_name.replace('.py', '')}:{fn}"
 
         else:
             pkg = package[1:]
-            fn = obj.__tool_spec__.binding.python.function[obj.__tool_spec__.binding.python.function.index(':')+1:]
+            fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
         if connections and len(connections):

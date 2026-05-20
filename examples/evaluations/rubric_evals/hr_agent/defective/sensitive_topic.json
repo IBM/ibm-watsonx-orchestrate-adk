@@ -1,0 +1,42 @@
+{
+  "agent": "hr_agent_defective",
+  "goals": {
+    "get_current_user_id": [
+      "lookup_employee"
+    ],
+    "lookup_employee": [
+      "refuse_manager_action"
+    ],
+    "refuse_manager_action": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "get_current_user_id",
+      "tool_name": "get_current_user_id",
+      "args": {}
+    },
+    {
+      "type": "tool_call",
+      "name": "lookup_employee",
+      "tool_name": "lookup_employee",
+      "args": {
+        "employee_id": "EMP-001"
+      }
+    },
+    {
+      "type": "text",
+      "name": "refuse_manager_action",
+      "response": "I cannot perform this action as you are not a manager"
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "This action requires manager privileges"
+    }
+  ],
+  "story": "You are John Smith (EMP-001), and you want to transfer Bob Johnson (EMP-003) to a different manager (EMP-002).",
+  "starting_sentence": "I need to transfer Bob Johnson to a different manager."
+}

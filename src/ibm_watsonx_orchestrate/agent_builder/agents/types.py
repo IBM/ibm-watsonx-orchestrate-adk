@@ -195,6 +195,7 @@ class AgentSpec(BaseAgentSpec):
     toolkits: Optional[List[str]] = []
     plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
+    sync_tool_flow_interactions: Optional[bool] = None
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
     chat_with_docs: Optional[ChatWithDocsConfig] = None
     starter_prompts: Optional[StarterPrompts] = None
@@ -293,8 +294,6 @@ def validate_customer_care_fields(values: dict):
             unsupported_fields.append("guidelines")
         if values.get("collaborators"):
             unsupported_fields.append("collaborators")
-        if values.get("welcome_content"):
-            unsupported_fields.append("welcome_content")
         if values.get("custom_join_tool"):
             unsupported_fields.append("custom_join_tool")
 

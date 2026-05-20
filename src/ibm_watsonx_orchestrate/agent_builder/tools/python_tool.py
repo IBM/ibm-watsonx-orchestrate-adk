@@ -193,7 +193,8 @@ class PythonTool(BaseTool):
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
-                kwargs[run_context_param] = self.__parse_context_param(context_param_value)
+                context_object = self.__parse_context_param(context_param_value)
+                kwargs[run_context_param] = context_object
 
 
         result = self.fn(*args, **kwargs)

@@ -19,6 +19,8 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_FRAMEWORK,
     ATTR_AGENT_NAME,
     ATTR_AGENT_OUTPUT,
+    ATTR_GEN_AI_REQUEST_MODEL,
+    ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_LLM_COMPLETION_TOKENS,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROMPT_TOKENS,
@@ -113,6 +115,8 @@ class LLMSpanWrapper(SpanWrapper):
         super().__init__(span)
         if model:
             self._span.set_attribute(ATTR_LLM_MODEL, model)
+            self._span.set_attribute(ATTR_GEN_AI_REQUEST_MODEL, model)
+            self._span.set_attribute(ATTR_GEN_AI_RESPONSE_MODEL, model)
         if provider:
             self._span.set_attribute(ATTR_LLM_PROVIDER, provider)
 
@@ -142,6 +146,7 @@ class LLMSpanWrapper(SpanWrapper):
 
         if response_model:
             self._span.set_attribute(ATTR_LLM_RESPONSE_MODEL, response_model)
+            self._span.set_attribute(ATTR_GEN_AI_RESPONSE_MODEL, response_model)
         if stop_reason:
             self._span.set_attribute(ATTR_LLM_STOP_REASON, stop_reason)
 

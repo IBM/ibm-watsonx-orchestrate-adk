@@ -510,8 +510,7 @@ class EnvService:
             DEFAULT_LLM_MODEL = ""
             DEFAULT_FLOW_LLM_MODEL = ""
             if llm_value:
-                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct",
-                                         "watsonx/meta-llama/llama-3-405b-instruct"])
+                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct"])
                 DEFAULT_LLM_MODEL = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
                 DEFAULT_FLOW_LLM_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
             if aws_creds:

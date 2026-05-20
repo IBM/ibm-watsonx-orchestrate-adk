@@ -90,8 +90,11 @@ def is_ibm_cloud_platform(url:str | None = None) -> bool:
     return False
 
 def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None = None) -> bool:
-    if env_auth_type is None:
-        env_auth_type = get_env_auth_type()
+    try:
+        if env_auth_type is None:
+            env_auth_type = get_env_auth_type()
+    except:
+        pass
 
     if env_auth_type == EnvironmentAuthType.CPD:
         return True

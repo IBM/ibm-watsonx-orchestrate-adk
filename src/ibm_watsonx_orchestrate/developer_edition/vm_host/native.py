@@ -2,6 +2,8 @@ import logging
 import shutil
 import subprocess
 from typing import List, Optional
+
+from ibm_watsonx_orchestrate_core.utils.exceptions import ConnectionUpgradeRequiredException
 from ibm_watsonx_orchestrate.client.utils import command_to_list, get_os_type
 from ibm_watsonx_orchestrate.developer_edition.vm_host.vm_host import VMLifecycleManager
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, VMLifecycleException
@@ -69,12 +71,21 @@ class NativeDockerManager(VMLifecycleManager):
 
   def run_docker_command(self, command: str | List[str], input: str | None = None, **kwargs) -> Optional[str]:
     """Run a Docker command in the local environment"""
-    return subprocess.run(
-      [self.docker_path] + command_to_list(command),
-      input=input,
-      text=True,
-      **kwargs
-    )
+    try:
+      return subprocess.run(
+        [self.docker_path] + command_to_list(command),
+        input=input,
+        text=True,
+        **kwargs
+      )
+    except Exception as e:
+      exception_msg = str(e).lower()
+      if all([item in exception_msg for item in ["426", "upgrade required"]]):
+        raise ConnectionUpgradeRequiredException(exception_msg)
+      else:
+        raise VMLifecycleException(exception_msg)
+      
+
 
   def show_current_context(self) -> Optional[str]:
     """Show current Docker context"""
