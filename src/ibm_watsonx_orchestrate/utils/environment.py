@@ -510,9 +510,10 @@ class EnvService:
             DEFAULT_LLM_MODEL = ""
             DEFAULT_FLOW_LLM_MODEL = ""
             if llm_value:
-                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct"])
-                DEFAULT_LLM_MODEL = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
-                DEFAULT_FLOW_LLM_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
+                default_model = env_dict.get("WATSONX_DEFAULT_LLM_MODEL", "watsonx/openai/gpt-oss-120b")
+                PREFERRED_MODELS.extend([default_model])
+                DEFAULT_LLM_MODEL = default_model
+                DEFAULT_FLOW_LLM_MODEL = env_dict.get("WATSONX_DEFAULT_FLOW_LLM_MODEL", "watsonx/openai/gpt-oss-120b")
             if aws_creds:
                 PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
                 DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"

@@ -43,7 +43,7 @@ from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 llm = ChatWxO.from_instance_credentials(
     instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    model="virtual-model/watsonx/openai/gpt-oss-120b",
     temperature=0.7,
     max_tokens=1000
 )
@@ -91,7 +91,7 @@ from langgraph.graph.state import RunnableConfig
 def create_agent(config: RunnableConfig):
     llm = ChatWxO.from_runnable_config(
         config=config,
-        model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+        model="virtual-model/watsonx/openai/gpt-oss-120b",
         temperature=0.2
     )
     
@@ -134,7 +134,7 @@ from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 llm = ChatWxO(
     instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    model="virtual-model/watsonx/openai/gpt-oss-120b",
     temperature=0.7,
     max_tokens=1000
 )
@@ -271,7 +271,7 @@ asyncio.run(batch_example())
 llm = ChatWxO.from_instance_credentials(
     instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-api-key",
-    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    model="watsonx/openai/gpt-oss-120b",
     
     # Model parameters
     temperature=0.7,
@@ -313,7 +313,7 @@ from ibm_watsonx_orchestrate_sdk.langchain import ChatWxO
 llm = ChatWxO.from_instance_credentials(
     instance_url="https://your-instance.cloud.ibm.com",
     api_key="your-wxo-api-key",
-    model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    model="watsonx/openai/gpt-oss-120b",
     temperature=0.7
 )
 ```
@@ -352,7 +352,7 @@ class ChatWxO(ChatOpenAI):
         
         Args:
             model: Model ID in format "virtual-model/provider/model-name"
-                  Example: "virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct"
+                  Example: "virtual-model/watsonx/openai/gpt-oss-120b"
             api_key: WxO API key (optional for local, required for SaaS standalone)
                     - Local: Not required (uses default local credentials)
                     - SaaS standalone: Provide your WxO API key for automatic token management
@@ -448,7 +448,7 @@ provider/creator/model-name
 ```
 
 Examples:
-- `watsonx/meta-llama/llama-3-2-90b-vision-instruct`
+- `watsonx/openai/gpt-oss-120b`
 - `watsonx/ibm/granite-3-8b-instruct`
 - `openai/gpt-4o`
 

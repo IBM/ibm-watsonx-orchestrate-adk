@@ -183,7 +183,7 @@ to force that model at runtime.
 | WO_SSL_VERIFY | Optional | Optional | false | Set to "false" to disable SSL verification (private/self-signed CPD) |
 | WATSONX_SPACE_ID | Required | Required | <space-id> | For “no IFM”, this is a watsonx.ai space; for IFM, this is your CPD IFM space |
 | WATSONX_APIKEY | Required | Not needed | ******** | Required only for “no IFM” path where inference uses watsonx.ai |
-| MODEL_OVERRIDE | Ignored | Optional | meta-llama/llama-3-2-90b-vision-instruct | Helpful if your CPD IFM exposes a single or constrained set of models |
+| MODEL_OVERRIDE | Ignored | Optional | openai/gpt-oss-120b | Helpful if your CPD IFM exposes a single or constrained set of models |
 
 Important: For CPD, specify one of WO_PASSWORD or WO_API_KEY, not both.
 
