@@ -193,7 +193,7 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str | None = Field(default_factory=get_default_llm)
+    llm: str = Field(default_factory=get_default_llm)
     style: AgentStyle = AgentStyle.DEFAULT
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
@@ -288,6 +288,9 @@ def validate_customer_care_fields(values: dict):
 
         if values.get("tools"):
             unsupported_fields.append("tools")
+
+        if values.get("knowledge_base"):
+            unsupported_fields.append("knowledge_base")
 
         plugins = values.get("plugins")
         if plugins:
