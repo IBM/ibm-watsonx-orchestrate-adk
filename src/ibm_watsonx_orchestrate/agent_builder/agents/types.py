@@ -142,7 +142,6 @@ class BaseAgentSpec(BaseModel):
 class CompactionSettings(BaseModel):
     context_compaction_enabled: Optional[bool] = None
     context_compaction_threshold: Optional[int] = None
-    level2_compaction_threshold: Optional[int] = None
     compaction_sliding_window: Optional[int] = None
     large_message_threshold: Optional[int] = None
     large_message_chunk_size: Optional[int] = None
