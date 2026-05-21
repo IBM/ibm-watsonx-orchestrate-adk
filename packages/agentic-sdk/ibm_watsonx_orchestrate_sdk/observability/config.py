@@ -7,12 +7,16 @@ exposes only optional overrides to the user.  ``tenant.id`` and
 
 For external agent runs, TracerConfig can be configured with trace injection
 parameters to send traces to the WXO platform via the API proxy endpoint.
+Authentication can be provided via AgenticSession or API key.
 """
 
 import os
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, TYPE_CHECKING
 from dataclasses import dataclass, field
+
+if TYPE_CHECKING:
+    from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ENV_OTLP_ENDPOINT,
@@ -36,39 +40,60 @@ class TracerConfig:
 
     For external agent runs, configure trace injection parameters to send
     traces to the WXO platform via the API proxy endpoint. This requires
-    builder or admin role permissions.
+    builder or admin role permissions. Authentication is provided via
+    Client.session (AgenticSession). The trace injection URL is automatically
+    constructed as: session.base_url + trace_injection_path
 
     Args:
         service_name: Service name for the tracer (default: "wxo-agentic-sdk")
         resource_attributes: Additional resource attributes to attach to all spans
-        trace_injection_url: URL endpoint for trace injection via API proxy
-        api_key: Authentication key for trace injection endpoint (builder/admin only)
+        session: AgenticSession from Client for authentication (required for trace injection)
+        trace_injection_path: Partial URL path for trace injection (default: "/inject/v1/traces")
         tenant_id: Tenant identifier for multi-tenancy support
         agent_id: Agent identifier
         workspace_id: Workspace identifier
         environment: Deployment environment (default: "live")
 
     Example:
-        # Standard usage with OTLP endpoint from environment
+        # Standard usage with OTLP endpoint from environment (no authentication)
         config = TracerConfig(service_name="my-agent")
 
-        # External agent with trace injection
+        # External agent with trace injection (default path)
+        from ibm_watsonx_orchestrate_sdk import Client
+        
+        client = Client(api_key="your-key", instance_url="https://instance.example.com")
+        
         config = TracerConfig(
-            trace_injection_url="https://api.example.com/v1/observability/trace-injection",
-            api_key="your-api-key",
+            session=client.session,  # Authentication and instance URL from client
             tenant_id="tenant-123",
             agent_id="agent-456",
             workspace_id="workspace-789",
             environment="live"
         )
+        # Trace injection URL will be: https://instance.example.com/inject/v1/traces
+        
+        # External agent with custom trace injection path
+        config = TracerConfig(
+            session=client.session,
+            trace_injection_path="/api/v2/traces",  # Override default path
+            tenant_id="tenant-123",
+            agent_id="agent-456",
+            workspace_id="workspace-789",
+            environment="live"
+        )
+        # Trace injection URL will be: https://instance.example.com/api/v2/traces
+        
+        tracer = Tracer(config)
     """
 
     service_name: str = DEFAULT_SERVICE_NAME
     resource_attributes: Dict[str, str] = field(default_factory=dict)
 
+    # Authentication via AgenticSession from Client
+    session: Optional["AgenticSession"] = None
+
     # Trace injection parameters for external agent runs
-    trace_injection_url: Optional[str] = None
-    api_key: Optional[str] = None
+    trace_injection_path: str = "/inject/v1/traces"  # Partial URL path
     tenant_id: Optional[str] = None
     agent_id: Optional[str] = None
     workspace_id: Optional[str] = None
@@ -78,11 +103,16 @@ class TracerConfig:
     def endpoint(self) -> Optional[str]:
         """Get the OTLP endpoint.
 
-        Returns trace_injection_url if configured, otherwise falls back to
-        WXO_OTLP_ENDPOINT environment variable.
+        If session is configured, constructs trace injection URL as:
+        session.base_url + trace_injection_path
+        
+        Otherwise falls back to WXO_OTLP_ENDPOINT environment variable.
         """
-        if self.trace_injection_url:
-            return self.trace_injection_url
+        if self.session and self.session.base_url:
+            # Construct trace injection URL from instance URL and path
+            base_url = self.session.base_url.rstrip('/')
+            path = self.trace_injection_path.lstrip('/')
+            return f"{base_url}/{path}"
         return os.environ.get(ENV_OTLP_ENDPOINT)
 
     @property
@@ -90,9 +120,49 @@ class TracerConfig:
         """Check if tracer is configured for trace injection mode.
 
         Returns:
-            True if trace_injection_url is configured, False otherwise.
+            True if session is configured (trace injection mode), False otherwise.
         """
-        return self.trace_injection_url is not None
+        return self.session is not None
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Extract authentication headers for OTLP exporter from AgenticSession.
+
+        Uses authentication from Client.session:
+        - access_token (runs-on, local modes)
+        - authenticator (runs-elsewhere mode)
+
+        Returns:
+            Dictionary of HTTP headers for authentication.
+        """
+        headers: Dict[str, str] = {}
+
+        # Get auth from AgenticSession
+        if self.session is not None:
+            # Use access_token if available (runs-on, local modes)
+            if self.session.access_token:
+                headers["Authorization"] = f"Bearer {self.session.access_token}"
+                logger.debug("Using access_token from AgenticSession for authentication")
+                return headers
+
+            # Use authenticator for runs-elsewhere mode
+            if self.session.authenticator:
+                try:
+                    # Authenticator has a method to get the token
+                    token = None
+                    if hasattr(self.session.authenticator, 'token_manager'):
+                        token = self.session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
+                    elif hasattr(self.session.authenticator, 'get_token'):
+                        token = self.session.authenticator.get_token()  # type: ignore[attr-defined]
+                    
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                        logger.debug("Using authenticator from AgenticSession for authentication")
+                        return headers
+                except Exception as e:
+                    logger.warning(f"Failed to get token from authenticator: {e}")
+
+        logger.debug("No authentication configured")
+        return headers
 
     def build_resource_attributes(self) -> Dict[str, str]:
         """Return resource attributes for the TracerProvider.
@@ -123,8 +193,8 @@ class TracerConfig:
         """
         if self.is_trace_injection_mode:
             missing_params = []
-            if not self.api_key:
-                missing_params.append("api_key")
+            if not self.session:
+                missing_params.append("session (Client.session required for authentication)")
             if not self.tenant_id:
                 missing_params.append("tenant_id")
             if not self.agent_id:

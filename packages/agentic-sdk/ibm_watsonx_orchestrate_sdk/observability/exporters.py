@@ -1,7 +1,8 @@
 """Exporter factory for the observability tracer.
 
 Builds the appropriate OpenTelemetry SpanExporter based on TracerConfig:
-  * OTLP HTTP exporter when ``WXO_OTLP_ENDPOINT`` is set.
+  * OTLP HTTP exporter when ``WXO_OTLP_ENDPOINT`` or trace_injection_url is set.
+  * Includes authentication headers from AgenticSession or API key.
   * Console exporter as a fallback (with a warning).
 """
 
@@ -20,8 +21,15 @@ logger = logging.getLogger(__name__)
 def create_exporter(config: TracerConfig) -> "SpanExporter":
     """Return a configured ``SpanExporter`` based on *config*.
 
-    If ``WXO_OTLP_ENDPOINT`` is set the OTLP/HTTP exporter is used;
-    otherwise a ``ConsoleSpanExporter`` is returned and a warning is logged.
+    If ``WXO_OTLP_ENDPOINT`` or ``trace_injection_url`` is set, the OTLP/HTTP
+    exporter is used with authentication headers from AgenticSession or API key.
+    Otherwise a ``ConsoleSpanExporter`` is returned and a warning is logged.
+    
+    Args:
+        config: TracerConfig with endpoint and authentication settings.
+        
+    Returns:
+        Configured SpanExporter instance.
     """
 
     endpoint = config.endpoint
@@ -29,8 +37,15 @@ def create_exporter(config: TracerConfig) -> "SpanExporter":
     if endpoint:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-        logger.debug("Using OTLP HTTP exporter -> %s", endpoint)
-        return OTLPSpanExporter(endpoint=endpoint)
+        # Get authentication headers
+        headers = config.get_auth_headers()
+        
+        if headers:
+            logger.debug("Using OTLP HTTP exporter -> %s (with authentication)", endpoint)
+        else:
+            logger.debug("Using OTLP HTTP exporter -> %s (no authentication)", endpoint)
+        
+        return OTLPSpanExporter(endpoint=endpoint, headers=headers)
 
     from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
