@@ -52,7 +52,7 @@ SAAS_INSTANCE_URL=https://your-instance.cloud.ibm.com
 
 # Test Models (adjust based on available models)
 LOCAL_CHAT_MODEL_1=virtual-model/watsonx/ibm/granite-3-8b-instruct
-LOCAL_CHAT_MODEL_2=virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct
+LOCAL_CHAT_MODEL_2=virtual-model/watsonx/openai/gpt-oss-120b
 
 SAAS_CHAT_MODEL_1=virtual-model/watsonx/ibm/granite-3-8b-instruct
 SAAS_CHAT_MODEL_2=virtual-model/openai/gpt-4o
@@ -139,7 +139,7 @@ Detailed Results:
 --------------------------------------------------------------------------------
 ✅ PASS | Local      | virtual-model/watsonx/ibm/granite-3-8b-instruct
        Duration: 1.23s
-✅ PASS | Local      | virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct
+✅ PASS | Local      | virtual-model/watsonx/openai/gpt-oss-120b
        Duration: 2.45s
 ✅ PASS | SaaS       | virtual-model/watsonx/ibm/granite-3-8b-instruct
        Duration: 1.87s
