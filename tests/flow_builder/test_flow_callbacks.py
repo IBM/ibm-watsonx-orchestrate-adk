@@ -1,12 +1,9 @@
 """
 Unit tests for Flow callback functionality.
 
-Tests for add_callback() are temporarily skipped while the feature is deferred.
+Tests the add_callback() method and callback serialization in flow specifications.
 """
 
-import pytest
-
-pytestmark = pytest.mark.skip(reason="Flow callbacks are temporarily disabled while the feature is deferred.")
 
 from ibm_watsonx_orchestrate.flow_builder.flows import FlowFactory
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
