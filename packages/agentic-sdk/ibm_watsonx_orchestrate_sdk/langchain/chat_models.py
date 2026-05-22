@@ -37,7 +37,7 @@ class ChatWxO(ChatOpenAI):
         def create_agent(config: RunnableConfig):
             llm = ChatWxO.from_runnable_config(
                 config,
-                model="watsonx/openai/gpt-oss-120b",
+                model="watsonx/meta-llama/llama-3-2-90b-vision-instruct",
                 temperature=0.2
             )
             return llm
@@ -123,7 +123,7 @@ class ChatWxO(ChatOpenAI):
         
         Args:
             model: Model ID in format "virtual-model/provider/model-name"
-                  Example: "virtual-model/watsonx/openai/gpt-oss-120b"
+                  Example: "virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct"
             api_key: WxO API key (optional for local, required for SaaS standalone)
                     - Local: Not required (uses default local credentials)
                     - SaaS standalone: Provide your WxO API key for automatic token management
@@ -594,7 +594,7 @@ class ChatWxO(ChatOpenAI):
             def create_agent(config: RunnableConfig):
                 llm = ChatWxO.from_runnable_config(
                     config,
-                    model="virtual-model/watsonx/openai/gpt-oss-120b",
+                    model="virtual-model/watsonx/meta-llama/llama-3-2-90b-vision-instruct",
                     temperature=0.2
                 )
                 return llm
