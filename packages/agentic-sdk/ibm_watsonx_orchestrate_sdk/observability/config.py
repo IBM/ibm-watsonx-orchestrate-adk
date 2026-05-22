@@ -12,11 +12,14 @@ Authentication can be provided via AgenticSession or API key.
 
 import os
 import logging
-from typing import Optional, Dict, TYPE_CHECKING
+import json
+import base64
+from typing import Any, Optional, Dict, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
 
 if TYPE_CHECKING:
     from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession
+    from ibm_watsonx_orchestrate_sdk.client import Client
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ENV_OTLP_ENDPOINT,
@@ -47,9 +50,9 @@ class TracerConfig:
     Args:
         service_name: Service name for the tracer (default: "wxo-agentic-sdk")
         resource_attributes: Additional resource attributes to attach to all spans
-        session: AgenticSession from Client for authentication (required for trace injection)
-        trace_injection_path: Partial URL path for trace injection (default: "/inject/v1/traces")
-        tenant_id: Tenant identifier for multi-tenancy support
+        client: Client object for authentication (required for trace injection). Session will be extracted from client.
+        trace_injection_path: Partial URL path for trace injection (default: "/inject/traces")
+        tenant_id: Tenant identifier for multi-tenancy support (optional, auto-extracted from JWT token if not provided)
         agent_id: Agent identifier
         workspace_id: Workspace identifier
         environment: Deployment environment (default: "live")
@@ -58,23 +61,32 @@ class TracerConfig:
         # Standard usage with OTLP endpoint from environment (no authentication)
         config = TracerConfig(service_name="my-agent")
 
-        # External agent with trace injection (default path)
-        from ibm_watsonx_orchestrate_sdk import Client
+        # External agent with trace injection (tenant_id auto-extracted from token)
+        from ibm_watsonx_orchestrate import Client
         
         client = Client(api_key="your-key", instance_url="https://instance.example.com")
         
         config = TracerConfig(
-            session=client.session,  # Authentication and instance URL from client
-            tenant_id="tenant-123",
+            client=client,  # Authentication, instance URL, and tenant_id from client
             agent_id="agent-456",
             workspace_id="workspace-789",
             environment="live"
         )
-        # Trace injection URL will be: https://instance.example.com/inject/v1/traces
+        # Trace injection URL will be: https://instance.example.com/inject/traces
+        # tenant_id will be automatically extracted from the JWT token
+        
+        # Or explicitly provide tenant_id to override
+        config = TracerConfig(
+            client=client,
+            tenant_id="tenant-123",  # Explicit tenant_id overrides token extraction
+            agent_id="agent-456",
+            workspace_id="workspace-789",
+            environment="live"
+        )
         
         # External agent with custom trace injection path
         config = TracerConfig(
-            session=client.session,
+            client=client,
             trace_injection_path="/api/v2/traces",  # Override default path
             tenant_id="tenant-123",
             agent_id="agent-456",
@@ -89,15 +101,95 @@ class TracerConfig:
     service_name: str = DEFAULT_SERVICE_NAME
     resource_attributes: Dict[str, str] = field(default_factory=dict)
 
-    # Authentication via AgenticSession from Client
-    session: Optional["AgenticSession"] = None
+    # Authentication via Client
+    client: Optional["Client"] = None
 
     # Trace injection parameters for external agent runs
-    trace_injection_path: str = "/inject/v1/traces"  # Partial URL path
+    trace_injection_path: str = "/inject/traces"  # Partial URL path
     tenant_id: Optional[str] = None
     agent_id: Optional[str] = None
     workspace_id: Optional[str] = None
     environment: str = "live"
+
+    # Internal session extracted from client
+    _session: Optional["AgenticSession"] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self):
+        """Extract session from client and tenant_id from token if client is provided."""
+        if self.client is not None:
+            if hasattr(self.client, 'session'):
+                self._session = self.client.session
+                logger.debug("Extracted session from client object")
+                
+                # Extract tenant_id from token if not explicitly provided
+                if not self.tenant_id:
+                    extracted_tenant_id = self._extract_tenant_id_from_token()
+                    if extracted_tenant_id:
+                        self.tenant_id = extracted_tenant_id
+                        logger.debug(f"Extracted tenant_id from token: {self.tenant_id}")
+            else:
+                logger.warning("Client object does not have a session attribute")
+
+    def _extract_tenant_id_from_token(self) -> Optional[str]:
+        """Extract tenant_id from JWT token.
+        
+        Returns:
+            Tenant ID if found in token, None otherwise.
+        """
+        try:
+            # Get token from session
+            token = None
+            if self._session:
+                if hasattr(self._session, 'access_token') and self._session.access_token:
+                    token = self._session.access_token
+                elif hasattr(self._session, 'authenticator'):
+                    if hasattr(self._session.authenticator, 'token_manager'):
+                        token = self._session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
+                    elif hasattr(self._session.authenticator, 'get_token'):
+                        token: Any = self._session.authenticator.get_token()  # type: ignore[attr-defined]
+            
+            if not token:
+                logger.debug("No token available to extract tenant_id")
+                return None
+            
+            # JWT tokens have 3 parts separated by dots: header.payload.signature
+            parts = token.split('.')
+            if len(parts) != 3:
+                logger.warning("Token is not a valid JWT format")
+                return None
+            
+            # Decode the payload (second part)
+            payload = parts[1]
+            # Add padding if needed (JWT base64 encoding may not have padding)
+            padding = 4 - len(payload) % 4
+            if padding != 4:
+                payload += '=' * padding
+            
+            # Decode base64
+            decoded = base64.urlsafe_b64decode(payload)
+            payload_data = json.loads(decoded)
+            
+            # Look for tenant_id in various possible claim names
+            tenant_id = (
+                payload_data.get('tenant_id') or
+                payload_data.get('tenantId') 
+            )
+            
+            if tenant_id:
+                logger.debug(f"Found tenant_id in token: {tenant_id}")
+                return str(tenant_id)
+            else:
+                logger.debug("No tenant_id found in token payload")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"Failed to extract tenant_id from token: {e}")
+            return None
+
+    @property
+    def session(self) -> Optional["AgenticSession"]:
+        """Get the session from the client."""
+        return self._session
 
     @property
     def endpoint(self) -> Optional[str]:
@@ -120,9 +212,9 @@ class TracerConfig:
         """Check if tracer is configured for trace injection mode.
 
         Returns:
-            True if session is configured (trace injection mode), False otherwise.
+            True if client is configured (trace injection mode), False otherwise.
         """
-        return self.session is not None
+        return self.client is not None
 
     def get_auth_headers(self) -> Dict[str, str]:
         """Extract authentication headers for OTLP exporter from AgenticSession.
@@ -193,8 +285,8 @@ class TracerConfig:
         """
         if self.is_trace_injection_mode:
             missing_params = []
-            if not self.session:
-                missing_params.append("session (Client.session required for authentication)")
+            if not self.client:
+                missing_params.append("client (Client object required for authentication)")
             if not self.tenant_id:
                 missing_params.append("tenant_id")
             if not self.agent_id:
