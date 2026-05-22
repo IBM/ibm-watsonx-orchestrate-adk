@@ -30,6 +30,14 @@ connection_type_requirements_mapping = {
     KeyValueConnectionCredentials: None
 }
 
+connection_type_optional_fields_mapping = {
+    BasicAuthCredentials: None,
+    BearerTokenAuthCredentials: None,
+    APIKeyAuthCredentials: ["name"],
+    OAuth2TokenCredentials: None,
+    KeyValueConnectionCredentials: None
+}
+
 connection_type_security_schema_map = {
     ConnectionType.API_KEY_AUTH: ConnectionSecurityScheme.API_KEY_AUTH,
     ConnectionType.BASIC_AUTH: ConnectionSecurityScheme.BASIC_AUTH,
@@ -44,7 +52,7 @@ connection_type_security_schema_map = {
     ConnectionType.OAUTH2_DIRECT_ACCESS: ConnectionSecurityScheme.OAUTH2
 }
 
-def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -> dict[str,str]:
+def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str, optional_fields: Optional[List[str]] = None) -> dict[str,str]:
     base_prefix = _PREFIX_TEMPLATE.format(app_id=app_id)
 
     required_env_vars = {}
@@ -61,6 +69,14 @@ def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str) -
     key = base_prefix + "url"
     value = vars.get(key)
     required_env_vars[key] = value
+    
+    # Process optional fields (don't error if missing)
+    if optional_fields:
+        for optional_field in optional_fields:
+            key = base_prefix + optional_field
+            value = vars.get(key)
+            if value:
+                required_env_vars[key] = value
     
     if len(missing_requirements) > 0:
         missing_requirements_str = ", ".join(missing_requirements)
@@ -133,8 +149,13 @@ def _get_credentials_model(connection_type: ConnectionSecurityScheme, app_id: st
 
     requirements_lut = deepcopy(connection_type_requirements_mapping)
     requirements = requirements_lut.get(credentials_type)
+    
+    # Get optional fields for this connection type
+    optional_fields_lut = deepcopy(connection_type_optional_fields_mapping)
+    optional_fields = optional_fields_lut.get(credentials_type)
+    
     if requirements:
-        variables = _clean_env_vars(vars=variables, requirements=requirements, app_id=app_id)
+        variables = _clean_env_vars(vars=variables, requirements=requirements, app_id=app_id, optional_fields=optional_fields)
 
     return _build_credentials_model(credentials_type=credentials_type, vars=variables, base_prefix=base_prefix, base_custom_prefix=base_custom_prefix, custom_config_vars=custom_config_vars)
 
