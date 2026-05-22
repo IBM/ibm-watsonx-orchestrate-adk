@@ -82,6 +82,20 @@ def _static_file_response(relative_path: str) -> FileResponse:
     return FileResponse(file_path, media_type=_guess_media_type(file_path))
 
 
+def _sanitize_for_log(value: object) -> str:
+    return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
+
+def _resolve_recording_path(recording_id: str, *parts: str) -> Path:
+    base_output_dir = recording_server.output_dir.resolve()
+    candidate_path = (base_output_dir / recording_id / Path(*parts)).resolve()
+
+    if candidate_path != base_output_dir and base_output_dir not in candidate_path.parents:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    return candidate_path
+
+
 @app.get("/")
 async def root() -> FileResponse:
     return FileResponse(BASE_DIR / "index.html", media_type="text/html")
@@ -129,7 +143,7 @@ async def list_recordings() -> JSONResponse:
 @app.get("/api/recordings/{recording_id}")
 async def get_recording_files(recording_id: str) -> JSONResponse:
     try:
-        recording_dir = recording_server.output_dir / recording_id
+        recording_dir = _resolve_recording_path(recording_id)
         if not recording_dir.exists() or not recording_dir.is_dir():
             return JSONResponse({"error": "Recording not found"}, status_code=404)
 
@@ -154,8 +168,8 @@ async def get_recording_files(recording_id: str) -> JSONResponse:
 @app.get("/api/recordings/{recording_id}/metadata")
 async def get_metadata(recording_id: str) -> JSONResponse:
     try:
-        metadata_file = recording_server.output_dir / recording_id / "metadata.json"
-        if not metadata_file.exists():
+        metadata_file = _resolve_recording_path(recording_id, "metadata.json")
+        if not metadata_file.exists() or not metadata_file.is_file():
             return JSONResponse({"error": "Metadata not found"}, status_code=404)
 
         with open(metadata_file, "r") as f:
@@ -171,8 +185,12 @@ async def get_metadata(recording_id: str) -> JSONResponse:
 @app.api_route("/api/recordings/{recording_id}/audio/interleaved", methods=["GET", "HEAD"])
 async def get_interleaved_audio(recording_id: str, request: Request) -> Response:
     try:
-        _logger.info(f"Interleaved audio request: method={request.method}, recording_id={recording_id}")
-        audio_file = recording_server.output_dir / recording_id / "interleave.raw"
+        _logger.info(
+            "Interleaved audio request: method=%s, recording_id=%s",
+            request.method,
+            _sanitize_for_log(recording_id),
+        )
+        audio_file = _resolve_recording_path(recording_id, "interleave.raw")
         _logger.info(f"Looking for file: {audio_file}")
         
         if not audio_file.exists():
@@ -222,8 +240,8 @@ async def get_audio(recording_id: str, role: str, request: Request) -> Response:
         if role not in ["user", "agent"]:
             return JSONResponse({"error": "Invalid role. Must be 'user' or 'agent'"}, status_code=400)
 
-        audio_file = recording_server.output_dir / recording_id / f"{role}.raw"
-        if not audio_file.exists():
+        audio_file = _resolve_recording_path(recording_id, f"{role}.raw")
+        if not audio_file.exists() or not audio_file.is_file():
             return JSONResponse({"error": f"Audio file not found: {role}.raw"}, status_code=404)
 
         # Get file size for Content-Length header
@@ -263,7 +281,7 @@ async def get_audio(recording_id: str, role: str, request: Request) -> Response:
 async def delete_recording(recording_id: str) -> JSONResponse:
     """Delete a call recording and all its associated files."""
     try:
-        recording_dir = recording_server.output_dir / recording_id
+        recording_dir = _resolve_recording_path(recording_id)
         
         if not recording_dir.exists() or not recording_dir.is_dir():
             return JSONResponse({"error": "Recording not found"}, status_code=404)
@@ -271,7 +289,7 @@ async def delete_recording(recording_id: str) -> JSONResponse:
         # Delete all files in the recording directory
         shutil.rmtree(recording_dir)
         
-        _logger.info(f"Deleted recording: {recording_id}")
+        _logger.info("Deleted recording successfully")
         
         return JSONResponse({
             "message": "Recording deleted successfully",
@@ -629,4 +647,3 @@ async def static_files(file_path: str):
         raise HTTPException(status_code=404, detail="Not found")
     return _static_file_response(file_path)
 
-# Made with Bob

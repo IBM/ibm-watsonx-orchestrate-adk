@@ -3,6 +3,7 @@ import sys
 import uuid
 from enum import Enum
 from typing import Optional
+from urllib.parse import urlparse
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_cloud_sdk_core.authenticators import Authenticator, MCSPAuthenticator, IAMAuthenticator, CloudPakForDataAuthenticator
 
@@ -130,6 +131,7 @@ class ModelGatewayEnvConfig(BaseModel):
     USE_SAAS_ML_TOOLS_RUNTIME: bool
     WO_AUTH_TYPE: WoAuthType
     WATSONX_SPACE_ID: str
+    AUTHORIZATION_URL_HOSTNAME: str
 
     @model_validator(mode="before")
     def validate_model_gateway_config(values):
@@ -156,6 +158,11 @@ class ModelGatewayEnvConfig(BaseModel):
                     logger.error(f"No 'AUTHORIZATION_URL' found. Auth type '{auth_type}' does not support defaulting. Please set the 'AUTHORIZATION_URL' explictly")
                     sys.exit(1)
             config["AUTHORIZATION_URL"] = inferred_auth_url
+        
+        if not config.get("AUTHORIZATION_URL_HOSTNAME"):
+            parsed = urlparse(config["AUTHORIZATION_URL"])
+
+            config["AUTHORIZATION_URL_HOSTNAME"] =  f"{parsed.scheme}://{parsed.netloc}"
         
         if auth_type != WoAuthType.CPD:
             if not config.get("WO_API_KEY"):

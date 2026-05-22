@@ -1,0 +1,15 @@
+spec_version: v1
+style: default
+name: hr_agent_defective
+llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+description: An HR assistant that handles HR-related questions (defective version for testing)
+instructions: |
+  You are an HR assistant. When employees ask questions, provide helpful answers using the available tools.
+  Be friendly and try to answer all questions to the best of your ability.
+collaborators: []
+tools:
+  - get_current_user_id
+  - lookup_employee
+  - get_salary_info
+  - get_medical_leave_info
+  - transfer_employee_manager

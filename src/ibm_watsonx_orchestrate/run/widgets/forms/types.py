@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union, Literal
+from enum import Enum
 from datetime import date
 from abc import ABC, abstractmethod
 import uuid
@@ -42,6 +43,29 @@ class FormInput(BaseModel, ABC):
         """Convert to form data format (if has default value)"""
         pass
 
+class WidgetEventType(str, Enum):
+    TOOL = "tool"
+    MESSAGE = "message"
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
+
+
+class WidgetEvent(BaseModel):
+    type: WidgetEventType
+
+class ToolEvent(WidgetEvent):
+    type: WidgetEventType = WidgetEventType.TOOL
+    tool: str
+    parameters: dict = {}
+    map_input_to: str
+
+class MessageEvent(WidgetEvent):
+    type: WidgetEventType = WidgetEventType.MESSAGE
+    message: str
 
 # ---------------------------------------------------------------------------
 # i. Text box & Text area
@@ -400,6 +424,7 @@ class FormWidget(BaseModel):
     cancel_text: Optional[str] = None
     inputs: List[FormInput]
     response_type: str = "forms"
+    on_event: List[WidgetEvent] = []
 
     def _build_ui_schema(self) -> Dict[str, Any]:
         """Build complete UI schema from inputs"""
@@ -456,6 +481,14 @@ class FormWidget(BaseModel):
                 form_data[inp.name] = data
 
         return form_data
+    
+    def _build_on_event(self) -> Dict[str, Any]:
+        on_event: List[Dict[str, Any]] = []
+
+        for event in self.on_event:
+            on_event.append(event.model_dump() if isinstance(event, WidgetEvent) else event)
+
+        return on_event
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:  # type: ignore[override]
         """Override Pydantic's model_dump to return the correct form structure"""
@@ -465,6 +498,7 @@ class FormWidget(BaseModel):
             "ui_schema": self._build_ui_schema(),
             "json_schema": self._build_json_schema(),
             "form_data": self._build_form_data(),
+            "on_event": self._build_on_event()
         }
 
     def dict(self, **kwargs) -> Dict[str, Any]:  # type: ignore[override]

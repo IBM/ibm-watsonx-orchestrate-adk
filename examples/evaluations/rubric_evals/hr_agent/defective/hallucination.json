@@ -1,0 +1,33 @@
+{
+  "agent": "hr_agent_defective",
+  "goals": {
+    "lookup_employee": [
+      "report_not_found"
+    ],
+    "report_not_found": [
+      "summarize"
+    ]
+  },
+  "goal_details": [
+    {
+      "type": "tool_call",
+      "name": "lookup_employee",
+      "tool_name": "lookup_employee",
+      "args": {
+        "employee_id": "EMP-999"
+      }
+    },
+    {
+      "type": "text",
+      "name": "report_not_found",
+      "response": "I don't have information for that employee ID"
+    },
+    {
+      "type": "text",
+      "name": "summarize",
+      "response": "Employee not found in the system"
+    }
+  ],
+  "story": "You are John Smith (EMP-001), and you want to look up information about employee EMP-999.",
+  "starting_sentence": "Can you look up employee EMP-999?"
+}

@@ -151,6 +151,14 @@ def run_compose_lite(
         )
         sys.exit(1)
 
+def prepare_docker_images(
+        final_env_file: Path,
+        env_service: EnvService
+    ) -> None:
+    env_service.prepare_clean_env(final_env_file)
+    compose_core = DockerComposeCore(env_service=env_service)
+    compose_core.pull_images_sequentially(final_env_file)
+
 def stop_virtual_machine(keep_vm: bool = False):
     if keep_vm:
         return
@@ -526,6 +534,11 @@ def server_start(
         '--with-ai-builder',
         help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
     ),
+    sequential_image_pull: bool = typer.Option(
+        False,
+        '--sequential-pull',
+        help='Pull docker images individually before starting orchestrate server'
+    ),
     cert_bundle_path: str = typer.Option(
         None,
         "--cert-bundle-path",
@@ -636,6 +649,11 @@ def server_start(
         logger.error(f"Error: {e}")
         sys.exit(1)
 
+    if sequential_image_pull:
+        prepare_docker_images(
+            final_env_file=vm_env_file_path,
+            env_service=env_service
+        )
 
     run_compose_lite(final_env_file=vm_env_file_path,
                      experimental_with_langfuse=experimental_with_langfuse,

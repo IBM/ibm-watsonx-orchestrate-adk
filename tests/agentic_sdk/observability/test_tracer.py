@@ -10,6 +10,8 @@ import ibm_watsonx_orchestrate_sdk.observability.tracer as tracer_module
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_FRAMEWORK,
     ATTR_AGENT_NAME,
+    ATTR_GEN_AI_REQUEST_MODEL,
+    ATTR_GEN_AI_RESPONSE_MODEL,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_TOOL_NAME,
@@ -126,6 +128,8 @@ class TestStartLLMSpan:
             pass
         attrs = get_attrs(exporter.get_finished_spans()[0])
         assert attrs[ATTR_LLM_MODEL] == "gpt-4"
+        assert attrs[ATTR_GEN_AI_REQUEST_MODEL] == "gpt-4"
+        assert attrs[ATTR_GEN_AI_RESPONSE_MODEL] == "gpt-4"
         assert attrs[ATTR_LLM_PROVIDER] == "openai"
 
     def test_default_span_name(self, memory_tracer):

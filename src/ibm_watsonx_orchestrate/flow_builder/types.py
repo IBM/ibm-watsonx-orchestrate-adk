@@ -13,6 +13,7 @@ from typing import (
 )
 
 import docstring_parser
+from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
 from pydantic import computed_field, field_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
@@ -2954,7 +2955,50 @@ class Dimensions(BaseModel):
     width: float
     height: float
 
+
+class FlowCallback(BaseModel):
+    """
+    Flow callback configuration for event notifications.
+    
+    Callbacks allow external tools to be notified when specific flow events occur.
+    Events are always batched to reduce overhead. If batch_interval is not specified,
+    the server will use its default batching interval.
+    
+    Attributes:
+        tool: Tool reference string in one of 4 supported formats:
+            - "<tool_name>" - just the name of the tool
+            - "<tool_name>:<tool_uuid>" - a specific instance of the tool
+            - "<toolkit_name>:<tool_name>" - a tool within a toolkit
+            - "<toolkit_name>:<tool_name>:<tool_uuid>" - specific instance within a toolkit
+        events: Array of event types to listen for
+        batch_interval: Optional batch interval in milliseconds. If not specified, server default is used.
+    """
+    tool: str = Field(..., description="Tool reference string in one of 4 supported formats")
+    events: List[FlowCallbackEventKind] = Field(..., description="Array of event types to listen for")
+    batch_interval: Optional[int] = Field(
+        default=None,
+        description="Batch interval in milliseconds. If not specified, server default is used."
+    )
+    
+    def to_json(self) -> dict[str, Any]:
+        """Convert the callback to JSON format."""
+        model_spec = {
+            "tool": self.tool,
+            "events": [event.value for event in self.events]
+        }
+        if self.batch_interval is not None:
+            model_spec["batch_interval"] = self.batch_interval
+        return model_spec
+
+
 class FlowSpec(NodeSpec):
+    """
+    FlowSpec represents the specification of a flow.
+    
+    Callbacks are part of the FlowSpec and define which tools should be invoked
+    when specific flow events occur during execution. The flow engine automatically
+    invokes these callback tools when the configured events happen.
+    """
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
@@ -2964,6 +3008,9 @@ class FlowSpec(NodeSpec):
     dimensions: Dimensions | None = None
 
     context_window: FlowContextWindow | None = None
+    
+    # Callbacks are part of the FlowSpec - invoked by the flow engine when events occur
+    callbacks: List[FlowCallback] = []
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2981,6 +3028,8 @@ class FlowSpec(NodeSpec):
             model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
+        if self.callbacks:
+            model_spec["callbacks"] = [callback.to_json() for callback in self.callbacks]
         
         model_spec["schedulable"] = self.schedulable
 
@@ -3094,7 +3143,9 @@ class FlowContext(BaseModel):
         if self.parent_context:
             pc = cast(FlowContext, self.parent_context)
             return pc.get(key)
-    
+
+
+
 class FlowEventType(Enum):
  
     ON_FLOW_START = "flow:on_flow_start"

@@ -24,7 +24,8 @@ def test_docker_login_success():
         mock_vm_manager.run_docker_command.assert_called_once_with(
             ["login", "-u", "iamapikey", "--password-stdin", "registry.example.com"],
             input="test-key",
-            capture_output=True
+            capture_output=True,
+            check=True
         )
 
 def test_docker_login_failure():

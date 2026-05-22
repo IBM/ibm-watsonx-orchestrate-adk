@@ -106,6 +106,7 @@ PROVIDER_REQUIRED_FIELDS.update({
     ModelProvider.WATSONX: PROVIDER_REQUIRED_FIELDS[ModelProvider.WATSONX] + [{'watsonx_space_id', 'watsonx_project_id', 'watsonx_deployment_id'}],
     ModelProvider.OLLAMA: PROVIDER_REQUIRED_FIELDS[ModelProvider.OLLAMA] + ['custom_host'],
     ModelProvider.BEDROCK: [{'api_key', ('aws_secret_access_key', 'aws_access_key_id')}],
+    ModelProvider.VERTEX_AI: [{'api_key', 'vertex_service_account_json'}],
     ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS: ['custom_host'],
 })
 
