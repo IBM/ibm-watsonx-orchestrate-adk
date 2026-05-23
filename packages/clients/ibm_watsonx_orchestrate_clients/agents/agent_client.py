@@ -64,6 +64,8 @@ def _transform_agent_from_flat_agent_spec(agent_spec: dict ) -> dict:
             transformed["additional_properties"] |= { key: value }
         elif key == "icon":
             transformed["additional_properties"] |= { key: value }
+        elif key == "compaction_settings":
+            transformed["additional_properties"]["context_settings"] = value
         else:
             transformed |= { key: value }
 
@@ -102,6 +104,9 @@ def _transform_agent_to_flat_agent_spec(agent_spec: dict ) -> dict:
         
         elif key == "icon":
             transformed[key] = value
+        
+        elif key == "context_settings":
+            transformed["compaction_settings"] = value
             
     transformed.pop("additional_properties",None)
 
@@ -153,14 +158,10 @@ class AgentClient(BaseWXOClient):
         return agents
 
     def update(self, agent_id: str, data: dict, skip_workspace_injection: bool = False) -> AgentUpsertResponse:
-        # Resolve workspace field and inject active workspace context
-        # Skip injection for cross-workspace updates
         if not skip_workspace_injection:
             data = resolve_and_inject_workspace(data)
         
-        # Transform payload for API
         transformed_payload = transform_agents_from_flat_agent_spec(data)
-        
         response = self._patch(f"{self.base_endpoint}/{agent_id}", data=transformed_payload)
         return AgentUpsertResponse.model_validate(response)
 
