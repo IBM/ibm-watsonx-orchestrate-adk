@@ -125,8 +125,10 @@ def build_user_form(aflow: Flow = None) -> Flow:
     user_node_with_form.text_input_field(name="lastName", label="Last name", required=True, placeholder_text="Enter your name here", help_text="Enter name", 
         regex="^[a-zA-Z0-9\s]+$", regex_error_message="No special characters allowed")
     
-    #Number: Age
-    user_node_with_form.number_input_field(name="age", label="Age", required=True, help_text="Enter your age")
+    #Number: Age (with static default value)
+    data_map_age = DataMap()
+    data_map_age.add(Assignment(target_variable="self.input.default", value_expression="25"))
+    user_node_with_form.number_input_field(name="age", label="Age", required=True, help_text="Enter your age", default=data_map_age)
 
     data_map_salary = DataMap()
     data_map_salary.add(Assignment(target_variable="self.input.default", value_expression="flow.input.salary_expectation"))

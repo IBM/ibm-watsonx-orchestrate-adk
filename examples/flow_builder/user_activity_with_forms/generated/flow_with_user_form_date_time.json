@@ -21,7 +21,8 @@
         "schedulable": false,
         "owners": [
           "__any_user__"
-        ]
+        ],
+        "assignment_policy": "initiator"
       },
       "nodes": {
         "DateTimeForm": {
@@ -85,7 +86,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "DateWidget",
@@ -154,7 +156,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "DateWidget",
@@ -229,7 +232,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "MultiDateWidget",
@@ -276,7 +280,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TimeWidget",
@@ -349,7 +354,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TimeWidget",
@@ -400,7 +406,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TimeWidget",
@@ -473,7 +480,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TimeWidget",
@@ -579,7 +587,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "DateWidget",
@@ -677,7 +686,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TimeWidget",
@@ -762,14 +772,14 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "ee75a4c2-3137-447c-aed6-b924f9b1701d"
+                  "edge_id": "f5dba48c-20e2-4201-a8ff-43d0350dc05b"
                 },
                 {
                   "name": "cancel",
                   "kind": "cancel",
                   "display_name": "Cancel",
                   "visible": true,
-                  "edge_id": "6791c382-8663-4b1c-9027-27e546889f89"
+                  "edge_id": "6151f290-2861-4a09-8eef-f1173b71e957"
                 }
               ]
             }
@@ -806,7 +816,7 @@
         {
           "start": "DateTimeForm",
           "end": "process_submit",
-          "id": "ee75a4c2-3137-447c-aed6-b924f9b1701d"
+          "id": "f5dba48c-20e2-4201-a8ff-43d0350dc05b"
         },
         {
           "start": "process_submit",
@@ -815,7 +825,7 @@
         {
           "start": "DateTimeForm",
           "end": "__end__",
-          "id": "6791c382-8663-4b1c-9027-27e546889f89"
+          "id": "6151f290-2861-4a09-8eef-f1173b71e957"
         }
       ],
       "schemas": {},
@@ -862,7 +872,7 @@
     "MyDate": {
       "type": "object",
       "title": "MyDate",
-      "description": "This datatype represents date information.\n\nAttributes:\n    dateStart (str): The start date.\n    dateEnd (str): The end date.\n    dateEvent (str): The event date.\n    dateSimple (str): A simple date without constraints.\n    dateList (List[str]): A list of dates for multiple date selection.",
+      "description": "The event date",
       "properties": {
         "dateStart": {
           "type": "string",
@@ -901,12 +911,23 @@
             "2023-08-20"
           ]
         }
+      },
+      "default": {
+        "dateStart": "2023-01-01",
+        "dateEnd": "2023-12-31",
+        "dateEvent": "2023-06-15",
+        "dateSimple": "2023-07-01",
+        "dateList": [
+          "2023-08-10",
+          "2023-08-15",
+          "2023-08-20"
+        ]
       }
     },
     "MyTime": {
       "type": "object",
       "title": "MyTime",
-      "description": "This datatype represents time information.\n\nAttributes:\n    timeStart (str): The start time.\n    timeEnd (str): The end time.\n    timeDefaultStart (str): The default start time.\n    timeDefaultEnd (str): The default end time.\n    timeSimple (str): A simple time without constraints.",
+      "description": "The event time",
       "properties": {
         "timeStart": {
           "type": "string",
@@ -938,12 +959,19 @@
           "description": "Simple time",
           "default": "12:00"
         }
+      },
+      "default": {
+        "timeStart": "09:00",
+        "timeEnd": "17:00",
+        "timeDefaultStart": "10:00",
+        "timeDefaultEnd": "16:00",
+        "timeSimple": "12:00"
       }
     },
     "MyDateTime": {
       "type": "object",
       "title": "MyDateTime",
-      "description": "This datatype represents datetime information.\n\nAttributes:\n    dateTimeStart (str): The start datetime.\n    dateTimeEnd (str): The end datetime.\n    dateTimeEvent (str): The event datetime.\n    dateTimeSimple (str): A simple datetime without constraints.",
+      "description": "The event datetime",
       "properties": {
         "dateTimeStart": {
           "type": "string",
@@ -969,6 +997,12 @@
           "description": "Simple datetime",
           "default": "2023-07-01T12:00:00"
         }
+      },
+      "default": {
+        "dateTimeStart": "2023-01-01T09:00:00",
+        "dateTimeEnd": "2023-12-31T17:00:00",
+        "dateTimeEvent": "2023-06-15T14:00:00",
+        "dateTimeSimple": "2023-07-01T12:00:00"
       }
     },
     "user_flow_application_form_date_time_input": {
@@ -998,6 +1032,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-03-12T11:32:26.515882+00:00"
+    "compiled_on": "2026-05-22T07:14:03.580948+00:00"
   }
 }
