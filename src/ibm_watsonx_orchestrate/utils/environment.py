@@ -510,7 +510,6 @@ class EnvService:
             DEFAULT_LLM_MODEL = ""
             DEFAULT_FLOW_LLM_MODEL = ""
             if llm_value:
-                default_model = env_dict.get("WATSONX_DEFAULT_LLM_MODEL", "watsonx/openai/gpt-oss-120b")
                 WX_GPT_OSS="watsonx/openai/gpt-oss-120b"
                 PREFERRED_MODELS.extend([WX_GPT_OSS])
                 DEFAULT_LLM_MODEL = WX_GPT_OSS
