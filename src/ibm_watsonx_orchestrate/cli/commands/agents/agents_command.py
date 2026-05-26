@@ -393,7 +393,7 @@ def export_agent(
         typer.Option(
             "--output",
             "-o",
-            help="Path to a where the file containing the exported data should be saved",
+            help="Path to where the file containing the exported data should be saved",
         ),
     ],
     agent_only_flag: Annotated[
