@@ -198,9 +198,14 @@ class TracerConfig:
         If session is configured, constructs trace injection URL as:
         session.base_url + trace_injection_path
         
+        If trace_injection_path starts with http:// or https://, uses it directly.
+        
         Otherwise falls back to WXO_OTLP_ENDPOINT environment variable.
         """
         if self.session and self.session.base_url:
+            # Check if trace_injection_path is already a full URL
+            if self.trace_injection_path.startswith(('http://', 'https://')):
+                return self.trace_injection_path
             # Construct trace injection URL from instance URL and path
             base_url = self.session.base_url.rstrip('/')
             path = self.trace_injection_path.lstrip('/')
