@@ -33,6 +33,10 @@ from .types import (
     # Table widget
     Table,
     TableHeader,
+
+    # Widget Events
+    MessageEvent,
+    ToolEvent,
 )
 
 __all__ = [
@@ -63,5 +67,9 @@ __all__ = [
     # Table widget
     "Table",
     "TableHeader",
+
+    # Widget Events
+    "MessageEvent",
+    "ToolEvent",
 ]
 

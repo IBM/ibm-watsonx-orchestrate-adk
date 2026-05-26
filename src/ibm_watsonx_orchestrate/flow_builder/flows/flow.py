@@ -1463,13 +1463,28 @@ class Flow(Node):
         batch_interval: int | None = None
     ) -> Self:
         """
-        Temporarily disabled callback API.
-
-        This feature is deferred and will be reintroduced in a future release.
+        Add a callback to the flow specification.
+        
+        Callbacks are part of the FlowSpec and will be invoked by the flow engine
+        when the specified events occur during flow execution.
+        
+        Args:
+            tool: Tool identifier (can be tool_name, toolkit:tool_name, or toolkit:tool_name:uuid)
+            events: List of FlowCallbackEventKind events that should trigger this callback
+            batch_interval: Optional batch interval in milliseconds (server default if not specified)
+            
+        Returns:
+            Self for method chaining
         """
-        raise NotImplementedError(
-            "Flow callbacks are temporarily disabled and will be reintroduced in a future release."
+        callback = FlowCallback(
+            tool=tool,
+            events=events,
+            batch_interval=batch_interval
         )
+        # Cast spec to FlowSpec to access callbacks attribute
+        flow_spec = cast(FlowSpec, self.spec)
+        flow_spec.callbacks.append(callback)
+        return self
     
     def map_flow_output_with_none(self, target_output_variable: str) -> Self:
         if self.output_map and self.output_map.spec:

@@ -139,6 +139,15 @@ class BaseAgentSpec(BaseModel):
 #      NATIVE AGENT TYPES
 # ===============================
 
+class CompactionSettings(BaseModel):
+    context_compaction_enabled: Optional[bool] = None
+    context_compaction_threshold: Optional[int] = None
+    compaction_sliding_window: Optional[int] = None
+    large_message_threshold: Optional[int] = None
+    large_message_chunk_size: Optional[int] = None
+    large_message_target_summary: Optional[int] = None
+    large_message_detect_structured: Optional[bool] = None
+
 class ChatWithDocsConfig(BaseModel):
     enabled: Optional[bool] = None
     supports_full_document: Optional[bool] = None
@@ -183,7 +192,7 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str | None = Field(default_factory=get_default_llm)
+    llm: str = Field(default_factory=get_default_llm)
     style: AgentStyle = AgentStyle.DEFAULT
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
@@ -203,6 +212,7 @@ class AgentSpec(BaseAgentSpec):
     icon: Optional[str] = None
     llm_config: Optional[dict] = None
     is_schedulable: Optional[bool] = None
+    compaction_settings: Optional[CompactionSettings] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -277,6 +287,9 @@ def validate_customer_care_fields(values: dict):
 
         if values.get("tools"):
             unsupported_fields.append("tools")
+
+        if values.get("knowledge_base"):
+            unsupported_fields.append("knowledge_base")
 
         plugins = values.get("plugins")
         if plugins:

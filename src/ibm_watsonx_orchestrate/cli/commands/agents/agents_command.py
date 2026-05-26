@@ -259,7 +259,7 @@ def agent_create(
         )
     ] = False
 ):
-    if llm is None and style != AgentStyle.CUSTOM:
+    if llm is None:
         llm = get_default_llm()
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}
@@ -393,7 +393,7 @@ def export_agent(
         typer.Option(
             "--output",
             "-o",
-            help="Path to a where the file containing the exported data should be saved",
+            help="Path to where the file containing the exported data should be saved",
         ),
     ],
     agent_only_flag: Annotated[

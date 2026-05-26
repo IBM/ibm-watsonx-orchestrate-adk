@@ -208,14 +208,14 @@ class LangflowToolBinding(BaseModel):
 
 
 class ToolBinding(BaseModel):
-    openapi: OpenApiToolBinding = None
-    python: PythonToolBinding = None
-    wxflows: WxFlowsToolBinding = None
-    skill: SkillToolBinding = None
-    client_side: ClientSideToolBinding = None
-    mcp: McpToolBinding = None
-    flow: FlowToolBinding = None
-    langflow: LangflowToolBinding = None
+    openapi: Optional[OpenApiToolBinding] = None
+    python: Optional[PythonToolBinding] = None
+    wxflows: Optional[WxFlowsToolBinding] = None
+    skill: Optional[SkillToolBinding] = None
+    client_side: Optional[ClientSideToolBinding] = None
+    mcp: Optional[McpToolBinding] = None
+    flow: Optional[FlowToolBinding] = None
+    langflow: Optional[LangflowToolBinding] = None
 
     @model_validator(mode='after')
     def validate_binding_type(self) -> 'ToolBinding':
