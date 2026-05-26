@@ -394,7 +394,7 @@ class PythonTool(BaseTool):
         if not self.output_schema:
             ret = sig.return_annotation
             if ret != sig.empty:
-                _schema = dereference_refs(TypeAdapter(ret).json_schema())
+                _schema = dereference_refs(TypeAdapter(ret).json_schema(mode='serialization'))
                 if '$defs' in _schema:
                     _schema.pop('$defs')
                 spec.output_schema = _fix_optional(ToolResponseBody(**_schema))
