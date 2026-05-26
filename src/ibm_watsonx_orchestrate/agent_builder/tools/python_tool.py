@@ -409,7 +409,7 @@ class PythonTool(BaseTool):
                 spec.output_schema.description = doc.returns.description
 
         else:
-            spec.output_schema = ToolResponseBody()
+            spec.output_schema = self.output_schema
 
         if self.enable_dynamic_output_schema:
             _merge_dynamic_schema(spec.output_schema, self.dynamic_output_schema)
