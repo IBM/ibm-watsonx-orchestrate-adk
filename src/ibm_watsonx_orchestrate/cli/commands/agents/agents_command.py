@@ -211,7 +211,7 @@ def agent_create(
         List[str],
         typer.Option(
             "--collaborators",
-            help="A list of agent names you wish for the agent to be able to collaborate with. Format --colaborators agent1 --collaborators agent2 ...",
+            help="A list of agent names you wish for the agent to be able to collaborate with. Format --collaborators agent1 --collaborators agent2 ...",
         ),
     ] = None,
     tools: Annotated[
@@ -393,7 +393,7 @@ def export_agent(
         typer.Option(
             "--output",
             "-o",
-            help="Path to a where the file containing the exported data should be saved",
+            help="Path to where the file containing the exported data should be saved",
         ),
     ],
     agent_only_flag: Annotated[

@@ -505,7 +505,7 @@ FORM_SCHEMA_TEMPLATES = {
     "number": {
         "input": JsonSchemaObject( # pyright: ignore[reportCallIssue]
             type='object',
-            properties={},
+            properties={"default": {"type": "number"}},
             required=[]
         ),
         "output": JsonSchemaObject( # pyright: ignore[reportCallIssue]

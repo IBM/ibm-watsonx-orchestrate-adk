@@ -193,7 +193,8 @@ class PythonTool(BaseTool):
         if run_context_param:
             context_param_value = kwargs.get(run_context_param)
             if context_param_value:
-                kwargs[run_context_param] = self.__parse_context_param(context_param_value)
+                context_object = self.__parse_context_param(context_param_value)
+                kwargs[run_context_param] = context_object
 
 
         result = self.fn(*args, **kwargs)
@@ -393,7 +394,7 @@ class PythonTool(BaseTool):
         if not self.output_schema:
             ret = sig.return_annotation
             if ret != sig.empty:
-                _schema = dereference_refs(TypeAdapter(ret).json_schema())
+                _schema = dereference_refs(TypeAdapter(ret).json_schema(mode='serialization'))
                 if '$defs' in _schema:
                     _schema.pop('$defs')
                 spec.output_schema = _fix_optional(ToolResponseBody(**_schema))
@@ -408,7 +409,7 @@ class PythonTool(BaseTool):
                 spec.output_schema.description = doc.returns.description
 
         else:
-            spec.output_schema = ToolResponseBody()
+            spec.output_schema = self.output_schema
 
         if self.enable_dynamic_output_schema:
             _merge_dynamic_schema(spec.output_schema, self.dynamic_output_schema)
