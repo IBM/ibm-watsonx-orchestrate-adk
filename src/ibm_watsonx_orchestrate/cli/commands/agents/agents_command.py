@@ -427,26 +427,26 @@ def undeploy_agent(
     agents_controller = AgentsController()
     agents_controller.undeploy_agent(name=name)
 
-@agents_app.command(name="connect", help="Connect connections to an agent")
+@agents_app.command(name="connect", help="Add one or more application connections to a custom agent")
 def connect_connections(
     name: Annotated[
         str,
-        typer.Option("--name", "-n", help="Name of the agent to connect connections to"),
+        typer.Option("--name", "-n", help="Name of the agent to add connections to"),
     ],
     app_ids: Annotated[
         List[str],
         typer.Option(
             "--app-id",
             "-a",
-            help="Connection app_id to connect. Multiple can be specified: --app-id conn1 --app-id conn2",
+            help="Connection app-id to associate with the agent. Multiple can be specified: --app-id conn1 --app-id conn2",
         ),
     ],
 ):
     """
-    Connect one or more connections to a custom agent.
+    Add one or more application connections to a custom agent.
     
-    This command uses the PATCH /orchestrate/agents/{id} endpoint to associate
-    connections with an agent by their app IDs.
+    This command associates application connections with an agent by their app-ids, using the 
+    PATCH /orchestrate/agents/{id} endpoint.
     
     Example:
         wxo agents connect --name my-agent --app-id conn1 --app-id conn2
