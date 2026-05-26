@@ -95,7 +95,7 @@ Expected behavior:
 
 ```bash
 orchestrate agents import \
-  --experimental-package-root examples/custom_agents/memory_coach_sdk_agent
+  --package-root examples/custom_agents/memory_coach_sdk_agent
 ```
 
 ## Files
