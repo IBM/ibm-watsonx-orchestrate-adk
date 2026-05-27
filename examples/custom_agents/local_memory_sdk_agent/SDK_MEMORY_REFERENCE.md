@@ -158,7 +158,7 @@ The example agent in this folder is imported with:
 
 ```bash
 ./.venv/bin/orchestrate agents import \
-  --experimental-package-root examples/custom_agents/local_memory_sdk_agent
+  --package-root examples/custom_agents/local_memory_sdk_agent
 ```
 
 That command packages the directory, creates or updates the agent definition,
