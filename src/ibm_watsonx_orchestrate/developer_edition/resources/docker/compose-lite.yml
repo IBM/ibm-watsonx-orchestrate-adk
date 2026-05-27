@@ -272,6 +272,7 @@ services:
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      SCHEDULER_IN_AGENT_BUILDER: "true"
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
