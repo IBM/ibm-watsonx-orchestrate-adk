@@ -6,6 +6,7 @@ import sys
 import io
 import re
 import tempfile
+import csv
 from pydantic import BaseModel
 import requests
 import zipfile
@@ -40,6 +41,7 @@ from ibm_watsonx_orchestrate.cli.config import Config, PYTHON_REGISTRY_HEADER, P
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.flow_builder.flows.decorators import FlowWrapper
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
+from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
 from ibm_watsonx_orchestrate.client.toolkit.toolkit_client import ToolKitClient
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
@@ -237,6 +239,86 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
     
     return tools
+
+
+def _load_flow_model_from_file(file: str) -> dict:
+    """
+    Load flow model from a file (JSON or Python).
+    Shared utility function for loading flow models.
+    
+    Args:
+        file: Path to the flow file (Python or JSON)
+        
+    Returns:
+        Flow model dictionary
+    """
+    model = None
+    
+    try:
+        file_path = Path(file).absolute()
+        file_path_str = str(file_path)
+
+        if file_path.is_dir():
+            raise typer.BadParameter(f"Provided flow file path is not a file.")
+
+        elif file_path.is_symlink():
+            raise typer.BadParameter(f"Symbolic links are not supported for flow file path.")
+
+        if file_path.suffix.lower() == ".py":
+            # Load Python file containing flow model
+            resolved_package_root = get_package_root(str(file_path.parent))
+            if resolved_package_root:
+                resolved_package_root = str(Path(resolved_package_root).absolute())
+                package_path = str(Path(resolved_package_root).parent.absolute())
+                package_folder = str(Path(resolved_package_root).stem)
+                sys.path.append(package_path)
+                sys.path.append(resolved_package_root)
+                package = file_path_str.replace(resolved_package_root, '').replace('.py', '').replace('/', '.').replace('\\', '.')
+                if not path.isdir(resolved_package_root):
+                    raise typer.BadParameter(f"The provided package root is not a directory.")
+                elif not file_path_str.startswith(str(Path(resolved_package_root))):
+                    raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
+                temp_path = Path(file_path_str[len(str(Path(resolved_package_root))) + 1:])
+                if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
+                    raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
+            else:
+                package_folder = file_path.parent
+                package = file_path.stem
+                sys.path.append(str(package_folder))
+
+            module = importlib.import_module(package, package=package_folder)
+            
+            if resolved_package_root:
+                del sys.path[-1]
+            del sys.path[-1]
+
+            for _, obj in inspect.getmembers(module):
+                if not isinstance(obj, FlowWrapper):
+                    continue
+                
+                model = obj().to_json()
+                # Ensure metadata exists and is correct
+                if "metadata" not in model or not isinstance(model["metadata"], dict):
+                    model["metadata"] = {}
+                if "source_kind" not in model["metadata"]:
+                    model["metadata"]["source_kind"] = "adk/python"
+                break
+
+        elif file_path.suffix.lower() == ".json":
+            with safe_open(file) as f:
+                model = json.load(f)
+        else:
+            raise typer.BadParameter(f"Unknown file type. Only python or json are supported.")
+
+        if not model:
+            raise typer.BadParameter(f"No flow model found in file {file}")
+
+    except typer.BadParameter as ex:
+        raise ex
+    except Exception as e:
+        raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
+    
+    return model
     
 
 async def import_flow_tool(file: str, save_flow_json: str | None = None) -> None:
@@ -276,76 +358,8 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
 
     console.print(Panel(message,  title="[bold blue]Flow tool support information[/bold blue]", border_style="bright_blue"))
    
-    model = None
-    
-    # Load the Flow JSON model from the file
-    try:
-        file_path = Path(file).absolute()
-        file_path_str = str(file_path)
-
-        if file_path.is_dir():
-            raise typer.BadParameter(f"Provided flow file path is not a file.")
-
-        elif file_path.is_symlink():
-            raise typer.BadParameter(f"Symbolic links are not supported for flow file path.")
-
-        if file_path.suffix.lower() == ".py":
-            
-            # borrow code from python tool import to be able to load the script that holds the flow model
-
-            resolved_package_root = get_package_root(str(file_path.parent))
-            if resolved_package_root:
-                resolved_package_root = str(Path(resolved_package_root).absolute())
-                package_path = str(Path(resolved_package_root).parent.absolute())
-                package_folder = str(Path(resolved_package_root).stem)
-                sys.path.append(package_path)           # allows you to resolve non relative imports relative to the root of the module
-                sys.path.append(resolved_package_root)  # allows you to resolve relative imports in combination with import_module(..., package=...)
-                package = file_path_str.replace(resolved_package_root, '').replace('.py', '').replace('/', '.').replace('\\', '.')
-                if not path.isdir(resolved_package_root):
-                    raise typer.BadParameter(f"The provided package root is not a directory.")
-
-                elif not file_path_str.startswith(str(Path(resolved_package_root))):
-                    raise typer.BadParameter(f"The provided tool file path does not belong to the provided package root.")
-
-                temp_path = Path(file_path_str[len(str(Path(resolved_package_root))) + 1:])
-                if any([__supported_characters_pattern.match(x) is None for x in temp_path.parts[:-1]]):
-                    raise typer.BadParameter(f"Path to tool file contains unsupported characters. Only alphanumeric characters and underscores are allowed. Path: \"{temp_path}\"")
-            else:
-                package_folder = file_path.parent
-                package = file_path.stem
-                sys.path.append(str(package_folder))
-
-            module = importlib.import_module(package, package=package_folder)
-            
-            if resolved_package_root:
-                del sys.path[-1]
-            del sys.path[-1]
-
-            for _, obj in inspect.getmembers(module):
-                    
-                if not isinstance(obj, FlowWrapper):
-                    continue
-                
-                model = obj().to_json()
-                # Ensure metadata exists and is correct
-                if "metadata" not in model or not isinstance(model["metadata"], dict):
-                    model["metadata"] = {}
-                if "source_kind" not in model["metadata"]:
-                    model["metadata"]["source_kind"] = "adk/python"
-                break
-
-        elif file_path.suffix.lower() == ".json":
-            with safe_open(file) as f:
-                model = json.load(f)
-        else:
-            raise typer.BadParameter(f"Unknown file type.  Only python or json are supported.")
-
-
-    except typer.BadParameter as ex:
-        raise ex
-    
-    except Exception as e:
-        raise typer.BadParameter(f"Failed to load model from file {file}: {e}")
+    # Load the Flow JSON model from the file using the shared utility function
+    model = _load_flow_model_from_file(file)
     
     # Save the compiled flow JSON if requested
     if save_flow_json and model:
@@ -463,6 +477,7 @@ class DownloadResult(BaseModel):
 class ToolsController:
     def __init__(self, tool_kind: ToolKind = None, file: str = None, requirements_file: Optional[str] = None, safe_mode: bool = False):
         self.client = None
+        self.builder_client = None
         self.tool_kind = tool_kind
         self.file = file
         self.cleanup_file = False
@@ -473,6 +488,11 @@ class ToolsController:
         if not self.client:
             self.client = instantiate_client(ToolClient)
         return self.client
+    
+    def get_builder_client(self) -> BuilderClient:
+        if not self.builder_client:
+            self.builder_client = instantiate_client(BuilderClient)
+        return self.builder_client
     
     def resolve_file(self, name: str = None):        
         if not self.file and self.tool_kind == ToolKind.langflow:
@@ -672,8 +692,15 @@ class ToolsController:
     def get_all_tools(self) -> dict:
         return {entry["name"]: entry["id"] for entry in self.get_client().get()}
 
-    def publish_or_update_tools(self, tools: Iterable[BaseTool], package_root: str = None) -> None:
+    def publish_or_update_tools(self, tools: Iterable[BaseTool], package_root: str = None) -> List[dict]:
+        """
+        Publish or update tools and return information about the published/updated tools.
+        
+        Returns:
+            List of dicts containing tool information: [{"id": tool_id, "name": tool_name}, ...]
+        """
         resolved_package_root = get_package_root(package_root)
+        published_tools = []
 
         # Zip the tool's supporting artifacts for python tools
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -813,9 +840,23 @@ class ToolsController:
                     self.update_tool(tool_id=tool_id, tool=tool, tool_artifact=tool_artifact,
                                    skip_workspace_param=cross_workspace_update)
                 else:
-                    self.publish_tool(tool=tool, tool_artifact=tool_artifact)
+                    tool_id = self.publish_tool(tool=tool, tool_artifact=tool_artifact)
+                
+                # Track the published/updated tool
+                published_tools.append({
+                    "id": tool_id,
+                    "name": tool.__tool_spec__.name
+                })
+        
+        return published_tools
 
-    def publish_tool(self, tool: BaseTool, tool_artifact: str) -> None:
+    def publish_tool(self, tool: BaseTool, tool_artifact: str) -> str:
+        """
+        Publish a new tool and return its ID.
+        
+        Returns:
+            The ID of the published tool
+        """
         from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
         
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
@@ -856,6 +897,7 @@ class ToolsController:
                     raise ValueError(f"Unexpected artifact for {self.tool_kind} tool")
 
         logger.info(f"Tool '{tool.__tool_spec__.name}' imported successfully")
+        return tool_id
 
     def update_tool(self, tool_id: str, tool: BaseTool, tool_artifact: str, skip_workspace_param: bool = False) -> None:
         tool_spec = tool.__tool_spec__.model_dump(mode='json', exclude_unset=True, exclude_none=True, by_alias=True)
@@ -1079,6 +1121,235 @@ class ToolsController:
         # Return True to indicate successful export
         return True
 
+    
+    def export_flow_translations(
+        self,
+        file: Optional[str] = None,
+        name: Optional[str] = None,
+        translation_output_path: Optional[str] = None
+    ) -> None:
+        """
+        Retrieve translations for a flow tool and save to a CSV file.
+        
+        Args:
+            file: Path to flow file (JSON or Python)
+            name: Name of an imported flow tool
+            translation_output_path: Path where the translation CSV file will be saved
+        """
+        from rich.console import Console
+        console = Console()
+        
+        try:
+            # Validate required parameters
+            if not translation_output_path or not translation_output_path.strip():
+                raise typer.BadParameter("translation_output_path cannot be empty")
+            
+            if not file and not name:
+                raise typer.BadParameter("Must provide either file or name parameter")
+            
+            if file and not file.strip():
+                raise typer.BadParameter("file parameter cannot be empty")
+            
+            if name and not name.strip():
+                raise typer.BadParameter("name parameter cannot be empty")
+            
+            # Determine whether to use flow model or flow identifier
+            if file:
+                # Load flow model from file
+                flow_model = _load_flow_model_from_file(file)
+                console.print(f"[cyan]Processing flow from file: {file}[/cyan]")
+                translations = self._get_translations_from_api(flow_model=flow_model)
+            else:
+                # Use flow identifier (name)
+                console.print(f"[cyan]Processing imported flow: {name}[/cyan]")
+                translations = self._get_translations_from_api(flow_identifier=name)
+            
+            self._save_translations_to_file(translations, translation_output_path)
+            
+            console.print(Panel(
+                f"[green]✓[/green] Translations successfully saved to: {translation_output_path}",
+                title="Success",
+                border_style="green"
+            ))
+            
+        except typer.BadParameter:
+            raise
+        except Exception as e:
+            raise typer.BadParameter(str(e))
+        
+    def _get_tool_id_by_name(self, name: str) -> str:
+        """
+        Look up a tool by name and return its ID.
+        
+        Args:
+            name: The name of the tool to look up
+            
+        Returns:
+            The tool ID
+            
+        Raises:
+            typer.BadParameter: If tool not found, multiple tools found, or tool has no ID
+        """
+        existing_tools = self.get_client().get_draft_by_name(name)
+        
+        if len(existing_tools) == 0:
+            raise typer.BadParameter(f"No tool found with name '{name}'")
+        
+        if len(existing_tools) > 1:
+            raise typer.BadParameter(f"Multiple tools found with name '{name}'")
+        
+        # Extract the tool ID from the first (and only) result
+        existing_tool = existing_tools[0]
+        tool_id = existing_tool.get("id")
+        
+        if not tool_id:
+            raise typer.BadParameter(f"Tool '{name}' found but has no ID")
+        
+        return tool_id
+    
+    def import_flow_translations(self, translation_path: str, tool_id: str = None, name: str = None) -> None:
+        """
+        Import translations for a flow tool from a CSV file.
+        
+        Args:
+            translation_path: Path to the CSV file containing translations
+            tool_id: The ID of the flow tool to import translations for (optional if name is provided)
+            name: The name of the flow tool (will be looked up to get the ID)
+        """
+        from rich.console import Console
+        console = Console()
+        
+        try:
+            # Validate required parameters
+            if not translation_path or not translation_path.strip():
+                raise typer.BadParameter("translation_path cannot be empty")
+            
+            if not tool_id and not name:
+                raise typer.BadParameter("Must provide either tool_id or name parameter")
+            
+            # If name is provided instead of tool_id, look up the tool to get its ID
+            if name and not tool_id:
+                console.print(f"[cyan]Looking up tool by name: {name}[/cyan]")
+                tool_id = self._get_tool_id_by_name(name)
+                console.print(f"[green]✓[/green] Found tool '{name}' with ID: {tool_id}")
+            
+            # Validate translation file exists
+            translation_file = Path(translation_path)
+            if not translation_file.exists():
+                raise typer.BadParameter(f"Translation file not found: {translation_path}")
+            if not translation_file.is_file():
+                raise typer.BadParameter(f"Translation path is not a file: {translation_path}")
+            
+            console.print(f"[cyan]Importing translations from: {translation_path}[/cyan]")
+            
+            # Read the entire CSV file as a single string
+            with open(translation_file, 'r', encoding='utf-8') as f:
+                csv_content = f.read()
+            
+            if not csv_content.strip():
+                raise typer.BadParameter(f"Translation file is empty: {translation_path}")
+            
+            # Create array with single CSV file content
+            csv_contents = [csv_content]
+            
+            # Call the builder client to import translations
+            builder_client = self.get_builder_client()
+            result = builder_client.import_translations(
+                tool_identifier=tool_id,
+                csv_contents=csv_contents
+            )
+            
+            console.print(Panel(
+                f"[green]✓[/green] Translations successfully imported for tool ID: {tool_id}",
+                title="Success",
+                border_style="green"
+            ))
+            
+        except typer.BadParameter:
+            raise
+        except Exception as e:
+            raise typer.BadParameter(str(e))
+    
+    
+    def _get_translations_from_api(
+        self,
+        flow_model: Optional[dict] = None,
+        flow_identifier: Optional[str] = None
+    ) -> str:
+        """
+        Retrieve translations for a flow using the Builder API.
+
+        Args:
+            flow_model: The flow model dictionary (when file is provided)
+            flow_identifier: The identifier for the flow (name, ID, etc.) (when name is provided)
+
+        Returns:
+            CSV string containing translation data
+
+        Raises:
+            Exception: If the API call fails
+        """
+        # If flow_identifier is provided (name), look up the tool to get its ID
+        tool_id = None
+        if flow_identifier and not flow_model:
+            try:
+                tool_id = self._get_tool_id_by_name(flow_identifier)
+                logger.info(f"Found tool '{flow_identifier}' with ID: {tool_id}")
+            except typer.BadParameter as e:
+                # Convert typer.BadParameter to ValueError for consistency with this method's error handling
+                raise ValueError(str(e))
+
+        builder_client = self.get_builder_client()
+        api_response = builder_client.export_translations(
+            flow_model=flow_model,
+            flow_identifier=tool_id
+        )
+
+        logger.info(
+            "Translation export response metadata: url=%s status=%s content_type=%s",
+            api_response.url,
+            api_response.status_code,
+            api_response.content_type
+        )
+
+        translations = api_response.content
+        normalized_preview = translations.lstrip().lower()[:200]
+        if normalized_preview.startswith("<!doctype html") or normalized_preview.startswith("<html"):
+            raise ValueError(
+                f"Translation export returned HTML instead of CSV. "
+                f"url={api_response.url}, status={api_response.status_code}, "
+                f"content_type={api_response.content_type}"
+            )
+
+        if flow_model:
+            flow_name = flow_model.get("spec", {}).get("name", "unknown")
+            logger.info(f"Retrieved translations from API for flow model: {flow_name}")
+        else:
+            logger.info(f"Retrieved translations from API for tool: {flow_identifier} (ID: {tool_id})")
+
+        return translations
+    
+    def _save_translations_to_file(self, translations: str, output_path: str) -> None:
+        """
+        Save translation data to a CSV file.
+        
+        Args:
+            translations: CSV string containing translation data
+            output_path: Path where the CSV file will be saved
+        """
+        output_file = Path(output_path)
+        
+        # Create parent directories if they don't exist
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write the CSV string directly to file
+        with safe_open(output_path, 'w', encoding='utf-8') as csvfile:
+            csvfile.write(translations)
+        
+        # Count lines for logging (excluding header)
+        line_count = len(translations.strip().split('\n')) - 1
+        logger.info(f"Saved {line_count} translation entries to {output_path}")
+        
     def auto_discover_tools(self, input_file: str, env_file: str, output_file: Optional[str] = None, llm: Optional[str] = None, function_names: Optional[list[str]] = None):
         
         if Path(input_file).suffix.lower() != ".py":

@@ -2,7 +2,9 @@ from pathlib import Path
 import typer
 from typing import List
 from typing_extensions import Annotated, Optional
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKindImport
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKindImport, ToolKind
+from ibm_watsonx_orchestrate.cli.common import logger
+
 tools_app= typer.Typer(no_args_is_help=True)
 
 @tools_app.command(name="import", help='Import a tool into the active environment')
@@ -93,6 +95,13 @@ relative to this package root folder or imported using relative imports from the
             help="Path to save the compiled flow JSON file. Only applicable for flow imports (--kind=flow)"
         )
     ] = None,
+    translation: Annotated[
+        Optional[str],
+        typer.Option(
+            "--translation",
+            help="Path to translation CSV file to import after tool creation. Only applicable for flow imports (--kind=flow)"
+        )
+    ] = None,
     safe: Annotated[
         bool,
         typer.Option(
@@ -101,6 +110,18 @@ relative to this package root folder or imported using relative imports from the
         )
     ] = False
 ):
+    # Validate translation parameter
+    if translation:
+        if kind != ToolKindImport.flow:
+            raise typer.BadParameter("--translation option is only valid for flow tools (--kind=flow)")
+        
+        # Validate that translation file path exists
+        translation_path = Path(translation)
+        if not translation_path.exists():
+            raise typer.BadParameter(f"Translation file not found: {translation}")
+        if not translation_path.is_file():
+            raise typer.BadParameter(f"Translation path is not a file: {translation}")
+    
     tools_controller = ToolsController(kind, file, requirements_file, safe_mode=safe)
     if auto_discover:
         if kind != ToolKindImport.python:
@@ -128,7 +149,31 @@ relative to this package root folder or imported using relative imports from the
             name=name,
             save_flow_json=save_flow_json,
         )
-        tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+        published_tools = tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+        
+        # Import translations after tool is published/updated (only for flow tools)
+        if translation and published_tools:
+            # Find the main flow tool (not support tools like get_flow_status)
+            # Support tools have specific naming patterns (e.g., i__get_flow_status_intrinsic_tool__)
+            main_flow_tool = None
+            for tool in published_tools:
+                # Skip intrinsic/support tools - they start with "i__" and end with "_intrinsic_tool__"
+                if not tool["name"].startswith("i__") and not tool["name"].endswith("_intrinsic_tool__"):
+                    main_flow_tool = tool
+                    break
+            
+            if main_flow_tool:
+                tool_id = main_flow_tool["id"]
+            else:
+                # Fallback: if no main tool identified, use the last tool
+                # (main flow tool is appended last when support tools are enabled)
+                tool_id = published_tools[-1]["id"]
+            
+            try:
+                tools_controller.import_flow_translations(translation_path=translation, tool_id=tool_id)
+            except Exception as e:
+                logger.warning(f"Tool was successfully imported, but translation import failed: {str(e)}")
+                logger.info(f"You can retry importing translations using: orchestrate tools translationImport -k flow --name <tool_name> --translation {translation}")
     finally:
         tools_controller.remove_temp_file()
  
@@ -226,4 +271,120 @@ def tool_auto_discover(
         function_names=function_names
     )
     tools_controller.file = file
+
+@tools_app.command(
+    name="translationExport",
+    help="Retrieve translations for a flow tool"
+)
+def translationExport(
+    kind: Annotated[
+        ToolKind,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Type of tool to translate (currently only 'flow' is supported)"
+        ),
+    ],
+    translation: Annotated[
+        str,
+        typer.Option(
+            "--translation",
+            help="File path where the translation CSV file will be saved"
+        ),
+    ],
+    file: Annotated[
+        Optional[str],
+        typer.Option(
+            "--file",
+            "-f",
+            help="Path to flow file (JSON or Python). Mutually exclusive with --name"
+        ),
+    ] = None,
+    name: Annotated[
+        Optional[str],
+        typer.Option(
+            "--name",
+            help="Name of an imported flow tool. Mutually exclusive with --file"
+        ),
+    ] = None,
+):
+    """
+    Retrieve translations for a flow tool.
+    
+    You must provide either --file or --name, but not both.
+    
+    Examples:
+        orchestrate tools translationExport -k flow -f path/to/flow.json --translation translations.csv
+        orchestrate tools translationExport -k flow --name my_flow_tool --translation translations.csv
+    """
+    # Validate that exactly one of file or name is provided
+    if file and name:
+        raise typer.BadParameter("Cannot specify both --file and --name. Please provide only one.")
+    
+    if not file and not name:
+        raise typer.BadParameter("Must specify either --file or --name.")
+    
+    # Only flow kind is supported for now
+    if kind != ToolKind.flow:
+        raise typer.BadParameter(f"Kind '{kind}' is not supported. Currently only 'flow' is supported.")
+    
+    controller = ToolsController()
+    controller.export_flow_translations(
+        file=file,
+        name=name,
+        translation_output_path=translation
+    )
+@tools_app.command(
+    name="translationImport",
+    help="Import translations for a flow tool from a CSV file"
+)
+def translationImport(
+    kind: Annotated[
+        ToolKind,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Type of tool to import translations for (currently only 'flow' is supported)"
+        ),
+    ],
+    translation: Annotated[
+        str,
+        typer.Option(
+            "--translation",
+            help="File path to the translation CSV file to import"
+        ),
+    ],
+    name: Annotated[
+        str,
+        typer.Option(
+            "--name",
+            help="Name of an imported flow tool"
+        ),
+    ],
+):
+    """
+    Import translations for a flow tool from a CSV file.
+    
+    The tool must already be imported before importing translations.
+    
+    Example:
+        orchestrate tools translationImport -k flow --name my_flow_tool --translation translations.csv
+    """
+    
+    # Only flow kind is supported for now
+    if kind != ToolKind.flow:
+        raise typer.BadParameter(f"Kind '{kind}' is not supported. Currently only 'flow' is supported.")
+    
+    # Validate that translation file path exists
+    translation_path = Path(translation)
+    if not translation_path.exists():
+        raise typer.BadParameter(f"Translation file not found: {translation}")
+    if not translation_path.is_file():
+        raise typer.BadParameter(f"Translation path is not a file: {translation}")
+    
+    controller = ToolsController()
+    
+    # Pass the name parameter - the controller will look up the tool ID
+    controller.import_flow_translations(translation_path=str(translation_path), name=name)
+
 
