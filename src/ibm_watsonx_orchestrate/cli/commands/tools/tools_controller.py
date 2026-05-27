@@ -241,7 +241,7 @@ def import_python_tool(file: str, requirements_file: str = None, app_id: List[st
     return tools
 
 
-def _load_flow_model_from_file(file: str) -> dict:
+def load_flow_model_from_file(file: str) -> dict:
     """
     Load flow model from a file (JSON or Python).
     Shared utility function for loading flow models.
@@ -359,7 +359,7 @@ The [bold]flow tool[/bold] is being imported from [green]`{file}`[/green].
     console.print(Panel(message,  title="[bold blue]Flow tool support information[/bold blue]", border_style="bright_blue"))
    
     # Load the Flow JSON model from the file using the shared utility function
-    model = _load_flow_model_from_file(file)
+    model = load_flow_model_from_file(file)
     
     # Save the compiled flow JSON if requested
     if save_flow_json and model:
@@ -1156,7 +1156,7 @@ class ToolsController:
             # Determine whether to use flow model or flow identifier
             if file:
                 # Load flow model from file
-                flow_model = _load_flow_model_from_file(file)
+                flow_model = load_flow_model_from_file(file)
                 console.print(f"[cyan]Processing flow from file: {file}[/cyan]")
                 translations = self._get_translations_from_api(flow_model=flow_model)
             else:
@@ -1271,6 +1271,69 @@ class ToolsController:
             raise typer.BadParameter(str(e))
     
     
+    def _resolve_tool_id(
+        self,
+        flow_identifier: Optional[str],
+        flow_model: Optional[dict]
+    ) -> Optional[str]:
+        """
+        Resolve tool ID from flow identifier if needed.
+        
+        Args:
+            flow_identifier: The identifier for the flow (name, ID, etc.)
+            flow_model: The flow model dictionary
+            
+        Returns:
+            The tool ID if flow_identifier is provided and flow_model is not, otherwise None
+            
+        Raises:
+            typer.BadParameter: If tool lookup fails (re-raised from _get_tool_id_by_name)
+        """
+        if not flow_identifier or flow_model:
+            return None
+        
+        tool_id = self._get_tool_id_by_name(flow_identifier)
+        logger.info(f"Found tool '{flow_identifier}' with ID: {tool_id}")
+        return tool_id
+    
+    def _validate_csv_response(self, api_response) -> None:
+        """
+        Validate that the API response contains valid CSV data.
+        
+        Args:
+            api_response: The translation export response from the Builder API
+            
+        Raises:
+            ValueError: If the response contains HTML instead of CSV
+        """
+        content_preview = api_response.content.lstrip().lower()[:200]
+        if content_preview.startswith(("<!doctype html", "<html")):
+            raise ValueError(
+                f"Translation export returned HTML instead of CSV. "
+                f"url={api_response.url}, status={api_response.status_code}, "
+                f"content_type={api_response.content_type}"
+            )
+    
+    def _log_translation_retrieval(
+        self,
+        flow_model: Optional[dict],
+        flow_identifier: Optional[str],
+        tool_id: Optional[str]
+    ) -> None:
+        """
+        Log successful translation retrieval.
+        
+        Args:
+            flow_model: The flow model dictionary (if provided)
+            flow_identifier: The identifier for the flow (if provided)
+            tool_id: The resolved tool ID (if applicable)
+        """
+        if flow_model:
+            flow_name = flow_model.get("spec", {}).get("name", "unknown")
+            logger.info(f"Retrieved translations from API for flow model: {flow_name}")
+        else:
+            logger.info(f"Retrieved translations from API for tool: {flow_identifier} (ID: {tool_id})")
+    
     def _get_translations_from_api(
         self,
         flow_model: Optional[dict] = None,
@@ -1287,24 +1350,20 @@ class ToolsController:
             CSV string containing translation data
 
         Raises:
-            Exception: If the API call fails
+            typer.BadParameter: If tool lookup fails (re-raised from _resolve_tool_id)
+            ValueError: If the API returns HTML instead of CSV
         """
-        # If flow_identifier is provided (name), look up the tool to get its ID
-        tool_id = None
-        if flow_identifier and not flow_model:
-            try:
-                tool_id = self._get_tool_id_by_name(flow_identifier)
-                logger.info(f"Found tool '{flow_identifier}' with ID: {tool_id}")
-            except typer.BadParameter as e:
-                # Convert typer.BadParameter to ValueError for consistency with this method's error handling
-                raise ValueError(str(e))
+        # Resolve tool ID if needed
+        tool_id = self._resolve_tool_id(flow_identifier, flow_model)
 
+        # Export translations via Builder API
         builder_client = self.get_builder_client()
         api_response = builder_client.export_translations(
             flow_model=flow_model,
             flow_identifier=tool_id
         )
 
+        # Log response metadata
         logger.info(
             "Translation export response metadata: url=%s status=%s content_type=%s",
             api_response.url,
@@ -1312,22 +1371,13 @@ class ToolsController:
             api_response.content_type
         )
 
-        translations = api_response.content
-        normalized_preview = translations.lstrip().lower()[:200]
-        if normalized_preview.startswith("<!doctype html") or normalized_preview.startswith("<html"):
-            raise ValueError(
-                f"Translation export returned HTML instead of CSV. "
-                f"url={api_response.url}, status={api_response.status_code}, "
-                f"content_type={api_response.content_type}"
-            )
+        # Validate response content
+        self._validate_csv_response(api_response)
 
-        if flow_model:
-            flow_name = flow_model.get("spec", {}).get("name", "unknown")
-            logger.info(f"Retrieved translations from API for flow model: {flow_name}")
-        else:
-            logger.info(f"Retrieved translations from API for tool: {flow_identifier} (ID: {tool_id})")
+        # Log successful retrieval
+        self._log_translation_retrieval(flow_model, flow_identifier, tool_id)
 
-        return translations
+        return api_response.content
     
     def _save_translations_to_file(self, translations: str, output_path: str) -> None:
         """

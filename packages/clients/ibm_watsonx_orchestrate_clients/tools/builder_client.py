@@ -1,9 +1,12 @@
 from typing import Optional, Dict, Any, List, cast
 import requests
+import logging
 from pydantic import BaseModel
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient
 from urllib.parse import urlparse, urlunparse
 from ibm_cloud_sdk_core.authenticators import MCSPAuthenticator
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_BUILDER_PORT = 4025
 
@@ -34,7 +37,6 @@ class BuilderClient(BaseWXOClient):
         **kwargs
     ):
         parsed_url = urlparse(base_url)
-       
         if is_local:
             new_netloc = f"{parsed_url.hostname}:{DEFAULT_BUILDER_PORT}"
             new_url = urlunparse(parsed_url._replace(netloc=new_netloc))
@@ -148,7 +150,7 @@ class BuilderClient(BaseWXOClient):
                 # Remote: base_url = https://.../instances/{id}/v1/orchestrate
                 endpoint = "/flow-model/translations/export"
             full_url = f"{self.base_url}{endpoint}"
-            print(f"[DEBUG] export_translations (flow_model): POST {full_url}")
+            logger.debug(f"export_translations (flow_model): POST {full_url}")
             return self._post_csv(endpoint, data=flow_model)
         elif flow_identifier:
             # POST endpoint for flow_identifier - receives CSV
@@ -161,7 +163,7 @@ class BuilderClient(BaseWXOClient):
                 # API proxy routes /flow-model/{id}/... to backend /tools/{id}/flow/...
                 endpoint = f"/flow-model/{flow_identifier}/translations/export"
                 full_url = f"{self.base_url}{endpoint}"
-            print(f"[DEBUG] export_translations (flow_identifier): GET {full_url}")
+            logger.debug(f"export_translations (flow_identifier): GET {full_url}")
 
             return self._get_csv(endpoint)
         else:
@@ -199,7 +201,7 @@ class BuilderClient(BaseWXOClient):
             endpoint = f"/flow-model/{tool_identifier}/translations/import"
         
         full_url = f"{self.base_url}{endpoint}"
-        print(f"[DEBUG] import_translations: PUT {full_url}")
+        logger.debug(f"import_translations: PUT {full_url}")
         
         # Prepare the payload matching the API specification
         payload = {

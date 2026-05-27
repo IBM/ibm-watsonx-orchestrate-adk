@@ -2997,7 +2997,7 @@ class TranslationSupport(BaseModel):
     '''Translation support configuration for flows'''
     enabled: bool = Field(description="Whether translation is enabled for this flow", default=True)
     source_locale: Optional[str] = Field(description="Source locale for translation (e.g., 'en', 'fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR')", default='en')
-    target_locales: Optional[list[str]] = Field(description="Target locales for translation", default_factory=list)
+    target_locales: Optional[list[str]] = Field(description="Target locales for translation (default: empty list)", default_factory=list)
 
 class FlowCallback(BaseModel):
     """
