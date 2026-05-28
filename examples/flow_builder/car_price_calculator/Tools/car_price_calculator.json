@@ -978,6 +978,7 @@
     "schemas": {},
     "metadata": {
         "llm_model": "groq/openai/gpt-oss-120b",
-        "is_system_generated_description": false
+        "is_system_generated_description": false,
+        "source_kind": "ui"
     }
 }
