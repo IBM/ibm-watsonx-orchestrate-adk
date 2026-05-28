@@ -12,7 +12,7 @@ authors = [
 #readme = { file = "README.md", content-type = 'text/markdown'}
 license = {text = "MIT License"}
 license-files = ["LICENSE"]
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.11, <3.15"
 dependencies = [
     "ibm-watsonx-orchestrate-core",
     "ibm-watsonx-orchestrate-clients",
