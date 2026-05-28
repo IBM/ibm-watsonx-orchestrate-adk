@@ -40,7 +40,7 @@ segments for you.
 3. Import the example agent:
 
 ```bash
-orchestrate agents import --experimental-package-root examples/custom_agents/local_memory_sdk_agent
+orchestrate agents import --package-root examples/custom_agents/local_memory_sdk_agent
 ```
 
 4. Validate with a two-turn chat:
