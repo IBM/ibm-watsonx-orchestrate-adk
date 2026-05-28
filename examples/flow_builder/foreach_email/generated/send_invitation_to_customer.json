@@ -37,9 +37,6 @@
         "input_schema": {
           "$ref": "#/schemas/foreach_1_input"
         },
-        "output_schema": {
-          "$ref": "#/schemas/foreach_1_output"
-        },
         "initiators": [
           "__any_user__"
         ],
@@ -187,21 +184,26 @@
         }
       }
     },
-    "foreach_1_output": {
+    "CustomerRecord_1": {
       "type": "object",
-      "title": "foreach_1_output",
+      "title": "CustomerRecord_1",
       "required": [
-        "invitations"
+        "name",
+        "email"
       ],
       "properties": {
-        "invitations": {
-          "type": "array",
-          "title": "Invitations",
-          "items": {
-            "type": "string"
-          }
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the customer"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email",
+          "description": "The email address of the customer"
         }
-      }
+      },
+      "description": "The customer record containing the name and email of the user"
     },
     "send_invitation_email_input": {
       "type": "object",
@@ -219,6 +221,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T15:10:35.127036+00:00"
+    "llm_model": "groq/openai/gpt-oss-120b"
   }
 }
