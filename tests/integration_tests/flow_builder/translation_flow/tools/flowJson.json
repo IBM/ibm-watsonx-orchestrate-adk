@@ -1,0 +1,247 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "translation_test_flow_from_file",
+    "display_name": "translation_test_flow_from_file",
+    "description": "A simple test flow for translation testing with user interaction",
+    "input_schema": {
+      "$ref": "#/schemas/translation_test_flow_input"
+    },
+    "translation_support": {
+      "enabled": true,
+      "source_locale": "en",
+      "target_locales": [
+        "fr"
+      ]
+    },
+    "schedulable": false
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "userflow_1",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ],
+        "assignment_policy": "initiator"
+      },
+      "nodes": {
+        "ApplicationForm": {
+          "spec": {
+            "kind": "user",
+            "name": "ApplicationForm",
+            "display_name": "Application",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [],
+            "form": {
+              "name": "ApplicationForm",
+              "kind": "form",
+              "display_name": "Application",
+              "fields": [
+                {
+                  "name": "married",
+                  "kind": "boolean",
+                  "direction": "input",
+                  "display_name": "Married",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "False",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {
+                            "assignmentType": "literal"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [],
+                    "in_field": null
+                  },
+                  "output_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "in_field": null
+                  },
+                  "uiSchema": {
+                    "ui:widget": "CheckboxWidget",
+                    "ui:title": "Married",
+                    "ui:options": {
+                      "label": false
+                    }
+                  }
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "properties": {
+                  "married": {
+                    "type": "boolean",
+                    "title": "Married",
+                    "oneOf": [
+                      {
+                        "const": true,
+                        "title": "Married"
+                      },
+                      {
+                        "const": false,
+                        "title": "Not married"
+                      }
+                    ]
+                  }
+                },
+                "required": []
+              },
+              "buttons": [
+                {
+                  "name": "submit",
+                  "kind": "submit",
+                  "display_name": "Submit",
+                  "visible": true
+                },
+                {
+                  "name": "cancel",
+                  "kind": "cancel",
+                  "display_name": "Cancel",
+                  "visible": true
+                }
+              ]
+            }
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "ApplicationForm"
+        },
+        {
+          "start": "ApplicationForm",
+          "end": "__end__"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "echo_message": {
+      "spec": {
+        "kind": "tool",
+        "name": "echo_message",
+        "display_name": "echo_message",
+        "description": "Echo back the input message.\n",
+        "input_schema": {
+          "$ref": "#/schemas/echo_message_input"
+        },
+        "output_schema": {
+          "type": "string",
+          "description": "The echoed message"
+        },
+        "tool": "echo_message"
+      }
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "echo_message"
+    },
+    {
+      "start": "echo_message",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "translation_test_flow_input": {
+      "type": "object",
+      "title": "translation_test_flow_input",
+      "required": [],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "Input message",
+          "default": "Hello"
+        }
+      }
+    },
+    "ApplicationForm": {
+      "type": "object",
+      "title": "ApplicationForm",
+      "properties": {}
+    },
+    "echo_message_input": {
+      "type": "object",
+      "title": "echo_message_input",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "The message to echo"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python"
+  }
+}
