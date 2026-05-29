@@ -20,11 +20,26 @@ from pathlib import Path
 import subprocess
 import json
 import asyncio
+import requests
 
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
 from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from .tools.translation_test_flow import build_translation_test_flow
+
+# Check if Orchestrate Server is running before running integration tests
+try:
+    response = requests.get("http://localhost:4025/health", timeout=2)
+    server_available = response.status_code == 200
+except (requests.ConnectionError, requests.Timeout):
+    server_available = False
+
+if not server_available:
+    pytest.skip(
+        "Orchestrate Server not available. These integration tests require a running server. "
+        "Run them via: tests/integration_tests/run_integration_tests.sh",
+        allow_module_level=True
+    )
 
 
 @pytest.fixture(scope="module")
