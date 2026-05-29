@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info:
+ title: Get Dog Facts
+ version: '1.0'
+ description: This tool allows you to get a random fact about dogs
+servers:
+ - url: https://dogapi.dog
+paths:
+  /api/facts:
+    get:
+      operationId: getDogFact
+      summary: Gets a random fact about dogs
+      description: Gets a random fact about dogs
+      responses:
+        '200':
+          description: Successfully retrieved dog fact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  facts:
+                    type: array
+                    items:
+                      type: string
+                  success:
+                    type: boolean
+                required:
+                  - facts
+                  - success
