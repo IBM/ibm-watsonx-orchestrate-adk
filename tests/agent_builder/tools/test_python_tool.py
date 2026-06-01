@@ -1,4 +1,5 @@
 import json
+import pytest
 from typing import Any, Optional, List, Dict
 
 from pydantic import BaseModel
@@ -179,3 +180,133 @@ def test_should_reject_custom_join_tool_with_incorrect_param_types():
         assert "incorrect type for parameter 'task_results'" in str(e)
     else:
         assert False, "Expected error was not raised"
+
+
+def test_should_auto_detect_async_function():
+    """Test that async functions are automatically detected and marked as is_async=True"""
+    @tool(
+        name='async_tool',
+        description='An async tool',
+    )
+    async def async_tool(data: str) -> str:
+        """Process data asynchronously."""
+        return f"Processed: {data}"
+
+    async_tool.belongs_to_toolkit = True  # simulate toolkit import
+    spec = json.loads(async_tool.dumps_spec())
+    assert spec['is_async'] is True
+    assert spec['name'] == 'async_tool'
+    assert spec['binding']['python']['is_async'] is True
+
+
+def test_should_auto_detect_sync_function():
+    """Test that sync functions are automatically detected and marked as is_async=False"""
+    @tool(
+        name='sync_tool',
+        description='A sync tool'
+    )
+    def sync_tool(data: str) -> str:
+        """Process data synchronously."""
+        return f"Processed: {data}"
+    
+    spec = json.loads(sync_tool.dumps_spec())
+    assert spec['is_async'] is False
+    assert spec['name'] == 'sync_tool'
+    assert spec['binding']['python']['is_async'] is False
+
+
+def test_should_default_to_sync_for_regular_functions():
+    """Test that regular functions default to is_async=False"""
+    @tool(
+        name='default_tool',
+        description='A tool with default behavior'
+    )
+    def default_tool(data: str) -> str:
+        """Process data with default settings."""
+        return f"Processed: {data}"
+    
+    spec = json.loads(default_tool.dumps_spec())
+    assert spec['is_async'] is False
+    assert spec['name'] == 'default_tool'
+
+
+def test_should_auto_detect_async_with_other_parameters():
+    """Test that async detection works correctly with other tool parameters"""
+    @tool(
+        name='complex_async_tool',
+        description='A complex async tool',
+        permission=ToolPermission.ADMIN,
+    )
+    async def complex_async_tool(input: str, count: int = 5) -> str:
+        """
+        A complex tool with multiple parameters.
+        
+        Args:
+            input: The input string
+            count: Number of times to process
+        
+        Returns:
+            Processed result
+        """
+        return f"Processed {input} {count} times"
+
+    complex_async_tool.belongs_to_toolkit = True  # simulate toolkit import
+    spec = json.loads(complex_async_tool.dumps_spec())
+    assert spec['is_async'] is True
+    assert spec['name'] == 'complex_async_tool'
+    assert spec['permission'] == 'admin'
+    assert 'input' in spec['input_schema']['properties']
+    assert 'count' in spec['input_schema']['properties']
+    assert spec['binding']['python']['is_async'] is True
+
+
+def test_should_reject_async_standalone_tool():
+    """Test that async standalone tools are rejected by validate_async_toolkit_requirement."""
+    from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
+
+    @tool(
+        name='async_standalone',
+        description='An async standalone tool'
+    )
+    async def async_standalone_tool(data: str) -> str:
+        """Async standalone — validate_async_toolkit_requirement must reject this."""
+        return f"Processed: {data}"
+
+    assert async_standalone_tool.is_async is True
+    assert async_standalone_tool.belongs_to_toolkit is False
+    with pytest.raises(BadRequest, match="only supported within toolkits"):
+        async_standalone_tool.validate_async_toolkit_requirement()
+
+
+def test_should_allow_async_toolkit_tool():
+    """Test that async tools with belongs_to_toolkit=True pass validation."""
+    @tool(
+        name='async_toolkit_tool',
+        description='An async toolkit tool',
+    )
+    async def async_toolkit_tool(data: str) -> str:
+        """This should be allowed when belongs_to_toolkit is set."""
+        return f"Processed: {data}"
+
+    async_toolkit_tool.belongs_to_toolkit = True  # simulate toolkit import
+    async_toolkit_tool.validate_async_toolkit_requirement()  # must not raise
+    spec = json.loads(async_toolkit_tool.dumps_spec())
+    assert spec['is_async'] is True
+    assert spec['name'] == 'async_toolkit_tool'
+    assert spec['binding']['python']['is_async'] is True
+
+
+def test_should_allow_sync_standalone_tool():
+    """Test that sync standalone tools are allowed."""
+    @tool(
+        name='sync_standalone',
+        description='A sync standalone tool'
+    )
+    def sync_standalone_tool(data: str) -> str:
+        """This should be allowed because it's sync."""
+        return f"Processed: {data}"
+
+    spec = json.loads(sync_standalone_tool.dumps_spec())
+    assert spec['is_async'] is False
+    assert spec['name'] == 'sync_standalone'
+

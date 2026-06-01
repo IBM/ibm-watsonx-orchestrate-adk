@@ -160,6 +160,7 @@ class PythonToolBinding(BaseModel):
     connections: Optional[dict[str, str]] = None
     type: Optional[str] = None
     agent_run_paramater: Optional[str] = None
+    is_async: bool = False
 
 
 class WxFlowsToolBinding(BaseModel):
