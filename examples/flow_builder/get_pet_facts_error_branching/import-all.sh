@@ -8,7 +8,7 @@ for openapi_tool in cat-facts.openapi.yml dog-facts.openapi.yml; do
   orchestrate tools import -k openapi -f ${SCRIPT_DIR}/tools/${openapi_tool};
 done
 
-for flow_tool in get_pet_facts.py; do
+for flow_tool in get_pet_facts_error_branching.py; do
   orchestrate tools import -k flow -f ${SCRIPT_DIR}/tools/${flow_tool} 
 done
 

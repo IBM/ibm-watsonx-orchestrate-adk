@@ -524,7 +524,7 @@ Browse: [examples/flow_builder/](https://github.com/IBM/watsonx-orchestrate-adk/
 - **Pattern**: Simple tool invocation
 - **Use Case**: Learning flow basics
 
-**[get_pet_facts/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/flow_builder/get_pet_facts)**
+**[get_pet_facts_if_else/](https://github.com/IBM/ibm-watsonx-orchestrate-adk/tree/main/examples/flow_builder/get_pet_facts_if_else)**
 - **Purpose**: Fetch and display pet facts
 - **Pattern**: External API integration
 - **Use Case**: Simple data retrieval
@@ -901,7 +901,7 @@ example/
 └── main.py                 # Testing script
 ```
 
-**Example**: `get_pet_facts/`
+**Example**: `get_pet_facts_if_else/`
 
 ### Pattern 2: Document Processing Flow
 
