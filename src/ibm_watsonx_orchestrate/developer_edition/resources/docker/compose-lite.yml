@@ -1466,6 +1466,7 @@ services:
       WXAI_INSTANCE_ID: ${WXAI_INSTANCE_ID:-}
       WXAI_VERSION: ${WXAI_VERSION:-}
       WXAI_PROVIDER: ${WXAI_PROVIDER:-openai}
+      GLOBAL_WORKER_DOCLING_PIPELINE: ${GLOBAL_WORKER_DOCLING_PIPELINE:-true}
 
     profiles:
       - docproc
