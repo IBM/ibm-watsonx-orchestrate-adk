@@ -23,8 +23,7 @@ class Invitations(BaseModel):
 
 @flow(
     name="send_invitation_to_customer",
-    input_schema=CustomerName,
-    output_schema=None
+    input_schema=CustomerName
 )
 def build_send_invitation_to_customer_flow(aflow: Flow) -> Flow:
     """ Given a list of customers, we will iterate through the list and send email to each """
