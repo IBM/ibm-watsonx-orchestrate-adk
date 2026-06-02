@@ -263,5 +263,6 @@ flow.input.listOfFruits = ["apple", "oranges", "bananas"]
     
     # add the user flow to the flow sequence to create the flow edges
     aflow.sequence(START, init_data, user_flow, END)
+    aflow.target_locales(["fr", "es"])
   
     return aflow

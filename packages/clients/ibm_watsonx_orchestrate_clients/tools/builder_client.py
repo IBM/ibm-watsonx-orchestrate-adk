@@ -10,13 +10,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUILDER_PORT = 4025
 
-
 class TranslationExportResponse(BaseModel):
     content: str
     content_type: str
     url: str
     status_code: int
-
 
 class BuilderClient(BaseWXOClient):
     """
@@ -142,25 +140,18 @@ class BuilderClient(BaseWXOClient):
             Translation export response including CSV content and response metadata
         """
         if flow_model:
-            # POST endpoint for flow_model - sends JSON, receives CSV
             if self.is_local:
-                # Local: base_url = http://wxo-builder:4025/api/v1
                 endpoint = "/flow-model/translations/export"
             else:
-                # Remote: base_url = https://.../instances/{id}/v1/orchestrate
                 endpoint = "/flow-model/translations/export"
             full_url = f"{self.base_url}{endpoint}"
             logger.debug(f"export_translations (flow_model): POST {full_url}")
             return self._post_csv(endpoint, data=flow_model)
         elif flow_identifier:
-            # POST endpoint for flow_identifier - receives CSV
             if self.is_local:
-                # Local: base_url = http://wxo-builder:4025/api/v1
                 endpoint = f"/tools/{flow_identifier}/flow/translations/export"
                 full_url = f"{self.base_url}{endpoint}"
             else:
-                # Remote: base_url = https://.../instances/{id}/v1/orchestrate
-                # API proxy routes /flow-model/{id}/... to backend /tools/{id}/flow/...
                 endpoint = f"/flow-model/{flow_identifier}/translations/export"
                 full_url = f"{self.base_url}{endpoint}"
             logger.debug(f"export_translations (flow_identifier): GET {full_url}")
@@ -193,17 +184,12 @@ class BuilderClient(BaseWXOClient):
         """
         # Construct the endpoint
         if self.is_local:
-            # Local: base_url = http://wxo-builder:4025/api/v1
             endpoint = f"/tools/{tool_identifier}/flow/translations/import"
         else:
-            # Remote: base_url = https://.../instances/{id}/v1/orchestrate
-            # API proxy routes /flow-model/{id}/... to backend /tools/{id}/flow/...
             endpoint = f"/flow-model/{tool_identifier}/translations/import"
         
         full_url = f"{self.base_url}{endpoint}"
         logger.debug(f"import_translations: PUT {full_url}")
-        
-        # Prepare the payload matching the API specification
         payload = {
             "csvContents": csv_contents
         }
