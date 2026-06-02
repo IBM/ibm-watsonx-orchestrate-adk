@@ -1,10 +1,10 @@
-# Translation Flow Integration Tests
+# Workflow Translation Integration Tests
 
-This directory contains integration tests for the flow translation export/import functionality.
+This directory contains integration tests for the workflow translation export/import functionality.
 
 ## Overview
 
-These tests validate the complete end-to-end workflow of:
+These tests validate the complete end-to-end process of:
 1. Creating/importing a flow tool
 2. Exporting translations to CSV format
 3. Modifying translation content
