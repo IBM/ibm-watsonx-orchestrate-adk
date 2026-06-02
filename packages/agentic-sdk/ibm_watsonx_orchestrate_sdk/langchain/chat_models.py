@@ -226,7 +226,7 @@ class ChatWxO(ChatOpenAI):
         # Session base_url format by mode:
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
         # - runs-elsewhere: {instance_url}/v1/orchestrate
-        # - runs-on: {api_proxy_url}/instances/orchestrate/v1
+        # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
         api_base_url = f"{agentic_session.base_url}"
         if local or agentic_session.mode == "local":
             api_base_url += "/orchestrate"

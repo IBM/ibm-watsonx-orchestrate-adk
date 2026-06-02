@@ -175,13 +175,11 @@ class WxOEmbeddings(OpenAIEmbeddings):
         # Session base_url format by mode:
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
         # - runs-elsewhere: {instance_url}/v1/orchestrate
-        # - runs-on: {api_proxy_url}/instances/orchestrate
+        # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
         api_base_url = f"{agentic_session.base_url}"
         if local or agentic_session.mode == "local":
             api_base_url += "/orchestrate"
-        elif api_base_url.startswith("https://wo-api"):
-            # proxy base url doesn't have 'v1' in it
-            api_base_url += "/v1"
+        # add model endpoint path to URL
         api_base_url += "/gateway/model"
 
         # Configure HTTP client with SSL verification settings
