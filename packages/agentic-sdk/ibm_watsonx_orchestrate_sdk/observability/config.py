@@ -110,12 +110,13 @@ class TracerConfig:
     agent_id: Optional[str] = None
     workspace_id: Optional[str] = None
     environment: str = "live"
+    user_id: Optional[str] = None
 
     # Internal session extracted from client
     _session: Optional["AgenticSession"] = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
-        """Extract session from client and tenant_id from token if client is provided."""
+        """Extract session from client and tenant_id/user_id from token if client is provided."""
         if self.client is not None:
             if hasattr(self.client, 'session'):
                 self._session = self.client.session
@@ -127,6 +128,11 @@ class TracerConfig:
                     if extracted_tenant_id:
                         self.tenant_id = extracted_tenant_id
                         logger.debug(f"Extracted tenant_id from token: {self.tenant_id}")
+                
+                # Extract user_id from token if not explicitly provided
+                if not self.user_id:
+                    self.user_id = self._extract_user_id_from_token()
+                    logger.debug(f"Extracted user_id from token: {self.user_id}")
             else:
                 logger.warning("Client object does not have a session attribute")
 
@@ -185,6 +191,60 @@ class TracerConfig:
         except Exception as e:
             logger.warning(f"Failed to extract tenant_id from token: {e}")
             return None
+
+    def _extract_user_id_from_token(self) -> str:
+        """Extract user_id from JWT token.
+        
+        Returns:
+            User ID if found in token (from idpUniqueId field), "unknown" otherwise.
+        """
+        user_id = "unknown"
+        
+        try:
+            # Get token from session
+            token = None
+            if self._session:
+                if hasattr(self._session, 'access_token') and self._session.access_token:
+                    token = self._session.access_token
+                elif hasattr(self._session, 'authenticator'):
+                    if hasattr(self._session.authenticator, 'token_manager'):
+                        token = self._session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
+                    elif hasattr(self._session.authenticator, 'get_token'):
+                        token: Any = self._session.authenticator.get_token()  # type: ignore[attr-defined]
+            
+            if not token:
+                logger.debug("No token available to extract user_id")
+            elif len(token.split('.')) != 3:
+                logger.warning("Token is not a valid JWT format")
+            else:
+                # JWT tokens have 3 parts separated by dots: header.payload.signature
+                parts = token.split('.')
+                
+                # Decode the payload (second part)
+                payload = parts[1]
+                # Add padding if needed (JWT base64 encoding may not have padding)
+                padding = 4 - len(payload) % 4
+                if padding != 4:
+                    payload += '=' * padding
+                
+                # Decode base64
+                decoded = base64.urlsafe_b64decode(payload)
+                payload_data = json.loads(decoded)
+                
+                # Look for user_id in idpUniqueId claim
+                extracted_user_id = payload_data.get('idpUniqueId')
+                
+                if extracted_user_id:
+                    user_id = str(extracted_user_id)
+                    logger.debug(f"Found user_id in token: {user_id}")
+                else:
+                    logger.debug("No idpUniqueId found in token payload")
+                
+        except Exception as e:
+            logger.warning(f"Failed to extract user_id from token: {e}")
+        
+        return user_id
+
 
     @property
     def session(self) -> Optional["AgenticSession"]:

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -24,12 +25,14 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
     ATTR_TOOL_NAME,
+    ATTR_USER_ID,
     ATTR_WORKSPACE_ID,
     BAGGAGE_AGENT_ID,
     BAGGAGE_TENANT_ID,
     SPAN_KIND_AGENT,
     SPAN_KIND_GENERAL,
     SPAN_KIND_LLM,
+    SPAN_KIND_ROOT,
     SPAN_KIND_TOOL,
 )
 from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
@@ -148,12 +151,14 @@ class BaggageSpanProcessor:
                 elif key == BAGGAGE_AGENT_ID and self._config.agent_id:
                     span.set_attribute(key, self._config.agent_id)
         
-        # Always set workspace_id and environment from config if available
+        # Always set workspace_id, environment, and user_id from config if available
         if self._config:
             if self._config.workspace_id:
                 span.set_attribute(ATTR_WORKSPACE_ID, self._config.workspace_id)
             if self._config.environment:
                 span.set_attribute(ATTR_ENVIRONMENT_NAME, self._config.environment)
+            if self._config.user_id:
+                span.set_attribute(ATTR_USER_ID, self._config.user_id)
 
     def on_end(self, span: "ReadableSpan") -> None:
         pass
@@ -384,6 +389,37 @@ class Tracer:
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_GENERAL}
         if attributes:
             merged.update(attributes)
+        
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
+        return SpanWrapper(otel_span)
+
+    def start_root_span(
+        self,
+        name: str,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> SpanWrapper:
+        """Start a root span (use as a context manager).
+
+        A root span is the top-level span in a trace hierarchy, typically
+        representing the entry point of a request or operation.
+
+        ::
+
+            with tracer.start_root_span("request", attributes={"k": "v"}) as span:
+                ...
+        """
+        merged: Dict[str, Any] = {"span.kind": SPAN_KIND_ROOT, "is.root": True}
+        if attributes:
+            merged.update(attributes)
+        
+        # Add langfuse.session.id if not present or None
+        if not merged.get("langfuse.session.id"):
+            merged["langfuse.session.id"] = str(uuid.uuid4())
+        
+        # Add conversation.id if not present or None
+        if not merged.get("conversation.id"):
+            merged["conversation.id"] = str(uuid.uuid4())
         
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)
