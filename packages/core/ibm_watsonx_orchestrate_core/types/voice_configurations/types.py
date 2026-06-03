@@ -278,6 +278,8 @@ class UserIdleHandlerLangConfig(BaseModel):
 class AudioClips(Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
+  silence = "silence"
+  custom = "custom"
 
 class AgentIdleHandlerMessages(BaseModel):
   pre_hold_message: Optional[str] = Field(default="We're taking a little extra time but we'll be with you shortly. Thanks for your patience!", min_length=0, max_length=250, description="The text to play for the user before playing on-hold audio")
