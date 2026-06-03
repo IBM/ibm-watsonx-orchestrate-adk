@@ -25,10 +25,7 @@ class Name(BaseModel):
 )
 def build_user_flow(aflow: Flow = None) -> Flow:
     # user_flow which is a subflow to be added to the aflow
-    user_flow = aflow.userflow()
-
-
-
+    user_flow = aflow.userflow(display_name="userflow_1")
 
     # add file upload
     user_node1 = user_flow.field(direction="input",name="upload", display_name="File upload 1",  kind=UserFieldKind.File)

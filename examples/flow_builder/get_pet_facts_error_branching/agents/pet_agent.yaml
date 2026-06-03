@@ -6,5 +6,4 @@ description: >
 llm: groq/openai/gpt-oss-120b
 style: default
 tools:
-  - get_pet_facts
-  - i__get_flow_status_intrinsic_tool__
+  - get_pet_facts_error_branching

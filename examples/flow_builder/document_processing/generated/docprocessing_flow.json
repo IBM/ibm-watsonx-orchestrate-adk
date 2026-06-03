@@ -153,7 +153,7 @@
       "spec": {
         "kind": "docproc",
         "name": "text_extraction_with_document_structure_for_invoice",
-        "display_name": "text_extraction_node",
+        "display_name": "text_extraction_with_document_structure_for_invoice",
         "description": "Extracts the raw text and semantic structure from a document.",
         "input_schema": {
           "$ref": "#/schemas/text_extraction_with_document_structure_for_invoice_input"
@@ -186,7 +186,7 @@
       "spec": {
         "kind": "docproc",
         "name": "text_extraction_with_document_structure_for_utility_bill",
-        "display_name": "text_extraction_node",
+        "display_name": "text_extraction_with_document_structure_for_utility_bill",
         "description": "Extracts the raw text and semantic structure from a document.",
         "input_schema": {
           "$ref": "#/schemas/text_extraction_with_document_structure_for_utility_bill_input"

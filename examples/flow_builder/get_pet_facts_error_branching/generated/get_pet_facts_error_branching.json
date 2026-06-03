@@ -10,36 +10,48 @@
     "schedulable": false
   },
   "nodes": {
-    "getDogFact": {
-      "spec": {
-        "kind": "tool",
-        "name": "getDogFact",
-        "display_name": "getDogFact",
-        "tool": "getDogFact",
-        "error_handler_config": {
-          "error_message": "Failed to get dog facts, showing error message to user",
-          "max_retries": 0,
-          "retry_interval": 1000,
-          "on_error": "branch",
-          "error_edge_id": "dog_error_to_user_message"
-        }
-      }
-    },
     "userflow_1": {
       "spec": {
-        "kind": "userflow",
+        "kind": "user_flow",
         "name": "userflow_1",
-        "display_name": "userflow_1"
+        "display_name": "userflow_1",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "owners": [
+          "__any_user__"
+        ]
       },
       "nodes": {
         "error_display": {
           "spec": {
-            "kind": "user_field",
+            "kind": "user",
             "name": "error_display",
             "display_name": "Error Message",
-            "direction": "output",
-            "field_kind": "text",
-            "text": "Sorry, we couldn't fetch dog facts at this time. Please try again later."
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [
+              {
+                "name": "error_display",
+                "kind": "text",
+                "text": "Sorry, we couldn't fetch dog facts at this time. Please try again later.",
+                "direction": "output",
+                "display_name": "Error Message",
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            ]
           }
         },
         "__start__": {
@@ -66,7 +78,24 @@
           "start": "error_display",
           "end": "__end__"
         }
-      ]
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "getDogFact": {
+      "spec": {
+        "kind": "tool",
+        "name": "getDogFact",
+        "display_name": "getDogFact",
+        "error_handler_config": {
+          "error_message": "Failed to get dog facts, showing error message to user",
+          "max_retries": 0,
+          "retry_interval": 1000,
+          "on_error": "branch",
+          "error_edge_id": "dog_error_to_user_message"
+        },
+        "tool": "getDogFact"
+      }
     },
     "__start__": {
       "spec": {
@@ -89,13 +118,13 @@
       "end": "getDogFact"
     },
     {
-      "id": "dog_error_to_user_message",
       "start": "getDogFact",
-      "end": "userflow_1"
+      "end": "__end__"
     },
     {
       "start": "getDogFact",
-      "end": "__end__"
+      "end": "userflow_1",
+      "id": "dog_error_to_user_message"
     },
     {
       "start": "userflow_1",
@@ -123,6 +152,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-03-23T08:51:00.000000+00:00"
+    "compiled_on": "2026-05-29T14:59:12.145368+00:00"
   }
 }
