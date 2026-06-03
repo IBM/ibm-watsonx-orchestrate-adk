@@ -18,9 +18,11 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_NAME,
+    ATTR_CONVERSATION_ID,
     ATTR_ENVIRONMENT_NAME,
     ATTR_GEN_AI_REQUEST_MODEL,
     ATTR_GEN_AI_RESPONSE_MODEL,
+    ATTR_LANGFUSE_SESSION_ID,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
@@ -157,8 +159,6 @@ class BaggageSpanProcessor:
                 span.set_attribute(ATTR_WORKSPACE_ID, self._config.workspace_id)
             if self._config.environment:
                 span.set_attribute(ATTR_ENVIRONMENT_NAME, self._config.environment)
-            if self._config.user_id:
-                span.set_attribute(ATTR_USER_ID, self._config.user_id)
 
     def on_end(self, span: "ReadableSpan") -> None:
         pass
@@ -398,15 +398,21 @@ class Tracer:
         name: str,
         *,
         attributes: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
     ) -> SpanWrapper:
         """Start a root span (use as a context manager).
 
         A root span is the top-level span in a trace hierarchy, typically
         representing the entry point of a request or operation.
 
+        Args:
+            name: Name of the span
+            attributes: Optional attributes to attach to the span
+            user_id: Optional user ID to set on the span. If not provided, uses config.user_id
+
         ::
 
-            with tracer.start_root_span("request", attributes={"k": "v"}) as span:
+            with tracer.start_root_span("request", attributes={"k": "v"}, user_id="user-123") as span:
                 ...
         """
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_ROOT, "is.root": True}
@@ -414,12 +420,18 @@ class Tracer:
             merged.update(attributes)
         
         # Add langfuse.session.id if not present or None
-        if not merged.get("langfuse.session.id"):
-            merged["langfuse.session.id"] = str(uuid.uuid4())
+        if not merged.get(ATTR_LANGFUSE_SESSION_ID):
+            merged[ATTR_LANGFUSE_SESSION_ID] = str(uuid.uuid4())
         
         # Add conversation.id if not present or None
-        if not merged.get("conversation.id"):
-            merged["conversation.id"] = str(uuid.uuid4())
+        if not merged.get(ATTR_CONVERSATION_ID):
+            merged[ATTR_CONVERSATION_ID] = str(uuid.uuid4())
+        
+        # Add user.id: use provided user_id, or fall back to config.user_id
+        if user_id:
+            merged[ATTR_USER_ID] = user_id
+        elif self._config.user_id:
+            merged[ATTR_USER_ID] = self._config.user_id
         
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)

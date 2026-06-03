@@ -53,6 +53,8 @@ ATTR_AGENT_FRAMEWORK = "agent.framework"
 # --- Session attributes ---
 ATTR_SESSION_ID = "session.id"
 ATTR_USER_ID = "user.id"
+ATTR_LANGFUSE_SESSION_ID = "langfuse.session.id"
+ATTR_CONVERSATION_ID = "conversation.id"
 
 # --- Span kind labels (used internally, not OTEL SpanKind) ---
 SPAN_KIND_GENERAL = "general"
