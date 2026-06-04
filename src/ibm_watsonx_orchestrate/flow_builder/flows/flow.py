@@ -34,7 +34,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
-    NodeIdCondition, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
+    NodeIdCondition, PageRange, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
@@ -1216,6 +1216,7 @@ class Flow(Node):
             kvp_model_name: str | None = None,
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
+            page_range: PageRange | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
@@ -1254,6 +1255,7 @@ class Flow(Node):
             kvp_model_name=kvp_model_name,
             kvp_force_schema_name=kvp_force_schema_name,
             kvp_enable_text_hints=kvp_enable_text_hints,
+            page_range=page_range,
             output_format=output_format
         )
 
