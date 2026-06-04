@@ -3730,27 +3730,31 @@ class DecisionsCondition(BaseModel):
 
 
 
+class DecisionActionOrCondition(BaseModel):
+    variable: str
+    value: Any
+
+
+class DecisionTableColumn(BaseModel):
+    variable: str
+    display_name: str
+
+
 class DecisionsRule(BaseModel):
     '''
     A set of decisions rules.
     '''
-    _conditions: dict[str, str]
-    _actions: dict[str, Union[numbers.Number, str]]
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._conditions = {}
-        self._actions = {}
+    conditions: list[DecisionActionOrCondition] = Field(default_factory=list)
+    actions: list[DecisionActionOrCondition] = Field(default_factory=list)
 
     def condition(self, key: str, cond: DecisionsCondition) -> Self:
-        self._conditions[key] = cond.condition()
+        self.conditions.append(DecisionActionOrCondition(variable=key, value=cond.condition()))
         return self
     
-    def action(self, key: str, value: Union[numbers.Number, date, str]) -> Self:
+    def action(self, key: str, value: Union[numbers.Number, date, str, bool]) -> Self:
         if isinstance(value, date):
-            self._actions[key] = value.strftime("%B %d, %Y")
-            return self
-        self._actions[key] = value
+            value = value.strftime("%B %d, %Y")
+        self.actions.append(DecisionActionOrCondition(variable=key, value=value))
         return self
 
     def to_json(self) -> dict[str, Any]:
@@ -3758,43 +3762,66 @@ class DecisionsRule(BaseModel):
         Serialize the rules into JSON object
         '''
         model_spec = {}
-        if self._conditions:
-            model_spec["conditions"] = self._conditions
-        if self._actions:
-            model_spec["actions"] = self._actions
+        if self.conditions:
+            model_spec["conditions"] = [condition.model_dump() for condition in self.conditions]
+        if self.actions:
+            model_spec["actions"] = [action.model_dump() for action in self.actions]
         return model_spec
 
 
 class DecisionsNodeSpec(NodeSpec):
     '''
-    Node specification for Decision Table
+    Node specification for Decision Table.
+
+    Accepts default_actions as either dict (for convenience) or list format.
     '''
     locale: str | None = None
     rules: list[DecisionsRule]
-    default_actions: dict[str, Union[int, float, complex, str]] | None
+    default_actions: list[DecisionActionOrCondition] | dict[str, Union[int, float, complex, str, bool]] | None = None
+    decision_table_columns: list[DecisionTableColumn] | None = Field(default=None, serialization_alias="decisionTableColumns")
 
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "decisions"
+        if isinstance(self.default_actions, dict):
+            self.default_actions = [
+                DecisionActionOrCondition(variable=key, value=value)
+                for key, value in self.default_actions.items()
+            ]
 
-    def default_action(self, key: str, value: Union[int, float, complex, date, str]) -> Self:
+    def default_action(self, key: str, value: Union[int, float, complex, date, str, bool]) -> Self:
         '''
         create a new default action
         '''
+        if self.default_actions is None:
+            self.default_actions = []
         if isinstance(value, date):
-            self.default_actions[key] = value.strftime("%B %d, %Y")
-            return self
-        self.default_actions[key] = value
+            value = value.strftime("%B %d, %Y")
+        if isinstance(self.default_actions, dict):
+            self.default_actions = [
+                DecisionActionOrCondition(variable=k, value=v)
+                for k, v in self.default_actions.items()
+            ]
+        self.default_actions.append(DecisionActionOrCondition(variable=key, value=value))
         return self
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        
+        # DecisionsNode input and output schema will always be empty
+        if "input_schema" in model_spec:
+            del model_spec["input_schema"]
+        if "output_schema" in model_spec:
+            del model_spec["output_schema"]
+        
         if self.locale:
             model_spec["locale"] = self.locale
         if self.rules:
             model_spec["rules"] = [rule.to_json() for rule in self.rules]
         if self.default_actions:
-            model_spec["default_actions"] = self.default_actions
+            model_spec["default_actions"] = [action.model_dump() for action in self.default_actions]
+        if self.decision_table_columns:
+            model_spec["decisionTableColumns"] = [column.model_dump() for column in self.decision_table_columns]
 
         return model_spec
 

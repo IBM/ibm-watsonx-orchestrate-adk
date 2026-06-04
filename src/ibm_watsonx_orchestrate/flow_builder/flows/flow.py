@@ -1165,25 +1165,20 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(DocExtNode, node), DocExtFieldValue
 
-    def decisions(self, 
-            name: str, 
+    def decisions(self,
+            name: str,
             display_name: str|None=None,
             rules: list[DecisionsRule] | None = None,
-            default_actions: dict[str, Any] = None,
+            default_actions: dict[str, Any] | list[Any] | None = None,
             locale: str | None = None,
             description: str | None = None,
-            input_schema: type[BaseModel]|None = None, 
-            output_schema: type[BaseModel]|None=None) -> DecisionsNode:
+            decision_table_columns: list[Any] | None = None) -> DecisionsNode:
 
         if name is None:
             raise ValueError("name must be provided.")
         
         if rules is None:
             raise ValueError("rules must be specified.")
-
-         # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
 
         # Create the tool spec
         task_spec = DecisionsNodeSpec(
@@ -1193,9 +1188,7 @@ class Flow(Node):
             rules=rules,
             default_actions=default_actions,
             locale=locale,
-            input_schema=_get_tool_request_body(input_schema_obj),
-            output_schema=_get_tool_response_body(output_schema_obj),
-            output_schema_object = output_schema_obj
+            decision_table_columns=decision_table_columns
         )
 
         node = DecisionsNode(spec=task_spec)
