@@ -61,8 +61,13 @@ class SpanWrapper:
 
     def __enter__(self) -> "SpanWrapper":
         from opentelemetry import context, trace
+        from ibm_watsonx_orchestrate_sdk.observability.tracer import (
+            _SDK_SPAN_ACTIVE_KEY,
+        )
+
         span_name = self._span.name if hasattr(self._span, "name") else "span"
         ctx = trace.set_span_in_context(self._span)
+        ctx = context.set_value(_SDK_SPAN_ACTIVE_KEY, True, ctx)
         self._token = context.attach(ctx)
         return self
 
