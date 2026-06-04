@@ -3819,7 +3819,10 @@ class DecisionsNodeSpec(NodeSpec):
         if self.rules:
             model_spec["rules"] = [rule.to_json() for rule in self.rules]
         if self.default_actions:
-            model_spec["default_actions"] = [action.model_dump() for action in self.default_actions]
+            model_spec["default_actions"] = {
+                action.variable: action.value
+                for action in self.default_actions
+            }
         if self.decision_table_columns:
             model_spec["decisionTableColumns"] = [column.model_dump() for column in self.decision_table_columns]
 
