@@ -23,8 +23,7 @@ class Invitations(BaseModel):
 
 @flow(
     name="send_invitation_to_customer",
-    input_schema=CustomerName,
-    output_schema=None
+    input_schema=CustomerName
 )
 def build_send_invitation_to_customer_flow(aflow: Flow) -> Flow:
     """ Given a list of customers, we will iterate through the list and send email to each """
@@ -32,7 +31,7 @@ def build_send_invitation_to_customer_flow(aflow: Flow) -> Flow:
     get_customer_list_node = aflow.tool(get_emails_from_customer)
 
     # calling add_foreach will create a subflow, and we can add more node to the subflow
-    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord, output_schema=Invitations) \
+    foreach_flow: Flow = aflow.foreach(item_schema = CustomerRecord) \
         .policy(kind=ForeachPolicy.SEQUENTIAL)
         # .policy(kind=ForeachPolicy.PARALLEL) # replace with 'ForeachPolicy.PARALLEL' if need to run .foreach in parallel
     

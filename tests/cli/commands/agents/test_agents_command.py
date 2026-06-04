@@ -23,7 +23,7 @@ class TestAgentImport:
                 agents_command.agent_import(file=None)
                 assert False, "Expected ValueError to be raised"
             except ValueError as e:
-                assert "Either --file or --experimental-package-root is required" in str(e)
+                assert "Either --file or --package-root is required" in str(e)
 
 class TestAgentCreate:
     def test_create_native_agent(self):

@@ -1819,6 +1819,30 @@ class TestAgentsControllerExportAgent:
         assert f"Output file must end with the extension '.yaml' or '.yml'. Provided file '{self.mock_zip_file_path}' ends with '.zip'"
         assert f"Exported agent definition for '{self.mock_agent_name}' to '{self.mock_yaml_file_path}'" not in captured
 
+class TestAgentCompactionSettings:
+    def test_create_agent_with_compaction_settings(self):
+        """Test that agent can be created with compaction_settings"""
+        agent_spec = {
+            "spec_version": SpecVersion.V1,
+            "kind": AgentKind.NATIVE,
+            "style": AgentStyle.REACT,
+            "name": "compaction_test_agent",
+            "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+            "description": "Test agent with compaction settings",
+            "instructions": "Test instructions",
+            "collaborators": [],
+            "tools": [],
+            "hidden": False,
+            "compaction_settings": {
+                "context_compaction_enabled": True,
+                "context_compaction_threshold": 30000
+            }
+        }
+        test_agent = Agent(**agent_spec)
+        assert test_agent.compaction_settings is not None
+        assert test_agent.compaction_settings.context_compaction_enabled is True
+        assert test_agent.compaction_settings.context_compaction_threshold == 30000
+
 class TestAgentWebchatCustomizations:
     def test_create_agent_with_welcome_content(self, agent_spec_with_welcome_content):
         test_agent=Agent(**agent_spec_with_welcome_content)

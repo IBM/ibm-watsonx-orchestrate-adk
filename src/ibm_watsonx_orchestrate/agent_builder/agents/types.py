@@ -139,6 +139,15 @@ class BaseAgentSpec(BaseModel):
 #      NATIVE AGENT TYPES
 # ===============================
 
+class CompactionSettings(BaseModel):
+    context_compaction_enabled: Optional[bool] = None
+    context_compaction_threshold: Optional[int] = None
+    compaction_sliding_window: Optional[int] = None
+    large_message_threshold: Optional[int] = None
+    large_message_chunk_size: Optional[int] = None
+    large_message_target_summary: Optional[int] = None
+    large_message_detect_structured: Optional[bool] = None
+
 class ChatWithDocsConfig(BaseModel):
     enabled: Optional[bool] = None
     supports_full_document: Optional[bool] = None
@@ -203,6 +212,7 @@ class AgentSpec(BaseAgentSpec):
     icon: Optional[str] = None
     llm_config: Optional[dict] = None
     is_schedulable: Optional[bool] = None
+    compaction_settings: Optional[CompactionSettings] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -277,9 +287,6 @@ def validate_customer_care_fields(values: dict):
 
         if values.get("tools"):
             unsupported_fields.append("tools")
-
-        if values.get("knowledge_base"):
-            unsupported_fields.append("knowledge_base")
 
         plugins = values.get("plugins")
         if plugins:
@@ -387,6 +394,7 @@ class AssistantAgentConfig(BaseModel):
     api_key: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     authorization_url: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     auth_type: AssistantAgentAuthType = AssistantAgentAuthType.MCSP
+    always_trigger_welcome_node: Optional[bool] = False
 
 class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -409,6 +417,7 @@ class AssistantAgentSpec(BaseAgentSpec):
             values["config"]["environment_id"] = values.get("environment_id", None)
             values["config"]["authorization_url"] = values.get("authorization_url", None)
             values["config"]["connection_id"] = values.get("connection_id", None)
+            values["config"]["always_trigger_welcome_node"] = values.get("always_trigger_welcome_node", False)
         
         # Backward compatibility: Migrate app_id from config to top level
         config = values.get("config", {})

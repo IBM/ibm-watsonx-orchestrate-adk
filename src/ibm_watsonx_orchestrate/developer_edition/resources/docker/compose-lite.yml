@@ -257,6 +257,7 @@ services:
       ENABLE_CM_A2A_AGENTS: "false"
       ENABLE_REMOTE_MCP_SERVER: "true"
       ENABLE_AGENT_RECORD_TEST_CASES: "true"
+      ENABLE_EVALUATION_CONVERSATIONS: "true"
       DISABLE_LEGACY_TEST_EXPERIENCE: "true"
       ENABLE_CATALOG_A2A_AGENTS: "false"
       ENABLE_CATALOG_CM_A2A_AGENTS: "false"
@@ -271,6 +272,7 @@ services:
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      SCHEDULER_IN_AGENT_BUILDER: "true"
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -704,6 +706,7 @@ services:
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
+      ATM_BASE_URL: http://wxo-tempus-runtime:9044
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -856,6 +859,7 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
+      ATM_BASE_URL: http://wxo-tempus-runtime:9044
 
   opensearch:
     image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
@@ -1066,6 +1070,7 @@ services:
       TOOLS_RUNTIME_MANAGER_BASE_URL: ${TOOLS_RUNTIME_MANAGER_BASE_URL}
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+      DISABLE_SUBPROCESS_EXECUTION: ${DISABLE_SUBPROCESS_EXECUTION:-false}
 
   ########################
   # IBM AGENT-OPS
@@ -1364,8 +1369,7 @@ services:
       FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS: ${FLOW_GENERAL_SYNC_RUN_DEFAULT_TIMEOUT_IN_MS:-60000}
       TRACING_OTLP_TRACE_ENDPOINT: ${FLOW_TRACING_OTLP_ENDPOINT}
       CONTEXT_FORGE_BASE_URL: http://mcp-gateway:4444
-      EVENT_CALLBACK_ENABLED: false
-      SCHEDULER_USE_PUBLIC_PREVIEW_SCHEDULER: true
+      EVENT_CALLBACK_ENABLED: true
     healthcheck:
       test: curl -k http://localhost:9044/readiness --fail
       interval: 30s

@@ -21,7 +21,8 @@
         "schedulable": false,
         "owners": [
           "__any_user__"
-        ]
+        ],
+        "assignment_policy": "initiator"
       },
       "nodes": {
         "ApplicationForm": {
@@ -93,7 +94,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "ComboboxWidget",
@@ -140,7 +142,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "CheckboxWidget",
@@ -174,7 +177,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "TextWidget",
@@ -190,8 +194,26 @@
                   "kind": "number",
                   "direction": "input",
                   "display_name": "Age",
+                  "input_map": {
+                    "spec": {
+                      "maps": [
+                        {
+                          "target_variable": "self.input.default",
+                          "value_expression": "25",
+                          "has_no_value": false,
+                          "default_value": null,
+                          "metadata": {}
+                        }
+                      ]
+                    }
+                  },
                   "input_schema": {
                     "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "number"
+                      }
+                    },
                     "required": [],
                     "in_field": null
                   },
@@ -204,7 +226,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "NumberWidget",
@@ -232,6 +255,11 @@
                   },
                   "input_schema": {
                     "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "number"
+                      }
+                    },
                     "required": [],
                     "in_field": null
                   },
@@ -244,7 +272,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "NumberWidget",
@@ -460,7 +489,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "MultiselectDropdown",
@@ -530,7 +560,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "MultiselectDropdown",
@@ -593,7 +624,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null
                   },
                   "uiSchema": {
                     "ui:widget": "Table",
@@ -659,7 +691,9 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null,
+                    "additionalProperties": false
                   },
                   "uiSchema": {
                     "ui:widget": "EditableTable",
@@ -721,7 +755,9 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null,
+                    "additionalProperties": false
                   },
                   "uiSchema": {
                     "ui:widget": "EditableTable",
@@ -840,7 +876,9 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "in_field": null,
+                    "additionalProperties": false
                   },
                   "uiSchema": {
                     "ui:widget": "UserPickerWidget",
@@ -863,7 +901,8 @@
                     },
                     "required": [
                       "value"
-                    ]
+                    ],
+                    "additionalProperties": false
                   },
                   "uiSchema": {
                     "ui:widget": "UserPickerWidget",
@@ -1059,21 +1098,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "64ee1336-c942-410c-94c4-6decb2f39a5f"
+                  "edge_id": "96e35238-b6fc-400a-9447-24328a257b9f"
                 },
                 {
-                  "name": "64470dfe-e84e-4518-aec5-d07a24b42156",
+                  "name": "1b65bb9a-75d8-4bdb-8175-05f4e48e261a",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "05174fbc-d8dd-4649-a373-f657bcbbc1b1"
+                  "edge_id": "dad0352b-3976-4414-8d19-e5ebd18882cd"
                 },
                 {
-                  "name": "976e6840-c681-4e8b-bd04-da6e049fe2d3",
+                  "name": "c8a3d6ef-0e57-47ec-b7ae-0ee7af10c19f",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "74ab9846-1443-429c-a77f-6413fb8621b0"
+                  "edge_id": "2b2af54d-ae5b-404f-9b81-66a4caff82a5"
                 },
                 {
                   "name": "cancel",
@@ -1132,7 +1171,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "64ee1336-c942-410c-94c4-6decb2f39a5f"
+          "id": "96e35238-b6fc-400a-9447-24328a257b9f"
         },
         {
           "start": "process_submit",
@@ -1141,7 +1180,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "05174fbc-d8dd-4649-a373-f657bcbbc1b1"
+          "id": "dad0352b-3976-4414-8d19-e5ebd18882cd"
         },
         {
           "start": "process_save_draft",
@@ -1150,7 +1189,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "74ab9846-1443-429c-a77f-6413fb8621b0"
+          "id": "2b2af54d-ae5b-404f-9b81-66a4caff82a5"
         },
         {
           "start": "process_review",
@@ -1220,6 +1259,7 @@
     "StringListNames": {
       "type": "object",
       "title": "StringListNames",
+      "description": "A list of friends with their names.",
       "properties": {
         "listOfNames": {
           "type": "array",
@@ -1231,19 +1271,35 @@
           },
           "default": [
             [
-              "Doe",
-              "John"
+              "John",
+              "Doe"
             ],
             [
               "Doe",
               "Jane"
             ],
             [
-              "Jean",
-              "Doe"
+              "Doe",
+              "Jean"
             ]
           ]
         }
+      },
+      "default": {
+        "listOfNames": [
+          {
+            "first_name": "John",
+            "last_name": "Doe"
+          },
+          {
+            "first_name": "Jane",
+            "last_name": "Doe"
+          },
+          {
+            "first_name": "Jean",
+            "last_name": "Doe"
+          }
+        ]
       }
     },
     "Book": {
@@ -1268,7 +1324,7 @@
     "MyDate": {
       "type": "object",
       "title": "MyDate",
-      "description": "This datatype represents date information.\n\nAttributes:\n    dateStart (str): The start date.\n    dateEnd (str): The end date.\n    dateEvent (str): The event date.",
+      "description": "The event date",
       "properties": {
         "dateStart": {
           "type": "string",
@@ -1288,6 +1344,11 @@
           "description": "Event date",
           "default": "2023-06-15"
         }
+      },
+      "default": {
+        "dateStart": "2023-01-01",
+        "dateEnd": "2023-12-31",
+        "dateEvent": "2023-06-15"
       }
     },
     "user_flow_application_form_input": {
@@ -1384,6 +1445,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-03-12T11:32:26.402771+00:00"
+    "compiled_on": "2026-05-22T07:14:03.234204+00:00"
   }
 }
