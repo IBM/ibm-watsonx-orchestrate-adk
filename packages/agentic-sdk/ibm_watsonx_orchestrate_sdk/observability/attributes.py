@@ -41,6 +41,7 @@ ATTR_LLM_STOP_REASON = "llm.stop_reason"
 
 # --- Tool span attributes ---
 ATTR_TOOL_NAME = "tool.name"
+ATTR_TOOL_ID = "tool.id"
 ATTR_TOOL_INPUT = "tool.input"
 ATTR_TOOL_OUTPUT = "tool.output"
 

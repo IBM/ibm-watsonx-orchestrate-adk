@@ -28,6 +28,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_LLM_RESPONSE_MODEL,
     ATTR_LLM_STOP_REASON,
     ATTR_LLM_TOTAL_TOKENS,
+    ATTR_TOOL_ID,
     ATTR_TOOL_INPUT,
     ATTR_TOOL_NAME,
     ATTR_TOOL_OUTPUT,
@@ -164,11 +165,16 @@ class ToolSpanWrapper(SpanWrapper):
         span: "Span",
         *,
         tool_name: Optional[str] = None,
+        tool_id: Optional[str] = None,
         tool_input: Any = None,
     ) -> None:
         super().__init__(span)
         if tool_name:
             self._span.set_attribute(ATTR_TOOL_NAME, tool_name)
+            self._span.set_attribute("langfuse.observation.metadata.tool.name", tool_name)
+        if tool_id:
+            self._span.set_attribute(ATTR_TOOL_ID, tool_id)
+            self._span.set_attribute("langfuse.observation.metadata.tool.id", tool_id)
         if tool_input is not None:
             self._span.set_attribute(ATTR_TOOL_INPUT, _safe_json(tool_input))
 

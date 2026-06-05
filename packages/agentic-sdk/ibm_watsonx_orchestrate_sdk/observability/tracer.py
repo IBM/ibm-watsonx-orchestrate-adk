@@ -26,6 +26,7 @@ from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
+    ATTR_TOOL_ID,
     ATTR_TOOL_NAME,
     ATTR_USER_ID,
     ATTR_WORKSPACE_ID,
@@ -467,18 +468,25 @@ class Tracer:
         name: str = "tool_call",
         *,
         tool_name: Optional[str] = None,
+        tool_id: Optional[str] = None,
         tool_input: Any = None,
         attributes: Optional[Dict[str, Any]] = None,
     ) -> ToolSpanWrapper:
         """Start a span pre-configured for tool invocation tracking."""
+        # Generate UUID if tool_id not provided
+        if tool_id is None:
+            tool_id = str(uuid.uuid4())
+        
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_TOOL}
         if tool_name:
             merged[ATTR_TOOL_NAME] = tool_name
+        if tool_id:
+            merged[ATTR_TOOL_ID] = tool_id
         if attributes:
             merged.update(attributes)
 
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
-        return ToolSpanWrapper(otel_span, tool_name=tool_name, tool_input=tool_input)
+        return ToolSpanWrapper(otel_span, tool_name=tool_name, tool_id=tool_id, tool_input=tool_input)
 
     def start_agent_span(
         self,
