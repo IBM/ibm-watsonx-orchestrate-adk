@@ -203,6 +203,7 @@ class DocExtConfigField(BaseModel):
     multiple_mentions: bool = Field(title="Multiple mentions",description="When true, we can produce multiple mentions of this entity", default=False)
     example_value: str = Field(description="Value of example", default="")
     examples: list[str] = Field(title="Examples", description="Examples that help the LLM understand the expected entity mentions", default=[])
+    available_options: Optional[list[str]] = Field(description="A list of possible values for the field.", default=None)
 
 class DocExtConfigTableField(DocExtConfigField):
     """
