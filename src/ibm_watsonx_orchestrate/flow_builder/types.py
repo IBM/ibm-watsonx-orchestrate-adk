@@ -15,7 +15,7 @@ from typing import (
 import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
-from pydantic import computed_field, field_validator
+from pydantic import computed_field, field_validator, model_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
@@ -222,6 +222,25 @@ class DocExtConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
+    
+    @model_validator(mode='after')
+    def validate_field_extraction_method(self) -> Self:
+        """Validate that field types and options are compatible with the extraction method."""
+        if self.field_extraction_method == "classic":
+            for i, field in enumerate(self.fields):
+                # Check for table type
+                if field.type == "table":
+                    raise ValueError(
+                        "Type 'table' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
+                    )
+                
+                # Check for available_options
+                if hasattr(field, 'available_options') and field.available_options is not None:
+                    raise ValueError(
+                        "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
+                    )
+        
+        return self
 
 class PageRange(BaseModel):
     start: int = Field(description="The starting page number (1-based, inclusive)")
