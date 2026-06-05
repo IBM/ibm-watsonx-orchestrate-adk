@@ -55,15 +55,55 @@ _execution_context_var: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
     "wxo_execution_context", default=None,
 )
 
+# OTel context key marking that the current span was created by THIS SDK.
+# Set in SpanWrapper.__enter__ so nested SDK spans can detect they are under
+# an SDK-owned parent and chain off it normally; first SDK spans bypass any
+# foreign "current span" (e.g. a LangGraph/LangChain callback span that is
+# not exported by our pipeline) and parent under execution_context instead.
+_SDK_SPAN_ACTIVE_KEY = "wxo_sdk_span_active"
+
+# Process-level fallback for execution_context. The primary store is the
+# ``_execution_context_var`` ContextVar above, but ContextVars do NOT
+# automatically propagate into worker threads spawned by
+# ``loop.run_in_executor`` -- which is exactly what LangGraph does for sync
+# graph nodes. In subprocess execution mode (which BYO custom agents use) a
+# given Python process serves a single request, so falling back to a
+# module-global is safe and dramatically more reliable than contextvar
+# propagation across LangGraph's internal thread/task boundaries.
+_execution_context_global: Optional[Dict[str, Any]] = None
+_execution_context_global_lock = threading.Lock()
+
 
 def store_execution_context(ec: Dict[str, Any]) -> None:
     """Store the execution context for the current async/thread scope.
 
     Called by ``@configure_tracing`` so that all subsequent span-creating
     decorators in the same request automatically inherit the parent trace.
+
+    The value is written to *both* a ContextVar (for in-process / multi-request
+    isolation) and a module-level global (so worker threads spawned by
+    LangGraph for sync nodes can still see it -- ContextVars do not propagate
+    into ``run_in_executor`` threads).
     """
+    global _execution_context_global
     _execution_context_var.set(ec)
+    with _execution_context_global_lock:
+        _execution_context_global = ec
     logger.debug("Stored execution context: trace_id=%s", ec.get("trace_id"))
+
+
+def _get_execution_context() -> Optional[Dict[str, Any]]:
+    """Return the active execution_context, preferring the ContextVar.
+
+    Falls back to the module-level global so spans emitted from worker
+    threads (LangGraph sync nodes, asyncio executors) still inherit the
+    parent trace even though ContextVars don't propagate to them.
+    """
+    ec = _execution_context_var.get()
+    if ec is not None:
+        return ec
+    with _execution_context_global_lock:
+        return _execution_context_global
 
 
 class BaggageSpanProcessor:
@@ -179,6 +219,26 @@ def _build_invocation_context(execution_context: Dict[str, Any]) -> Optional["Co
     return ctx if any_set else None
 
 
+def _merge_ec_baggage(ctx: "Context", ec: Optional[Dict[str, Any]]) -> "Context":
+    """Merge ``execution_context`` baggage (tenant_id, agent_id) into *ctx*.
+
+    Only sets a baggage key if it isn't already present, so we never clobber
+    a value that an outer SDK span already established.
+    """
+    if not ec:
+        return ctx
+    from opentelemetry import baggage as otel_baggage
+
+    for baggage_key, ec_key in (
+        (BAGGAGE_TENANT_ID, "tenant_id"),
+        (BAGGAGE_AGENT_ID, "agent_id"),
+    ):
+        val = ec.get(ec_key)
+        if val and not otel_baggage.get_baggage(baggage_key, ctx):
+            ctx = otel_baggage.set_baggage(baggage_key, str(val), context=ctx)
+    return ctx
+
+
 class Tracer:
     """High-level, user-facing tracer that hides the OpenTelemetry SDK.
 
@@ -227,28 +287,55 @@ class Tracer:
 
     @staticmethod
     def _current_context():
-        from opentelemetry import baggage as otel_baggage, context, trace
+        """Build the OTel context to use as parent for the next SDK span.
+
+        Decision tree (in order):
+
+        1. If an SDK-owned span is already active on the current OTel context
+           (i.e. we are nested inside another SDK span), use the current
+           context. This makes nested SDK spans chain naturally.
+        2. Else, if ``execution_context`` provides ``trace_id`` + ``span_id``,
+           use that as the remote parent. We deliberately ignore any
+           "current" span from foreign instrumentation (LangGraph/LangChain
+           callback handlers, FastAPI auto-instrumentation in a venv that
+           doesn't share our exporter, etc.) because those spans may not be
+           exported -- linking to them produces a dangling parent_span_id
+           and a broken span tree in Jaeger / Langfuse.
+        3. Else, if there is a valid current span (and no EC), fall back to
+           it (single-process / standalone usage).
+        4. Else, use the empty current context (new root).
+
+        Baggage from ``execution_context`` (tenant_id, agent_id) is always
+        merged into the returned context so attributes propagate even when
+        we keep an existing parent.
+        """
+        from opentelemetry import context, trace
 
         ctx = context.get_current()
-        ec = _execution_context_var.get()
+        ec = _get_execution_context()
+        sdk_span_active = context.get_value(_SDK_SPAN_ACTIVE_KEY, ctx) is True
 
+        # 1. Nested under an SDK-owned span -> chain naturally.
+        if sdk_span_active:
+            return _merge_ec_baggage(ctx, ec)
+
+        # 2. EC has a parent -> use it, even if a foreign current span exists.
+        if ec:
+            ec_built = _build_invocation_context(ec)
+            if ec_built is not None:
+                ec_trace_id_raw = ec.get("trace_id")
+                logger.debug(
+                    "Parenting SDK span under execution_context (trace_id=%s)",
+                    ec_trace_id_raw,
+                )
+                return ec_built
+
+        # 3. No EC; if there is a current span, keep it.
         current_span = trace.get_current_span(ctx)
         if current_span.get_span_context().is_valid:
-            if ec:
-                for baggage_key, ec_key in (
-                    (BAGGAGE_TENANT_ID, "tenant_id"),
-                    (BAGGAGE_AGENT_ID, "agent_id"),
-                ):
-                    val = ec.get(ec_key)
-                    if val and not otel_baggage.get_baggage(baggage_key, ctx):
-                        ctx = otel_baggage.set_baggage(baggage_key, str(val), context=ctx)
             return ctx
 
-        if ec is not None:
-            built = _build_invocation_context(ec)
-            if built is not None:
-                return built
-
+        # 4. Nothing useful -> empty context (new root).
         return ctx
 
     def start_span(
