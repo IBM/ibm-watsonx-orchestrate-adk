@@ -1,5 +1,6 @@
 """LangChain chat model wrapper for IBM watsonx Orchestrate AI Gateway."""
 
+import httpx
 from typing import Any, Dict, Optional
 
 from ibm_cloud_sdk_core.authenticators import Authenticator
@@ -225,18 +226,26 @@ class ChatWxO(ChatOpenAI):
         # Session base_url format by mode:
         # - local: {instance_url}/api/v1 -> need to add /orchestrate
         # - runs-elsewhere: {instance_url}/v1/orchestrate
-        # - runs-on: api_proxy_url (already includes path)
+        # - runs-on: {api_proxy_url}/instances/orchestrate/v1/orchestrate
         api_base_url = f"{agentic_session.base_url}"
         if local or agentic_session.mode == "local":
             api_base_url += "/orchestrate"
+        # add model endpoint path to URL
         api_base_url += "/gateway/model"
-        
+
+        # Configure HTTP client with SSL verification settings
+        # For runs-on mode, verify is typically False to allow internal cluster communication
+        http_client = None
+        if agentic_session.verify is not None:
+            http_client = httpx.Client(verify=agentic_session.verify)
+
         # Initialize parent ChatOpenAI with passthrough configuration
         super().__init__(
             api_key="dummy",  # Ignored by gateway - real auth is in headers
             base_url=api_base_url,
             model=model,
             default_headers=headers,
+            http_client=http_client,
             **kwargs
         )
         

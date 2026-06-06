@@ -394,6 +394,7 @@ class AssistantAgentConfig(BaseModel):
     api_key: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     authorization_url: Annotated[str | None, Field(json_schema_extra={"min_length_str":1})] = None
     auth_type: AssistantAgentAuthType = AssistantAgentAuthType.MCSP
+    always_trigger_welcome_node: Optional[bool] = False
 
 class AssistantAgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -416,6 +417,7 @@ class AssistantAgentSpec(BaseAgentSpec):
             values["config"]["environment_id"] = values.get("environment_id", None)
             values["config"]["authorization_url"] = values.get("authorization_url", None)
             values["config"]["connection_id"] = values.get("connection_id", None)
+            values["config"]["always_trigger_welcome_node"] = values.get("always_trigger_welcome_node", False)
         
         # Backward compatibility: Migrate app_id from config to top level
         config = values.get("config", {})

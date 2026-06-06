@@ -15,7 +15,7 @@ from typing import (
 import docstring_parser
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 from ibm_watsonx_orchestrate.flow_builder.utils import clone_form_schema, get_valid_name
-from pydantic import computed_field, field_validator
+from pydantic import computed_field, field_validator, model_validator
 from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
@@ -203,6 +203,7 @@ class DocExtConfigField(BaseModel):
     multiple_mentions: bool = Field(title="Multiple mentions",description="When true, we can produce multiple mentions of this entity", default=False)
     example_value: str = Field(description="Value of example", default="")
     examples: list[str] = Field(title="Examples", description="Examples that help the LLM understand the expected entity mentions", default=[])
+    available_options: Optional[list[str]] = Field(description="A list of possible values for the field.", default=None)
 
 class DocExtConfigTableField(DocExtConfigField):
     """
@@ -221,6 +222,29 @@ class DocExtConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
+    
+    @model_validator(mode='after')
+    def validate_field_extraction_method(self) -> Self:
+        """Validate that field types and options are compatible with the extraction method."""
+        if self.field_extraction_method == "classic":
+            for i, field in enumerate(self.fields):
+                # Check for table type
+                if field.type == "table":
+                    raise ValueError(
+                        "Type 'table' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
+                    )
+                
+                # Check for available_options
+                if hasattr(field, 'available_options') and field.available_options is not None:
+                    raise ValueError(
+                        "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
+                    )
+        
+        return self
+
+class PageRange(BaseModel):
+    start: int = Field(description="The starting page number (1-based, inclusive)")
+    end: int = Field(description="The ending page number (1-based, inclusive)")
 
 class LanguageCode(StrEnum):
     en = auto()
@@ -436,6 +460,11 @@ class DocProcSpec(DocProcCommonNodeSpec):
             - False: Returns only plain text (faster, smaller response)
             Default: False
             
+        page_range (PageRange | None): Optional page range for text extraction.
+            When specified, only text from the specified page range will be extracted.
+            Example: PageRange(start=1, end=5) extracts pages 1 through 5
+            Default: None (extracts all pages)
+
         output_format (DocProcOutputFormat): Specifies the response format:
             - docref: Returns a reference URL to a file containing results (default)
               Response type: TextExtractionResponse
@@ -511,6 +540,13 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "results will be stored/processed separately. Use 'object' for small documents "
                    "or immediate inline processing."
     )
+    page_range: PageRange | None = Field(
+        title="Page Range",
+        default=None,
+        description="Optional page range for text extraction. When specified, only text from "
+                   "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
+                   "extracts pages 1 through 5. None extracts all pages."
+    )
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -530,6 +566,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_force_schema_name"] = self.kvp_force_schema_name
         if self.kvp_enable_text_hints is not None:
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
+        if self.page_range is not None:
+            model_spec["page_range"] = self.page_range
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
         return model_spec
@@ -3533,6 +3571,7 @@ class DocProcInput(DocumentProcessingCommonInput):
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
+        page_range (PageRange | None): Optional page range for text extraction. When specified, only text from the specified page range will be extracted.
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
@@ -3554,6 +3593,11 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP Enable Text Hints',
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
+    )
+    page_range: PageRange | None = Field(
+        title='Page Range',
+        description='Optional page range for text extraction. When specified, only text from the specified page range will be extracted. Example: PageRange(start=1, end=5) extracts pages 1 through 5.',
+        default=None
     )
 
 class TextExtractionObjectResponse(AssemblyJsonOutput):
