@@ -971,7 +971,6 @@ class ToolsController:
             spec: dict | None = None,
             workspace_id: Optional[str] = None,
             visited_tools: Optional[set] = None,
-            max_depth: int = 3,
             current_depth: int = 0) -> None:
         
         # Initialize visited_tools set on first call
@@ -982,11 +981,7 @@ class ToolsController:
         if name in visited_tools:
             logger.info(f"Skipping tool '{name}' - circular dependency detected (already exported in this flow)")
             return
-        
-        # Check maximum depth
-        if current_depth >= max_depth:
-            logger.warning(f"Maximum export depth ({max_depth}) reached for tool '{name}'. Skipping nested tools to prevent deep recursion.")
-            return
+
         
         # Mark tool as visited
         visited_tools.add(name)
@@ -1078,7 +1073,6 @@ class ToolsController:
                         zip_file_out=zip_file_out,
                         connections_output_path=connections_output_path,
                         visited_tools=visited_tools,
-                        max_depth=max_depth,
                         current_depth=current_depth + 1
                     )
             except Exception as e:
