@@ -969,7 +969,27 @@ class ToolsController:
             toolkit_output_file: Optional[str] = None,
             connections_output_path: str = "/connections",
             spec: dict | None = None,
-            workspace_id: Optional[str] = None) -> None:
+            workspace_id: Optional[str] = None,
+            visited_tools: Optional[set] = None,
+            max_depth: int = 3,
+            current_depth: int = 0) -> None:
+        
+        # Initialize visited_tools set on first call
+        if visited_tools is None:
+            visited_tools = set()
+        
+        # Check for circular dependency
+        if name in visited_tools:
+            logger.info(f"Skipping tool '{name}' - circular dependency detected (already exported in this flow)")
+            return
+        
+        # Check maximum depth
+        if current_depth >= max_depth:
+            logger.warning(f"Maximum export depth ({max_depth}) reached for tool '{name}'. Skipping nested tools to prevent deep recursion.")
+            return
+        
+        # Mark tool as visited
+        visited_tools.add(name)
         
         output_file = Path(output_path)
         output_file_extension = output_file.suffix
@@ -1056,7 +1076,10 @@ class ToolsController:
                         output_path=f"{output_file.parent}/{t}",
                         toolkit_output_file=f"{output_file.parent.parent}/toolkits",
                         zip_file_out=zip_file_out,
-                        connections_output_path=connections_output_path
+                        connections_output_path=connections_output_path,
+                        visited_tools=visited_tools,
+                        max_depth=max_depth,
+                        current_depth=current_depth + 1
                     )
             except Exception as e:
                 logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
