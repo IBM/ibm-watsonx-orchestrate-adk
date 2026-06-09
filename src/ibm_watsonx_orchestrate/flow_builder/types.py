@@ -219,7 +219,7 @@ class DocExtConfigTableField(DocExtConfigField):
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
-    llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
+    llm: str = Field(description="The LLM used for the document extraction", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
     
@@ -289,7 +289,7 @@ class DocClassifierClass(BaseModel):
 class DocClassifierConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other",title="Domain")
     type: Literal["class_configuration"] = Field(description="Document type", default="class_configuration",title="Type")
-    llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-3-2-11b-vision-instruct",title="LLM")
+    llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",title="LLM")
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     classes: list[DocClassifierClass] = Field(default=[], description="Classes which are needed to classify provided by user", title="Classes")
 
@@ -495,7 +495,7 @@ class DocProcSpec(DocProcCommonNodeSpec):
     kvp_model_name: str | None = Field(
         title='KVP Model Name',
         description="LLM model identifier for key-value pair extraction. "
-                   "Examples: 'meta-llama/llama-3-2-11b-vision-instruct', 'gpt-4-vision'. "
+                   "Examples: 'watsonx/mistralai/mistral-small-3-1-24b-instruct-2503'. "
                    "None uses the system default model. Choose based on accuracy needs "
                    "and performance requirements.",
         default=None
