@@ -219,7 +219,7 @@ class DocExtConfigTableField(DocExtConfigField):
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
-    llm: str = Field(description="The LLM used for the document extraction", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8")
+    llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
     
