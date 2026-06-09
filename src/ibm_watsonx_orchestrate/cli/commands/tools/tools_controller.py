@@ -970,8 +970,7 @@ class ToolsController:
             connections_output_path: str = "/connections",
             spec: dict | None = None,
             workspace_id: Optional[str] = None,
-            visited_tools: Optional[set] = None,
-            current_depth: int = 0) -> None:
+            visited_tools: Optional[set] = None) -> None:
         
         # Initialize visited_tools set on first call
         if visited_tools is None:
@@ -1072,8 +1071,7 @@ class ToolsController:
                         toolkit_output_file=f"{output_file.parent.parent}/toolkits",
                         zip_file_out=zip_file_out,
                         connections_output_path=connections_output_path,
-                        visited_tools=visited_tools,
-                        current_depth=current_depth + 1
+                        visited_tools=visited_tools
                     )
             except Exception as e:
                 logger.warning(f"Could not export nested tools for flow '{name}': {str(e)}")
