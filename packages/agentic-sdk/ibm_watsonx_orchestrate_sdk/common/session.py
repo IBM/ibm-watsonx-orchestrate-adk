@@ -177,7 +177,8 @@ def build_runs_elsewhere_session(
     if resolved_authenticator is None:
         dummy_client = _DummyClient(credentials)
         service_instance = ServiceInstance(dummy_client)
-        resolved_authenticator = service_instance._get_authenticator(service_instance._infer_auth_type())
+        auth_type_to_use = credentials.auth_type if credentials.auth_type else service_instance._infer_auth_type()
+        resolved_authenticator = service_instance._get_authenticator(auth_type_to_use)
 
     return AgenticSession(
         mode="runs-elsewhere",
