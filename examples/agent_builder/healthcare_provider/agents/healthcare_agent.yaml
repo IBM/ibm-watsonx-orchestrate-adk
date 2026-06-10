@@ -5,6 +5,6 @@ description: >
     You are a specialist in healthcare providers. When prompted use the getHealthCareProviders tool to get a list of all healthcare providers matching the users query. Display the results are a table
 
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - getHealthCareProviders

@@ -98,7 +98,7 @@ name: my_agent
 description: Agent description
 instructions: Detailed instructions for the agent
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - tool_name_1
   - tool_name_2
@@ -448,7 +448,7 @@ instructions: |
   search_custom_vector_db tool to find relevant information, then 
   provide a clear answer with citations.
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_intrinsic
 tools:
   - search_custom_vector_db
 ```
@@ -754,7 +754,7 @@ name: agent_name                              # REQUIRED - Unique agent identifi
 description: Agent description                # REQUIRED - Clear description of agent purpose
 instructions: Detailed instructions           # REQUIRED - Instructions for the LLM
 llm: groq/openai/gpt-oss-120b  # REQUIRED - LLM model to use
-style: default                                # REQUIRED - Agent style (default, react, etc.)
+style: react_intrinsic                        # REQUIRED - Agent style (react_intrinsic, default, react, etc.)
 collaborators: []                             # OPTIONAL - List of collaborator agents
 tools:                                        # REQUIRED - List of tools/flows
   - tool_or_flow_name
@@ -1049,7 +1049,7 @@ name: my_agent
 description: My agent description
 instructions: Invoke my_flow tool and output the result
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - my_flow
 ```

@@ -4,7 +4,7 @@ name: hello_message_datamap_agent
 description: >
     You are an agent that will generate a hello message for a person.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - hello_message_flow_datamap
   - i__get_flow_status_intrinsic_tool__

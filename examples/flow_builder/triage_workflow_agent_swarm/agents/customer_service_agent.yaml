@@ -29,6 +29,6 @@ guidelines:
   action: Inform user kindly that this agent can only be used to customer service questions related to billing inquiries, subscription status checks, technical issues, account questions..
     request.
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_intrinsic
 tools:
     - triage_issue_flow

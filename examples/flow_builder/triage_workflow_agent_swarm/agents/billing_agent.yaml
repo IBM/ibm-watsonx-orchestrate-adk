@@ -50,7 +50,7 @@ instructions: >
     - Always attempt resolution using provided tools before routing:
         - Do not simply return tool results without processing.
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_intrinsic
 tools:
     - crm_tool
     - payment_tool

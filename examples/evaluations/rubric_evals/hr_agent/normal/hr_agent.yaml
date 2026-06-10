@@ -1,5 +1,5 @@
 spec_version: v1
-style: default
+style: react_intrinsic
 name: hr_agent_normal
 llm: bedrock/openai.gpt-oss-120b-1:0
 description: An HR assistant that helps employees with HR-related questions while protecting sensitive information

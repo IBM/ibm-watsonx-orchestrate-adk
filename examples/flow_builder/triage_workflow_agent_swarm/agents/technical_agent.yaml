@@ -55,7 +55,7 @@ instructions: >
     - Never execute financial transactions
 
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_intrinsic
 tools:
     - knowledge_base_tool
     - system_diag_tool
