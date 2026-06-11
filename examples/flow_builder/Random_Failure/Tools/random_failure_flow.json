@@ -1,0 +1,344 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "random_failure_3943KC",
+        "initiators": [],
+        "description": "We made this flow to test error handling ",
+        "display_name": "Random failure flow",
+        "input_schema": {},
+        "output_schema": {}
+    },
+    "edges": [
+        {
+            "id": "389b2c3b-3818-4e79-86df-62070f5fee30",
+            "end": "tool_a7d11423-8840-4754-a104-86ef4511ead1",
+            "start": "__start__"
+        },
+        {
+            "id": "b9104268-7270-4ce3-9801-41403016354a",
+            "end": "user_flow_43d56b",
+            "start": "tool_a7d11423-8840-4754-a104-86ef4511ead1"
+        },
+        {
+            "id": "0da45fd0-0f5d-410f-823c-852877600a48",
+            "end": "tool_ee8d85",
+            "start": "tool_a7d11423-8840-4754-a104-86ef4511ead1"
+        },
+        {
+            "id": "38998f91-fef0-4334-a6d3-bee2f47a17f2",
+            "end": "user_flow_ac91bc",
+            "start": "tool_ee8d85"
+        },
+        {
+            "id": "e4ae197c-1efc-4ddf-9935-20a017176a08",
+            "end": "__end__",
+            "start": "user_flow_43d56b"
+        },
+        {
+            "id": "8665946f-6ec3-434a-a7a2-f26211120c3f",
+            "end": "__end__",
+            "start": "user_flow_ac91bc"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 1385
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "tool_ee8d85": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_ee8d85",
+                "tool": "backupRandomNumber:d3f35ed8-e102-49e3-9bff-b924bd32555d",
+                "position": {
+                    "x": 357,
+                    "y": 667
+                },
+                "description": "Backup tool that always succeeds and returns a random number",
+                "display_name": "backupRandomNumber",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "integer",
+                    "description": "a random number between 1 and 100"
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'backupRandomNumber'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "user_flow_43d56b": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_43d56b",
+                "position": {
+                    "x": -20,
+                    "y": 854
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "User activity 3",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "26049acd-a25c-48f1-ae49-f4ae7482bb9d",
+                    "end": "user_bfd4c6",
+                    "start": "user_flow_43d56b__start__"
+                },
+                {
+                    "id": "bb43439a-155a-4974-be93-a7a983db9a54",
+                    "end": "user_flow_43d56b__end__",
+                    "start": "user_bfd4c6"
+                }
+            ],
+            "nodes": {
+                "user_bfd4c6": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_bfd4c6",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_0867f8",
+                                "text": "First tool was successful",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Message 2"
+                    }
+                },
+                "user_flow_43d56b__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_43d56b__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "user_flow_43d56b__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_43d56b__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "user_flow_ac91bc": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_ac91bc",
+                "position": {
+                    "x": 347,
+                    "y": 865
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "User activity 1",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "24a9b580-f96a-4e7b-902a-4af049335b44",
+                    "end": "user_bd973c",
+                    "start": "user_flow_ac91bc__start__"
+                },
+                {
+                    "id": "38f985e7-5489-43b4-a9bc-ded104fdd504",
+                    "end": "user_flow_ac91bc__end__",
+                    "start": "user_bd973c"
+                }
+            ],
+            "nodes": {
+                "user_bd973c": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_bd973c",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_088c40",
+                                "text": "First tool failed and backup tool was successful.    \nOutput: {flow.backupRandomNumber.output}",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Message 1"
+                    }
+                },
+                "user_flow_ac91bc__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_ac91bc__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "user_flow_ac91bc__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_ac91bc__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "tool_a7d11423-8840-4754-a104-86ef4511ead1": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_a7d11423-8840-4754-a104-86ef4511ead1",
+                "tool": "randomFailure:42ec7b20-93dc-4613-b281-f5f5b4ca24fc",
+                "position": {
+                    "x": 0,
+                    "y": 231
+                },
+                "description": "Used for testing error condition by raising an exception for a given percentage of tries",
+                "display_name": "randomFailure",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "percentageFailure"
+                    ],
+                    "properties": {
+                        "percentageFailure": {
+                            "type": "number",
+                            "title": "Percentagefailure"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "integer",
+                    "description": "a random number between 1 and 100"
+                },
+                "error_handler_config": {
+                    "on_error": "branch",
+                    "max_retries": 3,
+                    "error_edge_id": "0da45fd0-0f5d-410f-823c-852877600a48",
+                    "error_message": "Something went wrong while running 'randomFailure'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "__internal_wxai__/meta-llama/llama-3-3-70b-instruct",
+        "source_kind": "ui",
+        "is_system_generated_description": false
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}
