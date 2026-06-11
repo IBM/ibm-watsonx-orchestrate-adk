@@ -449,6 +449,60 @@ class ModelsController:
         if close_file_flag:
             logger.info(f"Successfully exported model '{model_name}' to '{output_path}'")
             zip_file_out.close()
+    
+    def validate_model(self, name: str, verbose: bool = False) -> dict:
+        logger.info(f"Validating model '{name}'")
+        # Add loader
+        client = self.get_models_client()
+        validation_report = client.validate(name)
+        if verbose:
+            rich.print_json(data=validation_report)
+        else:
+            summary_table = rich.table.Table(
+                show_header=False,
+                title="[bold]Validation Summary[/bold]",
+                show_lines=True)
+            columns = ["Label", "Result"]
+            for col in columns:
+                summary_table.add_column(col)
+
+            summary_report = validation_report.get("summary", {})
+            summary_table.add_row("Total Tests", str(summary_report.get("total_tests", "n/a")))
+            summary_table.add_row("Tests Passed", str(summary_report.get("passed", "n/a")))
+            summary_table.add_row("Tests Failed", str(summary_report.get("failed", "n/a")))
+            summary_table.add_row("Success Rate", str(summary_report.get("success_rate", "n/a")))
+            summary_table.add_row("Duration (ms)", str(summary_report.get("total_duration_ms", "n/a")))
+            
+            result_status = str(validation_report.get("overall_status", "n/a"))
+            status_color = "green" if result_status == "passed" else "red"
+            summary_table.add_row("Result", f"[{status_color} bold]{result_status}[/{status_color} bold]")
+
+            rich.print(summary_table)
+
+            test_table = rich.table.Table(
+                show_header=True,
+                title="[bold]Test Results[bold]",
+                show_lines=True)
+            columns = ["Test Case", "Status", "Result", "Duration (ms)"]
+            for col in columns:
+                test_table.add_column(col)
+
+            for test in validation_report.get("tests", []):
+                result_status = test.get("status", "n/a")
+                status_color = "green" if result_status == "success" else "red"
+
+                test_table.add_row(
+                    test.get("name", "Unknown"),
+                    result_status,
+                    test.get("message", "n/a"),
+                    str(test.get("duration_ms", "n/a")),
+                    style=f"bold {status_color}"
+                )
+            
+            rich.print(test_table)
+
+        return validation_report
+
 
     def import_model_policy(self, file: str) -> List[ModelPolicy]:
         policies = parse_policy_file(file)

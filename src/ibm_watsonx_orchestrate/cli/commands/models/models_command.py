@@ -236,6 +236,24 @@ def models_export(
     models_controller = ModelsController()
     models_controller.export_model(name=name, output_path=output_path)
 
+@models_app.command(name="validate", help="Validate a model's functionality")
+def models_export(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the model you wish to export"),
+    ],
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Verbose JSON output",
+        ),
+    ] = False,
+):
+    models_controller = ModelsController()
+    models_controller.validate_model(name=name, verbose=verbose)
+
 @models_policy_app.command(name='import', help='Add a model policy')
 def models_policy_import(
     file: Annotated[
