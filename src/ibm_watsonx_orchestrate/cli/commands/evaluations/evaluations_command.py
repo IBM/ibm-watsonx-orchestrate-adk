@@ -229,7 +229,7 @@ def record(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
     
     validate_watsonx_credentials(user_env_file)
     
@@ -381,7 +381,7 @@ def validate_external(
     ] = False
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
 
@@ -503,7 +503,7 @@ def validate_native(
     ] = None,
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     
@@ -573,7 +573,7 @@ def quick_eval(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     if not config_file:
         if not test_paths or not output_dir:
@@ -660,7 +660,7 @@ def plan(
 
 ):
     _check_import_error()   
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
@@ -698,7 +698,7 @@ def run(
     ] = None,
 ):  
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
