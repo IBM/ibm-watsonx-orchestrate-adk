@@ -249,7 +249,7 @@ def models_export(
     models_controller.export_model(name=name, output_path=output_path)
 
 @models_app.command(name="validate", help="Validate a model's functionality")
-def models_export(
+def models_validate(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the model you wish to export"),
