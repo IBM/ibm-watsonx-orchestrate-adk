@@ -14,6 +14,7 @@ from typing import List, Optional
 import requests
 import rich
 import rich.highlighter
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
@@ -338,7 +339,7 @@ class ModelsController:
 
         return model
 
-    def publish_or_update_models(self, model: VirtualModel) -> None:
+    def publish_or_update_models(self, model: VirtualModel, skip_validation: bool = False) -> None:
         models_client = self.get_models_client()
 
         existing_models = models_client.get_draft_by_name(model.name)
@@ -350,6 +351,9 @@ class ModelsController:
             self.update_model(model_id=existing_models[0].id, model=model)
         else:
             self.publish_model(model=model)
+        
+        if not skip_validation:
+            self.validate_model(model.name)
     
     def publish_model(self, model: VirtualModel) -> None:
         self.get_models_client().create(model)
@@ -451,10 +455,18 @@ class ModelsController:
             zip_file_out.close()
     
     def validate_model(self, name: str, verbose: bool = False) -> dict:
-        logger.info(f"Validating model '{name}'")
-        # Add loader
-        client = self.get_models_client()
-        validation_report = client.validate(name)
+        console = rich.console.Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+            progress.add_task(description=f"Validating model '{name}'", total=None)
+
+            client = self.get_models_client()
+            validation_report = client.validate(name)
+        logger.info(f"Validated model '{name}'")
         if verbose:
             rich.print_json(data=validation_report)
         else:
@@ -492,7 +504,7 @@ class ModelsController:
                 status_color = "green" if result_status == "success" else "red"
 
                 test_table.add_row(
-                    test.get("name", "Unknown"),
+                    test.get("test_name", "Unknown"),
                     result_status,
                     test.get("message", "n/a"),
                     str(test.get("duration_ms", "n/a")),
