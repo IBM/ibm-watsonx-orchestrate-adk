@@ -146,6 +146,12 @@ def models_import(
             help='The app id of a key_value connection containing authentications details for the model provider.'
         )
     ] = None,
+    skip_validation: Annotated[
+        bool, typer.Option(
+            '--skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.'
+        )
+    ] = False,
 ):
     models_controller = ModelsController()
     models = models_controller.import_model(
@@ -153,7 +159,7 @@ def models_import(
         app_id=app_id
     )
     for model in models:
-        models_controller.publish_or_update_models(model=model)
+        models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 @models_app.command(name="add", help="Add an llm from a custom provider")
 def models_add(
@@ -186,6 +192,12 @@ def models_add(
         ModelType,
         typer.Option('--type', help='What type of model is it'),
     ] = ModelType.CHAT,
+    skip_validation: Annotated[
+        bool, typer.Option(
+            '--skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.'
+        )
+    ] = False,
 ):
     provider_config_dict = {}
     if provider_config:
@@ -204,7 +216,7 @@ def models_add(
         model_type=type,
         app_id=app_id,
     )
-    models_controller.publish_or_update_models(model=model)
+    models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 
 
@@ -235,6 +247,24 @@ def models_export(
 ):
     models_controller = ModelsController()
     models_controller.export_model(name=name, output_path=output_path)
+
+@models_app.command(name="validate", help="Validate a model's functionality")
+def models_validate(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the model you wish to export"),
+    ],
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Verbose JSON output",
+        ),
+    ] = False,
+):
+    models_controller = ModelsController()
+    models_controller.validate_model(name=name, verbose=verbose)
 
 @models_policy_app.command(name='import', help='Add a model policy')
 def models_policy_import(

@@ -41,7 +41,27 @@ class TestModelsImport:
                 app_id="test_app_id"
             )
             publish_mock.assert_called_once_with(
-                model="Model"
+                model="Model",
+                skip_validation=False
+            )
+    
+    def test_models_import_skip_validation(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.import_model") as import_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_models") as publish_mock:
+            import_model_mock.return_value = ["Model"]
+
+            models_command.models_import(
+                file="test.yaml",
+                app_id="test_app_id",
+                skip_validation=True
+            )
+            import_model_mock.assert_called_once_with(
+                file="test.yaml",
+                app_id="test_app_id"
+            )
+            publish_mock.assert_called_once_with(
+                model="Model",
+                skip_validation=True
             )
 
 class TestModelsExport:
@@ -80,7 +100,35 @@ class TestModelsAdd:
                 model_type=ModelType.CHAT
             )
             publish_mock.assert_called_once_with(
-                model="Model"
+                model="Model",
+                skip_validation=False
+            )
+    
+    def test_models_add_skip_validation(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.create_model") as create_model_mock, \
+            patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.publish_or_update_models") as publish_mock:
+            create_model_mock.return_value = "Model"
+
+            models_command.models_add(
+                name="test_name",
+                description="test_description",
+                display_name="test_display_name",
+                provider_config="{}",
+                app_id="test_app_id",
+                type=ModelType.CHAT,
+                skip_validation=True
+            )
+            create_model_mock.assert_called_once_with(
+                name="test_name",
+                description="test_description",
+                display_name="test_display_name",
+                provider_config_dict={},
+                app_id="test_app_id",
+                model_type=ModelType.CHAT
+            )
+            publish_mock.assert_called_once_with(
+                model="Model",
+                skip_validation=True
             )
     
     def test_models_add_invalid_provider_config(self, caplog):
@@ -114,6 +162,30 @@ class TestModelsRemove:
             )
             remove_model_mock.assert_called_once_with(
                 name="test_name",
+            )
+
+class TestModelsValidate:
+    def test_models_validate(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.validate_model") as validate_model_mock:
+
+            models_command.models_validate(
+                name="test_name",
+            )
+            validate_model_mock.assert_called_once_with(
+                name="test_name",
+                verbose=False
+            )
+    
+    def test_models_validate_verbose(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.validate_model") as validate_model_mock:
+
+            models_command.models_validate(
+                name="test_name",
+                verbose=True
+            )
+            validate_model_mock.assert_called_once_with(
+                name="test_name",
+                verbose=True
             )
 
 class TestModelsPolicyImport:
