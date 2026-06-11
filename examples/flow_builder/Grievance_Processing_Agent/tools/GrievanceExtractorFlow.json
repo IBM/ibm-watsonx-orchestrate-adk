@@ -1,0 +1,739 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "GrievanceExtractorFlow",
+        "initiators": [],
+        "description": "Extracts data from union grievance forms, then classifies and summarizes the information.",
+        "display_name": "GrievanceProcessorFlow",
+        "input_schema": {},
+        "output_schema": {},
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "Grievance": {
+                    "type": "string",
+                    "default": "",
+                    "description": ""
+                },
+                "AdjustmentRequested": {
+                    "type": "string",
+                    "description": ""
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "16366b99-fed8-411a-8d47-1b7ee52a6f24",
+            "end": "User activity 1",
+            "start": "__start__"
+        },
+        {
+            "id": "e77ead91-7445-43dd-9b03-75a462b58122",
+            "end": "docclassifier_37cf78bd-51fe-4ff6-b171-e1a1d4bba23c",
+            "start": "docext_997c2700-b959-43d9-95e5-7a88a111b85d"
+        },
+        {
+            "id": "5b3d4901-e571-4b62-becf-7f27f9f7d190",
+            "end": "__end__",
+            "start": "prompt_9fd2a245-ccd7-4e7f-b27d-920830fc7686"
+        },
+        {
+            "id": "da69d081-62df-4dfa-9108-dd92116b54c3",
+            "end": "docext_997c2700-b959-43d9-95e5-7a88a111b85d",
+            "start": "User activity 1"
+        },
+        {
+            "id": "ae1d6e36-f9d6-4303-980d-0d2530e35979",
+            "end": "tool_816797de-e75b-4d32-9912-cac2ec96a661",
+            "start": "docclassifier_37cf78bd-51fe-4ff6-b171-e1a1d4bba23c"
+        },
+        {
+            "id": "c704efba-9af5-4bb6-a633-9f9bedcfd8d0",
+            "end": "tool_756223b5-225a-42eb-b2b0-6835bc9e2f0e",
+            "start": "tool_816797de-e75b-4d32-9912-cac2ec96a661"
+        },
+        {
+            "id": "fd449612-9aa2-4aef-8ff0-bfe2fb0c66d8",
+            "end": "prompt_9fd2a245-ccd7-4e7f-b27d-920830fc7686",
+            "start": "tool_756223b5-225a-42eb-b2b0-6835bc9e2f0e"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 1510
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "User activity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "User activity 1",
+                "position": {
+                    "x": -20,
+                    "y": 216
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 312
+                },
+                "initiators": [],
+                "display_name": "User activity 1"
+            },
+            "edges": [
+                {
+                    "id": "eb5dba8a-e49a-4ef9-ab87-37f6aacb1048",
+                    "end": "user_1daa31f9-decd-4932-a232-01c69a80284e",
+                    "start": "User activity 1__start__"
+                },
+                {
+                    "id": "5173c6f4-2454-4142-81d2-4ccf6e729758",
+                    "end": "User activity 1__end__",
+                    "start": "user_1daa31f9-decd-4932-a232-01c69a80284e"
+                }
+            ],
+            "nodes": {
+                "User activity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "User activity 1__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 264
+                        }
+                    }
+                },
+                "User activity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "User activity 1__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_1daa31f9-decd-4932-a232-01c69a80284e": {
+                    "spec": {
+                        "form": {
+                            "name": "form_200d70a6-427a-4e7c-a160-0cd6568d31ae",
+                            "fields": [
+                                {
+                                    "kind": "file",
+                                    "name": "field_c58ce492-251f-495d-b51f-5561189b0637",
+                                    "uiSchema": {
+                                        "ui:title": "Document Upload",
+                                        "ui:widget": "FileUpload",
+                                        "ui:upload_button_label": ""
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Document Upload",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "wxo-file"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "5173c6f4-2454-4142-81d2-4ccf6e729758",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [
+                                    "field_c58ce492-251f-495d-b51f-5561189b0637"
+                                ],
+                                "properties": {
+                                    "field_c58ce492-251f-495d-b51f-5561189b0637": {
+                                        "type": "array",
+                                        "items": {},
+                                        "multi": false,
+                                        "title": "Document Upload (Required)",
+                                        "file_types": [
+                                            ".csv",
+                                            ".doc",
+                                            ".docx",
+                                            ".jpeg",
+                                            ".jpg",
+                                            ".pdf",
+                                            ".png",
+                                            ".wav",
+                                            ".xls",
+                                            ".xlsx",
+                                            ".xwav"
+                                        ],
+                                        "description": "Please upload the document you want to process",
+                                        "file_max_size": 10
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_1daa31f9-decd-4932-a232-01c69a80284e",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Please upload your grievance form"
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "tool_756223b5-225a-42eb-b2b0-6835bc9e2f0e": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_756223b5-225a-42eb-b2b0-6835bc9e2f0e",
+                "tool": "Calculate_Violation_Hours_Demo:1b971fae-4137-4dcf-94b3-4346655d305c",
+                "position": {
+                    "x": -0.31889062703280047,
+                    "y": 1135.5039052651082
+                },
+                "description": "Calculate total violation hours from extracted text.\n\nThis simplified version:\n- Extracts numeric values from text\n- Sums them up for most grievance types\n- For \"Excessive Hours\" types, subtracts 9.5 from each value >= 9.5",
+                "display_name": "Calculate Violation Hours (Demo)",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "hours_text"
+                    ],
+                    "properties": {
+                        "hours_text": {
+                            "type": "string",
+                            "title": "Hours Text",
+                            "description": "Text containing hours (e.g., \"10.5, 11.0, 9.0\")"
+                        },
+                        "grievance_type": {
+                            "type": "string",
+                            "title": "Grievance Type",
+                            "default": "standard",
+                            "description": "Type of grievance (e.g., \"XHN - Excessive Hours\")"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "total_hours": {
+                            "type": "string",
+                            "title": "Total Hours",
+                            "default": "0",
+                            "description": "Total calculated violation hours"
+                        },
+                        "calculation_method": {
+                            "type": "string",
+                            "title": "Calculation Method",
+                            "default": "standard",
+                            "description": "Method used for calculation"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Calculate Violation Hours (Demo)'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "target_variable": "self.input.grievance_type",
+                            "value_expression": "flow[\"Grievance Classifier\"].output.class_name"
+                        },
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has-no-value": false,
+                            "target_variable": "self.input.hours_text",
+                            "value_expression": "flow[\"Grievance Extractor\"].output.grievance"
+                        }
+                    ],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "tool_816797de-e75b-4d32-9912-cac2ec96a661": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_816797de-e75b-4d32-9912-cac2ec96a661",
+                "tool": "Format_Grievance_Data_Demo:960e2f89-b883-4b5e-ab02-f4cba4906e31",
+                "position": {
+                    "x": -0.31889062703280047,
+                    "y": 940.2253501461265
+                },
+                "description": "Format extracted grievance data into a readable summary.\n\nThis simplified tool takes extracted fields and creates:\n- A formatted summary combining all information\n- Key details section highlighting important data",
+                "display_name": "Format Grievance Data (Demo)",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "title": "Name",
+                            "default": "",
+                            "description": "Employee name"
+                        },
+                        "case_no": {
+                            "type": "string",
+                            "title": "Case No",
+                            "default": "",
+                            "description": "Case or grievance number"
+                        },
+                        "date_filed": {
+                            "type": "string",
+                            "title": "Date Filed",
+                            "default": "",
+                            "description": "Date the grievance was filed"
+                        },
+                        "grievance_text": {
+                            "type": "string",
+                            "title": "Grievance Text",
+                            "default": "",
+                            "description": "The main grievance description"
+                        },
+                        "grievance_type": {
+                            "type": "string",
+                            "title": "Grievance Type",
+                            "default": "",
+                            "description": "Classified type of grievance"
+                        },
+                        "adjustment_requested": {
+                            "type": "string",
+                            "title": "Adjustment Requested",
+                            "default": "",
+                            "description": "Settlement or adjustment requested"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "title": "Status",
+                            "default": "success",
+                            "description": "Processing status"
+                        },
+                        "key_details": {
+                            "type": "string",
+                            "title": "Key Details",
+                            "default": "",
+                            "description": "Key details extracted and formatted"
+                        },
+                        "formatted_summary": {
+                            "type": "string",
+                            "title": "Formatted Summary",
+                            "default": "",
+                            "description": "Formatted summary of the grievance"
+                        }
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Format Grievance Data (Demo)'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "docext_997c2700-b959-43d9-95e5-7a88a111b85d": {
+            "spec": {
+                "kind": "docext",
+                "name": "docext_997c2700-b959-43d9-95e5-7a88a111b85d",
+                "task": "custom_field_extraction",
+                "config": {
+                    "llm": "watsonx/ibm/granite-4-h-small",
+                    "type": "agreement",
+                    "domain": "other",
+                    "fields": [
+                        {
+                            "name": "Adjustment Requested",
+                            "type": "string",
+                            "examples": [],
+                            "field_name": "adjustment_requested",
+                            "description": "",
+                            "example_value": "",
+                            "multiple_mentions": false
+                        },
+                        {
+                            "name": "Grievance",
+                            "type": "string",
+                            "examples": [],
+                            "field_name": "grievance",
+                            "description": "",
+                            "example_value": "",
+                            "multiple_mentions": false
+                        },
+                        {
+                            "name": "Case No",
+                            "type": "string",
+                            "examples": [],
+                            "field_name": "case_no",
+                            "description": "",
+                            "example_value": "",
+                            "multiple_mentions": false
+                        },
+                        {
+                            "name": "Name",
+                            "type": "string",
+                            "examples": [],
+                            "field_name": "name",
+                            "description": "",
+                            "example_value": "",
+                            "multiple_mentions": false
+                        },
+                        {
+                            "name": "Date Filed",
+                            "type": "string",
+                            "examples": [],
+                            "field_name": "date_filed",
+                            "description": "",
+                            "example_value": "",
+                            "multiple_mentions": false
+                        }
+                    ],
+                    "lastModelUpdateTs": 1780394099369,
+                    "field_extraction_method": "classic"
+                },
+                "version": "TIP",
+                "position": {
+                    "x": 0,
+                    "y": 600
+                },
+                "display_name": "Grievance Extractor",
+                "input_schema": {
+                    "type": "object",
+                    "title": "Document extractor input",
+                    "required": [
+                        "document_ref"
+                    ],
+                    "properties": {
+                        "document_ref": {
+                            "type": "string",
+                            "title": "File reference",
+                            "format": "wxo-file",
+                            "description": "A URL identifying the File to be used."
+                        }
+                    }
+                },
+                "enable_review": false,
+                "output_schema": {
+                    "type": "object",
+                    "title": "Field values",
+                    "required": [
+                        "adjustment_requested",
+                        "grievance",
+                        "case_no",
+                        "name",
+                        "date_filed"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "title": "Name",
+                            "description": "Extracted value for Name"
+                        },
+                        "case_no": {
+                            "type": "string",
+                            "title": "Case No",
+                            "description": "Extracted value for Case No"
+                        },
+                        "grievance": {
+                            "type": "string",
+                            "title": "Grievance",
+                            "description": "Extracted value for Grievance"
+                        },
+                        "date_filed": {
+                            "type": "string",
+                            "title": "Date Filed",
+                            "description": "Extracted value for Date Filed"
+                        },
+                        "adjustment_requested": {
+                            "type": "string",
+                            "title": "Adjustment Requested",
+                            "description": "Extracted value for Adjustment Requested"
+                        }
+                    }
+                },
+                "review_fields": [
+                    "adjustment_requested",
+                    "grievance",
+                    "case_no",
+                    "name",
+                    "date_filed"
+                ],
+                "min_confidence": 0.95,
+                "review_assignee_option": "flow_initiator"
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "prompt_9fd2a245-ccd7-4e7f-b27d-920830fc7686": {
+            "spec": {
+                "llm": "groq/openai/gpt-oss-120b",
+                "kind": "prompt",
+                "name": "prompt_9fd2a245-ccd7-4e7f-b27d-920830fc7686",
+                "metadata": {
+                    "creativity_slider_position": "5",
+                    "creativity_slider_manual_override": false
+                },
+                "position": {
+                    "x": -1.1486973830528484,
+                    "y": 1316.9034072948336
+                },
+                "test_data": [
+                    {
+                        "value": "",
+                        "source": "flow[\"Grievance Extractor\"].output.grievance"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Grievance Extractor\"].output.adjustment_requested"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Grievance Classifier\"].output.class_name"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Grievance Extractor\"].output.date_filed"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Calculate Violation Hours (Demo)\"].output.total_hours"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Calculate Violation Hours (Demo)\"].output.calculation_method"
+                    },
+                    {
+                        "value": "",
+                        "source": "flow[\"Format Grievance Data (Demo)\"].output.formatted_summary"
+                    }
+                ],
+                "description": "",
+                "user_prompt": "Create a comprehensive summary of this grievance:\n\n{flow[\"Format Grievance Data (Demo)\"].output.formatted_summary}\n\nCalculated Violation Hours: {flow[\"Calculate Violation Hours (Demo)\"].output.total_hours} (Method: {flow[\"Calculate Violation Hours (Demo)\"].output.calculation_method})\n\nProvide a professional summary that includes:\n1. Key facts\n2. Grievance classification\n3. Calculated hours (if applicable)\n4. Recommended next steps",
+                "display_name": "Grievance Summarization",
+                "input_schema": {
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "string",
+                            "description": "The output result as a string."
+                        }
+                    }
+                },
+                "system_prompt": "You are an expert in analyzing union grievance forms. Provide clear, professional summaries that highlight key information and next steps.",
+                "llm_parameters": {
+                    "top_k": 30,
+                    "top_p": 0.7,
+                    "temperature": 0.4,
+                    "max_new_tokens": 200,
+                    "min_new_tokens": 50,
+                    "stop_sequences": [
+                        "Human",
+                        "AI"
+                    ]
+                },
+                "prompt_examples": [],
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'Grievance Summarization'",
+                    "retry_interval": 1000
+                },
+                "include_agent_context": false
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "docclassifier_37cf78bd-51fe-4ff6-b171-e1a1d4bba23c": {
+            "spec": {
+                "kind": "docclassifier",
+                "name": "docclassifier_37cf78bd-51fe-4ff6-b171-e1a1d4bba23c",
+                "task": "custom_document_classification",
+                "config": {
+                    "llm": "watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+                    "classes": [
+                        {
+                            "type": "custom_class",
+                            "class_id": "a5b1c195-795e-46ec-97d4-3d2277b184c4",
+                            "class_name": "penalty pay"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "1bf8e38b-8af6-41a1-b1c3-ecb67c85b34a",
+                            "class_name": "supervisor working"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "6843ae27-fe90-4dc8-89c8-8b01b07c6f47",
+                            "class_name": "pay correction"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "fcd12f77-d139-41b7-9431-8c6c28063866",
+                            "class_name": "overtime equalization"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "c946679a-dc24-4611-90cb-59458a79c1ce",
+                            "class_name": "seniority preference"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "0620fe75-3377-479e-bc0a-388bfb09f60f",
+                            "class_name": "workplace conduct"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "715d6e81-3d18-4bd2-8934-764c78e71147",
+                            "class_name": "Safety"
+                        },
+                        {
+                            "type": "custom_class",
+                            "class_id": "72d166bd-86d6-4843-9415-c094185f13aa",
+                            "class_name": "schedule change notice"
+                        }
+                    ]
+                },
+                "version": "TIP",
+                "position": {
+                    "x": 0,
+                    "y": 746
+                },
+                "display_name": "Grievance Classifier",
+                "input_schema": {
+                    "type": "object",
+                    "title": "Document classifier input",
+                    "required": [
+                        "document_ref"
+                    ],
+                    "properties": {
+                        "document_ref": {
+                            "type": "string",
+                            "title": "File reference",
+                            "format": "wxo-file",
+                            "description": "A URL identifying the File to be used."
+                        }
+                    }
+                },
+                "enable_review": true,
+                "output_schema": {
+                    "type": "object",
+                    "title": "DocumentClassificationResponse",
+                    "required": [
+                        "class_name"
+                    ],
+                    "properties": {
+                        "class_name": {
+                            "type": "string",
+                            "title": "Class name",
+                            "default": [],
+                            "description": "Class name of the document"
+                        }
+                    }
+                },
+                "assigned_users": [],
+                "review_assignee_option": "flow_initiator"
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": false
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

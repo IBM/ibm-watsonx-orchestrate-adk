@@ -6,7 +6,7 @@ description: >
 instructions: >
     1. use the tool get_insurance_rate to get an assessment from the available data
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - get_insurance_rate
   - i__get_flow_status_intrinsic_tool__

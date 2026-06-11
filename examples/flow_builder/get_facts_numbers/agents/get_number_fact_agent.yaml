@@ -8,7 +8,7 @@ instructions: >
     INPUT: number from 1 to 1000. If the inputted number is not in the range, ask user to re-enter the number
     Invoke the tool get_number_random_fact_flow to process the inputted number.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - get_number_random_fact_flow
   - i__get_flow_status_intrinsic_tool__

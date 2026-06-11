@@ -4,6 +4,6 @@ name: pet_agent
 description: >
     You are an agent that can retrieve random facts about pet. 
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_intrinsic
 tools:
   - get_pet_facts_error_branching

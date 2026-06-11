@@ -1,5 +1,5 @@
 spec_version: v1
-style: default
+style: react_intrinsic
 name: hr_agent_defective
 llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
 description: An HR assistant that handles HR-related questions (defective version for testing)

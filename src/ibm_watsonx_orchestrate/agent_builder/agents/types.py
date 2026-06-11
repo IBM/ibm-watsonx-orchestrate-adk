@@ -193,7 +193,7 @@ class AgentSpec(BaseAgentSpec):
 
     kind: AgentKind = AgentKind.NATIVE
     llm: str = Field(default_factory=get_default_llm)
-    style: AgentStyle = AgentStyle.DEFAULT
+    style: AgentStyle = AgentStyle.REACT_INTRINSIC
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
     structured_output: Optional[JsonSchemaObject] = None
