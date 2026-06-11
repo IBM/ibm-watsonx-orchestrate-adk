@@ -273,6 +273,7 @@ services:
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
