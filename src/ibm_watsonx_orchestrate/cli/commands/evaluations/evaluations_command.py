@@ -42,10 +42,6 @@ def _check_import_error():
                      "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
         sys.exit(1)
 
-def _feature_requires_legacy_eval():
-    if not USE_LEGACY_EVAL:
-        logger.error("Feature requires legacy evaluation. Please enable it using `export USE_LEGACY_EVAL=TRUE`")
-        sys.exit(1)
 
 def _native_agent_template():
     return {
@@ -602,7 +598,7 @@ evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
 def list_plans():
     _check_import_error()
-    _feature_requires_legacy_eval()
+
 
     controller = EvaluationsController()
     controller.list_red_teaming_attacks()
