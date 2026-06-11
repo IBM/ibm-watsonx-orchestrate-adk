@@ -7,6 +7,7 @@ import re
 import requests
 import yaml
 import traceback
+from rich.console import Console
 from unittest.mock import patch, mock_open, MagicMock
 
 from ibm_watsonx_orchestrate.cli.commands.models import models_controller
@@ -21,11 +22,12 @@ from ibm_watsonx_orchestrate_core.types.model_selection import GetModelSelection
 
 
 class MockModelsClient():
-    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None, validate_response=None):
         self.list_response = list_response or []
         self.get_draft_by_name_response = get_draft_by_name_response or []
         self.list_all_response = list_all_response or []
         self.base_url = 'http://localhost:4321'
+        self.validate_response = validate_response or {}
 
     def list(self):
         return self.list_response
@@ -44,6 +46,9 @@ class MockModelsClient():
 
     def get_draft_by_name(self, model_name):
         return self.get_draft_by_name_response
+
+    def validate(self, model_name):
+        return self.validate_response
 
 class MockModelPoliciesClient():
     def __init__(self, list_response=[], get_draft_by_name_response=[]):
@@ -767,6 +772,106 @@ class TestExportModel:
         assert f"Successfully exported model" in captured
         mock_export_connection.assert_called_once()
         mock_export_connection.assert_called_once()
+
+class TestValidateModel:
+    mock_model_name = "test_model"
+    DUMMY_VALIDATION_REPORT = {
+        "overall_status": "passed",
+        "summary": {
+            "total_tests": 2,
+            "passed": 1,
+            "failed": 1,
+            "total_duration_ms": 700,
+            "success_rate" : 50
+        },
+        "tests": [
+            {
+                "test_name": "dummy_test",
+                "status": "success",
+                "message": "test validate",
+                "duration_ms": 500
+            },
+            {
+                "test_name": "dummy_test_fail",
+                "status": "failed",
+                "message": "test validate fail",
+                "duration_ms": 200
+            },
+        ]
+    }
+    def test_validate_model(self, caplog):
+        mock_models_client = MockModelsClient(validate_response=self.DUMMY_VALIDATION_REPORT)
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.rich.print") as mock_print:
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.validate_model(name=self.mock_model_name, verbose=False)
+        
+        captured = caplog.text
+
+        assert f"Validated model '{self.mock_model_name}'" in captured
+
+        printed_tables = [
+            call.args[0]
+            for call in mock_print.call_args_list
+        ]
+
+        assert len(printed_tables) == 2
+
+        summary_table = printed_tables[0]
+        console = Console(record=True, width=120)
+        console.print(summary_table)
+        output = console.export_text()
+
+        assert "Total Tests" in output
+        assert "Tests Passed" in output
+        assert "Tests Failed" in output
+        assert "Success Rate" in output
+        assert "Duration (ms)" in output
+        assert "Result" in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("total_tests")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("passed")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("failed")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("success_rate")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("total_duration_ms")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("overall_status")) in output
+
+        test_table = printed_tables[1]
+        console = Console(record=True, width=120)
+        console.print(test_table)
+        output = console.export_text()
+
+        assert "Test Case" in output
+        assert "Status" in output
+        assert "Result" in output
+        assert "Duration (ms)" in output
+
+        first_test = self.DUMMY_VALIDATION_REPORT.get("tests", [])[0]
+        second_test = self.DUMMY_VALIDATION_REPORT.get("tests", [])[1]
+        assert str(first_test.get("test_name")) in output
+        assert str(first_test.get("status")) in output
+        assert str(first_test.get("message")) in output
+        assert str(first_test.get("duration_ms")) in output
+        assert str(second_test.get("test_name")) in output
+        assert str(second_test.get("status")) in output
+        assert str(second_test.get("message")) in output
+        assert str(second_test.get("duration_ms")) in output
+    
+    def test_validate_model_verbose(self, caplog):
+        mock_models_client = MockModelsClient(validate_response=self.DUMMY_VALIDATION_REPORT)
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.validate_model(name=self.mock_model_name, verbose=True)
+        
+        captured = caplog.text
+
+        assert f"Validated model '{self.mock_model_name}'" in captured
+
 
 class TestCreateModel:
     mock_model_name = "test_model"
