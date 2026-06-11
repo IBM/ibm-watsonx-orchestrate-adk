@@ -159,8 +159,8 @@ def evaluate(
     validate_watsonx_credentials(user_env_file)
 
     if not USE_LEGACY_EVAL:
-        logger.warning("Using beta evaluation. This feature is still in beta.")
-        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`")
+        logger.warning("Using new evaluation pipeline")
+        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`. Note this will soon be deprecated")
     
     if langfuse_enabled:
         lf_sk_exists = os.environ.get("LANGFUSE_SECRET_KEY") is not None
