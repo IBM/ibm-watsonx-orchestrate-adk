@@ -9,7 +9,7 @@ instructions: >
     invoke the user_activity_with_dynamic_forms_full tool to show them
     an interactive form with dynamic behaviours.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - user_activity_with_dynamic_forms_full
 
