@@ -10,6 +10,6 @@ instructions: >
 tags:
   - wx.ai
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_intrinsic
 hidden: false
 voice_configuration: elevenlabs_tts_config

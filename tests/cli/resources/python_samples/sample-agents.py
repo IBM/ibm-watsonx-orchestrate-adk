@@ -63,7 +63,7 @@ agent1 = Agent(
         Make sure to include decimal points when the user's input includes a float.
     """,
     llm="watsonx/ibm/granite-3-8b-instruct", #Optional, Default=watsonx/meta-llama/llama-3-1-70b-instruct
-    style=AgentStyle.REACT,  #Optional, Valid options = [AgentStyle.DEFAULT, AgentStyle.REACT]
+    style=AgentStyle.REACT_INTRINSIC,  #Optional, Valid options = [AgentStyle.DEFAULT, AgentStyle.REACT, AgentStyle.REACT_INTRINSIC]
     collaborators=[
         agent2,
         "algebra_agent"

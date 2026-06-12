@@ -144,7 +144,7 @@ def native_agent_content(request) -> dict:
         "name": "test_native_agent",
         "description": "Test Object for native agent",
         "llm": "test_llm",
-        "style": AgentStyle.DEFAULT,
+        "style": AgentStyle.REACT_INTRINSIC,
         "collaborators": [
             "test_agent_1",
             "test_agent_2"
@@ -276,7 +276,7 @@ def agent_spec_with_starter_prompts():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_INTRINSIC,
         "name": "webchat_customization_test_agent",
         "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
         "description":  '',
@@ -324,7 +324,7 @@ def agent_spec_with_welcome_content():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_INTRINSIC,
         "name": "webchat_customization_test_agent",
         "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
         "description":  '',
@@ -344,7 +344,7 @@ def agent_spec_with_webchat_customizations():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_INTRINSIC,
         "name": "webchat_customization_test_agent",
         "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
         "description":  '',
@@ -595,7 +595,7 @@ class TestParseCreateNativeArgs:
             kind=AgentKind.NATIVE,
             description="Test Agent Description",
             llm="test_llm",
-            style=AgentStyle.REACT,
+            style=AgentStyle.REACT_INTRINSIC,
             collaborators=["agent1", "    "],
             tools=["  tool1  ", "tool2"]
         )
@@ -604,7 +604,7 @@ class TestParseCreateNativeArgs:
         assert parsed_args["kind"] == AgentKind.NATIVE
         assert parsed_args["description"] == "Test Agent Description"
         assert parsed_args["llm"] == "test_llm"
-        assert parsed_args["style"] == AgentStyle.REACT
+        assert parsed_args["style"] == AgentStyle.REACT_INTRINSIC
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
 
@@ -796,7 +796,7 @@ class TestAgentsControllerGenerateAgentSpec:
             kind=AgentKind.NATIVE,
             description=self.mock_agent_description,
             llm=mock_llm,
-            style=AgentStyle.REACT,
+            style=AgentStyle.REACT_INTRINSIC,
             collaborators=mock_collaborators,
             tools=mock_tools
         )
@@ -805,7 +805,7 @@ class TestAgentsControllerGenerateAgentSpec:
         assert agent.kind == AgentKind.NATIVE
         assert agent.description == self.mock_agent_description
         assert agent.llm == mock_llm
-        assert agent.style == AgentStyle.REACT
+        assert agent.style == AgentStyle.REACT_INTRINSIC
         assert agent.collaborators == ["agent1"]
         assert agent.tools == ["tool1", "tool2"]
     
