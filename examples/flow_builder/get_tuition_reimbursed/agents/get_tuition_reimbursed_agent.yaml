@@ -6,7 +6,7 @@ description: >
 instructions: >
     Only allow user to input any 2 numbers seperated from 1 to 5. If users does not follow this rule, ask them to enter correct input
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - get_tuition_reimbursed
   - i__get_flow_status_intrinsic_tool__
