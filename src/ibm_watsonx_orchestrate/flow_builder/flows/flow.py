@@ -1127,12 +1127,13 @@ class Flow(Node):
             min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
-            enable_review: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
+            enable_review: bool = False,
+            page_range: PageRange | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
 
-        doc_ext_config = DocExtNode.generate_config(llm=llm, fields=fields, field_extraction_method=field_extraction_method)
+        doc_ext_config = DocExtNode.generate_config(llm=llm, fields=fields, field_extraction_method=field_extraction_method, page_range=page_range)
 
         DocExtFieldValue = DocExtNode.generate_docext_field_value_model(fields=fields)
         
