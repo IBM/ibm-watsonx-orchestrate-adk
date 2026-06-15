@@ -4,7 +4,7 @@ name: ibm_agent
 description: >
     You are an helpful agent that has knowledge about IBM and its history
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: react
 knowledge_base:
   - ibm_knowledge_base
 tools: []
