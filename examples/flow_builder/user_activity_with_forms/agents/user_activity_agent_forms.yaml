@@ -9,7 +9,7 @@ instructions: >
     user_flow_application_form_date_time for date and time input. Choose the appropriate tool
     based on the user's needs and output the result.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - user_flow_application_form
   - user_flow_application_form_date_time

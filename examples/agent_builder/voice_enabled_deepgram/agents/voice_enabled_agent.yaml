@@ -10,6 +10,6 @@ instructions: >
 tags:
   - wx.ai
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: react
 hidden: false
 voice_configuration: deepgram_voice_config

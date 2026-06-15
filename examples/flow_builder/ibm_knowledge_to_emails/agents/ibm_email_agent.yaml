@@ -4,7 +4,7 @@ name: ibm_email_agent
 description: >
     You are an agent that will send email to others based on information on ibm
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - ibm_knowledge_to_emails
   - i__get_flow_status_intrinsic_tool__

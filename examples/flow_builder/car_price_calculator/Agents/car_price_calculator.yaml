@@ -1,6 +1,6 @@
 spec_version: v1
 kind: native
-style: react_intrinsic
+style: default
 name: car_price_calculator
 llm: groq/openai/gpt-oss-120b
 description: >

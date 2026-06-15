@@ -192,7 +192,7 @@ def agent_create(
     style: Annotated[
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
-    ] = AgentStyle.REACT_INTRINSIC,
+    ] = AgentStyle.DEFAULT,
     custom_join_tool: Annotated[
         str | None,
         typer.Option(

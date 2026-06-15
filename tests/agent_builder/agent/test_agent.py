@@ -69,7 +69,7 @@ def valid_native_agent_sample():
         "description": "Test Object for native agent",
         "memory_enabled": True,
         "llm": "test_llm",
-        "style": AgentStyle.REACT_INTRINSIC,
+        "style": AgentStyle.DEFAULT,
         "collaborators": [
             "test_agent_1",
             "test_agent_2"

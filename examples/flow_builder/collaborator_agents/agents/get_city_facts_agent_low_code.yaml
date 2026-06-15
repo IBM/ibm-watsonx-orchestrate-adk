@@ -6,7 +6,7 @@ description: >
 instructions: >
     INPUT: city. Valid cities are San Jose California, Fremont, New York, Los Angeles. If user input different cities from the list, prompt user to pick a city again
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - collaborator_agents_flow_low_code
 
