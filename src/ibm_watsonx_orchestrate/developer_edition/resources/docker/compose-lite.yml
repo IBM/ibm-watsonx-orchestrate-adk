@@ -863,7 +863,7 @@ services:
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
 
   opensearch:
-    image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
+    image: ${OPENSEARCH_REGISTRY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
     restart: unless-stopped
     environment:
       - discovery.type=single-node
