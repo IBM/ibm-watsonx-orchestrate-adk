@@ -1,5 +1,7 @@
 spec_version: v1
-style: react
+style: planner
+# structured_output: {type: "object", additionalProperties: false, properties: {}}
+custom_join_tool: format_task_results
 name: customer_care_agent
 llm: groq/openai/gpt-oss-120b
 description: >
@@ -18,8 +20,7 @@ instructions: >
   
   Use the get_my_claims tool to fetch your open medical claims. Make sure to respond in a direct tone and 
   do not negotiate prices. Format the output of get_my_claims as a github style markdown table.
-collaborators:
-  - service_now_agent
+collaborators: []
 tools:
   - search_healthcare_providers
   - get_healthcare_benefits
