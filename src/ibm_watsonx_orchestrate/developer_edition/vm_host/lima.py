@@ -147,8 +147,7 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
     
-    # Set LIMA_HOME to point to the resources directory so Lima can find its templates
-    lima_home = files('ibm_watsonx_orchestrate.developer_edition.resources.lima')
+    lima_home = files(DEFAULT_LIMA_HOME)
     env = os.environ.copy()
     env['LIMA_HOME'] = str(lima_home)
 
