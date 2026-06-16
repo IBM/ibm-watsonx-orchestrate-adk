@@ -27,5 +27,5 @@ instructions: >
     - final_solution must contain only the literal string: "solution not found".
 
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
