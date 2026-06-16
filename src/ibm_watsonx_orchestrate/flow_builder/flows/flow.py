@@ -2050,6 +2050,63 @@ class Flow(Node):
     def _get_data_map(self, map: DataMap) -> DataMap:
         return map
 
+    def translation_enabled(self, enabled: bool) -> Self:
+        '''
+        Enable or disable translation support for this flow.
+
+        Parameters:
+        enabled (bool): Whether translation should be enabled for this flow.
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(enabled=enabled)
+        else:
+            self.spec.translation_support.enabled = enabled
+        
+        return self
+
+    def source_locale(self, locale: str) -> Self:
+        '''
+        Set the source locale for translation.
+
+        Parameters:
+        locale (str): The source locale code (e.g., 'en', 'fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR').
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(source_locale=locale)
+        else:
+            self.spec.translation_support.source_locale = locale
+        
+        return self
+
+    def target_locales(self, locales: list[str]) -> Self:
+        '''
+        Set the target locales for translation.
+
+        Parameters:
+        locales (list[str]): List of target locale codes (e.g., ['fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR']).
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(target_locales=locales)
+        else:
+            self.spec.translation_support.target_locales = locales
+        
+        return self
+
 class FlowRunStatus(str, Enum):
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
