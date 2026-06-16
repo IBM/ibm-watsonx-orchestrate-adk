@@ -34,7 +34,7 @@ from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ..types import (
     Dimensions, DocProcKVPSchema, Assignment, Conditions, EndNodeSpec, Expression, ForeachPolicy, ForeachSpec, LoopSpec, BranchNodeSpec, MatchPolicy,
-    NodeIdCondition, PageRange, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
+    NodeIdCondition, PageRange, ParallelSpec, PlainTextReadingOrder, Position, PromptExample, PromptLLMParameters, PromptNodeSpec, ScriptNodeSpec, TextExtractionObjectResponse, TimerNodeSpec,
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
@@ -1166,25 +1166,20 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(DocExtNode, node), DocExtFieldValue
 
-    def decisions(self, 
-            name: str, 
+    def decisions(self,
+            name: str,
             display_name: str|None=None,
             rules: list[DecisionsRule] | None = None,
-            default_actions: dict[str, Any] = None,
+            default_actions: dict[str, Any] | list[Any] | None = None,
             locale: str | None = None,
             description: str | None = None,
-            input_schema: type[BaseModel]|None = None, 
-            output_schema: type[BaseModel]|None=None) -> DecisionsNode:
+            decision_table_columns: list[Any] | None = None) -> DecisionsNode:
 
         if name is None:
             raise ValueError("name must be provided.")
         
         if rules is None:
             raise ValueError("rules must be specified.")
-
-         # create input spec
-        input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
-        output_schema_obj = _get_json_schema_obj("output", output_schema)
 
         # Create the tool spec
         task_spec = DecisionsNodeSpec(
@@ -1194,9 +1189,7 @@ class Flow(Node):
             rules=rules,
             default_actions=default_actions,
             locale=locale,
-            input_schema=_get_tool_request_body(input_schema_obj),
-            output_schema=_get_tool_response_body(output_schema_obj),
-            output_schema_object = output_schema_obj
+            decision_table_columns=decision_table_columns
         )
 
         node = DecisionsNode(spec=task_spec)
@@ -1606,6 +1599,97 @@ class Flow(Node):
 
         return cast(UserFlow, userflow_node)
 
+    def parallel(self,
+                evaluator: Union[Conditions, None],
+                input_schema: type[BaseModel] |None=None,
+                output_schema: type[BaseModel] |None=None,
+                name: str | None = None,
+                display_name: str | None = None) -> "Parallel": # return an Parallel object
+
+        e = evaluator
+
+        if isinstance(evaluator, list):
+            e = Conditions(conditions=evaluator)
+        elif evaluator is None:
+            e = Conditions(conditions=[])
+
+        input_schema_obj = _get_json_schema_obj("input", input_schema)
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+
+        parallel_name = name if (name is not None and len(name) > 0) else "parallel_" + str(self._next_sequence_id())
+        parallel_display_name = display_name if display_name is not None else parallel_name
+        spec = ParallelSpec(name = parallel_name,
+                                        display_name = parallel_display_name,
+                                        input_schema = _get_tool_request_body(input_schema_obj),
+                                        output_schema = _get_tool_response_body(output_schema_obj),
+                                        evaluator = e)
+        parallel_obj = Parallel(spec = spec, parent = self)
+        parallel_node = self._add_node(parallel_obj)
+
+        return cast(Parallel, parallel_node)
+    
+    def parallel_conditions(self,
+                           name: str = "",
+                           display_name: str = "",
+                           input_schema: type[BaseModel] | None = None,
+                           output_schema: type[BaseModel] | None = None) -> 'Parallel':
+        '''
+        Create a Parallel node with empty Conditions evaluator for multiple parallel branches.
+        
+        This method creates a parallel flow that can execute multiple branches concurrently
+        based on conditions. Unlike a branch which takes the first matching path, a parallel
+        flow executes ALL matching conditions simultaneously.
+        
+        Parameters:
+            name (str): Name for the parallel node. Auto-generated if not provided.
+            display_name (str): Display name for the parallel node. Defaults to name if not provided.
+            input_schema (type[BaseModel] | None): Input schema for the parallel flow.
+            output_schema (type[BaseModel] | None): Output schema for the parallel flow.
+            
+        Returns:
+            Parallel: A Parallel node with chainable condition() methods.
+            
+        Example:
+            ```python
+            # Create parallel flow with multiple conditions
+            parallel_flow = flow.parallel_conditions(
+                name="process_tasks",
+                input_schema=TaskInput,
+                output_schema=TaskOutput
+            )
+            
+            # Add conditions - all matching conditions execute in parallel
+            parallel_flow.condition(
+                expression="flow.input.priority == 'high'",
+                to_node=high_priority_handler
+            ).condition(
+                expression="flow.input.category == 'billing'",
+                to_node=billing_handler
+            ).condition(
+                expression="flow.input.category == 'technical'",
+                to_node=technical_handler
+            ).condition(
+                default=True,
+                to_node=default_handler
+            )
+            ```
+        '''
+        parallel_name = name if name != "" else "parallel_" + str(self._next_sequence_id())
+        parallel_display_name = display_name if display_name != "" else parallel_name
+        
+        input_schema_obj = _get_json_schema_obj("input", input_schema)
+        output_schema_obj = _get_json_schema_obj("output", output_schema)
+        
+        spec = ParallelSpec(
+            name=parallel_name,
+            display_name=parallel_display_name,
+            input_schema=_get_tool_request_body(input_schema_obj),
+            output_schema=_get_tool_response_body(output_schema_obj),
+            evaluator=None  # Start with no evaluator, will be created when first condition is added
+        )
+        parallel_obj = Parallel(spec=spec, parent=self)
+        return cast(Parallel, self._add_node(parallel_obj))
+
     def validate_model(self) -> bool:
         ''' Validate the model. '''
         validator = FlowValidator(flow=self)
@@ -1966,6 +2050,63 @@ class Flow(Node):
 
     def _get_data_map(self, map: DataMap) -> DataMap:
         return map
+
+    def translation_enabled(self, enabled: bool) -> Self:
+        '''
+        Enable or disable translation support for this flow.
+
+        Parameters:
+        enabled (bool): Whether translation should be enabled for this flow.
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(enabled=enabled)
+        else:
+            self.spec.translation_support.enabled = enabled
+        
+        return self
+
+    def source_locale(self, locale: str) -> Self:
+        '''
+        Set the source locale for translation.
+
+        Parameters:
+        locale (str): The source locale code (e.g., 'en', 'fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR').
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(source_locale=locale)
+        else:
+            self.spec.translation_support.source_locale = locale
+        
+        return self
+
+    def target_locales(self, locales: list[str]) -> Self:
+        '''
+        Set the target locales for translation.
+
+        Parameters:
+        locales (list[str]): List of target locale codes (e.g., ['fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR']).
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import TranslationSupport
+        
+        if self.spec.translation_support is None:
+            self.spec.translation_support = TranslationSupport(target_locales=locales)
+        else:
+            self.spec.translation_support.target_locales = locales
+        
+        return self
 
 class FlowRunStatus(str, Enum):
     NOT_STARTED = "not_started"
@@ -2844,3 +2985,75 @@ class UserFlow(Flow):
             self.get_spec().input_schema = input_schema
         
         return self
+
+class Parallel(Flow):
+    '''
+    A parallel flow that executes multiple branches concurrently based on conditions.
+    
+    Unlike a branch which takes the first matching path, a parallel flow executes
+    ALL matching conditions simultaneously.
+
+    Args:
+        **kwargs: Arbitrary keyword arguments.
+
+    Returns:
+        dict[str, Any]: A dictionary representation of the flow.
+    '''
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        spec: ParallelSpec = cast(ParallelSpec, self.spec)
+
+    def condition(self, to_node: Node, expression: str="", default: bool=False) -> Self:
+        '''
+        Add a condition to this parallel flow. All matching conditions will execute in parallel.
+
+        Parameters:
+        expression (str): The Python expression to evaluate. When true, the corresponding branch executes.
+        to_node (Node): The node to execute when the expression evaluates to true.
+        default (bool): If True, this condition acts as the default (else) case that always executes.
+        
+        Returns:
+        Self: The Parallel instance for method chaining.
+        
+        Example:
+            ```python
+            parallel_flow.condition(
+                expression="flow.input.priority == 'high'",
+                to_node=high_priority_handler
+            ).condition(
+                expression="flow.input.category == 'billing'",
+                to_node=billing_handler
+            ).condition(
+                default=True,
+                to_node=default_handler
+            )
+            ```
+        '''
+
+        node_id = self._get_node_id(to_node)
+        if default:
+            condition = NodeIdCondition(node_id=node_id, default=default)
+        else:
+            condition = NodeIdCondition(expression=expression, node_id=node_id, default=default)
+
+        spec = self.get_spec()
+        evaluator: Expression | Conditions | None = spec.evaluator
+        if evaluator is None:
+            evaluator = Conditions(conditions=[])
+            spec.evaluator = evaluator  # Assign the new evaluator to the spec
+        elif not isinstance(evaluator, Conditions):
+            raise ValueError("evaluator must be a Conditions object")
+        evaluator.conditions.append(condition)
+        # Create edge within the parallel subflow from START to the target node
+        self.edge(START, to_node)
+
+        return self
+
+    def to_json(self) -> dict[str, Any]:
+        my_dict = super().to_json()
+
+        return my_dict
+
+    def get_spec(self) -> ParallelSpec:
+        return cast(ParallelSpec, self.spec)

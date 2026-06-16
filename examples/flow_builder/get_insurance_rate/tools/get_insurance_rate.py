@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.flow_builder.flows import END, Flow, flow, START, DecisionsNode, DecisionsRule, DecisionsCondition
+from ibm_watsonx_orchestrate.flow_builder.types import DecisionTableColumn
+
 
 class Assessment(BaseModel):
     """
@@ -33,44 +35,44 @@ def build_decisions(aflow: Flow) -> DecisionsNode:
 
     ## We will be build the rules programmatically.
     rule1 = DecisionsRule()
-    rule1.condition("grade", DecisionsCondition().equal("A")).condition("loan_amount", DecisionsCondition().less_than(100000))
-    rule1.action("insurance_required", False)
+    rule1.condition("flow.input.grade", DecisionsCondition().equal("A")).condition("flow.input.loan_amount", DecisionsCondition().less_than(100000))
+    rule1.action("flow.output.insurance_required", False)
     rules.append(rule1)
 
     rule2 = DecisionsRule()
-    rule2.condition("grade", DecisionsCondition().equal("A")).condition("loan_amount", DecisionsCondition().in_range(100000, 300000, True, False))
-    rule2.action("insurance_required", True).action("insurance_rate", 0.001)
+    rule2.condition("flow.input.grade", DecisionsCondition().equal("A")).condition("flow.input.loan_amount", DecisionsCondition().in_range(100000, 300000, True, False))
+    rule2.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.001)
     rules.append(rule2)
 
     rule3 = DecisionsRule()
-    rule3.condition("grade", DecisionsCondition().equal("A")).condition("loan_amount", DecisionsCondition().in_range(300000, 600000, True, False))
-    rule3.action("insurance_required", True).action("insurance_rate", 0.003)
+    rule3.condition("flow.input.grade", DecisionsCondition().equal("A")).condition("flow.input.loan_amount", DecisionsCondition().in_range(300000, 600000, True, False))
+    rule3.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.003)
     rules.append(rule3)
 
     rule4 = DecisionsRule()
-    rule4.condition("grade", DecisionsCondition().equal("A")).condition("loan_amount", DecisionsCondition().greater_than_or_equal(600000))
-    rule4.action("insurance_required", True).action("insurance_rate", 0.005)
+    rule4.condition("flow.input.grade", DecisionsCondition().equal("A")).condition("flow.input.loan_amount", DecisionsCondition().greater_than_or_equal(600000))
+    rule4.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.005)
     rules.append(rule4)
 
     ## We will be build the rules programmatically.
     rule5 = DecisionsRule()
-    rule5.condition("grade", DecisionsCondition().equal("B")).condition("loan_amount", DecisionsCondition().less_than(100000))
-    rule5.action("insurance_required", False)
+    rule5.condition("flow.input.grade", DecisionsCondition().equal("B")).condition("flow.input.loan_amount", DecisionsCondition().less_than(100000))
+    rule5.action("flow.output.insurance_required", False)
     rules.append(rule5)
 
     rule6 = DecisionsRule()
-    rule6.condition("grade", DecisionsCondition().equal("B")).condition("loan_amount", DecisionsCondition().in_range(100000, 300000, True, False))
-    rule6.action("insurance_required", True).action("insurance_rate", 0.0025)
+    rule6.condition("flow.input.grade", DecisionsCondition().equal("B")).condition("flow.input.loan_amount", DecisionsCondition().in_range(100000, 300000, True, False))
+    rule6.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.0025)
     rules.append(rule6)
 
     rule7 = DecisionsRule()
-    rule7.condition("grade", DecisionsCondition().equal("B")).condition("loan_amount", DecisionsCondition().in_range(300000, 600000, True, False))
-    rule7.action("insurance_required", True).action("insurance_rate", 0.005)
+    rule7.condition("flow.input.grade", DecisionsCondition().equal("B")).condition("flow.input.loan_amount", DecisionsCondition().in_range(300000, 600000, True, False))
+    rule7.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.005)
     rules.append(rule7)
 
     rule8 = DecisionsRule()
-    rule8.condition("grade", DecisionsCondition().equal("A")).condition("loan_amount", DecisionsCondition().greater_than_or_equal(600000))
-    rule8.action("insurance_required", True).action("insurance_rate", 0.0075)
+    rule8.condition("flow.input.grade", DecisionsCondition().equal("B")).condition("flow.input.loan_amount", DecisionsCondition().greater_than_or_equal(600000))
+    rule8.action("flow.output.insurance_required", True).action("flow.output.insurance_rate", 0.0075)
     rules.append(rule8)
 
     node = aflow.decisions(
@@ -79,17 +81,23 @@ def build_decisions(aflow: Flow) -> DecisionsNode:
         description="Based on credit rate and loan amount, assess insurance rate.",
         rules=rules,
         default_actions={
-            "assessment_error": "Not assessed. Incorrect data submitted."
+            "flow.output.assessment_error": "Not assessed. Incorrect data submitted."
         },
-        input_schema=AssessmentData,
-        output_schema=Assessment
+        decision_table_columns=[
+            DecisionTableColumn(variable="flow.input.grade", display_name="Grade"),
+            DecisionTableColumn(variable="flow.input.loan_amount", display_name="Loan Amount"),
+            DecisionTableColumn(variable="flow.output.insurance_required", display_name="Insurance Required"),
+            DecisionTableColumn(variable="flow.output.insurance_rate", display_name="Insurance Rate"),
+            DecisionTableColumn(variable="flow.output.assessment_error", display_name="Assessment Error"),
+        ]
     )
     return node
 
+
 @flow(
-        name = "get_insurance_rate",
-        input_schema=AssessmentData,
-        output_schema=Assessment
+    name="get_insurance_rate",
+    input_schema=AssessmentData,
+    output_schema=Assessment
     )
 def build_get_insurance_rate(aflow: Flow = None) -> Flow:
     """
