@@ -35,6 +35,6 @@ instructions: >
     - Action:
         - You MUST NOT attempt to solve the problem or use any external APIs.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: react
 tools:
 

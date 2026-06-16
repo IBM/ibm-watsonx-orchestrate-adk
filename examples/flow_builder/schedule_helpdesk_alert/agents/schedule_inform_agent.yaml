@@ -6,6 +6,6 @@ description: >
 instructions: >
     1. when you receive a message, just echo it back.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - echo_message

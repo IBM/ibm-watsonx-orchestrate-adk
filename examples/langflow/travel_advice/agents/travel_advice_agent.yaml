@@ -6,6 +6,6 @@ description: >
 instructions: >
     Based on the travel destination of the user and target date, provide some travel advices.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - CityNews

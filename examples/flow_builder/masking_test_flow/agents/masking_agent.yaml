@@ -4,7 +4,7 @@ name: masking_agent
 description: >
     Agent for testing masking functionality across different node types.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic
+style: default
 tools:
   - masking_test_flow
   - process_user_data
