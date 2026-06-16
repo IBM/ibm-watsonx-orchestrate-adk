@@ -68,8 +68,12 @@ class LimaLifecycleManager(VMLifecycleManager):
             / "limactl"
         )
         
+        # move this to the top of the file next to DEFAULT_LIMA_VERSION (comment and constant)
         # Set LIMA_HOME to point to the resources directory so Lima can find its templates
-        lima_home = files('ibm_watsonx_orchestrate.developer_edition.resources.lima')
+        DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
+        
+        # rewire to use the hardcoded constant 
+        lima_home = files(DEFAULT_LIMA_HOME)
         if env is None:
             env = os.environ.copy()
         else:
