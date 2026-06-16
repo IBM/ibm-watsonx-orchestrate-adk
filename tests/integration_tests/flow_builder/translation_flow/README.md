@@ -63,7 +63,7 @@ pytest tests/integration_tests/flow_builder/translation_flow/test_translation_fl
    - Tests import with tool ID and tool name
 
 3. **TestTranslationCLIIntegration**
-   - Tests CLI commands (`translationExport`, `translationImport`)
+   - Tests CLI commands (`translation-export`, `translation-import`)
    - Validates command-line interface behavior
    - Tests translation import during tool import
 

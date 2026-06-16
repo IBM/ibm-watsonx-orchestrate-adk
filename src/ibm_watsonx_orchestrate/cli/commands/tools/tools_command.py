@@ -173,7 +173,7 @@ relative to this package root folder or imported using relative imports from the
                 tools_controller.import_flow_translations(translation_path=translation, tool_id=tool_id)
             except Exception as e:
                 logger.warning(f"Tool was successfully imported, but translation import failed: {str(e)}")
-                logger.info(f"You can retry importing translations using: orchestrate tools translationImport -k flow --name <tool_name> --translation {translation}")
+                logger.info(f"You can retry importing translations using: orchestrate tools translation-import -k flow --name <tool_name> --translation {translation}")
     finally:
         tools_controller.remove_temp_file()
  
@@ -273,10 +273,10 @@ def tool_auto_discover(
     tools_controller.file = file
 
 @tools_app.command(
-    name="translationExport",
+    name="translation-export",
     help="Retrieve translations for a flow tool"
 )
-def translationExport(
+def translation_export(
     kind: Annotated[
         ToolKind,
         typer.Option(
@@ -314,8 +314,8 @@ def translationExport(
     You must provide either --file or --name, but not both.
     
     Examples:
-        orchestrate tools translationExport -k flow -f path/to/flow.json --translation translations.csv
-        orchestrate tools translationExport -k flow --name my_flow_tool --translation translations.csv
+        orchestrate tools translation-export -k flow -f path/to/flow.json --translation translations.csv
+        orchestrate tools translation-export -k flow --name my_flow_tool --translation translations.csv
     """
     # Validate that exactly one of file or name is provided
     if file and name:
@@ -335,10 +335,10 @@ def translationExport(
         translation_output_path=translation
     )
 @tools_app.command(
-    name="translationImport",
+    name="translation-import",
     help="Import translations for a flow tool from a CSV file"
 )
-def translationImport(
+def translation_import(
     kind: Annotated[
         ToolKind,
         typer.Option(
@@ -368,7 +368,7 @@ def translationImport(
     The tool must already be imported before importing translations.
     
     Example:
-        orchestrate tools translationImport -k flow --name my_flow_tool --translation translations.csv
+        orchestrate tools translation-import -k flow --name my_flow_tool --translation translations.csv
     """
     
     # Only flow kind is supported for now

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List, cast
+from typing import Optional, Dict, Any, List
 import requests
 import logging
 from pydantic import BaseModel
@@ -140,20 +140,16 @@ class BuilderClient(BaseWXOClient):
             Translation export response including CSV content and response metadata
         """
         if flow_model:
-            if self.is_local:
-                endpoint = "/flow-model/translations/export"
-            else:
-                endpoint = "/flow-model/translations/export"
+            endpoint = "/flow-model/translations/export"
             full_url = f"{self.base_url}{endpoint}"
             logger.debug(f"export_translations (flow_model): POST {full_url}")
             return self._post_csv(endpoint, data=flow_model)
         elif flow_identifier:
             if self.is_local:
                 endpoint = f"/tools/{flow_identifier}/flow/translations/export"
-                full_url = f"{self.base_url}{endpoint}"
             else:
                 endpoint = f"/flow-model/{flow_identifier}/translations/export"
-                full_url = f"{self.base_url}{endpoint}"
+            full_url = f"{self.base_url}{endpoint}"
             logger.debug(f"export_translations (flow_identifier): GET {full_url}")
 
             return self._get_csv(endpoint)

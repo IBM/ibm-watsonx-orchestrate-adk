@@ -285,7 +285,7 @@ class TestTranslationCLIIntegration:
         
         # Run CLI import command
         result = subprocess.run([
-            "orchestrate", "tools", "translationImport",
+            "orchestrate", "tools", "translation-import",
             "-k", "flow",
             "--name", imported_flow_tool["name"],
             "--translation", str(export_file)
