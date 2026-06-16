@@ -917,8 +917,10 @@ class AgentsController:
                         logger.error(f"Plugin {plugin.plugin_name} not found in fetched tools.")
                         sys.exit(1)
 
-                    python_binding = tool.get("binding", {}).get("python", {})
-                    tool_type = python_binding.get("type")
+                    binding = tool.get("binding", {}) or {}
+                    python_binding = binding.get("python") or {}
+                    openapi_binding = binding.get("openapi") or {}
+                    tool_type = python_binding.get("type") or openapi_binding.get("plugin_hook")
 
                     if not tool_type:
                         logger.error(f"Tool '{plugin.plugin_name}' missing 'type' in binding.")
