@@ -80,9 +80,9 @@ def build_docext_flow_with_page_range(aflow: Flow = None) -> Flow:
 
     doc_ext_node, _ExtractedValues = aflow.docext(
         name="contract_extractor_page_range",
-        display_name="Extract fields from contract pages 1-3",
+        display_name="Extract fields from specified pages",
         description="Extracts fields from pages 1-3 of an input contract file",
-        llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+        llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=Fields(),
         field_extraction_method="layout",  # Required for page_range support
         page_range=PageRange(start=1, end=3)  # Only extract from pages 1-3
