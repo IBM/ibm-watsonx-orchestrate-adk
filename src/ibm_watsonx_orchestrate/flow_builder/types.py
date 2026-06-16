@@ -3133,6 +3133,25 @@ class ForeachSpec(FlowSpec):
         my_dict["foreach_policy"] = self.foreach_policy.name
         return my_dict
 
+class ParallelSpec(FlowSpec):
+    """
+    ParallelSpec represents the specification of a parallel subflow.
+    
+    """
+    evaluator: Conditions | None = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.kind = "parallel"
+
+    def to_json(self) -> dict[str, Any]:
+        my_dict = super().to_json()
+
+        # Only include evaluator if it exists and has conditions
+        if self.evaluator and isinstance(self.evaluator, Conditions) and len(self.evaluator.conditions) > 0:
+            my_dict["evaluator"] = self.evaluator.to_json()
+        return my_dict
+    
 class TaskData(NamedTuple):
  
     inputs: dict | None = None
