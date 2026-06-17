@@ -26,6 +26,8 @@ from ibm_watsonx_orchestrate.utils.environment import EnvService
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMA_VERSION = "v1.2.1"
+# Set LIMA_HOME to point to the resources directory so Lima can find its templates
+DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
 
 class LimaLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
@@ -68,11 +70,6 @@ class LimaLifecycleManager(VMLifecycleManager):
             / "limactl"
         )
         
-        # move this to the top of the file next to DEFAULT_LIMA_VERSION (comment and constant)
-        # Set LIMA_HOME to point to the resources directory so Lima can find its templates
-        DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
-        
-        # rewire to use the hardcoded constant 
         lima_home = files(DEFAULT_LIMA_HOME)
         if env is None:
             env = os.environ.copy()
