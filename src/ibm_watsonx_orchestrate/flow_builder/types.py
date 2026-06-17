@@ -2993,6 +2993,11 @@ class Dimensions(BaseModel):
     width: float
     height: float
 
+class TranslationSupport(BaseModel):
+    '''Translation support configuration for flows'''
+    enabled: bool = Field(description="Whether translation is enabled for this flow", default=True)
+    source_locale: Optional[str] = Field(description="Source locale for translation (e.g., 'en', 'fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR')", default='en')
+    target_locales: Optional[list[str]] = Field(description="Target locales for translation (default: empty list)", default_factory=list)
 
 class FlowCallback(BaseModel):
     """
@@ -3046,7 +3051,7 @@ class FlowSpec(NodeSpec):
     dimensions: Dimensions | None = None
 
     context_window: FlowContextWindow | None = None
-    
+    translation_support: TranslationSupport | None = None
     # Callbacks are part of the FlowSpec - invoked by the flow engine when events occur
     callbacks: List[FlowCallback] = []
 
@@ -3066,6 +3071,8 @@ class FlowSpec(NodeSpec):
             model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
+        if self.translation_support:
+            model_spec["translation_support"] = self.translation_support.model_dump(exclude_none=True)
         if self.callbacks:
             model_spec["callbacks"] = [callback.to_json() for callback in self.callbacks]
         
