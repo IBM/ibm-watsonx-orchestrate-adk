@@ -607,6 +607,7 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -769,6 +770,7 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
