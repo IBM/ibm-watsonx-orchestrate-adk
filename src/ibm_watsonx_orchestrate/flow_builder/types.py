@@ -3596,7 +3596,7 @@ class DocumentProcessingCommonInput(BaseModel):
         page_range (PageRange|None): Optional page range for text extractor and layout document extractor
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
-    page_range: PageRange | None = Field(description='Optional page range for document processing.', default=None)
+    page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from the specified page range will be extracted.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
