@@ -228,7 +228,7 @@ class DocExtConfig(BaseModel):
     llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
-    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from the specified page range will be extracted. Only supported with field_extraction_method='layout'.", default=None)
+    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted. Supported only when field_extraction_method='layout'.", default=None)
     
     @model_validator(mode='after')
     def validate_field_extraction_method(self) -> Self:
@@ -250,7 +250,7 @@ class DocExtConfig(BaseModel):
             # Check for page_range
             if self.page_range is not None:
                 raise ValueError(
-                    "page_range is only supported with field_extraction_method='layout'. "
+                    "page_range is only supported when field_extraction_method='layout'. "
                     f"Current field_extraction_method is '{self.field_extraction_method}'."
                 )
         
@@ -3598,7 +3598,7 @@ class DocumentProcessingCommonInput(BaseModel):
         page_range (PageRange|None): Optional page range for text extractor and layout document extractor
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
-    page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from the specified page range will be extracted.', default=None)
+    page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from pages within the specified range are extracted.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
