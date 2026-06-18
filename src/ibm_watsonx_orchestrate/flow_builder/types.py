@@ -67,6 +67,8 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     _assign_attribute(model_spec, "maximum", schema)
     _assign_attribute(model_spec, "minLength", schema)
     _assign_attribute(model_spec, "maxLength", schema)
+    _assign_attribute(model_spec, "minItems", schema)
+    _assign_attribute(model_spec, "maxItems", schema)
     _assign_attribute(model_spec, "format", schema)
     _assign_attribute(model_spec, "pattern", schema)
 
