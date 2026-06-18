@@ -26,6 +26,8 @@ from ibm_watsonx_orchestrate.utils.environment import EnvService
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMA_VERSION = "v1.2.1"
+# Set LIMA_HOME to point to the resources directory so Lima can find its templates
+DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
 
 class LimaLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
@@ -56,7 +58,7 @@ class LimaLifecycleManager(VMLifecycleManager):
         command: str | list,
         capture_output: bool = False,
         input: str | None = None,
-        env: dict | None = None, 
+        env: dict | None = None,
         **kwargs
     ) -> subprocess.CompletedProcess:
         """
@@ -67,6 +69,14 @@ class LimaLifecycleManager(VMLifecycleManager):
             files("ibm_watsonx_orchestrate.developer_edition.resources.lima.bin")
             / "limactl"
         )
+        
+        lima_home = files(DEFAULT_LIMA_HOME)
+        if env is None:
+            env = os.environ.copy()
+        else:
+            env = env.copy()
+        env['LIMA_HOME'] = str(lima_home)
+        
         try:
             return subprocess.run(
                 [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
@@ -133,13 +143,18 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
     limactl_path = files(
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
+    
+    lima_home = files(DEFAULT_LIMA_HOME)
+    env = os.environ.copy()
+    env['LIMA_HOME'] = str(lima_home)
 
     try:
         out = subprocess.run(
             [str(limactl_path)] + command,
             check=True,
             capture_output=capture_output,
-            text=True
+            text=True,
+            env=env
         )
 
         if capture_output:

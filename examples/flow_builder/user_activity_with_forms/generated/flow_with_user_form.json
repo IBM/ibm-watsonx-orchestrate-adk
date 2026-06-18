@@ -1010,7 +1010,9 @@
                     "title": "List of Fruits",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
                   },
                   "multi-choice_as_dropdown_1": {
                     "type": "array",
@@ -1106,21 +1108,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "e88ece44-dff1-4d47-81bd-3adbcbaf16a8"
+                  "edge_id": "6ceebded-9290-4dc2-bcf3-b193d3d54e26"
                 },
                 {
-                  "name": "4780b436-52e1-49b2-ac36-4a421168792e",
+                  "name": "4340ece5-cfe1-44ec-baed-12f78aba59e1",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "a36ae014-0baa-415e-b6dd-0e72a14e689f"
+                  "edge_id": "9e42b2e6-f8e1-4b47-8fbd-966c5b06f379"
                 },
                 {
-                  "name": "565e965f-1f21-4f84-a2fd-9c481dfeafad",
+                  "name": "7e65a69f-2f5c-4e14-b44c-a133e6a97589",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "afa86236-6411-45aa-b790-d8f52c7153e6"
+                  "edge_id": "a306b1bf-6155-4525-85a4-2f8f65156f12"
                 },
                 {
                   "name": "cancel",
@@ -1179,7 +1181,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "e88ece44-dff1-4d47-81bd-3adbcbaf16a8"
+          "id": "6ceebded-9290-4dc2-bcf3-b193d3d54e26"
         },
         {
           "start": "process_submit",
@@ -1188,7 +1190,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "a36ae014-0baa-415e-b6dd-0e72a14e689f"
+          "id": "9e42b2e6-f8e1-4b47-8fbd-966c5b06f379"
         },
         {
           "start": "process_save_draft",
@@ -1197,7 +1199,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "afa86236-6411-45aa-b790-d8f52c7153e6"
+          "id": "a306b1bf-6155-4525-85a4-2f8f65156f12"
         },
         {
           "start": "process_review",
@@ -1279,16 +1281,16 @@
           },
           "default": [
             [
-              "John",
-              "Doe"
-            ],
-            [
-              "Jane",
-              "Doe"
+              "Doe",
+              "John"
             ],
             [
               "Doe",
-              "Jean"
+              "Jane"
+            ],
+            [
+              "Jean",
+              "Doe"
             ]
           ]
         }
@@ -1453,6 +1455,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-06-16T13:58:33.051989+00:00"
+    "compiled_on": "2026-06-17T23:40:46.285514+00:00"
   }
 }
