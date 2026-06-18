@@ -23,7 +23,7 @@ from ibm_watsonx_orchestrate.cli.config import (
     BYPASS_SSL, VERIFY,
     DEFAULT_CONFIG_FILE_CONTENT, PYTHON_REGISTRY_SKIP_VERSION_CHECK_OPT
 )
-from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate_core.utils.workspaces import GLOBAL_WORKSPACE_NAME
 from ibm_watsonx_orchestrate.client.client import Client
 from ibm_watsonx_orchestrate.client.client_errors import ClientError
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
