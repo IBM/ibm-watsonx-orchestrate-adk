@@ -461,10 +461,15 @@ def _ensure_lima_vm_host_exists():
         logger.info('Found existing VM named ' + VM_NAME)
         return
 
+    # Use absolute path for template to avoid LIMA_HOME template search path issues
     template_path = files("ibm_watsonx_orchestrate.developer_edition.resources.lima.templates") / "docker.template.yaml"
+    # Convert to absolute path to bypass Lima's template search in LIMA_HOME/share/lima/templates
+    # Must convert Traversable to str first, then to Path for resolution
+    absolute_template_path = str(Path(str(template_path)).resolve())
+    
     vm_args = ['create'] + _get_lima_vm_base_args() + [
         '--containerd', 'none',
-        str(template_path)
+        absolute_template_path
     ]
 
     limactl(vm_args, capture_output=True)
