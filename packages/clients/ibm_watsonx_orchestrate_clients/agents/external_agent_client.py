@@ -4,9 +4,9 @@ from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, Cl
 from ibm_watsonx_orchestrate_core.utils.workspaces import (
     add_workspace_query_param,
     resolve_and_inject_workspace,
-    convert_workspace_id_to_name
+    convert_workspace_id_to_name, GLOBAL_WORKSPACE_ID
 )
-from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID
+
 
 class ExternalAgentClient(BaseWXOClient):
     """
