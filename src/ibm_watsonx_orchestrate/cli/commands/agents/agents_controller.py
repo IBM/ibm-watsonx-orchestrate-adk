@@ -59,8 +59,9 @@ from ibm_watsonx_orchestrate.client.voice_configurations.voice_configurations_cl
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
-from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext, GLOBAL_WORKSPACE_ID
-from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME
+from ibm_watsonx_orchestrate.cli.workspace_context import WorkspaceContext
+from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME, \
+    GLOBAL_WORKSPACE_ID
 from ibm_watsonx_orchestrate.agent_builder.agents.a2a_discovery import A2ADiscoveryService
 from ibm_watsonx_orchestrate.cli.common import check_safe_mode_and_prompt
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
