@@ -48,12 +48,63 @@ class TraceData(BaseModel):
     resourceSpans: List[Dict[str, Any]] = Field(..., description="Resource spans data")
 
 
+class PaginationMeta(BaseModel):
+    """Pagination metadata for agentops-v3 API responses."""
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Items per page")
+    totalItems: int = Field(..., description="Total number of items")
+    totalPages: int = Field(..., description="Total number of pages")
+
+
+class Observation(BaseModel):
+    """Observation (span) from agentops-v3 API."""
+    id: str = Field(..., description="Observation ID")
+    traceId: str = Field(..., description="Trace ID")
+    type: str = Field(..., description="Observation type (e.g., GENERATION)")
+    name: str = Field(..., description="Observation name")
+    startTime: str = Field(..., description="Start time (ISO 8601)")
+    endTime: str = Field(..., description="End time (ISO 8601)")
+    model: Optional[str] = Field(None, description="Model used")
+    input: Optional[Dict[str, Any]] = Field(None, description="Input data")
+    output: Optional[Dict[str, Any]] = Field(None, description="Output data")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata")
+    usage: Optional[Dict[str, Any]] = Field(None, description="Usage statistics")
+
+
+class ObservationsResponse(BaseModel):
+    """Response from GET /v1/agentops-v3/observations."""
+    data: List[Observation] = Field(..., description="List of observations")
+    meta: PaginationMeta = Field(..., description="Pagination metadata")
+
+
+class TraceItem(BaseModel):
+    """Trace item from agentops-v3 API."""
+    id: str = Field(..., description="Trace ID")
+    name: Optional[str] = Field(None, description="Trace name")
+    timestamp: str = Field(..., description="Timestamp (ISO 8601)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata")
+    input: Optional[Dict[str, Any]] = Field(None, description="Input data")
+    output: Optional[Dict[str, Any]] = Field(None, description="Output data")
+    sessionId: Optional[str] = Field(None, description="Session ID")
+    userId: Optional[str] = Field(None, description="User ID")
+    tags: Optional[List[str]] = Field(None, description="Tags")
+
+
+class TracesResponse(BaseModel):
+    """Response from GET /v1/agentops-v3/traces."""
+    data: List[TraceItem] = Field(..., description="List of traces")
+    meta: PaginationMeta = Field(..., description="Pagination metadata")
+
+
 class SpansResponse(BaseModel):
-    """Response from the get spans API."""
-    traceData: Optional[TraceData] = Field(None, description="Trace data with resource spans")
-    spans: Optional[List[Span]] = Field(None, description="Array of spans (legacy format)")
-    nextCursor: Optional[Any] = Field(None, alias="next_cursor", description="Cursor for next page")
-    totalCount: Optional[int] = Field(None, alias="total_count", description="Total count of spans")
+    """Response from the get spans API - maintains backward compatibility."""
+    traceData: Optional[TraceData] = Field(default=None, description="Trace data with resource spans (legacy)")
+    spans: Optional[List[Span]] = Field(default=None, description="Array of spans (legacy format)")
+    observations: Optional[List[Observation]] = Field(default=None, description="Array of observations (agentops-v3)")
+    nextCursor: Optional[Any] = Field(default=None, description="Cursor for next page (legacy)")
+    totalCount: Optional[int] = Field(default=None, description="Total count of spans")
+    page: Optional[int] = Field(default=None, description="Current page (agentops-v3)")
+    totalPages: Optional[int] = Field(default=None, description="Total pages (agentops-v3)")
     
     @property
     def next_cursor(self) -> Optional[Any]:
@@ -74,14 +125,14 @@ class SpanCountRange(BaseModel):
 
 class TraceFilters(BaseModel):
     """Filters for searching traces."""
-    start_time: Optional[Union[str, datetime]] = Field(None, description="Start time (ISO 8601 string or datetime object)")
-    end_time: Optional[Union[str, datetime]] = Field(None, description="End time (ISO 8601 string or datetime object)")
-    service_names: Optional[List[str]] = Field(None, description="Filter by service names")
-    agent_ids: Optional[List[str]] = Field(None, description="Filter by agent IDs")
-    agent_names: Optional[List[str]] = Field(None, description="Filter by agent names")
-    user_ids: Optional[List[str]] = Field(None, description="Filter by user IDs")
-    session_ids: Optional[List[str]] = Field(None, description="Filter by session IDs")
-    span_count_range: Optional[SpanCountRange] = Field(None, description="Filter by span count range")
+    start_time: Optional[Union[str, datetime]] = Field(default=None, description="Start time (ISO 8601 string or datetime object)")
+    end_time: Optional[Union[str, datetime]] = Field(default=None, description="End time (ISO 8601 string or datetime object)")
+    service_names: Optional[List[str]] = Field(default=None, description="Filter by service names")
+    agent_ids: Optional[List[str]] = Field(default=None, description="Filter by agent IDs")
+    agent_names: Optional[List[str]] = Field(default=None, description="Filter by agent names")
+    user_ids: Optional[List[str]] = Field(default=None, description="Filter by user IDs")
+    session_ids: Optional[List[str]] = Field(default=None, description="Filter by session IDs")
+    span_count_range: Optional[SpanCountRange] = Field(default=None, description="Filter by span count range")
     
     @field_serializer('start_time', 'end_time')
     def serialize_datetime(self, value: Optional[Union[str, datetime]]) -> Optional[str]:
@@ -142,12 +193,14 @@ class TraceSummary(BaseModel):
 
 
 class TraceSearchResponse(BaseModel):
-    """Response from the search traces API."""
-    generatedAt: str = Field(..., description="Response generation timestamp")
-    originalQuery: dict = Field(..., description="Query parameters used")
-    traceSummaries: List[TraceSummary] = Field(..., description="Array of trace summaries")
-    nextCursor: Optional[Any] = Field(None, description="Cursor for next page")
-    totalCount: Optional[int] = Field(None, description="Total count of matching traces")
+    """Response from the search traces API - maintains backward compatibility."""
+    generatedAt: str = Field(default="", description="Response generation timestamp")
+    originalQuery: dict = Field(default_factory=dict, description="Query parameters used")
+    traceSummaries: List[TraceSummary] = Field(default_factory=list, description="Array of trace summaries")
+    traces: Optional[List[TraceItem]] = Field(default=None, description="Traces from agentops-v3 API")
+    nextCursor: Optional[Any] = Field(default=None, description="Cursor for next page (legacy)")
+    totalCount: Optional[int] = Field(default=None, description="Total count of matching traces")
+    meta: Optional[PaginationMeta] = Field(default=None, description="Pagination metadata (agentops-v3)")
 
 
 class TracesClient(BaseWXOClient):
@@ -175,18 +228,18 @@ class TracesClient(BaseWXOClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._is_local = is_local_dev(self.base_url)
-        self.progress = None  # Will be set by controller to stop spinner before logging
+        self.progress: Optional[Any] = None  # Will be set by controller to stop spinner before logging
         self._local_api_key: Optional[str] = None
         
-        if self._is_local: # Override the base_url to point to the traces service
+        if self._is_local: # Override the base_url to point to the agentops-v3 service
             self.base_url = "https://localhost:8765"
-            self.base_endpoint = "/api/v1/traces"
+            self.base_endpoint = "/api/v1/agentops-v3"
             # Disable SSL verification for local dev (self-signed certificates)
             self.verify = False
         else:
             if self.base_url.endswith("/orchestrate"):
                 self.base_url = self.base_url[:-len("/orchestrate")]
-                self.base_endpoint = "/traces"
+            self.base_endpoint = "/v1/agentops-v3"
         
     def _get_headers(self) -> dict:
         """Override headers for local development to use X-API-Key instead of Authorization."""
@@ -225,16 +278,16 @@ class TracesClient(BaseWXOClient):
         fetch_all: bool = True
     ) -> SpansResponse:
         """
-        Retrieve all spans for a specific trace ID.
+        Retrieve all observations (spans) for a specific trace ID using agentops-v3 API.
         
         Args:
             trace_id: Trace ID (32-character hexadecimal string)
-            page_size: Number of spans per page (1-1000, default: 50)
-            cursor: Pagination cursor for fetching next page
+            page_size: Number of observations per page (1-1000, default: 50)
+            cursor: Pagination cursor (not used in agentops-v3, kept for compatibility)
             fetch_all: If True, automatically fetches all pages (default: True)
         
         Returns:
-            SpansResponse containing spans and pagination info
+            SpansResponse containing observations and pagination info
         
         Raises:
             ClientAPIException: If the API request fails
@@ -246,14 +299,14 @@ class TracesClient(BaseWXOClient):
         
         Example:
             ```python
-            # Fetch all spans for a trace
+            # Fetch all observations for a trace
             response = client.service_instance.traces.get_spans(
                 trace_id="1234567890abcdef1234567890abcdef"
             )
             
-            print(f"Total spans: {response.total_count}")
-            for span in response.spans:
-                print(f"Span: {span.name} ({span.kind})")
+            print(f"Total observations: {response.total_count}")
+            for obs in response.observations:
+                print(f"Observation: {obs.name} ({obs.type})")
             ```
         """
         if not trace_id or len(trace_id) != 32:
@@ -262,42 +315,46 @@ class TracesClient(BaseWXOClient):
         if page_size < 1 or page_size > 1000:
             raise ValueError("page_size must be between 1 and 1000")
         
-        all_spans = []
-        current_cursor = cursor
+        all_observations = []
+        current_page = 1
         total_count = None
+        total_pages = None
         
         while True:
-            # Build query parameters
-            params = {"page_size": page_size}
-            if current_cursor:
-                params["cursor"] = current_cursor
+            # Build query parameters for agentops-v3 API
+            params = {
+                "traceId": trace_id,
+                "page": current_page,
+                "limit": page_size
+            }
             
-            # Make API request and parse the response
-            response = self._get(f"{self.base_endpoint}/{trace_id}/spans", params=params)
-            spans_response = SpansResponse.model_validate(response)
+            # Make API request to observations endpoint
+            response = self._get(f"{self.base_endpoint}/observations", params=params)
+            obs_response = ObservationsResponse.model_validate(response)
             
-            if spans_response.traceData: # extract spans from traceData.resourceSpans
-                return spans_response
-            elif spans_response.spans: # spans array directly
-                all_spans.extend(spans_response.spans)
-            else:
-                self._stop_progress()
-                logger.warning("No spans or traceData in response")
+            # Collect observations
+            all_observations.extend(obs_response.data)
+            
+            if total_count is None:
+                total_count = obs_response.meta.totalItems
+                total_pages = obs_response.meta.totalPages
+            
+            # Check if we should continue fetching
+            if not fetch_all or current_page >= obs_response.meta.totalPages:
                 break
             
-            if total_count is None and spans_response.totalCount:
-                total_count = spans_response.totalCount
-            
-            if not fetch_all or not spans_response.nextCursor:
-                break
-            
-            current_cursor = spans_response.nextCursor
-            logger.info(f"Fetched {len(all_spans)}/{total_count or '?'} spans, continuing...")
-                
+            current_page += 1
+            logger.info(f"Fetched {len(all_observations)}/{total_count} observations, continuing...")
+        
+        # Return in SpansResponse format for backward compatibility
         return SpansResponse(
-            spans=all_spans,
-            nextCursor=None if fetch_all else spans_response.nextCursor,
-            totalCount=total_count
+            observations=all_observations,
+            spans=None,  # Legacy format not used
+            traceData=None,  # Legacy format not used
+            nextCursor=None,  # Not used in agentops-v3
+            totalCount=total_count,
+            page=current_page if not fetch_all else total_pages,
+            totalPages=total_pages
         )
         
     def search_traces(
@@ -308,7 +365,7 @@ class TracesClient(BaseWXOClient):
         cursor: Optional[str] = None,
     ) -> TraceSearchResponse:
         """
-        Search for traces using filters.
+        Search for traces using agentops-v3 API.
         
         This endpoint allows you to find trace IDs based on various criteria such as
         time range, service names, agent IDs, user IDs, session IDs, and span count.
@@ -316,49 +373,40 @@ class TracesClient(BaseWXOClient):
         Args:
             filters: TraceFilters object with search criteria (start_time, end_time, etc.)
             sort: TraceSort object for sorting results (field and direction)
-            page_size: Number of results per page (1-100, default: 100)
-            cursor: Pagination cursor for fetching next page
+            page_size: Number of results per page (1-1000, default: 100)
+            cursor: Pagination cursor (not used in agentops-v3, kept for compatibility)
         
         Returns:
-            TraceSearchResponse containing trace summaries and pagination info
+            TraceSearchResponse containing trace items and pagination info
         
         Raises:
             ClientAPIException: If the API request fails
-                - 400: Invalid request body or parameters
-                - 401: Missing or invalid tenant.id header
-                - 429: Rate limit exceeded (4 requests per minute)
+                - 400: Invalid request parameters
+                - 401: Missing or invalid authentication
+                - 429: Rate limit exceeded
                 - 500: Internal server error
         
         Note:
-            - This endpoint is accessible only to Admins
-            - Rate limit: 4 requests per minute
-            - Not available in on-premises offering
+            - Uses GET /v1/agentops-v3/traces with query parameters
+            - Pagination uses page/limit instead of cursor
         
         Example:
             ```python
             from datetime import datetime, timedelta
             
-            # Search for traces in the last 24 hours for specific service and agent name
-            end_time = datetime.utcnow()
-            start_time = end_time - timedelta(days=1)
-            
+            # Search for traces with session ID
             filters = TraceFilters(
-                start_time=start_time.isoformat() + "Z",
-                end_time=end_time.isoformat() + "Z",
-                service_names=["wxo-server"],
-                agent_names=["mobile-agent"]
+                session_ids=["sess-abc123"]
             )
-            
-            sort = TraceSort(field="start_time", direction="desc")
             
             response = client.service_instance.traces.search_traces(
                 filters=filters,
-                sort=sort,
+                page_size=50
             )
             
-            print(f"Found {response.total_count} traces")
+            print(f"Found {response.totalCount} traces")
             for trace in response.traces:
-                print(f"Trace ID: {trace.trace_id}, Duration: {trace.duration_ms}ms")
+                print(f"Trace ID: {trace.id}, Session: {trace.sessionId}")
             ```
         """
         if page_size < 1 or page_size > 1000:
@@ -367,47 +415,63 @@ class TracesClient(BaseWXOClient):
         if filters is None:
             filters = TraceFilters()
         
-        request_body = TraceSearchRequest(
-            filters=filters,
-            sort=sort,
-            page_size=page_size,
-            cursor=cursor,
-            include_root_spans=False
-        )
+        # Build query parameters for GET request
+        params: Dict[str, Any] = {
+            "page": 1,
+            "limit": page_size
+        }
         
-        all_traces = []
-        current_cursor = cursor
-        search_response = None 
-        request_body.cursor = current_cursor
+        # Add filter parameters if provided
+        if filters.session_ids and len(filters.session_ids) > 0:
+            params["sessionId"] = filters.session_ids[0]  # API typically takes single value
+        if filters.user_ids and len(filters.user_ids) > 0:
+            params["userId"] = filters.user_ids[0]
         
-        request_dict = request_body.model_dump(exclude_none=True) # NOT send empty/None fields
+        # Note: The agentops-v3 /traces endpoint has limited filtering compared to old API
+        # For more complex filtering, we may need to fetch and filter client-side
         
         try:
-            response = self._post(
-                f"{self.base_endpoint}/search",
-                data=request_dict
+            response = self._get(
+                f"{self.base_endpoint}/traces",
+                params=params
             )
         except Exception as e:
             raise e
         
-        # Check for validation errors in response
-        if 'error' in response and response['error']:
-            error_msg = response['error'].get('message', 'Unknown validation error')
-            self._stop_progress()
-            logger.error(f"API validation error: {error_msg}")
-            raise ValueError(f"Trace search validation failed: {error_msg}")
+        # Parse response in agentops-v3 format
+        traces_response = TracesResponse.model_validate(response)
         
-        search_response = TraceSearchResponse.model_validate(response)
-        all_traces.extend(search_response.traceSummaries)
+        # Convert to TraceSummary format for backward compatibility
+        trace_summaries = []
+        for trace_item in traces_response.data:
+            # Create a TraceSummary from TraceItem
+            # Note: Some fields may not be available in the new API
+            summary = TraceSummary(
+                traceId=trace_item.id,
+                startTime=trace_item.timestamp,
+                endTime=trace_item.timestamp,  # Not available in new API
+                durationMs=0.0,  # Not available in new API
+                spanCount=0,  # Not available in new API
+                serviceNames=[],  # Not available in new API
+                agentIds=[],
+                agentNames=[],
+                userIds=[trace_item.userId] if trace_item.userId else [],
+                sessionIds=[trace_item.sessionId] if trace_item.sessionId else [],
+                rootSpans=None
+            )
+            trace_summaries.append(summary)
         
-        if len(all_traces)==page_size:
+        if len(trace_summaries) == page_size:
             self._stop_progress()
-            logger.warning(f"Limit exceeded more traces may exist Tip: To fetch more traces, increase limit using --limit or use more specialised filters")
+            logger.warning(f"Limit reached. More traces may exist. Tip: Increase --limit or use more specific filters")
 
         return TraceSearchResponse(
-            generatedAt=search_response.generatedAt,
-            originalQuery=search_response.originalQuery,
-            traceSummaries=all_traces,
-            totalCount=len(all_traces)
+            generatedAt=datetime.now().isoformat() + "Z",
+            originalQuery=params,
+            traceSummaries=trace_summaries,
+            traces=traces_response.data,
+            totalCount=traces_response.meta.totalItems,
+            meta=traces_response.meta,
+            nextCursor=None
         )
         

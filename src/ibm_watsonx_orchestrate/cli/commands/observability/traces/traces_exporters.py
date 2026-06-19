@@ -48,29 +48,38 @@ class TraceExporter:
             data = json.loads(json_str)
             ```
         """
-        if spans_response.traceData: # return raw traceData
+        if spans_response.observations: # agentops-v3 observations format
+            data = {
+                "observations": [obs.model_dump() for obs in spans_response.observations],
+                "total_count": spans_response.totalCount,
+                "exported_at": datetime.utcnow().isoformat() + "Z",
+                "format": "observations"
+            }
+            # Add trace_id from first observation
+            if len(spans_response.observations) > 0:
+                data["trace_id"] = spans_response.observations[0].traceId
+        elif spans_response.traceData: # return raw traceData (legacy)
             data = {
                 "traceData": spans_response.traceData.model_dump(),
                 "total_count": spans_response.totalCount,
                 "exported_at": datetime.utcnow().isoformat() + "Z",
                 "format": "traceData"
             }
-        elif spans_response.spans: # convert spans array
+        elif spans_response.spans: # convert spans array (legacy)
             data = {
                 "spans": [span.model_dump() for span in spans_response.spans],
                 "total_count": spans_response.totalCount,
                 "exported_at": datetime.utcnow().isoformat() + "Z",
                 "format": "spans"
             }
+            # Add trace_id for convenience
+            if len(spans_response.spans) > 0:
+                data["trace_id"] = spans_response.spans[0].context.trace_id
         else: # no data
             data = {
                 "error": "No trace data available",
                 "exported_at": datetime.utcnow().isoformat() + "Z"
             }
-        
-        # Add trace_id for convenience
-        if spans_response.spans and len(spans_response.spans) > 0:
-            data["trace_id"] = spans_response.spans[0].context.trace_id
         
         json_str = json.dumps(data, indent=2 if pretty else None)
         

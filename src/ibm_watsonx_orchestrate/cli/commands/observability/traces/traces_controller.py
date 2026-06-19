@@ -7,7 +7,8 @@ import rich
 from datetime import datetime
 from typing import Optional, List
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_exporters import TraceExporter
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_helper import resolve_agent_names_to_ids
@@ -111,7 +112,8 @@ class TracesController:
         )
         
         if show_progress:
-            logger.info(f"Fetched {len(spans_response.spans)} spans")
+            span_count = len(spans_response.spans) if spans_response.spans else 0
+            logger.info(f"Fetched {span_count} spans")
         
         return spans_response
     
@@ -243,7 +245,8 @@ class TracesController:
         )
         
         if show_progress:
-            logger.info(f"Found {len(search_response.traces)} traces")
+            trace_count = len(search_response.traces) if search_response.traces else len(search_response.traceSummaries)
+            logger.info(f"Found {trace_count} traces")
         
         return search_response
 
@@ -287,7 +290,7 @@ def trace_search (  start_time: datetime,
                 service_names=service_names,
                 agent_ids=resolved_agent_ids,
                 agent_names=None,
-                user_id=user_ids,
+                user_ids=user_ids,
                 session_ids=session_ids,
                 span_count_range=span_count_range
             )
@@ -426,19 +429,26 @@ def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = Tr
                 pretty=pretty,
             )
         
-        if not spans_response.spans and not spans_response.traceData: # Check if we have any data
+        # Check if we have any data (support both old and new formats)
+        has_data = (spans_response.spans or
+                   spans_response.traceData or
+                   spans_response.observations)
+        
+        if not has_data:
             logger.warning(f"No trace data found for trace ID {trace_id}")
             return
         
         # Display success message or output to stdout
         if output:
-            if spans_response.spans:
+            if spans_response.observations:
+                logger.info(f"Successfully exported {len(spans_response.observations)} observations to {output}")
+            elif spans_response.spans:
                 logger.info(f"Successfully exported {len(spans_response.spans)} spans to {output}")
             elif spans_response.traceData:
                 logger.info(f"Successfully exported trace data to {output}")
             logger.info(f"Trace ID: {trace_id}")
             if spans_response.totalCount:
-                logger.info(f"  Total spans in trace: {spans_response.totalCount}")
+                logger.info(f"  Total items in trace: {spans_response.totalCount}")
         else:
             rich.print_json(json_str)
     
