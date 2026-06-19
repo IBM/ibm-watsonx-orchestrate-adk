@@ -70,12 +70,12 @@ class LimaLifecycleManager(VMLifecycleManager):
             / "limactl"
         )
         
-        lima_home = files(DEFAULT_LIMA_HOME)
+        # DO NOT set LIMA_HOME - it causes path length issues
+        # Lima will use default ~/.lima directory for VM data
         if env is None:
             env = os.environ.copy()
         else:
             env = env.copy()
-        env['LIMA_HOME'] = str(lima_home)
         
         try:
             return subprocess.run(
@@ -144,9 +144,10 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
     
-    lima_home = files(DEFAULT_LIMA_HOME)
+    # DO NOT set LIMA_HOME - it causes path length issues
+    # Lima will use default ~/.lima directory for VM data
+    # Only the limactl binary location matters
     env = os.environ.copy()
-    env['LIMA_HOME'] = str(lima_home)
 
     try:
         out = subprocess.run(
