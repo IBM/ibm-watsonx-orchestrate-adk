@@ -1,5 +1,6 @@
 import re
 import typer
+import logging
 
 from typing import Optional, List
 from typing_extensions import Annotated
@@ -7,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_controller import trace_search, traces_export
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.types import SortField, SortDirection
+
+logger = logging.getLogger(__name__)
 
 
 traces_app = typer.Typer(no_args_is_help=True)
@@ -57,7 +60,7 @@ def parse_last_duration(value: str) -> timedelta:
 
 @traces_app.command(
     name="search",
-    help="Search for traces using filters"
+    help="Search for traces. Note: With agentops-v3 API, only --session-id and --user-id filters are fully supported."
 )
 def search_traces(
     start_time: Annotated[
@@ -238,6 +241,50 @@ def search_traces(
             raise typer.BadParameter(
                 "You must provide either --last or both --start-time and --end-time."
             )
+    
+    # Show deprecation warnings for unsupported parameters in agentops-v3 API
+    warnings_shown = []
+    
+    if start_time or end_time or last:
+        logger.warning(
+            "⚠️  Time filtering (--start-time, --end-time, --last) is not supported by agentops-v3 API. "
+            "All traces will be returned regardless of time range."
+        )
+        warnings_shown.append("time filtering")
+    
+    if service_names:
+        logger.warning(
+            "⚠️  Service name filtering (--service-name) is not supported by agentops-v3 API. "
+            "This filter will be ignored."
+        )
+        warnings_shown.append("service filtering")
+    
+    if agent_ids or agent_names:
+        logger.warning(
+            "⚠️  Agent filtering (--agent-id, --agent-name) is not supported by agentops-v3 API. "
+            "This filter will be ignored."
+        )
+        warnings_shown.append("agent filtering")
+    
+    if min_spans or max_spans:
+        logger.warning(
+            "⚠️  Span count filtering (--min-spans, --max-spans) is not supported by agentops-v3 API. "
+            "This filter will be ignored."
+        )
+        warnings_shown.append("span count filtering")
+    
+    if sort_field != SortField.START_TIME or sort_direction != SortDirection.DESC:
+        logger.warning(
+            "⚠️  Custom sorting (--sort-field, --sort-direction) is not supported by agentops-v3 API. "
+            "Results will be returned in default order."
+        )
+        warnings_shown.append("sorting")
+    
+    if warnings_shown:
+        logger.info(
+            f"💡 Tip: Use --session-id or --user-id for filtering with the new API. "
+            f"Unsupported features: {', '.join(warnings_shown)}"
+        )
 
     trace_search(start_time, end_time, service_names, agent_ids, agent_names, user_ids,
                 session_ids, min_spans, max_spans, sort_field=sort_field.value, sort_direction=sort_direction.value, page_size=limit

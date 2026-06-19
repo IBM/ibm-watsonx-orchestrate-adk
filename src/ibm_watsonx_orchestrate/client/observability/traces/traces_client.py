@@ -2,7 +2,7 @@ import logging
 
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
@@ -50,6 +50,8 @@ class TraceData(BaseModel):
 
 class PaginationMeta(BaseModel):
     """Pagination metadata for agentops-v3 API responses."""
+    model_config = ConfigDict(frozen=True)
+    
     page: int = Field(..., description="Current page number")
     limit: int = Field(..., description="Items per page")
     totalItems: int = Field(..., description="Total number of items")
@@ -58,6 +60,8 @@ class PaginationMeta(BaseModel):
 
 class Observation(BaseModel):
     """Observation (span) from agentops-v3 API."""
+    model_config = ConfigDict(frozen=True)
+    
     id: str = Field(..., description="Observation ID")
     traceId: str = Field(..., description="Trace ID")
     type: str = Field(..., description="Observation type (e.g., GENERATION)")
@@ -73,12 +77,16 @@ class Observation(BaseModel):
 
 class ObservationsResponse(BaseModel):
     """Response from GET /v1/agentops-v3/observations."""
+    model_config = ConfigDict(frozen=True)
+    
     data: List[Observation] = Field(..., description="List of observations")
     meta: PaginationMeta = Field(..., description="Pagination metadata")
 
 
 class TraceItem(BaseModel):
     """Trace item from agentops-v3 API."""
+    model_config = ConfigDict(frozen=True)
+    
     id: str = Field(..., description="Trace ID")
     name: Optional[str] = Field(None, description="Trace name")
     timestamp: str = Field(..., description="Timestamp (ISO 8601)")
@@ -92,6 +100,8 @@ class TraceItem(BaseModel):
 
 class TracesResponse(BaseModel):
     """Response from GET /v1/agentops-v3/traces."""
+    model_config = ConfigDict(frozen=True)
+    
     data: List[TraceItem] = Field(..., description="List of traces")
     meta: PaginationMeta = Field(..., description="Pagination metadata")
 
@@ -233,7 +243,7 @@ class TracesClient(BaseWXOClient):
         
         if self._is_local: # Override the base_url to point to the agentops-v3 service
             self.base_url = "https://localhost:8765"
-            self.base_endpoint = "/api/v1/agentops-v3"
+            self.base_endpoint = "/v1/agentops-v3"
             # Disable SSL verification for local dev (self-signed certificates)
             self.verify = False
         else:
