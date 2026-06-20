@@ -88,6 +88,7 @@ services:
 
   wxo-knowledge-mcp-server:
     image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "8005:8005"
@@ -423,7 +424,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
@@ -647,7 +648,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
@@ -807,7 +808,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
       CPD_VERIFY: ${CPD_VERIFY}
@@ -1230,7 +1231,7 @@ services:
   langfuse-worker:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse-worker:3
     restart: unless-stopped
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     depends_on: &langfuse-depends-on
       wxo-server-db:
         condition: service_healthy
@@ -1240,6 +1241,9 @@ services:
         condition: service_healthy
     ports:
       - "3030:3030"
+    networks:
+      - default
+      - jaeger-network
     environment: &langfuse-worker-env
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
       SHADOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
@@ -1286,6 +1290,9 @@ services:
     profiles: [langfuse, ibm-telemetry]
     ports:
       - "3010:3000"
+    networks:
+      - default
+      - jaeger-network
     environment:
       <<: *langfuse-worker-env
       # NEXTAUTH_URL: http://localhost:3000
