@@ -24,7 +24,6 @@ from ibm_watsonx_orchestrate.client.observability.traces.traces_client import (
 )
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
-from ibm_watsonx_orchestrate.utils.docker_utils import get_container_env_var
 
 
 logger = logging.getLogger(__name__)
@@ -60,12 +59,6 @@ class TracesController:
         """Get or create TracesClient instance."""
         if not self.client:
             self.client = instantiate_client(TracesClient)
-            
-            # For local dev, set the API key from Docker container or environment
-            if hasattr(self.client, '_is_local') and self.client._is_local:
-                
-                api_key = get_container_env_var("dev-edition-wxo-builder-1", "AGENT_OPS_API_KEY")
-                self.client._local_api_key = api_key
         
         return self.client
     

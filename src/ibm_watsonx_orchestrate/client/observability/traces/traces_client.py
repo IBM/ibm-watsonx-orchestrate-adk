@@ -239,7 +239,6 @@ class TracesClient(BaseWXOClient):
         super().__init__(*args, **kwargs)
         self._is_local = is_local_dev(self.base_url)
         self.progress: Optional[Any] = None  # Will be set by controller to stop spinner before logging
-        self._local_api_key: Optional[str] = None
         
         if self._is_local: # Override the base_url to point to the agentops-v3 service
             # wxo-server implements the /v1/agentops-v3 endpoints and proxies to Langfuse
@@ -255,16 +254,7 @@ class TracesClient(BaseWXOClient):
             parsed = urlparse(self.base_url)
             self.base_url = f"{parsed.scheme}://{parsed.netloc}"
             self.base_endpoint = "/api/v1/agentops-v3"
-        
-    def _get_headers(self) -> dict:
-        """Override headers for local development to use X-API-Key instead of Authorization."""
-        if self._is_local:
-            headers = {}
-            # Use the API key set by the controller
-            headers["X-API-Key"] = self._local_api_key
-            return headers
-        else:
-            return super()._get_headers()
+    
     def _stop_progress(self):
         if self.progress:
             self.progress.stop()
