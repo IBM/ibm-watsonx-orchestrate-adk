@@ -54,20 +54,20 @@ def parse_last_duration(value: str) -> timedelta:
         return timedelta(days=amount)
     else:
         raise typer.BadParameter(
-            f"Unrecognised time unit '{unit}'. Use m/minutes, h/hours, or d/days."
+            f"Unrecognized time unit '{unit}'. Use m/minutes, h/hours, or d/days."
         )
 
 
 @traces_app.command(
     name="search",
-    help="Search for traces. Note: With agentops-v3 API, only --session-id and --user-id filters are fully supported."
+    help="Search for traces. Note: Only --session-id and --user-id filters are currently supported."
 )
 def search_traces(
     start_time: Annotated[
         Optional[datetime],
         typer.Option(
             "--start-time",
-            help="Start time (ISO 8601). Required unless --last is used.",
+            help="[DEPRECATED] Start time (ISO 8601) - No longer supported",
             show_default=False
         )
     ] = None,
@@ -75,7 +75,7 @@ def search_traces(
         Optional[datetime],
         typer.Option(
             "--end-time",
-            help="End time (ISO 8601). Required unless --last is used.",
+            help="[DEPRECATED] End time (ISO 8601) - No longer supported",
             show_default=False
         )
     ] = None,
@@ -83,12 +83,7 @@ def search_traces(
         Optional[str],
         typer.Option(
             "--last",
-            help=(
-                "Shorthand for a relative time window ending now. "
-                "Accepts minutes (30m / 30 minutes), hours (3h / 3 hours), "
-                "or days (10d / 10 days). "
-                "Mutually exclusive with --start-time / --end-time."
-            ),
+            help="[DEPRECATED] Relative time window (e.g., 30m, 3h, 10d) - No longer supported",
             show_default=False
         )
     ] = None,
@@ -97,7 +92,7 @@ def search_traces(
         typer.Option(
             "--service-name",
             "-s",
-            help="Filter by service name (can be specified multiple times)",
+            help="[DEPRECATED] Filter by service name - No longer supported",
             show_default=False
         )
     ] = None,
@@ -106,7 +101,7 @@ def search_traces(
         typer.Option(
             "--agent-id",
             "-i",
-            help="Filter by agent ID (can be specified multiple times)",
+            help="[DEPRECATED] Filter by agent ID - No longer supported",
             show_default=False
         )
     ] = None,
@@ -115,7 +110,7 @@ def search_traces(
         typer.Option(
             "--agent-name",
             "-a",
-            help="Filter by agent name (can be specified multiple times)",
+            help="[DEPRECATED] Filter by agent name - No longer supported",
             show_default=False
         )
     ] = None,
@@ -124,7 +119,7 @@ def search_traces(
         typer.Option(
             "--user-id",
             "-u",
-            help="Filter by user ID (can be specified multiple times)",
+            help="Filter by user ID",
             show_default=False
         )
     ] = None,
@@ -132,7 +127,7 @@ def search_traces(
         Optional[List[str]],
         typer.Option(
             "--session-id",
-            help="Filter by session ID (can be specified multiple times)",
+            help="Filter by session ID",
             show_default=False
         )
     ] = None,
@@ -140,7 +135,7 @@ def search_traces(
         Optional[int],
         typer.Option(
             "--min-spans",
-            help="Minimum number of spans in trace",
+            help="[DEPRECATED] Minimum number of spans - No longer supported",
             show_default=False
         )
     ] = None,
@@ -148,7 +143,7 @@ def search_traces(
         Optional[int],
         typer.Option(
             "--max-spans",
-            help="Maximum number of spans in trace",
+            help="[DEPRECATED] Maximum number of spans - No longer supported",
             show_default=False
         )
     ] = None,
@@ -156,7 +151,7 @@ def search_traces(
         SortField,
         typer.Option(
             "--sort-field",
-            help="Field to sort by",
+            help="[DEPRECATED] Field to sort by - No longer supported",
             show_default=True
         )
     ] = SortField.START_TIME,
@@ -164,7 +159,7 @@ def search_traces(
         SortDirection,
         typer.Option(
             "--sort-direction",
-            help="Sort direction",
+            help="[DEPRECATED] Sort direction - No longer supported",
             show_default=True
         )
     ] = SortDirection.DESC,
@@ -181,51 +176,36 @@ def search_traces(
     ] = 100,
 ):
     """
-    Search for traces using various filters.
+    Search for traces in your Watson Orchestrate environment.
 
-    You must supply either a relative time window via --last, or an explicit
-    --start-time together with --end-time.
+    ✓ SUPPORTED FILTERS:
+        --session-id    Filter by session ID
+        --user-id       Filter by user ID
+        --limit         Maximum number of results
 
-    This command allows you to find trace IDs based on criteria such as time range,
-    service names, agent IDs/names, user IDs, session IDs, and span count.
-
-    Once you find the trace IDs, you can use 'orchestrate observability traces export'
-    to export the full trace data.
+      DEPRECATED FILTERS (will show warnings):
+        --start-time, --end-time, --last    Time filtering no longer supported
+        --service-name                       Service filtering no longer supported
+        --agent-id, --agent-name            Agent filtering no longer supported
+        --min-spans, --max-spans            Span count filtering no longer supported
+        --sort-field, --sort-direction      Custom sorting no longer supported
 
     Examples:
-        # Search for traces in the last 30 minutes
-        orchestrate observability traces search --last 30m
+        # Search with supported filters (RECOMMENDED)
+        orchestrate observability traces search --session-id sess-abc123
+        orchestrate observability traces search --user-id user-xyz
+        orchestrate observability traces search --limit 50
 
-        # Search for traces in the last 3 hours
-        orchestrate observability traces search --last 3h
+        # Search with deprecated filters (will show warnings)
+        orchestrate observability traces search --last 1h
+        orchestrate observability traces search --agent-name mobile-agent
 
-        # Search for traces in the last 10 days
-        orchestrate observability traces search --last 10d
-
-        # Long-form duration values are also accepted
-        orchestrate observability traces search --last "30 minutes"
-        orchestrate observability traces search --last "3 hours"
-        orchestrate observability traces search --last "10 days"
-
-        # Explicit time range
-        orchestrate observability traces search --start-time 2025-07-20T00:00:00 --end-time 2025-07-20T23:59:59
-
-        # Search by service and agent name
-        orchestrate observability traces search --last 1h --service-name wxo-server --agent-name mobile-agent
-
-        # Search by user ID
-        orchestrate observability traces search --last 1h --user-id user123
-
-        # Search with span count filter
-        orchestrate observability traces search --last 1h --min-spans 10 --max-spans 100
-
-        # Limit results
-        orchestrate observability traces search --last 1h --limit 10
+    Once you find trace IDs, use 'orchestrate observability traces export' to export full trace data.
 
     Note:
         - This endpoint is only accessible to Admins
-        - Rate limit: 4 requests per minute
-        - Not available in on-premises offering
+        - Filtering capabilities have been updated
+        - Old parameters are kept for backward compatibility but will show deprecation warnings
     """
     if last is not None:
         if start_time is not None or end_time is not None:
@@ -242,47 +222,47 @@ def search_traces(
                 "You must provide either --last or both --start-time and --end-time."
             )
     
-    # Show deprecation warnings for unsupported parameters in agentops-v3 API
+    # Show deprecation warnings for unsupported parameters
     warnings_shown = []
     
     if start_time or end_time or last:
         logger.warning(
-            "⚠️  Time filtering (--start-time, --end-time, --last) is not supported by agentops-v3 API. "
+            "⚠️  Time filtering (--start-time, --end-time, --last) is no longer supported. "
             "All traces will be returned regardless of time range."
         )
         warnings_shown.append("time filtering")
     
     if service_names:
         logger.warning(
-            "⚠️  Service name filtering (--service-name) is not supported by agentops-v3 API. "
+            "⚠️  Service name filtering (--service-name) is no longer supported. "
             "This filter will be ignored."
         )
         warnings_shown.append("service filtering")
     
     if agent_ids or agent_names:
         logger.warning(
-            "⚠️  Agent filtering (--agent-id, --agent-name) is not supported by agentops-v3 API. "
+            "⚠️  Agent filtering (--agent-id, --agent-name) is no longer supported. "
             "This filter will be ignored."
         )
         warnings_shown.append("agent filtering")
     
     if min_spans or max_spans:
         logger.warning(
-            "⚠️  Span count filtering (--min-spans, --max-spans) is not supported by agentops-v3 API. "
+            "⚠️  Span count filtering (--min-spans, --max-spans) is no longer supported. "
             "This filter will be ignored."
         )
         warnings_shown.append("span count filtering")
     
     if sort_field != SortField.START_TIME or sort_direction != SortDirection.DESC:
         logger.warning(
-            "⚠️  Custom sorting (--sort-field, --sort-direction) is not supported by agentops-v3 API. "
+            "⚠️  Custom sorting (--sort-field, --sort-direction) is no longer supported. "
             "Results will be returned in default order."
         )
         warnings_shown.append("sorting")
     
     if warnings_shown:
         logger.info(
-            f"💡 Tip: Use --session-id or --user-id for filtering with the new API. "
+            f"💡 Tip: Use --session-id or --user-id for filtering. "
             f"Unsupported features: {', '.join(warnings_shown)}"
         )
 
