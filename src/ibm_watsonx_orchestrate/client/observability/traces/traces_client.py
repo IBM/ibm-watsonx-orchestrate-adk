@@ -247,9 +247,12 @@ class TracesClient(BaseWXOClient):
             # Disable SSL verification for local dev (self-signed certificates)
             self.verify = False
         else:
-            if self.base_url.endswith("/orchestrate"):
-                self.base_url = self.base_url[:-len("/orchestrate")]
-            self.base_endpoint = "/v1/agentops-v3"
+            # Extract the base host URL, removing any path components
+            # e.g., https://api.staging.../instances/xxx -> https://api.staging...
+            from urllib.parse import urlparse
+            parsed = urlparse(self.base_url)
+            self.base_url = f"{parsed.scheme}://{parsed.netloc}"
+            self.base_endpoint = "/api/v1/agentops-v3"
         
     def _get_headers(self) -> dict:
         """Override headers for local development to use X-API-Key instead of Authorization."""
@@ -332,20 +335,35 @@ class TracesClient(BaseWXOClient):
         
         while True:
             # Build query parameters for agentops-v3 API
+            # Note: The new API only supports page, limit, workspace_id, and include_trace_details
+            # traceId filtering must be done client-side
             params = {
-                "traceId": trace_id,
                 "page": current_page,
-                "limit": page_size
+                "limit": page_size,
+                "include_trace_details": False  # Start with false to avoid backend issues
             }
+            
+            # Add workspace_id if in IBM Cloud environment
+            try:
+                from ibm_watsonx_orchestrate_core.utils.workspaces import add_workspace_query_param
+                params = add_workspace_query_param(params)
+            except ImportError:
+                # Workspace utilities not available, continue without workspace_id
+                pass
             
             # Make API request to observations endpoint
             response = self._get(f"{self.base_endpoint}/observations", params=params)
             obs_response = ObservationsResponse.model_validate(response)
             
-            # Collect observations
-            all_observations.extend(obs_response.data)
+            # Filter observations by traceId client-side since API doesn't support it
+            filtered_observations = [
+                obs for obs in obs_response.data
+                if obs.traceId == trace_id
+            ]
+            all_observations.extend(filtered_observations)
             
             if total_count is None:
+                # Note: total count reflects all observations, not just filtered ones
                 total_count = obs_response.meta.totalItems
                 total_pages = obs_response.meta.totalPages
             
@@ -426,19 +444,21 @@ class TracesClient(BaseWXOClient):
             filters = TraceFilters()
         
         # Build query parameters for GET request
+        # Note: The new API only supports page, limit, workspace_id, and include_trace_details
+        # All other filtering must be done client-side
         params: Dict[str, Any] = {
             "page": 1,
-            "limit": page_size
+            "limit": page_size,
+            "include_trace_details": False  # Start with false to avoid backend issues
         }
         
-        # Add filter parameters if provided
-        if filters.session_ids and len(filters.session_ids) > 0:
-            params["sessionId"] = filters.session_ids[0]  # API typically takes single value
-        if filters.user_ids and len(filters.user_ids) > 0:
-            params["userId"] = filters.user_ids[0]
-        
-        # Note: The agentops-v3 /traces endpoint has limited filtering compared to old API
-        # For more complex filtering, we may need to fetch and filter client-side
+        # Add workspace_id if in IBM Cloud environment
+        try:
+            from ibm_watsonx_orchestrate_core.utils.workspaces import add_workspace_query_param
+            params = add_workspace_query_param(params)
+        except ImportError:
+            # Workspace utilities not available, continue without workspace_id
+            pass
         
         try:
             response = self._get(
@@ -451,9 +471,18 @@ class TracesClient(BaseWXOClient):
         # Parse response in agentops-v3 format
         traces_response = TracesResponse.model_validate(response)
         
-        # Convert to TraceSummary format for backward compatibility
+        # Convert to TraceSummary format and apply client-side filtering
         trace_summaries = []
         for trace_item in traces_response.data:
+            # Apply client-side filters since API doesn't support them
+            if filters.session_ids and len(filters.session_ids) > 0:
+                if not trace_item.sessionId or trace_item.sessionId not in filters.session_ids:
+                    continue
+            
+            if filters.user_ids and len(filters.user_ids) > 0:
+                if not trace_item.userId or trace_item.userId not in filters.user_ids:
+                    continue
+            
             # Create a TraceSummary from TraceItem
             # Note: Some fields may not be available in the new API
             summary = TraceSummary(
