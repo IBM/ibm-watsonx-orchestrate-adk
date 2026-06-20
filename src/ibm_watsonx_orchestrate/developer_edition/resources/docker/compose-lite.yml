@@ -607,6 +607,7 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
@@ -770,6 +771,7 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
