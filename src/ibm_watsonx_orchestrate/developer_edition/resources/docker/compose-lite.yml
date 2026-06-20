@@ -650,6 +650,7 @@ services:
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
+      AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -1280,7 +1281,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     ports:
       - "3010:3000"
     environment:
@@ -1293,7 +1294,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/clickhouse/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     container_name: clickhouse
     hostname: clickhouse
     environment:

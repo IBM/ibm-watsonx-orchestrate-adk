@@ -242,10 +242,12 @@ class TracesClient(BaseWXOClient):
         self._local_api_key: Optional[str] = None
         
         if self._is_local: # Override the base_url to point to the agentops-v3 service
-            self.base_url = "https://localhost:8765"
+            # wxo-server implements the /v1/agentops-v3 endpoints and proxies to Langfuse
+            # Use localhost since the CLI runs outside the Docker network
+            self.base_url = "http://localhost:4321"
             self.base_endpoint = "/v1/agentops-v3"
-            # Disable SSL verification for local dev (self-signed certificates)
-            self.verify = False
+            # HTTP doesn't need SSL verification
+            self.verify = True
         else:
             # Extract the base host URL, removing any path components
             # e.g., https://api.staging.../instances/xxx -> https://api.staging...
