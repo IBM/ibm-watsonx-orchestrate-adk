@@ -69,8 +69,8 @@ class Observation(BaseModel):
     startTime: str = Field(..., description="Start time (ISO 8601)")
     endTime: str = Field(..., description="End time (ISO 8601)")
     model: Optional[str] = Field(None, description="Model used")
-    input: Optional[Dict[str, Any]] = Field(None, description="Input data")
-    output: Optional[Dict[str, Any]] = Field(None, description="Output data")
+    input: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Input data (can be dict, list, string, or any type)")
+    output: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Output data (can be dict, list, string, or any type)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata")
     usage: Optional[Dict[str, Any]] = Field(None, description="Usage statistics")
 
