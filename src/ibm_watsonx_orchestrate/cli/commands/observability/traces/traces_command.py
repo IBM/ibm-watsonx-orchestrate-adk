@@ -207,6 +207,7 @@ def search_traces(
         - Filtering capabilities have been updated
         - Old parameters are kept for backward compatibility but will show deprecation warnings
     """
+    # Handle optional time parameters (deprecated but still supported for backward compatibility)
     if last is not None:
         if start_time is not None or end_time is not None:
             raise typer.BadParameter(
@@ -216,11 +217,15 @@ def search_traces(
         delta = parse_last_duration(last)
         end_time = datetime.now(tz=timezone.utc).replace(tzinfo=None)
         start_time = end_time - delta
-    else:
-        if start_time is None or end_time is None:
-            raise typer.BadParameter(
-                "You must provide either --last or both --start-time and --end-time."
-            )
+    elif start_time is not None and end_time is not None:
+        # Both provided, use them
+        pass
+    elif start_time is not None or end_time is not None:
+        # Only one provided - this is an error
+        raise typer.BadParameter(
+            "If using time filtering, you must provide both --start-time and --end-time together."
+        )
+    # else: Neither provided - this is now allowed (time filtering is optional)
     
     # Show deprecation warnings for unsupported parameters
     warnings_shown = []
