@@ -314,7 +314,7 @@ def trace_search(start_time: Optional[datetime] = None,
             
             traces_to_display = search_response.traceSummaries
             # Display results in a table
-            table = Table(title=f"Found {len([t for t in traces_to_display if t.agentNames])} traces")
+            table = Table(title=f"Found {len(traces_to_display)} traces")
             table.add_column("Timestamp")
             table.add_column("Trace ID", no_wrap=True)
             table.add_column("Agent Name")
@@ -323,31 +323,29 @@ def trace_search(start_time: Optional[datetime] = None,
                 # Get agent name (use first one if multiple, or "-" if none)
                 agent_name = trace.agentNames[0] if trace.agentNames else "-"
                 
-                # Only display traces that have agent names
-                if agent_name != "-":
-                    # Convert duration from ms to seconds
-                    latency_s = trace.durationMs / 1000.0
-                    
-                    # Format latency with appropriate precision
-                    if latency_s == 0:
-                        latency_str = "0s"
-                    elif latency_s < 0.001:
-                        latency_str = f"{latency_s*1000:.3f}ms"
-                    elif latency_s < 1:
-                        latency_str = f"{latency_s*1000:.0f}ms"
-                    else:
-                        latency_str = f"{latency_s:.3f}s"
-                    # Format timestamp to match UI: MM/DD/YYYY , HH:MM:SSAM/PM
-                    # Parse ISO format: 2026-04-02T09:42:27.548775Z
-                    dt = datetime.fromisoformat(trace.startTime.replace('Z', '+00:00'))
-                    formatted_timestamp = dt.strftime("%m/%d/%Y , %I:%M:%S%p")
+                # Convert duration from ms to seconds
+                latency_s = trace.durationMs / 1000.0
+                
+                # Format latency with appropriate precision
+                if latency_s == 0:
+                    latency_str = "0s"
+                elif latency_s < 0.001:
+                    latency_str = f"{latency_s*1000:.3f}ms"
+                elif latency_s < 1:
+                    latency_str = f"{latency_s*1000:.0f}ms"
+                else:
+                    latency_str = f"{latency_s:.3f}s"
+                # Format timestamp to match UI: MM/DD/YYYY , HH:MM:SSAM/PM
+                # Parse ISO format: 2026-04-02T09:42:27.548775Z
+                dt = datetime.fromisoformat(trace.startTime.replace('Z', '+00:00'))
+                formatted_timestamp = dt.strftime("%m/%d/%Y , %I:%M:%S%p")
 
-                    table.add_row(
-                        formatted_timestamp,  # Show date and time only (YYYY-MM-DDTHH:MM:SS)
-                        trace.traceId,
-                        agent_name,
-                        latency_str,
-                    )
+                table.add_row(
+                    formatted_timestamp,  # Show date and time only (YYYY-MM-DDTHH:MM:SS)
+                    trace.traceId,
+                    agent_name,
+                    latency_str,
+                )
 
             console.print()
             console.print(table)
