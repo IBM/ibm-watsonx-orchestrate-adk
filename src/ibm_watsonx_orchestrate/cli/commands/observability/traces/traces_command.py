@@ -183,6 +183,9 @@ def search_traces(
     """
     Search for traces using various filters.
 
+    You must supply either a relative time window via --last, or an explicit
+    --start-time together with --end-time.
+
     SUPPORTED FILTERS:
         --session-id         Filter by session ID
         --user-id            Filter by user ID
@@ -199,6 +202,9 @@ def search_traces(
         --agent-name         Agent filtering no longer supported
         --min-spans          Span count filtering no longer supported
         --max-spans          Span count filtering no longer supported
+
+    Once you find the trace IDs, you can use 'orchestrate observability traces export'
+    to export the full trace data.
 
     Examples:
         # Search for traces in the last 30 minutes
