@@ -244,8 +244,8 @@ class TracesController:
         return search_response
 
 
-def trace_search (  start_time: datetime,
-                    end_time: datetime,
+def trace_search(start_time: Optional[datetime] = None,
+                    end_time: Optional[datetime] = None,
                     service_names: Optional[List[str]] = None,
                     agent_ids: Optional[List[str]] = None,
                     agent_names: Optional[List[str]] = None,
@@ -322,9 +322,9 @@ def trace_search (  start_time: datetime,
             for trace in traces_to_display:
                 # Get agent name (use first one if multiple, or "-" if none)
                 agent_name = trace.agentNames[0] if trace.agentNames else "-"
-                if agent_name !="-":
-                    agent_name = trace.agentNames[0] if trace.agentNames else "-"
                 
+                # Only display traces that have agent names
+                if agent_name != "-":
                     # Convert duration from ms to seconds
                     latency_s = trace.durationMs / 1000.0
                     

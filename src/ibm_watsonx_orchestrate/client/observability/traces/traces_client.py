@@ -9,6 +9,9 @@ from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
 logger = logging.getLogger(__name__)
 
+# Constants
+MAX_PAGINATION_PAGES = 100  # Safety limit to prevent runaway pagination
+
 
 class SpanContext(BaseModel):
     """Span context containing trace and span identifiers."""
@@ -324,8 +327,13 @@ class TracesClient(BaseWXOClient):
         current_page = 1
         total_count = None
         total_pages = None
+        pages_fetched = 0
         
-        while True:
+        # NOTE: This is a temporary workaround. The agentops-v3 API doesn't support
+        # filtering by traceId in the query parameters, so we must fetch all observations
+        # and filter client-side. This is inefficient and should be updated once the API
+        # supports server-side filtering.
+        while current_page <= MAX_PAGINATION_PAGES:
             # Build query parameters for agentops-v3 API
             # Note: The new API only supports page, limit, workspace_id, and include_trace_details
             # traceId filtering must be done client-side
@@ -353,6 +361,7 @@ class TracesClient(BaseWXOClient):
                 if obs.traceId == trace_id
             ]
             all_observations.extend(filtered_observations)
+            pages_fetched += 1
             
             if total_count is None:
                 # Note: total count reflects all observations, not just filtered ones
@@ -364,7 +373,25 @@ class TracesClient(BaseWXOClient):
                 break
             
             current_page += 1
-            logger.info(f"Fetched {len(all_observations)}/{total_count} observations, continuing...")
+            
+            # Log progress for large fetches
+            if pages_fetched % 10 == 0:
+                logger.info(f"Fetched {pages_fetched} pages, found {len(all_observations)} matching observations...")
+        
+        # Warn if we hit the safety limit
+        if current_page > MAX_PAGINATION_PAGES:
+            logger.warning(
+                f"Reached maximum page limit ({MAX_PAGINATION_PAGES}). "
+                f"Some observations may not be fetched. Found {len(all_observations)} observations so far."
+            )
+        
+        # Warn if we fetched many pages but found few matching observations (inefficient filtering)
+        if pages_fetched > 10 and len(all_observations) < pages_fetched * page_size * 0.1:
+            logger.warning(
+                f"Client-side filtering is inefficient: fetched {pages_fetched} pages "
+                f"but only {len(all_observations)} observations match trace_id. "
+                f"This is a known limitation of the current API."
+            )
         
         # Return in SpansResponse format for backward compatibility
         return SpansResponse(
@@ -409,6 +436,7 @@ class TracesClient(BaseWXOClient):
         Note:
             - Uses GET /v1/agentops-v3/traces with query parameters
             - Pagination uses page/limit instead of cursor
+            - Client-side filtering is applied for session_ids and user_ids
         
         Example:
             ```python
@@ -435,74 +463,123 @@ class TracesClient(BaseWXOClient):
         if filters is None:
             filters = TraceFilters()
         
-        # Build query parameters for GET request
-        # Note: The new API only supports page, limit, workspace_id, and include_trace_details
-        # All other filtering must be done client-side
-        params: Dict[str, Any] = {
-            "page": 1,
-            "limit": page_size,
-            "include_trace_details": False  # Start with false to avoid backend issues
-        }
+        # Check if we need to apply client-side filtering
+        needs_filtering = (
+            (filters.session_ids and len(filters.session_ids) > 0) or
+            (filters.user_ids and len(filters.user_ids) > 0)
+        )
         
-        # Add workspace_id if in IBM Cloud environment
-        try:
-            from ibm_watsonx_orchestrate_core.utils.workspaces import add_workspace_query_param
-            params = add_workspace_query_param(params)
-        except ImportError:
-            # Workspace utilities not available, continue without workspace_id
-            pass
+        all_trace_summaries = []
+        all_traces = []
+        current_page = 1
+        total_items = 0
+        total_pages = 0
+        last_params: Dict[str, Any] = {}
+        traces_response: Optional[TracesResponse] = None
         
-        try:
-            response = self._get(
-                f"{self.base_endpoint}/traces",
-                params=params
-            )
-        except Exception as e:
-            raise e
+        # If filtering is needed, fetch all pages to ensure we don't miss matches
+        # Otherwise, just fetch the first page
+        max_pages_to_fetch = MAX_PAGINATION_PAGES if needs_filtering else 1
         
-        # Parse response in agentops-v3 format
-        traces_response = TracesResponse.model_validate(response)
-        
-        # Convert to TraceSummary format and apply client-side filtering
-        trace_summaries = []
-        for trace_item in traces_response.data:
-            # Apply client-side filters since API doesn't support them
-            if filters.session_ids and len(filters.session_ids) > 0:
-                if not trace_item.sessionId or trace_item.sessionId not in filters.session_ids:
-                    continue
+        while current_page <= max_pages_to_fetch:
+            # Build query parameters for GET request
+            # Note: The new API only supports page, limit, workspace_id, and include_trace_details
+            # All other filtering must be done client-side
+            last_params = {
+                "page": current_page,
+                "limit": page_size,
+                "include_trace_details": False  # Start with false to avoid backend issues
+            }
             
-            if filters.user_ids and len(filters.user_ids) > 0:
-                if not trace_item.userId or trace_item.userId not in filters.user_ids:
-                    continue
+            # Add workspace_id if in IBM Cloud environment
+            try:
+                from ibm_watsonx_orchestrate_core.utils.workspaces import add_workspace_query_param
+                last_params = add_workspace_query_param(last_params)
+            except ImportError:
+                # Workspace utilities not available, continue without workspace_id
+                pass
             
-            # Create a TraceSummary from TraceItem
-            # Note: Some fields may not be available in the new API
-            summary = TraceSummary(
-                traceId=trace_item.id,
-                startTime=trace_item.timestamp,
-                endTime=trace_item.timestamp,  # Not available in new API
-                durationMs=0.0,  # Not available in new API
-                spanCount=0,  # Not available in new API
-                serviceNames=[],  # Not available in new API
-                agentIds=[],
-                agentNames=[],
-                userIds=[trace_item.userId] if trace_item.userId else [],
-                sessionIds=[trace_item.sessionId] if trace_item.sessionId else [],
-                rootSpans=None
-            )
-            trace_summaries.append(summary)
+            try:
+                response = self._get(
+                    f"{self.base_endpoint}/traces",
+                    params=last_params
+                )
+            except Exception as e:
+                raise e
+            
+            # Parse response in agentops-v3 format
+            traces_response = TracesResponse.model_validate(response)
+            
+            if current_page == 1:
+                total_items = traces_response.meta.totalItems
+                total_pages = traces_response.meta.totalPages
+            
+            # Convert to TraceSummary format and apply client-side filtering
+            for trace_item in traces_response.data:
+                # Apply client-side filters since API doesn't support them
+                if filters.session_ids and len(filters.session_ids) > 0:
+                    if not trace_item.sessionId or trace_item.sessionId not in filters.session_ids:
+                        continue
+                
+                if filters.user_ids and len(filters.user_ids) > 0:
+                    if not trace_item.userId or trace_item.userId not in filters.user_ids:
+                        continue
+                
+                # Create a TraceSummary from TraceItem
+                # TODO: These fields are not available in agentops-v3 API yet.
+                # Using placeholder values until API is enhanced or we fetch observations to calculate them.
+                summary = TraceSummary(
+                    traceId=trace_item.id,
+                    startTime=trace_item.timestamp,
+                    endTime=trace_item.timestamp,  # TODO: Not available in agentops-v3 API
+                    durationMs=0.0,  # TODO: Not available in agentops-v3 API
+                    spanCount=0,  # TODO: Not available in agentops-v3 API
+                    serviceNames=[],  # TODO: Not available in agentops-v3 API
+                    agentIds=[],
+                    agentNames=[],
+                    userIds=[trace_item.userId] if trace_item.userId else [],
+                    sessionIds=[trace_item.sessionId] if trace_item.sessionId else [],
+                    rootSpans=None
+                )
+                all_trace_summaries.append(summary)
+                all_traces.append(trace_item)
+                
+                # If we've collected enough results and not filtering, we can stop
+                if not needs_filtering and len(all_trace_summaries) >= page_size:
+                    break
+            
+            # Check if we should continue to next page
+            if not needs_filtering or current_page >= total_pages:
+                break
+            
+            # If filtering and we haven't found enough results yet, continue
+            if needs_filtering and len(all_trace_summaries) < page_size and current_page < total_pages:
+                current_page += 1
+                continue
+            
+            break
         
-        if len(trace_summaries) == page_size:
+        # Warn if filtering reduced results significantly
+        if needs_filtering and len(all_trace_summaries) < page_size and current_page < total_pages:
             self._stop_progress()
-            logger.warning(f"Limit reached. More traces may exist. Tip: Increase --limit or use more specific filters")
+            logger.warning(
+                f"Client-side filtering found {len(all_trace_summaries)} matching traces. "
+                f"More traces may exist on subsequent pages. Consider using more specific filters."
+            )
+        elif not needs_filtering and len(all_trace_summaries) == page_size and total_pages > 1:
+            self._stop_progress()
+            logger.warning(
+                f"Limit reached. More traces may exist (page 1 of {total_pages}). "
+                f"Tip: Increase --limit or use --session-id/--user-id filters"
+            )
 
         return TraceSearchResponse(
             generatedAt=datetime.now().isoformat() + "Z",
-            originalQuery=params,
-            traceSummaries=trace_summaries,
-            traces=traces_response.data,
-            totalCount=traces_response.meta.totalItems,
-            meta=traces_response.meta,
+            originalQuery=last_params,
+            traceSummaries=all_trace_summaries,
+            traces=all_traces,
+            totalCount=total_items,
+            meta=traces_response.meta if traces_response else None,
             nextCursor=None
         )
         
