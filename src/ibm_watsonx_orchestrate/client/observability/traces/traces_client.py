@@ -94,8 +94,8 @@ class TraceItem(BaseModel):
     name: Optional[str] = Field(None, description="Trace name")
     timestamp: str = Field(..., description="Timestamp (ISO 8601)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata")
-    input: Optional[Dict[str, Any]] = Field(None, description="Input data")
-    output: Optional[Dict[str, Any]] = Field(None, description="Output data")
+    input: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Input data (can be dict, list, string, or any type)")
+    output: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Output data (can be dict, list, string, or any type)")
     sessionId: Optional[str] = Field(None, description="Session ID")
     userId: Optional[str] = Field(None, description="User ID")
     tags: Optional[List[str]] = Field(None, description="Tags")
@@ -251,12 +251,12 @@ class TracesClient(BaseWXOClient):
             # HTTP doesn't need SSL verification
             self.verify = True
         else:
-            # Extract the base host URL, removing any path components
-            # e.g., https://api.staging.../instances/xxx -> https://api.staging...
-            from urllib.parse import urlparse
-            parsed = urlparse(self.base_url)
-            self.base_url = f"{parsed.scheme}://{parsed.netloc}"
-            self.base_endpoint = "/api/v1/agentops-v3"
+            # For SaaS: BaseWXOClient already added /v1/orchestrate to base_url
+            # We need to strip it and add the agentops-v3 path directly
+            # to avoid duplicate /v1 in the path
+            if self.base_url.endswith("/v1/orchestrate"):
+                self.base_url = self.base_url[:-len("/v1/orchestrate")]
+            self.base_endpoint = "/v1/agentops-v3"
     
     def _stop_progress(self):
         if self.progress:
