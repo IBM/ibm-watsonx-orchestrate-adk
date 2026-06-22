@@ -603,7 +603,6 @@ def server_start(
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = merged_env_dict.get('FLOW_TRACING_OTLP_ENDPOINT') or 'http://jaeger:4318/v1/traces'
-        # Enable Langfuse for agentops-v3 observability when using ibm-telemetry profile
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
     else:
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = ''
