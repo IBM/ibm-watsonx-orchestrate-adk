@@ -124,7 +124,7 @@ def search_traces(
         typer.Option(
             "--user-id",
             "-u",
-            help="Filter by user ID",
+            help="Filter by user ID (can be specified multiple times)",
             show_default=False
         )
     ] = None,
