@@ -67,7 +67,7 @@ def search_traces(
         Optional[datetime],
         typer.Option(
             "--start-time",
-            help="[DEPRECATED] Start time (ISO 8601) - No longer supported",
+            help="Start time (ISO 8601 format)",
             show_default=False
         )
     ] = None,
@@ -75,7 +75,7 @@ def search_traces(
         Optional[datetime],
         typer.Option(
             "--end-time",
-            help="[DEPRECATED] End time (ISO 8601) - No longer supported",
+            help="End time (ISO 8601 format)",
             show_default=False
         )
     ] = None,
@@ -83,7 +83,7 @@ def search_traces(
         Optional[str],
         typer.Option(
             "--last",
-            help="[DEPRECATED] Relative time window (e.g., 30m, 3h, 10d) - No longer supported",
+            help="Relative time window (e.g., 30m, 3h, 10d)",
             show_default=False
         )
     ] = None,
@@ -151,7 +151,7 @@ def search_traces(
         SortField,
         typer.Option(
             "--sort-field",
-            help="[DEPRECATED] Field to sort by - No longer supported",
+            help="Field to sort by",
             show_default=True
         )
     ] = SortField.START_TIME,
@@ -159,7 +159,7 @@ def search_traces(
         SortDirection,
         typer.Option(
             "--sort-direction",
-            help="[DEPRECATED] Sort direction - No longer supported",
+            help="Sort direction (asc or desc)",
             show_default=True
         )
     ] = SortDirection.DESC,
@@ -179,33 +179,40 @@ def search_traces(
     Search for traces in your Watson Orchestrate environment.
 
     ✓ SUPPORTED FILTERS:
-        --session-id    Filter by session ID
-        --user-id       Filter by user ID
-        --limit         Maximum number of results
+        --session-id         Filter by session ID
+        --user-id            Filter by user ID
+        --start-time         Filter by start time (ISO 8601)
+        --end-time           Filter by end time (ISO 8601)
+        --last               Relative time window (e.g., 30m, 3h, 10d)
+        --sort-field         Field to sort by (start_time, end_time)
+        --sort-direction     Sort direction (asc or desc)
+        --limit              Maximum number of results
 
-      DEPRECATED FILTERS (will show warnings):
-        --start-time, --end-time, --last    Time filtering no longer supported
-        --service-name                       Service filtering no longer supported
-        --agent-id, --agent-name            Agent filtering no longer supported
-        --min-spans, --max-spans            Span count filtering no longer supported
-        --sort-field, --sort-direction      Custom sorting no longer supported
+    ⚠️  DEPRECATED FILTERS (will show warnings):
+        --service-name       Service filtering no longer supported
+        --agent-id           Agent filtering no longer supported
+        --agent-name         Agent filtering no longer supported
+        --min-spans          Span count filtering no longer supported
+        --max-spans          Span count filtering no longer supported
 
     Examples:
-        # Search with supported filters (RECOMMENDED)
-        orchestrate observability traces search --session-id sess-abc123
-        orchestrate observability traces search --user-id user-xyz
-        orchestrate observability traces search --limit 50
-
-        # Search with deprecated filters (will show warnings)
+        # Search with time range
         orchestrate observability traces search --last 1h
-        orchestrate observability traces search --agent-name mobile-agent
+        orchestrate observability traces search --start-time 2026-01-01T00:00:00Z --end-time 2026-01-02T00:00:00Z
+
+        # Search with filters
+        orchestrate observability traces search --session-id sess-abc123
+        orchestrate observability traces search --user-id user-xyz --limit 50
+
+        # Search with sorting
+        orchestrate observability traces search --sort-field start_time --sort-direction desc
 
     Once you find trace IDs, use 'orchestrate observability traces export' to export full trace data.
 
     Note:
         - This endpoint is only accessible to Admins
-        - Filtering capabilities have been updated
-        - Old parameters are kept for backward compatibility but will show deprecation warnings
+        - Time filtering, user/session filtering, and sorting are supported
+        - Agent and service filtering are deprecated
     """
     # Handle optional time parameters (deprecated but still supported for backward compatibility)
     if last is not None:
@@ -227,15 +234,8 @@ def search_traces(
         )
     # else: Neither provided - this is now allowed (time filtering is optional)
     
-    # Show deprecation warnings for unsupported parameters
+    # Show deprecation warnings for unsupported parameters only
     warnings_shown = []
-    
-    if start_time or end_time or last:
-        logger.warning(
-            "⚠️  Time filtering (--start-time, --end-time, --last) is no longer supported. "
-            "All traces will be returned regardless of time range."
-        )
-        warnings_shown.append("time filtering")
     
     if service_names:
         logger.warning(
@@ -258,16 +258,9 @@ def search_traces(
         )
         warnings_shown.append("span count filtering")
     
-    if sort_field != SortField.START_TIME or sort_direction != SortDirection.DESC:
-        logger.warning(
-            "⚠️  Custom sorting (--sort-field, --sort-direction) is no longer supported. "
-            "Results will be returned in default order."
-        )
-        warnings_shown.append("sorting")
-    
     if warnings_shown:
         logger.info(
-            f"💡 Tip: Use --session-id or --user-id for filtering. "
+            f"💡 Tip: Use --session-id, --user-id, or time filters (--start-time, --end-time, --last) for filtering. "
             f"Unsupported features: {', '.join(warnings_shown)}"
         )
 

@@ -415,11 +415,17 @@ class TracesClient(BaseWXOClient):
         Search for traces using agentops-v3 API.
         
         This endpoint allows you to find trace IDs based on various criteria such as
-        time range, service names, agent IDs, user IDs, session IDs, and span count.
+        time range, user IDs, session IDs, and sorting.
         
         Args:
-            filters: TraceFilters object with search criteria (start_time, end_time, etc.)
-            sort: TraceSort object for sorting results (field and direction)
+            filters: TraceFilters object with search criteria
+                - start_time: Filter by start time (ISO 8601 or datetime)
+                - end_time: Filter by end time (ISO 8601 or datetime)
+                - user_ids: Filter by user ID (only first ID is used)
+                - session_ids: Filter by session ID (only first ID is used)
+            sort: TraceSort object for sorting results
+                - field: Sort field (use "start_time", "end_time", or "timestamp" - all map to API's "timestamp")
+                - direction: Sort direction ("asc" or "desc")
             page_size: Number of results per page (1-1000, default: 100)
             cursor: Pagination cursor (not used in agentops-v3, kept for compatibility)
         
@@ -435,20 +441,28 @@ class TracesClient(BaseWXOClient):
         
         Note:
             - Uses GET /v1/agentops-v3/traces with query parameters
+            - Supported API parameters: page, limit, userId, sessionId, fromTimestamp, toTimestamp, orderBy
+            - API uses "timestamp" field for sorting (start_time/end_time are mapped to timestamp)
             - Pagination uses page/limit instead of cursor
-            - Client-side filtering is applied for session_ids and user_ids
+            - Only the first userId and sessionId are used if multiple are provided
         
         Example:
             ```python
             from datetime import datetime, timedelta
             
-            # Search for traces with session ID
+            # Search for traces with session ID and time range
             filters = TraceFilters(
-                session_ids=["sess-abc123"]
+                session_ids=["sess-abc123"],
+                start_time=datetime.now() - timedelta(hours=1),
+                end_time=datetime.now()
             )
+            
+            # Sort by timestamp (can also use "start_time" or "end_time" - all map to "timestamp")
+            sort = TraceSort(field="timestamp", direction="desc")
             
             response = client.service_instance.traces.search_traces(
                 filters=filters,
+                sort=sort,
                 page_size=50
             )
             
@@ -463,12 +477,7 @@ class TracesClient(BaseWXOClient):
         if filters is None:
             filters = TraceFilters()
         
-        # Check if we need to apply client-side filtering
-        needs_filtering = (
-            (filters.session_ids and len(filters.session_ids) > 0) or
-            (filters.user_ids and len(filters.user_ids) > 0)
-        )
-        
+        # API now handles filtering server-side, so we only fetch one page
         all_trace_summaries = []
         all_traces = []
         current_page = 1
@@ -477,19 +486,48 @@ class TracesClient(BaseWXOClient):
         last_params: Dict[str, Any] = {}
         traces_response: Optional[TracesResponse] = None
         
-        # If filtering is needed, fetch all pages to ensure we don't miss matches
-        # Otherwise, just fetch the first page
-        max_pages_to_fetch = MAX_PAGINATION_PAGES if needs_filtering else 1
+        # Only fetch the first page since API handles filtering
+        max_pages_to_fetch = 1
         
         while current_page <= max_pages_to_fetch:
             # Build query parameters for GET request
-            # Note: The new API only supports page, limit, workspace_id, and include_trace_details
-            # All other filtering must be done client-side
+            # API supports: page, limit, userId, sessionId, fromTimestamp, toTimestamp, orderBy,
+            # name, tags, version, workspace_id, and include_trace_details
             last_params = {
                 "page": current_page,
                 "limit": page_size,
                 "include_trace_details": False  # Start with false to avoid backend issues
             }
+            
+            # Add API-supported filter parameters
+            if filters.user_ids and len(filters.user_ids) > 0:
+                # API supports single userId parameter
+                last_params["userId"] = filters.user_ids[0]
+            
+            if filters.session_ids and len(filters.session_ids) > 0:
+                # API supports single sessionId parameter
+                last_params["sessionId"] = filters.session_ids[0]
+            
+            # Add time range filters if provided
+            if filters.start_time:
+                start_time_str = filters.start_time if isinstance(filters.start_time, str) else filters.start_time.isoformat() + "Z"
+                last_params["fromTimestamp"] = start_time_str
+            
+            if filters.end_time:
+                end_time_str = filters.end_time if isinstance(filters.end_time, str) else filters.end_time.isoformat() + "Z"
+                last_params["toTimestamp"] = end_time_str
+            
+            # Add sort parameter if provided
+            if sort:
+                # API uses orderBy parameter with format "field.direction" (e.g., "timestamp.desc")
+                # Map internal field names to API field names
+                field_mapping = {
+                    "start_time": "timestamp",
+                    "end_time": "timestamp",
+                    "timestamp": "timestamp"
+                }
+                api_field = field_mapping.get(sort.field, sort.field)
+                last_params["orderBy"] = f"{api_field}.{sort.direction}"
             
             # Add workspace_id if in IBM Cloud environment
             try:
@@ -514,17 +552,9 @@ class TracesClient(BaseWXOClient):
                 total_items = traces_response.meta.totalItems
                 total_pages = traces_response.meta.totalPages
             
-            # Convert to TraceSummary format and apply client-side filtering
+            # Convert to TraceSummary format
+            # Note: API now handles userId and sessionId filtering, so no client-side filtering needed
             for trace_item in traces_response.data:
-                # Apply client-side filters since API doesn't support them
-                if filters.session_ids and len(filters.session_ids) > 0:
-                    if not trace_item.sessionId or trace_item.sessionId not in filters.session_ids:
-                        continue
-                
-                if filters.user_ids and len(filters.user_ids) > 0:
-                    if not trace_item.userId or trace_item.userId not in filters.user_ids:
-                        continue
-                
                 # Create a TraceSummary from TraceItem
                 # TODO: These fields are not available in agentops-v3 API yet.
                 # Using placeholder values until API is enhanced or we fetch observations to calculate them.
@@ -543,34 +573,16 @@ class TracesClient(BaseWXOClient):
                 )
                 all_trace_summaries.append(summary)
                 all_traces.append(trace_item)
-                
-                # If we've collected enough results and not filtering, we can stop
-                if not needs_filtering and len(all_trace_summaries) >= page_size:
-                    break
             
-            # Check if we should continue to next page
-            if not needs_filtering or current_page >= total_pages:
-                break
-            
-            # If filtering and we haven't found enough results yet, continue
-            if needs_filtering and len(all_trace_summaries) < page_size and current_page < total_pages:
-                current_page += 1
-                continue
-            
+            # Only fetch first page since API handles filtering
             break
         
-        # Warn if filtering reduced results significantly
-        if needs_filtering and len(all_trace_summaries) < page_size and current_page < total_pages:
-            self._stop_progress()
-            logger.warning(
-                f"Client-side filtering found {len(all_trace_summaries)} matching traces. "
-                f"More traces may exist on subsequent pages. Consider using more specific filters."
-            )
-        elif not needs_filtering and len(all_trace_summaries) == page_size and total_pages > 1:
+        # Warn if there are more pages available
+        if len(all_trace_summaries) == page_size and total_pages > 1:
             self._stop_progress()
             logger.warning(
                 f"Limit reached. More traces may exist (page 1 of {total_pages}). "
-                f"Tip: Increase --limit or use --session-id/--user-id filters"
+                f"Tip: Increase --limit or use more specific filters"
             )
 
         return TraceSearchResponse(

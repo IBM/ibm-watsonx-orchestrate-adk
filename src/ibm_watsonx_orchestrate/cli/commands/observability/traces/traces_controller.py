@@ -259,11 +259,8 @@ def trace_search(start_time: Optional[datetime] = None,
                     page_size: int = 100,
                     ):
         try:
-            # Validate sort_field (API bug: only start_time works, end_time causes 500 error)
-            if sort_field == "end_time":
-                logger.warning("Sorting by 'end_time' is not currently supported by the API backend.")
-                logger.warning("Falling back to 'start_time' sorting instead.")
-                sort_field = "start_time"
+            # Note: API supports sorting by timestamp field
+            # The sort_field value is passed to the API via the orderBy parameter
             # Resolve agent names to IDs for backward compatibility with existing CLI behavior/tests.
             # Keep the explicit mapping lookup so callers patching the helper continue to work.
             resolved_agent_ids = traces_helper.resolve_agent_names_to_ids(agent_names, agent_ids)
