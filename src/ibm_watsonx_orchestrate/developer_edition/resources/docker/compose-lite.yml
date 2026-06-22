@@ -273,6 +273,7 @@ services:
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -1467,6 +1468,7 @@ services:
       WXAI_INSTANCE_ID: ${WXAI_INSTANCE_ID:-}
       WXAI_VERSION: ${WXAI_VERSION:-}
       WXAI_PROVIDER: ${WXAI_PROVIDER:-openai}
+      GLOBAL_WORKER_DOCLING_PIPELINE: ${GLOBAL_WORKER_DOCLING_PIPELINE:-true}
 
     profiles:
       - docproc
@@ -1695,6 +1697,7 @@ services:
 
   wxo-server-voice:
     image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
+    platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
     ports: 

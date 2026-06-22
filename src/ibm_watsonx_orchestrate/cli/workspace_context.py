@@ -18,12 +18,9 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENVIRONMENTS_SECTION_HEADER,
     ENV_WXO_URL_OPT,
 )
+from ibm_watsonx_orchestrate_core.utils.workspaces import GLOBAL_WORKSPACE_ID, GLOBAL_WORKSPACE_NAME
 
 logger = logging.getLogger(__name__)
-
-# Global workspace ID constant
-GLOBAL_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001"
-GLOBAL_WORKSPACE_NAME = "Global workspace"
 
 
 def is_ibm_cloud_platform(url: str) -> bool:

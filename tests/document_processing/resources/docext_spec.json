@@ -28,7 +28,7 @@
         "config": {
           "domain": "other",
           "type": "agreement",
-          "llm": "meta-llama/llama-3-2-11b-vision-instruct",
+          "llm": "watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
           "fields": [
             {
               "name": "Buyer",
