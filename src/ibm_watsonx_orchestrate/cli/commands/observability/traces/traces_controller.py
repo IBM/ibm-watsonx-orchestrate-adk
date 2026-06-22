@@ -326,7 +326,7 @@ def trace_search(start_time: Optional[datetime] = None,
                 latency_s = trace.durationMs / 1000.0
                 
                 # Format latency with appropriate precision
-                # Note: agentops-v3 API doesn't return duration, so it's always 0
+                # Note: latency may be 0 if not available in trace metadata
                 if latency_s == 0:
                     latency_str = "-"
                 elif latency_s < 0.001:
