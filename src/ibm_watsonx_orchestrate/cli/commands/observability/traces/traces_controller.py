@@ -11,7 +11,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_exporters import TraceExporter
-from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_helper import resolve_agent_names_to_ids
+from ibm_watsonx_orchestrate.cli.commands.observability.traces import traces_helper
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.observability.traces import TraceFilters, TraceSort, SpanCountRange
@@ -23,6 +23,7 @@ from ibm_watsonx_orchestrate.client.observability.traces.traces_client import (
     TraceSort
 )
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
+from ibm_watsonx_orchestrate.utils.docker_utils import get_container_env_var
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
@@ -263,8 +264,9 @@ def trace_search(start_time: Optional[datetime] = None,
                 logger.warning("Sorting by 'end_time' is not currently supported by the API backend.")
                 logger.warning("Falling back to 'start_time' sorting instead.")
                 sort_field = "start_time"
-            # Resolve agent names to IDs, should be removed when API bug is fixed
-            resolved_agent_ids = resolve_agent_names_to_ids(agent_names, agent_ids)
+            # Resolve agent names to IDs for backward compatibility with existing CLI behavior/tests.
+            # Keep the explicit mapping lookup so callers patching the helper continue to work.
+            resolved_agent_ids = traces_helper.resolve_agent_names_to_ids(agent_names, agent_ids)
             
             # For local development with FORCE_SINGLE_TENANT=true, service_name is required, defaulting to "wxo-server" if not provided
             try:
@@ -356,7 +358,7 @@ def trace_search(start_time: Optional[datetime] = None,
                 logger.info("Tip: Use 'orchestrate observability traces export --trace-id <TRACE_ID>' to export full trace data")
         
         except ClientAPIException as e:
-            status_code = e.response.status_code
+            status_code = e.response.status_code if e.response is not None else None
             error_messages = {
                 400: "Invalid request parameters. Check your filter values.",
                 401: "Authentication failed. Missing or invalid tenant.id header.",
@@ -364,7 +366,11 @@ def trace_search(start_time: Optional[datetime] = None,
                 500: "Internal server error. Please try again later."
             }
             
-            error_msg = error_messages.get(status_code, f"API error (status {status_code})")
+            error_msg = (
+                error_messages.get(status_code, f"API error (status {status_code})")
+                if status_code is not None
+                else "API error (no response status)"
+            )
             logger.error(f"Error: {error_msg}")
             
             if status_code == 429:
@@ -445,7 +451,7 @@ def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = Tr
             rich.print_json(json_str)
     
     except ClientAPIException as e:
-        status_code = e.response.status_code
+        status_code = e.response.status_code if e.response is not None else None
         error_messages = {
             400: "Invalid request parameters. Check that trace_id is a valid 32-character hex string.",
             401: "Authentication failed. Missing or invalid tenant.id header.",
@@ -454,7 +460,11 @@ def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = Tr
             500: "Internal server error. Please try again later."
         }
         
-        error_msg = error_messages.get(status_code, f"API error (status {status_code})")
+        error_msg = (
+            error_messages.get(status_code, f"API error (status {status_code})")
+            if status_code is not None
+            else "API error (no response status)"
+        )
         logger.error(f"Error: {error_msg}")
         
         if status_code == 429:

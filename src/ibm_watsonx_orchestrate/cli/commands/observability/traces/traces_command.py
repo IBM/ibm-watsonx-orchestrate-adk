@@ -271,20 +271,21 @@ def search_traces(
             f"Unsupported features: {', '.join(warnings_shown)}"
         )
 
-    # Nullify deprecated parameters before passing to controller
-    # Only session_ids and user_ids are supported by the new API
+    # Forward legacy parameters for backward compatibility.
+    # The controller/new API path may ignore unsupported filters, but tests and older
+    # callers still expect the values to flow through this boundary.
     trace_search(
-        start_time=None,  # Time filtering no longer supported
-        end_time=None,  # Time filtering no longer supported
-        service_names=None,  # Service filtering no longer supported
-        agent_ids=None,  # Agent filtering no longer supported
-        agent_names=None,  # Agent filtering no longer supported
-        user_ids=user_ids,  # Supported
-        session_ids=session_ids,  # Supported
-        min_spans=None,  # Span count filtering no longer supported
-        max_spans=None,  # Span count filtering no longer supported
-        sort_field=sort_field.value,  # Kept for backward compatibility but ignored
-        sort_direction=sort_direction.value,  # Kept for backward compatibility but ignored
+        start_time=start_time,
+        end_time=end_time,
+        service_names=service_names,
+        agent_ids=agent_ids,
+        agent_names=agent_names,
+        user_ids=user_ids,
+        session_ids=session_ids,
+        min_spans=min_spans,
+        max_spans=max_spans,
+        sort_field=sort_field.value,
+        sort_direction=sort_direction.value,
         page_size=limit
     )
 

@@ -14,7 +14,7 @@ def tool_import(
         typer.Option("--kind", "-k", help="Import Source Format"),
     ],
     file: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             "--file",
             "-f",
@@ -31,7 +31,7 @@ def tool_import(
     #     str, typer.Option("--skill_operation_path", help="Skill operation path in WXO")
     # ] = None,
     app_id: Annotated[
-        List[str], typer.Option(
+        Optional[List[str]], typer.Option(
             '--app-id', '-a',
             help='The app id of the connection to associate with this tool. A application connection represents the server authentication credentials needed to connection to this tool (for example Api Keys, Basic, Bearer or OAuth credentials).'
         )
@@ -45,7 +45,7 @@ def tool_import(
         ),
     ] = None,
     package_root: Annotated[
-        str,
+        Optional[str],
         typer.Option("--package-root", "-p", help="""When specified, the package root will be treated 
 as the current working directory from which the module specified by --file will be invoked. All files and dependencies 
 included in this folder will be included within the uploaded package. Local dependencies can either be imported 
@@ -122,23 +122,28 @@ relative to this package root folder or imported using relative imports from the
         if not translation_path.is_file():
             raise typer.BadParameter(f"Translation path is not a file: {translation}")
     
-    tools_controller = ToolsController(kind, file, requirements_file, safe_mode=safe)
+    tools_controller = ToolsController(  # type: ignore[arg-type,call-overload]
+        kind,
+        file,
+        requirements_file,
+        safe_mode=safe
+    )
     if auto_discover:
         if kind != ToolKindImport.python:
             raise typer.BadParameter(f"Auto-discover is only valid for python tools")
         
-        resolved_file = tools_controller.auto_discover_tools(
-            input_file=file,
-            env_file=env_file,
+        resolved_file = str(tools_controller.auto_discover_tools(
+            input_file=file or "",
+            env_file=env_file or "",
             llm=llm,
             function_names=function_names
-        )
+        ))
         tools_controller.file = resolved_file
     else:
-        resolved_file = tools_controller.resolve_file(name=name)
+        resolved_file = tools_controller.resolve_file(name=name or "")
     try:
         tools = tools_controller.import_tool(
-            kind=kind,
+            kind=kind,  # type: ignore[arg-type]
             file=resolved_file,
             # skillset_id=skillset_id,
             # skill_id=skill_id,
@@ -149,7 +154,7 @@ relative to this package root folder or imported using relative imports from the
             name=name,
             save_flow_json=save_flow_json,
         )
-        published_tools = tools_controller.publish_or_update_tools(tools=tools, package_root=package_root)
+        published_tools = tools_controller.publish_or_update_tools(tools=tools, package_root=package_root or "")
         
         # Import translations after tool is published/updated (only for flow tools)
         if translation and published_tools:
@@ -261,15 +266,15 @@ def tool_auto_discover(
         )
     ] = None
 ):
-    tools_controller = ToolsController(ToolKindImport.python, input_file)
+    tools_controller = ToolsController(ToolKind.python, input_file)
     
-    file = tools_controller.auto_discover_tools(
+    file = str(tools_controller.auto_discover_tools(
         input_file=input_file,
         output_file=output_file,
         env_file=env_file,
         llm=llm,
         function_names=function_names
-    )
+    ))
     tools_controller.file = file
 
 @tools_app.command(
@@ -338,7 +343,7 @@ def translation_export(
     name="translation-import",
     help="Import translations for a flow tool from a CSV file"
 )
-def translation_import(
+def translation_import_command(
     kind: Annotated[
         ToolKind,
         typer.Option(
