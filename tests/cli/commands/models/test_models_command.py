@@ -258,3 +258,24 @@ class TestModelsPolicyRemove:
             remove_policy_mock.assert_called_once_with(
                 name="test_name",
             )
+
+
+class TestPremierModelEnabling:
+    def test_check_if_premier_models_enabled(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.get_model_selection_client") as get_client_mock:
+
+            models_command.check_if_premier_models_enabled()
+            get_client_mock.assert_called_once_with()
+
+    def test_enable_premier_models(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.patch_model_selection_config") as patch_model_selection_config_mock:
+
+            models_command.enable_premier_models()
+            patch_model_selection_config_mock.assert_called_once_with(premier_models_enabled=True)
+
+
+    def test_disable_premier_models(self):
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.ModelsController.patch_model_selection_config") as patch_model_selection_config_mock:
+
+            models_command.disable_premier_models()
+            patch_model_selection_config_mock.assert_called_once_with(premier_models_enabled=False)
