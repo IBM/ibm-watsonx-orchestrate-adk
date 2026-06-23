@@ -2324,7 +2324,7 @@ class FlowFactory(BaseModel):
                     output_schema: type[BaseModel]|None=None,
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
-                    suppress_agent_summarization: bool=False,
+                    suppress_agent_summarization: bool|None=None,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None,
                     context_window: FlowContextWindow|None=None) -> Flow:

@@ -17,7 +17,6 @@
           "__any_user__"
         ],
         "schedulable": false,
-        "suppress_agent_summarization": false,
         "owners": [
           "__any_user__"
         ],
@@ -81,7 +80,7 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "f656bd83-ce7c-45bd-9189-6ab110db6522"
+                  "edge_id": "e4f60351-9bb6-4454-b9f1-4959b4a4dfa5"
                 },
                 {
                   "name": "cancel",
@@ -116,7 +115,7 @@
         {
           "start": "GreetingForm",
           "end": "__end__",
-          "id": "f656bd83-ce7c-45bd-9189-6ab110db6522"
+          "id": "e4f60351-9bb6-4454-b9f1-4959b4a4dfa5"
         }
       ],
       "schemas": {},
@@ -156,6 +155,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-06-23T01:22:47.609968+00:00"
+    "compiled_on": "2026-06-23T02:54:40.563667+00:00"
   }
 }
