@@ -1,0 +1,161 @@
+{
+  "spec": {
+    "kind": "flow",
+    "name": "greetings_no_summarization",
+    "display_name": "Greetings (No Summarization)",
+    "description": "A simple greeting flow with agent summarization suppressed.",
+    "schedulable": false,
+    "suppress_agent_summarization": true
+  },
+  "nodes": {
+    "userflow_1": {
+      "spec": {
+        "kind": "user_flow",
+        "name": "userflow_1",
+        "display_name": "Greeting",
+        "initiators": [
+          "__any_user__"
+        ],
+        "schedulable": false,
+        "suppress_agent_summarization": false,
+        "owners": [
+          "__any_user__"
+        ],
+        "assignment_policy": "initiator"
+      },
+      "nodes": {
+        "GreetingForm": {
+          "spec": {
+            "kind": "user",
+            "name": "GreetingForm",
+            "display_name": "Welcome",
+            "owners": [
+              "__current_user__"
+            ],
+            "fields": [],
+            "form": {
+              "name": "GreetingForm",
+              "kind": "form",
+              "display_name": "Welcome",
+              "fields": [
+                {
+                  "name": "greeting_message",
+                  "kind": "text",
+                  "text": "Hello user",
+                  "direction": "output",
+                  "display_name": "Welcome Message",
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value"
+                    ],
+                    "in_field": null
+                  },
+                  "uiSchema": {
+                    "ui:widget": "DataWidget",
+                    "ui:options": {
+                      "label": false
+                    },
+                    "ui:title": "Welcome Message"
+                  }
+                }
+              ],
+              "jsonSchema": {
+                "type": "object",
+                "properties": {
+                  "greeting_message": {
+                    "type": "string",
+                    "title": "Welcome Message"
+                  }
+                },
+                "required": []
+              },
+              "buttons": [
+                {
+                  "name": "submit",
+                  "kind": "submit",
+                  "display_name": "Submit",
+                  "visible": true,
+                  "edge_id": "f656bd83-ce7c-45bd-9189-6ab110db6522"
+                },
+                {
+                  "name": "cancel",
+                  "kind": "cancel",
+                  "display_name": "Close",
+                  "visible": true
+                }
+              ]
+            }
+          }
+        },
+        "__start__": {
+          "spec": {
+            "kind": "start",
+            "name": "__start__",
+            "display_name": "__start__"
+          }
+        },
+        "__end__": {
+          "spec": {
+            "kind": "end",
+            "name": "__end__",
+            "display_name": "__end__"
+          }
+        }
+      },
+      "edges": [
+        {
+          "start": "__start__",
+          "end": "GreetingForm"
+        },
+        {
+          "start": "GreetingForm",
+          "end": "__end__",
+          "id": "f656bd83-ce7c-45bd-9189-6ab110db6522"
+        }
+      ],
+      "schemas": {},
+      "metadata": {}
+    },
+    "__start__": {
+      "spec": {
+        "kind": "start",
+        "name": "__start__",
+        "display_name": "__start__"
+      }
+    },
+    "__end__": {
+      "spec": {
+        "kind": "end",
+        "name": "__end__",
+        "display_name": "__end__"
+      }
+    }
+  },
+  "edges": [
+    {
+      "start": "__start__",
+      "end": "userflow_1"
+    },
+    {
+      "start": "userflow_1",
+      "end": "__end__"
+    }
+  ],
+  "schemas": {
+    "GreetingForm": {
+      "type": "object",
+      "title": "GreetingForm",
+      "properties": {}
+    }
+  },
+  "metadata": {
+    "source_kind": "adk/python",
+    "compiled_on": "2026-06-23T01:22:47.609968+00:00"
+  }
+}

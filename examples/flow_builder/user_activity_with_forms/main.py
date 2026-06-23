@@ -3,6 +3,7 @@ import logging
 import sys
 from pathlib import Path
 
+from examples.flow_builder.user_activity_with_forms.tools.greetings_no_summarization import build_greeting_flow
 from examples.flow_builder.user_activity_with_forms.tools.user_flow_forms import build_user_form
 from examples.flow_builder.user_activity_with_forms.tools.user_flow_forms_date_time import build_user_form_date_time
 
@@ -39,6 +40,13 @@ async def main():
     my_flow_definition_date_time = await build_user_form_date_time().compile_deploy()
     my_flow_definition_date_time.dump_spec(f"{generated_folder}/flow_with_user_form_date_time.json")
     print(f"Generated: {generated_folder}/flow_with_user_form_date_time.json")
+
+    # Build and save the original application form
+    my_flow_definition_no_summarization = await build_greeting_flow().compile_deploy()
+    generated_folder = f"{Path(__file__).resolve().parent}/generated"
+    my_flow_definition_no_summarization.dump_spec(f"{generated_folder}/greetings_no_summarization.json")
+    print(f"Generated: {generated_folder}/greetings_no_summarization.json")
+  
     
     # global flow_run
     # flow_run = await my_flow_definition.invoke({}, on_flow_end_handler=on_flow_end, on_flow_error_handler=on_flow_error, debug=True)
