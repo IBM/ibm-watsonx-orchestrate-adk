@@ -352,7 +352,7 @@ class ModelsController:
         else:
             self.publish_model(model=model)
         
-        if not skip_validation:
+        if not skip_validation and model.model_type != ModelType.EMBEDDING:
             self.validate_model(model.name)
     
     def publish_model(self, model: VirtualModel) -> None:
