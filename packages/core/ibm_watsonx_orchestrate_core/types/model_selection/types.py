@@ -7,6 +7,9 @@ class ModelSelectionSettings(BaseModel):
     default_llm: str | None = Field(description="Default LLM for the tenant", default=None)
     llm_denylist: List[str] = Field(description="LLMs that are not allowed to be used by the tenant for the new agents",
                                     default_factory=list)
+    # a premier model is one customer needs to pay extra for, first one will be gpt 5.4 hosted on azure
+    # since this will incur cost, we disable them by default and need admin to enable them explicitly
+    premier_models_enabled: bool = Field(description='Whether premier models are enabled for a tenant', default=False)
 
 
 class ModelSelectionPatch(BaseModel):
@@ -23,6 +26,7 @@ class ModelSelectionPatch(BaseModel):
     default_llm: str | None = None
     add_to_llm_denylist: list[str] | None = None
     remove_from_llm_denylist: list[str] | None = None
+    premier_models_enabled: bool | None = None
 
     @model_validator(mode='after')
     def validate_default_llm_not_empty(self):
@@ -45,9 +49,10 @@ class ModelSelectionPatch(BaseModel):
     @model_validator(mode='after')
     def validate_at_least_one_field(self):
         """Ensure at least one field is provided."""
-        if not any([self.default_llm, self.add_to_llm_denylist, self.remove_from_llm_denylist]):
+        premier_models_enabled_provided = self.premier_models_enabled is not None
+        if not any([self.default_llm, self.add_to_llm_denylist, self.remove_from_llm_denylist, premier_models_enabled_provided]):
             raise ValueError(
-                "At least one field must be provided: default_llm, add_to_llm_denylist, or remove_from_llm_denylist")
+                "At least one field must be provided: default_llm, add_to_llm_denylist, remove_from_llm_denylist or premier_models_enabled")
         return self
 
 
