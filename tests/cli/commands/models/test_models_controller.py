@@ -491,6 +491,47 @@ class TestListModels:
         assert "Retrieving llm models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
 
+    def test_list_models_with_premier_models(self, monkeypatch, caplog):
+        mock_models_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "watsonx/default/llm",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "default"
+                    ],
+                    "description": "123"
+                },
+                {
+                    "id": "openai/gpt6",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "wxo-reserved-tag-premier"
+                    ],
+                    "description": "789"
+                }
+            ]
+        )
+        mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
+
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_models_client,
+                                                                                    mock_policies_client=mock_policies_client)
+
+            mc = ModelsController()
+            results = mc.formatted_list_all()
+
+        assert results[1].is_premier
+        assert not results[0].is_premier
+
     def test_list_models_print_raw(self, monkeypatch, caplog):
         mock_models_client = MockModelsClient(
             list_all_response=MOCK_MODEL_LIST_RESPONSE

@@ -247,6 +247,7 @@ class ModelListEntry(BaseModel):
     is_denied: bool = Field(default=False, description="Is the model in denylist")
     recommended: bool = Field(default=False,
                               description="Is the model a recommended model in watsonx Orchestrate. Non-custom models only")
+    is_premier: bool = Field(default=False, description="Is the model a premier model")
 
     def should_display(self):
         return any([
@@ -254,14 +255,15 @@ class ModelListEntry(BaseModel):
             self.is_default,  # default model
             self.is_denied,  # show model if it's in denylist as well
             self.recommended,  # model recommended by wxO
+            self.is_premier, # premier models
         ])
 
     def get_row_details(self):
         description = self.description or 'No description provided.'
         name = self.name or "N/A"
         # emojis don't work well with rich
-        marker = "[green]✔[/]" * int(self.is_default) + "[yellow]★[/] " * int(
-            self.recommended) + "[bold cyan]◆[/]" * int(self.is_custom) + "[red]✖[/]" * int(self.is_denied)
+        marker = "[green]✔[/]" * int(self.is_default) + "[yellow]★[/]" * int(
+            self.recommended) + "[bold cyan]◆[/]" * int(self.is_custom) + "[red]✖[/]" * int(self.is_denied) + "[gold1]$[/]" * int(self.is_premier)
         return [f"{marker} {name}", description]
 
 
