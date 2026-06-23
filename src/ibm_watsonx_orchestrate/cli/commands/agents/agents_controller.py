@@ -923,13 +923,25 @@ class AgentsController:
                     tool_type = python_binding.get("type") or openapi_binding.get("plugin_hook")
 
                     if not tool_type:
-                        logger.error(f"Tool '{plugin.plugin_name}' missing 'type' in binding.")
+                        if openapi_binding:
+                            detail = (
+                                "OpenAPI tools require the 'x-ibm-orchestrate-plugin.hook' extension "
+                                "(agent_pre_invoke or agent_post_invoke) on the operation"
+                            )
+                        elif python_binding:
+                            detail = "Python tools require a plugin 'type' (agent_pre_invoke or agent_post_invoke) in the binding"
+                        else:
+                            detail = "expected binding.python.type or binding.openapi.plugin_hook"
+                        logger.error(
+                            f"Tool '{plugin.plugin_name}' is not a plugin: {detail}. "
+                            f"Re-import the tool as a plugin before referencing it in the agent spec."
+                        )
                         sys.exit(1)
 
                     if tool_type != phase_name:
                         logger.error(
-                            f"Tool '{plugin.plugin_name}' has type '{tool_type}' "
-                            f"but is placed under the '{phase_name}' section of the Agent spec. Please update this."
+                            f"Tool '{plugin.plugin_name}' is a '{tool_type}' plugin but is listed under "
+                            f"the '{phase_name}' section of the agent spec. Move it under '{tool_type}'."
                         )
                         sys.exit(1)
 
