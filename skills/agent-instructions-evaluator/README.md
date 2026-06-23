@@ -1,6 +1,6 @@
 # Agent Instructions Evaluator
 
-Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, or instruction overload.
+Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, or instruction overload. 
 
 ## What This Skill Does
 
