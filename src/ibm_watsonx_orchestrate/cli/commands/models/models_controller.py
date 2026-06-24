@@ -35,8 +35,7 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate_clients.models.models_client import CUSTOM_MODEL_TAG, DEFAULT_MODEL_TAG, \
-    LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG
-
+    LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG, PREMIER_LLM_TAG
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +45,11 @@ WATSONX_URL = os.getenv("WATSONX_URL")
 MODEL_MARKER_ANNOTATION = """[green]✔[/] [italic dim]indicates the default model[/italic dim]\n"""\
                 """[yellow]★[/] [italic dim]indicates a supported and preferred model[/italic dim]\n"""\
                 """[bold cyan]◆[/] [italic dim]indicates a model from a custom provider[/italic dim]\n"""\
-                """[red]✖[/] [italic dim]indicates a model disallowed by tenant admin[/italic dim]"""\
+                """[red]✖[/] [italic dim]indicates a model disallowed by tenant admin[/italic dim]\n"""\
+                """[gold1]$[/] [italic dim]indicates a premier model[/italic dim]"""
 
+
+PREMIER_MODEL_WARNING_MSG_PREFIX = "Premier model"
 
 
 class ModelHighlighter(rich.highlighter.RegexHighlighter):
@@ -208,6 +210,7 @@ class ModelsController:
             is_default=DEFAULT_MODEL_TAG in conn.get("tags", []),
             is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
             recommended=RECOMMENDED_LLM_TAG in conn.get("tags", []),
+            is_premier=PREMIER_LLM_TAG in conn.get("tags", []),
         ) for conn in original_response]
 
     def formatted_list_all(self) -> List[ModelListEntry]:
@@ -352,7 +355,7 @@ class ModelsController:
         else:
             self.publish_model(model=model)
         
-        if not skip_validation:
+        if not skip_validation and model.model_type != ModelType.EMBEDDING:
             self.validate_model(model.name)
     
     def publish_model(self, model: VirtualModel) -> None:
@@ -722,11 +725,12 @@ class ModelsController:
                                      default_llm=None,
                                      add_to_llm_denylist: list[str] | None = None,
                                      remove_from_llm_denylist: list[str] | None = None,
+                                     premier_models_enabled: bool | None = None,
                                      ):
         existing_models = [m.name for m in self.formatted_list_all()]
         if default_llm and default_llm not in existing_models:
             logger.error(
-                f"You are trying to set a model name {default_llm} that does not exist as default"
+                f"You are trying to set a model name {default_llm} that does not exist as default. If you are trying to use a premier model, please enable premier models"
             )
             sys.exit(1)
         if add_to_llm_denylist:
@@ -741,6 +745,7 @@ class ModelsController:
                 default_llm=default_llm,
                 add_to_llm_denylist=add_to_llm_denylist,
                 remove_from_llm_denylist=remove_from_llm_denylist,
+                premier_models_enabled=premier_models_enabled,
             )
         )
         for msg in warnings:

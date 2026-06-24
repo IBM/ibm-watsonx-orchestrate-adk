@@ -8,8 +8,8 @@ from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelType
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import  ModelPolicyStrategyMode
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController
-
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController, \
+    PREMIER_MODEL_WARNING_MSG_PREFIX
 
 logger = logging.getLogger(__name__)
 models_app = typer.Typer(no_args_is_help=True)
@@ -27,6 +27,31 @@ models_app.add_typer(
     name="config",
     help="Set default LLM or adding/removing LLMs to/from denylist"
 )
+
+@models_config_app.command(name="are-premier-models-enabled", help="Check if OOTB premier models are enabled")
+def check_if_premier_models_enabled():
+    models_controller = ModelsController()
+    results = models_controller.get_model_selection_client().get()
+    enabled = results.model_selection_settings.premier_models_enabled
+    warnings = results.warnings
+    for msg in warnings:
+        if msg.startswith(PREMIER_MODEL_WARNING_MSG_PREFIX):
+            logger.warning(msg)
+    logger.info(f"Premier models enabled: {enabled}")
+
+
+@models_config_app.command(name="enable-premier-models", help="Enable usage of OOTB premier models")
+def enable_premier_models():
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(premier_models_enabled=True)
+    logger.info(f"You have enabled premier models for your tenant.")
+
+
+@models_config_app.command(name="disable-premier-models", help="Disable usage of OOTB premier models")
+def disable_premier_models():
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(premier_models_enabled=False)
+    logger.info(f"You have disabled premier models for your tenant.")
 
 
 @models_config_app.command(name="list", help="Listing tenant level model selection configuration")

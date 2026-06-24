@@ -13,6 +13,7 @@ CUSTOM_MODEL_TAG = "third party"
 DEFAULT_MODEL_TAG = "default"
 LLM_DISALLOWED_BY_ADMIN_TAG = "wxo-reserved-tag-admin-disallowed"
 RECOMMENDED_LLM_TAG = "recommended"
+PREMIER_LLM_TAG = "wxo-reserved-tag-premier"
 
 
 class ModelsClient(BaseWXOClient):

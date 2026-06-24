@@ -219,14 +219,35 @@ def record(
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
+    ] = None,
+    context_variables: Annotated[
+        Optional[str],
+        typer.Option(
+            "--context-variables", "-cv",
+            help="JSON string of context variables to include in recordings."
+        )
     ] = None
 ):
     _check_import_error()
     _feature_requires_legacy_eval()
     
     validate_watsonx_credentials(user_env_file)
+    
+    # Validate context variables is valid JSON and is a dict/object
+    if context_variables:
+        try:
+            parsed = json.loads(context_variables)
+            if not isinstance(parsed, dict):
+                raise typer.BadParameter(
+                    "Context variables must be a JSON object."
+                )
+        except json.JSONDecodeError as e:
+            raise typer.BadParameter(
+                f"Invalid JSON for --context-variables: {e}"
+            )
+    
     controller = EvaluationsController()
-    controller.record(output_dir=output_dir)
+    controller.record(output_dir=output_dir, context_variables=context_variables)
 
 
 @evaluation_app.command(name="generate", help="Generate test cases from user stories and tools")
