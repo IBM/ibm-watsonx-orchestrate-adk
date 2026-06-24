@@ -259,33 +259,32 @@ def search_traces(
             )
 
     # Show deprecation warnings for unsupported parameters only
-    warnings_shown = []
+    has_warnings = False
 
     if service_names:
         logger.warning(
             "Service name filtering (--service-name) is no longer supported. "
             "This filter will be ignored."
         )
-        warnings_shown.append("service filtering")
+        has_warnings = True
 
     if agent_ids or agent_names:
         logger.warning(
             "Agent filtering (--agent-id, --agent-name) is no longer supported. "
             "This filter will be ignored."
         )
-        warnings_shown.append("agent filtering")
+        has_warnings = True
 
     if min_spans or max_spans:
         logger.warning(
             "Span count filtering (--min-spans, --max-spans) is no longer supported. "
             "This filter will be ignored."
         )
-        warnings_shown.append("span count filtering")
+        has_warnings = True
 
-    if warnings_shown:
+    if has_warnings:
         logger.info(
-            f"💡 Tip: Use --session-id, --user-id, or time filters (--start-time, --end-time, --last) for filtering. "
-            f"Unsupported features: {', '.join(warnings_shown)}"
+            "💡 Tip: Use --session-id, --user-id, or time filters (--start-time, --end-time, --last) for filtering."
         )
 
     trace_search(
