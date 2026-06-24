@@ -5,6 +5,22 @@ Use this exact structure and section order for all evaluation reports.
 ```markdown
 # Agent Prompt Achievability Evaluation Report
 
+## Evaluation Disclaimer
+
+**This evaluation is subjective and based on the evaluating LLM's interpretation of its own ability to understand and follow the instructions.** The scores, findings, and recommendations should be treated as **indicative guidance** rather than absolute metrics. Different LLM models, versions, or instances may interpret the same instructions differently and achieve varying levels of compliance.
+
+**Key limitations:**
+- Scores reflect estimated achievability based on known LLM attention patterns and empirical thresholds, not guaranteed outcomes
+- The evaluation cannot predict actual runtime behavior across all possible user inputs and contexts
+- Tool grounding assessments are limited by the availability of formal tool definitions in the evaluation input
+- Findings are based on manual analysis and may not capture all edge cases or interactions
+
+**Recommended use:**
+- Use this report as a diagnostic tool to identify high-risk areas in prompt design
+- Validate findings through empirical testing with the target LLM in production-like conditions
+- Prioritize changes based on severity and operational impact, not just scores
+- Re-evaluate after making significant changes to instructions or tooling
+
 ## Artifact Summary
 - Artifact type: [voice assistant system prompt | agent YAML | instruction block | etc.]
 - Artifact name: [filename or identifier]
@@ -229,7 +245,7 @@ Focus on production failure modes, not theoretical concerns.
 Prioritize by leverage: changes that improve multiple dimensions or address critical blockers.
 
 ### Rewrite Targets
-Be specific. Point to exact sections, line numbers, or rule bundles that should be rewritten first.
+Point to specific sections, line numbers, or rule bundles that contain the highest concentration of issues. For each target, describe what problems exist and suggest a rewrite strategy (approach/direction) without prescribing exact outcomes or specific line counts.
 
 ### Evaluation Harness Handoff
 The JSON object should be valid and complete. It serves as a data contract for automated harness integration.

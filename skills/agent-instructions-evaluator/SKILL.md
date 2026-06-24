@@ -30,7 +30,43 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 
 ## Evaluation Workflow
 
-### Step 1: Understand the input
+<Steps>
+<Step>
+**Gather all relevant data**
+
+Before beginning analysis, collect all available metadata and context:
+
+1. **Extract agent metadata** (if evaluating a YAML file):
+   ```bash
+   python scripts/extract_agent_info.py <agent.yaml> --json
+   ```
+   This provides: name, description, collaborators, tools, context variables, guidelines
+   - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
+
+2. **Extract tool metadata** for each referenced tool or agent collaborator:
+   - For Python-based tools (Python or Agentic Flow python): `python scripts/extract_python_tool_info.py <tool.py>`
+   - For JSON-based tools (Agentic Flow JSON or Langflow JSON): `python scripts/extract_json_tool_info.py <tool.json>`
+   
+   This provides: tool signatures, parameters, return types, descriptions
+   - Tools: [`extract_python_tool_info.py`](scripts/extract_python_tool_info.py), [`extract_json_tool_info.py`](scripts/extract_json_tool_info.py)
+
+3. **Identify missing tool definitions**: Note which tools/collaborators are referenced but not available for inspection
+
+4. **Organize the data**: Create a complete picture of:
+   - What the agent instructions say
+   - What tools are actually available
+   - What parameters those tools accept
+   - What context variables exist
+   - What guidelines constrain behavior
+
+**Only after gathering all data**, proceed to analysis. This ensures:
+- Tool grounding assessment is based on actual tool signatures, not assumptions
+- Execution feasibility is evaluated against real capabilities
+- Recommendations are specific and actionable
+</Step>
+
+<Step>
+**Understand the input**
 Accept any of these input types:
 - Raw system prompt
 - Instruction block for an agent
@@ -41,10 +77,35 @@ Accept any of these input types:
 
 If the input is partial, state that the evaluation scope is partial and score only what is visible.
 
-**Important:** If tools are referenced in the prompt but their formal definitions (schemas, APIs, specifications) are not included in the evaluation input, note this as a limitation in the "Execution & Tool Grounding" dimension. The evaluation can proceed, but recommend that the user include tool definitions and re-run the evaluation for a complete assessment of tool grounding.
+#### Processing watsonx Orchestrate Agent YAML
+When evaluating a watsonx Orchestrate native agent YAML file, extract and evaluate these key sections:
 
-### Step 2: Extract evidence (Direct Analysis Mode)
-Since no automated extraction tool is available, manually identify and count:
+1. **Instructions field** (`instructions:`): This contains the primary agent prompt. Evaluate this as the main instruction content for all dimensions.
+
+2. **Guidelines field** (`guidelines:`): These are structured rules that supplement the instructions. Count these as additional constraints and conditional logic. Each guideline typically adds:
+   - 1 conditional branch (condition → action)
+   - 1+ critical constraints if the action contains MUST/NEVER/ALWAYS language
+   - Potential tool triggers if the action specifies calling a tool/collaborator
+
+3. **Collaborators list** (`collaborators:`): Count the number of collaborators referenced. Each collaborator represents a tool-required behavior that needs trigger conditions, parameter specifications, and result handling.
+
+4. **Tools list** (`tools:`): Count the number of tools referenced. Add these to the tool-required behaviors count.
+
+5. **Context variables** (`context_variables:`): Note which variables are available. Check if the instructions require tracking additional state beyond these variables.
+
+**Counting rules for YAML:**
+- **Prompt length**: Count only the lines in the `instructions:` field (exclude YAML structure, metadata, and guidelines)
+- **Critical constraints**: Count MUST/NEVER/ALWAYS/EXACTLY in both `instructions:` and `guidelines:` sections
+- **Nested conditionals**: Count if/then branches in `instructions:` plus each guideline's condition→action pair
+- **Tool-required behaviors**: Sum of collaborators + tools (e.g., 12 collaborators + 1 tool = 13 tool-required behaviors)
+- **Exact phrases**: Count "Respond exactly:", "Say:", and similar requirements in `instructions:` and `guidelines:`
+
+**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_python_tool_info.py`](scripts/extract_python_tool_info.py), [`extract_json_tool_info.py`](scripts/extract_json_tool_info.py)) to extract tool metadata before scoring the "Execution & Tool Grounding" dimension. If tools/collaborators are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide tool definitions and re-run the evaluation for a complete assessment.
+</Step>
+
+<Step>
+**Extract evidence**
+Use the gathered data to identify and count:
 - Exact phrase requirements
 - Nested conditional branches
 - Implicit state requirements
@@ -54,10 +115,14 @@ Since no automated extraction tool is available, manually identify and count:
 - Tool-required behaviors
 - Hard conflicts between rules
 
-Mark the report as **Direct Analysis Mode** and note that all counts were performed manually by the running LLM.
+Document the analysis mode in the report:
+- **Enhanced Mode**: Used utility scripts to extract agent and tool metadata
+- **Direct Analysis Mode**: Manual analysis only (no tool metadata available)
+</Step>
 
-### Step 3: Score five dimensions
-Evaluate the artifact across these dimensions using the scoring rubrics in `dimension-definitions.md`:
+<Step>
+**Score five dimensions**
+Evaluate the artifact across these dimensions using the scoring rubrics in [`dimension-definitions.md`](dimension-definitions.md):
 
 1. **Task Understanding** (0-5): Can the agent understand its primary job?
 2. **Scope & Applicability** (0-5): Does the agent know when the instruction applies?
@@ -65,9 +130,11 @@ Evaluate the artifact across these dimensions using the scoring rubrics in `dime
 4. **Instruction Followability** (0-5): Can an LLM realistically follow all constraints at once?
 5. **State & Conflict Manageability** (0-5): Does the prompt require hidden state tracking or conflicting rules?
 
-Apply the deterministic signal rules from `signal-rules.md` to bound your judgment.
+Apply the deterministic signal rules from [`signal-rules.md`](signal-rules.md) to bound your judgment.
+</Step>
 
-### Step 4: Generate findings
+<Step>
+**Generate findings**
 For each major issue identified, create a finding with:
 - **Evidence**: Direct quotes from the input
 - **Why it matters**: Operational impact explanation
@@ -75,12 +142,22 @@ For each major issue identified, create a finding with:
 - **Score impact**: Which dimensions are affected and how
 - **Recommended change**: Specific, actionable fix
 
-### Step 5: Produce the report artifact
-Generate a complete markdown report using the structure defined in `report-template.md`. The report must be directly saveable as a file.
+</Step>
 
-**Default filename:** `agent_prompt_achievability_report.md`
+<Step>
+**Produce the report artifacts**
+Generate two artifacts:
 
-Save the report as a file if the environment supports it. Otherwise, output the complete markdown content.
+1. **Markdown report:** Complete evaluation report using the structure defined in [`report-template.md`](report-template.md). The report must be directly saveable as a file.
+   - **Default filename:** `agent_prompt_achievability_report.md`
+
+2. **JSON harness handoff:** Structured extraction object for automated harness integration.
+   - **Default filename:** `agent_prompt_achievability_report_harness.json`
+   - Contains all signals, incidents, dimension scores, and findings in machine-readable format
+
+Save both files if the environment supports it. Otherwise, output the complete markdown content and JSON separately.
+</Step>
+</Steps>
 
 ## Key Evaluation Rules
 
@@ -114,25 +191,31 @@ Save the report as a file if the environment supports it. Otherwise, output the 
 ## Supporting Files
 
 Refer to these files for detailed guidance:
-- `dimension-definitions.md`: Complete scoring rubrics for all five dimensions
-- `signal-rules.md`: Deterministic rules to reduce subjectivity (Rules A-D)
-- `report-template.md`: Required report structure and section order
-- `example-finding.md`: Sample finding with all required elements
+- [`dimension-definitions.md`](dimension-definitions.md): Complete scoring rubrics for all five dimensions
+- [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-D)
+- [`report-template.md`](report-template.md): Required report structure and section order
+- [`example-finding.md`](example-finding.md): Sample finding with all required elements
 
 ## Output Requirements
 
 **Every evaluation must produce:**
 1. A complete markdown report artifact (not just scores or bullet points)
-2. Per-dimension scores with confidence levels (do not compute weighted averages)
-3. Extraction and tool summary explaining the analysis mode
-4. Deterministic signal summary with counts
-5. At least 3-5 detailed findings with evidence and recommendations
-6. Key risks and high-impact changes sections
-7. Structured JSON extraction object for harness handoff
+2. A separate JSON harness handoff file for automated integration
+3. Per-dimension scores with confidence levels (do not compute weighted averages)
+4. Extraction and tool summary explaining the analysis mode
+5. Deterministic signal summary with counts
+6. At least 3-5 detailed findings with evidence and recommendations
+7. Key risks and high-impact changes sections
 
-**The report must be:**
+**The markdown report must be:**
 - Specific and evidence-backed
 - Structured and complete
 - Practical for prompt redesign
 - Suitable for sharing with prompt engineers, agent builders, or reviewers
 - Directly saveable as a markdown file without rewriting
+
+**The JSON harness file must be:**
+- Valid JSON with complete structured extraction object
+- Machine-readable for automated harness integration
+- Include all signals, incidents, dimension scores, and findings
+- Saved as a separate `.json` file alongside the markdown report

@@ -29,6 +29,77 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 4. **Instruction Followability** (0-5): Can an LLM realistically follow all constraints at once?
 5. **State & Conflict Manageability** (0-5): Does the prompt require hidden state tracking or conflicting rules?
 
+## Utility Scripts
+
+The `scripts/` directory contains utility scripts for enhanced evaluation capabilities:
+
+### extract_agent_info.py
+
+Extract agent name, description, and metadata from watsonx Orchestrate agent YAML files. This script is used to:
+- Get details about collaborator definitions when evaluating supervisor agents
+- Extract agent metadata for analysis and reporting
+- Provide structured information about agent configurations
+
+**Quick usage:**
+```bash
+# Text format
+python scripts/extract_agent_info.py path/to/agent.yaml
+
+# JSON format
+python scripts/extract_agent_info.py path/to/agent.yaml --json
+
+# Extract specific field
+python scripts/extract_agent_info.py path/to/agent.yaml --field description
+```
+
+### extract_python_tool_info.py
+
+**Unified Python tool extractor** - handles both regular Python tools (`@tool`) and Flow Python tools (`@flow`). This script is used to:
+- Get details about Python tool definitions when evaluating agents
+- Extract tool parameters, return types, and descriptions
+- Automatically detect tool type (regular tool vs flow)
+- Provide structured information about tool capabilities without implementation code
+
+**Quick usage:**
+```bash
+# Text format (auto-detects @tool or @flow)
+python scripts/extract_python_tool_info.py path/to/tool.py
+
+# JSON format
+python scripts/extract_python_tool_info.py path/to/tool.py --format json
+
+# Compact format
+python scripts/extract_python_tool_info.py path/to/tool.py --format compact
+```
+
+### extract_json_tool_info.py
+
+**Unified JSON tool extractor** - handles both WxO Agentic Workflow (Flow) JSON and Langflow JSON formats. This script is used to:
+- Get details about JSON-based tool definitions when evaluating agents
+- Extract flow/workflow parameters, node count, and descriptions
+- Automatically detect JSON type (Flow vs Langflow)
+- Support both Flow JSON (exported from flow builder) and Langflow JSON (visual workflows)
+- Provide structured information about workflow capabilities
+
+**Quick usage:**
+```bash
+# Text format (auto-detects Flow or Langflow)
+python scripts/extract_json_tool_info.py path/to/tool.json
+
+# JSON format
+python scripts/extract_json_tool_info.py path/to/tool.json --format json
+
+# Compact format
+python scripts/extract_json_tool_info.py path/to/tool.json --format compact
+```
+
+See [`scripts/README.md`](scripts/README.md) for complete documentation.
+
+**Requirements:**
+```bash
+pip install -r scripts/requirements.txt
+```
+
 ## How to Use This Skill
 
 ### Sample Utterances

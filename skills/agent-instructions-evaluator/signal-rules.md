@@ -81,21 +81,21 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 **Trigger 1:** The prompt exceeds **100 lines** of instruction content
 
-**Effect:** Note attention drift risk. The agent will struggle to keep all constraints in working memory simultaneously.
+**Effect:** Note attention drift risk. The agent may struggle to keep all constraints active simultaneously during response generation.
 
 **Trigger 2:** The prompt exceeds **150 lines** of instruction content
 
-**Effect:** Treat followability as fragile. The agent will miss or forget constraints, especially those mentioned early or late in the prompt.
+**Effect:** Treat followability as fragile. The agent is likely to miss or forget constraints, especially those mentioned early or late in the prompt.
 
 **Trigger 3:** The prompt exceeds **200 lines** of instruction content
 
-**Effect:** Treat followability as highly fragile. Partial compliance is guaranteed. The agent cannot reliably attend to all parts of the prompt.
+**Effect:** Treat followability as highly fragile. Partial compliance is very likely. The agent is unlikely to reliably attend to all parts of the prompt.
 
 **Scoring bounds:**
 - Prompts >150 lines: Instruction Followability should generally not exceed **2**
 - Prompts >200 lines: Instruction Followability should generally not exceed **1**
 
-**Why:** LLMs have limited attention span and working memory. Very long prompts cause attention drift where constraints mentioned early are forgotten by the time the agent generates a response, and constraints mentioned late may not be properly integrated with earlier context. This is especially severe when the prompt contains dense procedural logic, nested conditions, or many interacting rules.
+**Why:** LLMs have limited attention span during response generation. Very long prompts increase the risk of attention drift where constraints mentioned early may be forgotten by the time the agent generates a response, and constraints mentioned late may not be properly integrated with earlier context. This risk is especially high when the prompt contains dense procedural logic, nested conditions, or many interacting rules.
 
 **What counts toward line count:**
 - Instruction content (rules, constraints, workflows, examples)
