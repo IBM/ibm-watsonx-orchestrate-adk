@@ -79,8 +79,8 @@ pythonpath = [
 
 [tool.hatch.envs.default]
 dependencies = [
-    "ibm-watsonx-orchestrate[dev]",
-    "ibm-watsonx-orchestrate[agentops]",
+    "pkg[dev]",
+    "pkg[agentops]",
 ]
 detached = true
 
@@ -120,8 +120,8 @@ omit = [
 
 [tool.hatch.envs.test]
 dependencies = [
-    "ibm-watsonx-orchestrate[dev]",
-    "ibm-watsonx-orchestrate[agentops]",
+    "pkg[dev]",
+    "pkg[agentops]",
 ]
 
 [[tool.hatch.envs.test.matrix]]
