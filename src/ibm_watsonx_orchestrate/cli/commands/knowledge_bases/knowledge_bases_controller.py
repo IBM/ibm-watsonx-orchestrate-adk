@@ -248,6 +248,7 @@ class KnowledgeBaseController:
 
                 kb.validate_documents_or_index_exists()
                 response = None
+                kb_id = None
                 if kb.documents:
                     files = [build_file_object(file_dir, file) for file in kb.documents]
                     file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
@@ -255,6 +256,8 @@ class KnowledgeBaseController:
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True);
                     payload.pop('documents');
+                    # Remove sync_job from payload as it's handled separately
+                    sync_job = payload.pop('sync_job', None)
 
                     data = {
                         'knowledge_base': json.dumps(payload),
@@ -271,6 +274,10 @@ class KnowledgeBaseController:
                     if response and 'knowledge_base' in response:
                         kb_id = response['knowledge_base']
                         self._poll_knowledge_base_status(client, kb_id, kb.name, False)
+                        
+                        # Create schedule if sync_job is specified
+                        if kb.sync_job and kb_id:
+                            self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     else:
                         logger.info(f"Successfully started import for knowledge base '{kb.name}'")
                 else:
@@ -283,10 +290,19 @@ class KnowledgeBaseController:
                         raise ValueError(f"Must provide credentials (via --app-id) when using milvus or elastic_search.")
 
                     kb.prioritize_built_in_index = False
-                    data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
+                    payload = kb.model_dump(exclude_none=True)
+                    # Remove sync_job from payload as it's handled separately
+                    sync_job = payload.pop('sync_job', None)
+                    data = { 'knowledge_base': json.dumps(payload) }
 
                     try:
-                        client.create(payload=data)
+                        response = client.create(payload=data)
+                        if response and 'knowledge_base' in response:
+                            kb_id = response['knowledge_base']
+                            
+                            # Create schedule if sync_job is specified
+                            if kb.sync_job and kb_id:
+                                self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     except ClientAPIException as e:
                         logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
                         continue
@@ -394,6 +410,56 @@ class KnowledgeBaseController:
                     logger.error(f"Unexpected error checking status for knowledge base '{kb_name}': {str(e)}")
                     return
     
+    def _create_schedule(
+        self,
+        client: KnowledgeBaseClient,
+        kb_id: str,
+        schedule_pattern: str,
+        kb_name: str
+    ) -> None:
+        """
+        Create a schedule for a knowledge base.
+        
+        Args:
+            client: The knowledge base client
+            kb_id: The knowledge base ID
+            schedule_pattern: The cron pattern for the schedule
+            kb_name: The knowledge base name (for logging)
+        """
+        try:
+            payload = {"pattern": schedule_pattern}
+            client.create_schedule(kb_id, payload)
+            logger.info(f"Successfully created schedule for knowledge base '{kb_name}' with pattern '{schedule_pattern}'")
+        except ClientAPIException as e:
+            logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating schedule for knowledge base '{kb_name}': {str(e)}")
+    
+    def _update_schedule(
+        self,
+        client: KnowledgeBaseClient,
+        kb_id: str,
+        schedule_pattern: str,
+        kb_name: str
+    ) -> None:
+        """
+        Update a schedule for a knowledge base.
+        
+        Args:
+            client: The knowledge base client
+            kb_id: The knowledge base ID
+            schedule_pattern: The cron pattern for the schedule
+            kb_name: The knowledge base name (for logging)
+        """
+        try:
+            payload = {"pattern": schedule_pattern}
+            client.update_schedule(kb_id, payload)
+            logger.info(f"Successfully updated schedule for knowledge base '{kb_name}' with pattern '{schedule_pattern}'")
+        except ClientAPIException as e:
+            logger.error(f"Failed to update schedule for knowledge base '{kb_name}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error updating schedule for knowledge base '{kb_name}': {str(e)}")
+    
     def get_id(
         self, id: str, name: str, workspace_id: Optional[str] = None
     ) -> str:
@@ -431,8 +497,10 @@ class KnowledgeBaseController:
                 logger.error(str(e))
                 return
 
+        client = self.get_client()
+        
         if kb.documents:
-            status = self.get_client().status(knowledge_base_id)
+            status = client.status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
             
             removed_docs = existing_docs[:]
@@ -453,22 +521,35 @@ class KnowledgeBaseController:
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True)
             payload.pop('documents')
+            # Remove sync_job from payload as it's handled separately
+            sync_job = payload.pop('sync_job', None)
 
             data = {
                 'knowledge_base': json.dumps(payload),
                 'file_urls': json.dumps(file_urls)
             }
 
-            self.get_client().update_with_documents(knowledge_base_id, payload=data, files=files)
+            client.update_with_documents(knowledge_base_id, payload=data, files=files)
             
             # Poll for update completion when documents are included
-            self._poll_knowledge_base_status(self.get_client(), knowledge_base_id, kb.name, True)
+            self._poll_knowledge_base_status(client, knowledge_base_id, kb.name, True)
+            
+            # Update schedule if sync_job is specified
+            if kb.sync_job:
+                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
         else:
             if kb.conversational_search_tool and kb.conversational_search_tool.index_config:
                 kb.prioritize_built_in_index = False
 
-            data = { 'knowledge_base': json.dumps(kb.model_dump(exclude_none=True)) }
-            self.get_client().update(knowledge_base_id, payload=data)
+            payload = kb.model_dump(exclude_none=True)
+            # Remove sync_job from payload as it's handled separately
+            sync_job = payload.pop('sync_job', None)
+            data = { 'knowledge_base': json.dumps(payload) }
+            client.update(knowledge_base_id, payload=data)
+            
+            # Update schedule if sync_job is specified
+            if kb.sync_job:
+                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
             
             # No polling needed when no documents are included
             logger.info(f"Knowledge base '{kb.name}' updated successfully")

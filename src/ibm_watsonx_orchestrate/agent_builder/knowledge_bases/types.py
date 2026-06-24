@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator, Field, field_validator
 
 
 class SpecVersion(str, Enum):
@@ -390,6 +390,36 @@ class KnowledgeBaseBuiltInVectorIndexConfig(BaseModel):
 class FileUpload(BaseModel):
     path: str
     url: Optional[str] = None
+
+class ContentSourceType(str, Enum):
+    """Content source types for knowledge bases"""
+    BOX = "Box"
+
+class ContentSource(BaseModel):
+    """Content source configuration for knowledge base"""
+    type: ContentSourceType = Field(..., description="Type of content source (e.g., 'Box')")
+
+class KnowledgeBaseSyncJob(BaseModel):
+    """Schedule repeat options for knowledge base ingestion"""
+    schedule: str = Field(..., description="Cron pattern (e.g., '0 0 * * *' for daily at midnight)")
+
+    @field_validator("schedule")
+    @classmethod
+    def validate_schedule_minimum_interval(cls, value: str) -> str:
+        from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import (
+            get_minimum_schedule_interval_minutes,
+            get_schedule_pattern_interval_minutes
+        )
+        
+        minimum_interval_minutes = get_minimum_schedule_interval_minutes()
+        interval_minutes = get_schedule_pattern_interval_minutes(value)
+
+        if interval_minutes is not None and interval_minutes < minimum_interval_minutes:
+            raise ValueError(
+                f"Schedule interval must be at least {minimum_interval_minutes} minutes"
+            )
+
+        return value
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
@@ -404,12 +434,35 @@ class KnowledgeBaseSpec(BaseModel):
     prioritize_built_in_index: Optional[bool] = None
     workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
     representation: Optional[KnowledgeBaseRepresentation] = None
-    vector_index_id: Optional[UUID] = None 
+    vector_index_id: Optional[UUID] = None
     created_by: Optional[str] = None
-    created_on: Optional[datetime] = None 
+    created_on: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    content_source: Optional[ContentSource] = None
+    sync_job: Optional[KnowledgeBaseSyncJob] = None
     # For import/update
     documents: list[str] | list[FileUpload] = None
+    
+    @model_validator(mode='after')
+    def validate_sync_job_requires_content_source(self) -> 'KnowledgeBaseSpec':
+        """Validate that sync_job is only used with content_source, not with index_config."""
+        if self.sync_job is not None:
+            # Check if using index_config (external knowledge base)
+            if self.conversational_search_tool and isinstance(self.conversational_search_tool, ConversationalSearchConfig):
+                if self.conversational_search_tool.index_config:
+                    raise ValueError(
+                        "sync_job is not supported for knowledge bases using index_config. "
+                        "sync_job can only be used with content_source."
+                    )
+            
+            # Ensure content_source is provided when sync_job is specified
+            if self.content_source is None:
+                raise ValueError(
+                    "sync_job requires content_source to be specified. "
+                    "Please provide a content_source (e.g., type: 'Box')."
+                )
+        
+        return self
 
 class KnowledgeBaseListEntry(BaseModel):
     name: str = Field(description="Name of the knowledge base")
