@@ -139,3 +139,29 @@ class KnowledgeBaseClient(BaseWXOClient):
 
     def delete(self, knowledge_base_id: str,) -> dict:
         return self._delete(f"{self.base_endpoint}/{knowledge_base_id}")
+    
+    def create_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
+        """
+        Create a schedule for a knowledge base.
+        
+        Args:
+            knowledge_base_id: The knowledge base ID
+            payload: Dictionary containing the schedule pattern, e.g., {"pattern": "0 0 * * *"}
+        
+        Returns:
+            dict: Response from the API
+        """
+        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/schedules", data=payload)
+    
+    def update_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
+        """
+        Update a schedule for a knowledge base.
+        
+        Args:
+            knowledge_base_id: The knowledge base ID
+            payload: Dictionary containing the schedule pattern, e.g., {"pattern": "0 0 * * *"}
+        
+        Returns:
+            dict: Response from the API
+        """
+        return self._patch(f"{self.base_endpoint}/{knowledge_base_id}/schedule", data=payload)

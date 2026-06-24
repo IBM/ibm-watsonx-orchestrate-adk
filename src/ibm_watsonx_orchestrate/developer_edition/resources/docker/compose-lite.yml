@@ -1821,6 +1821,31 @@ services:
       JWT_PRIVATE_CONFIGS_PATH: "/"
       CALLER_ID: 12345
 
+  wdp-connect-flight-svc:
+    image: us.icr.io/watson-orchestrate-private/wdp-connect-flight-svc:24-06-2026
+    platform: linux/amd64
+    profiles: [ingestion-from-external-source]
+    restart: unless-stopped
+    container_name: wdpflight-svc
+    ports:
+      - "9443:9443"
+      - "7777:7777"
+    environment:
+      COMPONENT_ID: wdp-connect-flight-svc
+      ENVIRONMENT_NAME: standalone
+      TRUST_ALL_SSL_CERT: "true"
+      WDPX_KUBE_FLIGHT_DEBUG_REMOTE: "y"
+      WDPX_KUBE_FLIGHT_DEBUG_SUSPEND: "n"
+      ENABLE_DEBUG: "false"
+      DEV_GLOBAL_CATALOG: ""
+      GATEWAY_URL: "http://localhost:9443"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/ibm/healthcheck/grpcurl --insecure -H 'IBM-FLIGHT-HEALTHCHECK:true' -d '{\"type\":\"health_check\"}' -proto opt/ibm/healthcheck/Flight.proto localhost:9443 arrow.flight.protocol.FlightService/DoAction"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
     restart: unless-stopped
