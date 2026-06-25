@@ -44,11 +44,10 @@ Before beginning analysis, collect all available metadata and context:
    - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
 
 2. **Extract tool metadata** for each referenced tool or agent collaborator:
-   - For Python-based tools (Python or Agentic Flow python): `python scripts/extract_python_tool_info.py <tool.py>`
-   - For JSON-based tools (Agentic Flow JSON or Langflow JSON): `python scripts/extract_json_tool_info.py <tool.json>`
+   - For Python-based tools and JSON-based tools: `python scripts/extract_tool_info.py <tool.py|tool.json>`
    
    This provides: tool signatures, parameters, return types, descriptions
-   - Tools: [`extract_python_tool_info.py`](scripts/extract_python_tool_info.py), [`extract_json_tool_info.py`](scripts/extract_json_tool_info.py)
+   - Tool: [`extract_tool_info.py`](scripts/extract_tool_info.py)
 
 3. **Identify missing tool definitions**: Note which tools/collaborators are referenced but not available for inspection
 
@@ -100,7 +99,7 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 - **Tool-required behaviors**: Sum of collaborators + tools (e.g., 12 collaborators + 1 tool = 13 tool-required behaviors)
 - **Exact phrases**: Count "Respond exactly:", "Say:", and similar requirements in `instructions:` and `guidelines:`
 
-**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_python_tool_info.py`](scripts/extract_python_tool_info.py), [`extract_json_tool_info.py`](scripts/extract_json_tool_info.py)) to extract tool metadata before scoring the "Execution & Tool Grounding" dimension. If tools/collaborators are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide tool definitions and re-run the evaluation for a complete assessment.
+**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool metadata before scoring the "Execution & Tool Grounding" dimension. If tools/collaborators are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide tool definitions and re-run the evaluation for a complete assessment.
 </Step>
 
 <Step>
