@@ -50,7 +50,20 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 **Effect:** Treat instruction-only compliance as highly fragile unless workflow logic is externalized to a state machine.
 
-**Why:** Deep nesting exceeds LLM working memory and creates navigation errors. The agent will get lost in branches, especially when workflows interact.
+**Trigger 3:** The prompt contains more than **30** meaningful nested if/then branches
+
+**Effect:** Treat instruction-only compliance as near-impossible. The agent cannot reliably navigate the full branch space in a single generation pass. Partial compliance is the expected outcome, not the edge case.
+
+**Trigger 4:** The prompt contains more than **40** meaningful nested if/then branches
+
+**Effect:** Treat instruction-only compliance as not achievable. Prompt-only control over this many branches will fail even under favorable conditions.
+
+**Scoring bounds:**
+- Prompts with >20 branches: Instruction Followability should generally not exceed **2**
+- Prompts with >30 branches: Instruction Followability should generally not exceed **1**
+- Prompts with >40 branches: Instruction Followability should generally not exceed **0**
+
+**Why:** Deep nesting exceeds LLM working memory and creates navigation errors. The agent will get lost in branches, especially when workflows interact. Beyond 20 branches, the agent must hold a decision tree that exceeds the reliable working-memory capacity of most production LLMs during response generation. Beyond 30 branches, the tree is large enough that the agent will routinely follow the wrong path even with the prompt fully in context. Beyond 40 branches, the branching logic has grown into a workflow engine and belongs in deterministic tooling, not a prompt.
 
 **What counts as a nested branch:**
 - If/then/else conditions
@@ -112,15 +125,65 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 ---
 
-## Rule F: Performance friction from instruction complexity
+## Rule F: Active operational rule burden
+
+**What this rule measures:** The number of operational rules that may simultaneously apply to a single user turn. This is distinct from total rule count (Rule E measures bulk) and nested branches (Rule C measures structural complexity). A 100-rule prompt can be manageable if only 3–5 rules apply per turn. A 15-rule prompt can be unachievable if all 15 fire at once.
+
+**What counts as an active operational rule:**
+- A MUST / NEVER / ALWAYS constraint relevant to the current turn
+- A conditional branch that may apply to the current input
+- A required output-format constraint
+- A tool invocation rule
+- A failure-handling rule
+- A state-dependent rule (e.g., "only ask once per call")
+- An exact phrase requirement
+- A safety / refusal / escalation rule
+
+**What does not count:**
+- Section headers and background context
+- Examples that are not binding
+- General style preferences that do not compete with operational requirements
+- Rules scoped to a different task or flow that cannot apply to the current turn
+
+**Active rule budget:**
+| Active rules per turn | Risk level | Guidance |
+|---|---|---|
+| 0–5 | Low | Realistic target for most production agents |
+| 6–10 | Manageable | Acceptable if rules are independent and prioritized |
+| 11–20 | High | Followability becomes dependent on rule independence, prioritization, and prompt structure |
+| 21–30 | Fragile | Prompt-only compliance is fragile; move branching, state, and validation into workflow or tooling |
+| 30+ | Not achievable | Prompt is acting as a workflow engine; decompose into deterministic control logic |
+
+**Scoring bounds:**
+- More than 10 active rules per turn: Instruction Followability should generally not exceed **3**
+- More than 20 active rules per turn: Instruction Followability should generally not exceed **2**
+- More than 30 active rules per turn: Instruction Followability should generally not exceed **1**
+
+**Key distinction:** Not all rules are equal. The budget is tighter for interacting rules than for independent ones:
+- Simple style rules (e.g., "be concise", "avoid jargon"): 5–15 realistic
+- Output-format rules: 3–7 realistic; 10+ risky
+- Critical behavioral rules (MUST / NEVER / ALWAYS): 5–9 realistic; 10+ risky
+- Conditional rules: 5–10 realistic; see also Rule C
+- Exact phrase rules: 0–3 realistic; 5+ risky (see Rule B)
+- Stateful rules: 0–2 realistic; any hidden counter/state is risky (see Rule A)
+- Tool-use rules: 1–5 tools/flows realistic; any underspecified behavior is risky (see Rule D)
+
+**The control-plane principle:** Rules about routing, retries, tool selection, escalation, validation, state transitions, "only ask once," or "after failure do X" are control-plane rules. They belong in deterministic workflow, explicit state, or tool contracts — not in the prompt. When these rules appear in the prompt, count them in the active rule budget and treat their presence as a signal that logic should be externalized.
+
+**Why:** LLMs can follow a modest number of independent, prioritized rules. They struggle with large numbers of simultaneously active, interacting, stateful, or conflicting rules. The useful budget is not total rules in the prompt; it is active operational rules per turn.
+
+---
+
+## Rule G: Performance friction from instruction complexity
 
 **Trigger:** The prompt contains a high volume of interacting constraints, long instruction content, ambiguous tool triggers, conflicting rules, or workflow logic that must be resolved by the LLM at runtime.
 
 **Effect:** Note performance risk in addition to followability risk. The agent may require more reasoning tokens, produce longer outputs, call tools unnecessarily, enter correction loops, or show higher latency variance.
 
 **Performance risk indicators:**
-- Prompt length exceeds 100 / 150 / 200 instruction lines
-- Nested conditional branches exceed 10 / 20
+- Prompt length exceeds 100 / 150 / 200 instruction lines (see Rule E)
+- Nested conditional branches exceed 10 / 20 / 30 / 40 (see Rule C)
+- Active operational rules per turn exceed 10 / 20 / 30 (see Rule F)
 - Tool trigger rules are ambiguous or overlapping
 - Multiple rules compete in the same turn without priority
 - The prompt asks the model to decide, execute, validate, remember, and recover in one pass
@@ -138,7 +201,7 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 ## How to apply these rules
 
-1. **Count the signals:** Extract exact counts for exact phrases, nested branches, implicit state variables, and underspecified tools.
+1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools.
 
 2. **Apply the bounds:** Use the thresholds above to establish scoring bounds (e.g., "State & Conflict Manageability should not exceed 2").
 

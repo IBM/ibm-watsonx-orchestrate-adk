@@ -34,18 +34,26 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 <Step>
 **Gather all relevant data**
 
-Before beginning analysis, collect all available metadata and context:
+Before beginning analysis, collect all available metadata and context.
+
+> **Path note:** All `scripts/` paths below are relative to the skill directory (`skills/agent-instructions-evaluator/`). Run these commands from that directory, or prefix the path accordingly (e.g. `skills/agent-instructions-evaluator/scripts/extract_agent_info.py`).
 
 1. **Extract agent metadata** (if evaluating a YAML file):
    ```bash
    python scripts/extract_agent_info.py <agent.yaml> --json
    ```
-   This provides: name, description, collaborators, tools, context variables, guidelines
+   This provides: name, display_name, kind, llm, collaborators, tools, context variables, instructions length, guidelines count
    - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
 
 2. **Extract tool metadata** for each referenced tool or agent collaborator:
-   - For Python-based tools, JSON-based tools, and YAML-based tools (knowledge bases, MCP toolkits): `python scripts/extract_tool_info.py <tool.py|tool.json|tool.yaml>`
-   
+   ```bash
+   python scripts/extract_tool_info.py <tool.py|tool.json|tool.yaml> --json
+   ```
+   Auto-detects file type:
+   - **Python `.py`**: `@tool` decorator → regular Python tool; `@flow` decorator → Python flow tool
+   - **JSON `.json`**: `spec.kind == "flow"` → WxO Agentic Workflow; `data.nodes` (list) → Langflow workflow
+   - **YAML `.yaml/.yml`**: `kind: knowledge_base` → WxO Knowledge Base; `kind: mcp` → MCP Toolkit
+
    This provides: tool signatures, parameters, return types, descriptions
    - Tool: [`extract_tool_info.py`](scripts/extract_tool_info.py)
 
@@ -99,7 +107,7 @@ When evaluating a watsonx Orchestrate native agent YAML file, extract and evalua
 - **Tool-required behaviors**: Sum of collaborators + tools (e.g., 12 collaborators + 1 tool = 13 tool-required behaviors)
 - **Exact phrases**: Count "Respond exactly:", "Say:", and similar requirements in `instructions:` and `guidelines:`
 
-**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool metadata before scoring the "Execution & Tool Grounding" dimension. If tools/collaborators are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide tool definitions and re-run the evaluation for a complete assessment.
+**Important:** Use the utility scripts ([`extract_agent_info.py`](scripts/extract_agent_info.py), [`extract_tool_info.py`](scripts/extract_tool_info.py)) to extract tool metadata before scoring the "Execution & Tool Grounding" dimension. Both scripts live under `scripts/` relative to this skill file — not the top-level workspace. If tools/collaborators are referenced but their formal definitions cannot be extracted (file not found, unsupported format), note this as a limitation. The evaluation can proceed, but recommend that the user provide tool definitions and re-run the evaluation for a complete assessment.
 </Step>
 
 <Step>

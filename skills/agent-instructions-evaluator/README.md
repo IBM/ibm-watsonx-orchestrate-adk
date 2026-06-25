@@ -34,67 +34,30 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 
 ## Utility Scripts
 
-The `scripts/` directory contains utility scripts for enhanced evaluation capabilities:
+The `scripts/` directory (relative to this skill) contains utility scripts for enhanced evaluation capabilities.
+
+> **Path note:** `scripts/` is relative to the skill directory (`skills/agent-instructions-evaluator/`), not the top-level workspace root.
 
 ### extract_agent_info.py
 
-Extract agent name, description, and metadata from watsonx Orchestrate agent YAML files. This script is used to:
-- Get details about collaborator definitions when evaluating supervisor agents
-- Extract agent metadata for analysis and reporting
-- Provide structured information about agent configurations
+Extracts metadata from watsonx Orchestrate agent YAML files. Used to inspect collaborator definitions, available tools, and context variables before scoring.
 
-**Quick usage:**
 ```bash
-# Text format
-python scripts/extract_agent_info.py path/to/agent.yaml
-
-# JSON format
 python scripts/extract_agent_info.py path/to/agent.yaml --json
-
-# Extract specific field
-python scripts/extract_agent_info.py path/to/agent.yaml --field description
 ```
 
-### extract_python_tool_info.py
+### extract_tool_info.py
 
-**Unified Python tool extractor** - handles both regular Python tools (`@tool`) and Flow Python tools (`@flow`). This script is used to:
-- Get details about Python tool definitions when evaluating agents
-- Extract tool parameters, return types, and descriptions
-- Automatically detect tool type (regular tool vs flow)
-- Provide structured information about tool capabilities without implementation code
+**Unified tool extractor** — auto-detects `.py`, `.json`, and `.yaml`/`.yml` tool files. Used to verify tool signatures, parameters, and return types referenced in agent instructions.
 
-**Quick usage:**
 ```bash
-# Text format (auto-detects @tool or @flow)
-python scripts/extract_python_tool_info.py path/to/tool.py
-
-# JSON format
-python scripts/extract_python_tool_info.py path/to/tool.py --format json
-
-# Compact format
-python scripts/extract_python_tool_info.py path/to/tool.py --format compact
+python scripts/extract_tool_info.py path/to/tool.py --json
 ```
 
-### extract_json_tool_info.py
-
-**Unified JSON tool extractor** - handles both WxO Agentic Workflow (Flow) JSON and Langflow JSON formats. This script is used to:
-- Get details about JSON-based tool definitions when evaluating agents
-- Extract flow/workflow parameters, node count, and descriptions
-- Automatically detect JSON type (Flow vs Langflow)
-- Support both Flow JSON (exported from flow builder) and Langflow JSON (visual workflows)
-- Provide structured information about workflow capabilities
-
-**Quick usage:**
-```bash
-# Text format (auto-detects Flow or Langflow)
-python scripts/extract_json_tool_info.py path/to/tool.json
-
-# JSON format
-python scripts/extract_json_tool_info.py path/to/tool.json --format json
-
-# Compact format
-python scripts/extract_json_tool_info.py path/to/tool.json --format compact
-```
+Supported formats auto-detected by file extension and content:
+- **`.py`** — `@tool` decorator → regular Python tool; `@flow` decorator → Python flow tool
+- **`.json`** — `spec.kind == "flow"` → WxO Agentic Workflow; `data.nodes` (list) → Langflow workflow
+- **`.yaml/.yml`** — `kind: knowledge_base` → WxO Knowledge Base; `kind: mcp` → MCP Toolkit
 
 See [`scripts/README.md`](scripts/README.md) for complete documentation.
 

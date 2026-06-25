@@ -693,23 +693,25 @@ def format_compact_output(metadata: Dict[str, Any]) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: extract_tool_info.py <file.py|file.json|file.yaml> [--format text|json|compact]")
+        print("Usage: extract_tool_info.py <file.py|file.json|file.yaml> [--json|--compact]")
         print("\nExtracts metadata from a tool file (.py, .json, or .yaml/.yml).")
         print("\nPython files: detects @tool or @flow decorators.")
         print("JSON files:   detects WxO Agentic Workflow or Langflow format.")
         print("YAML files:   detects WxO Knowledge Base (kind: knowledge_base) or MCP Toolkit (kind: mcp).")
-        print("\nFormats:")
-        print("  text    - Human-readable text (default)")
-        print("  json    - Pretty-printed JSON")
-        print("  compact - Single-line JSON")
+        print("\nFlags:")
+        print("  --json    - Pretty-printed JSON")
+        print("  --compact - Single-line JSON")
+        print("  (default) - Human-readable text")
         sys.exit(1)
 
     file_path = sys.argv[1]
     output_format = 'text'
 
-    if len(sys.argv) > 2 and sys.argv[2] == '--format':
-        if len(sys.argv) > 3:
-            output_format = sys.argv[3]
+    if len(sys.argv) > 2:
+        if sys.argv[2] == '--json':
+            output_format = 'json'
+        elif sys.argv[2] == '--compact':
+            output_format = 'compact'
 
     if not Path(file_path).exists():
         print(f"Error: File not found: {file_path}", file=sys.stderr)
