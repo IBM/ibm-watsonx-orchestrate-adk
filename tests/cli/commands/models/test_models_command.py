@@ -34,7 +34,8 @@ class TestModelsImport:
 
             models_command.models_import(
                 file="test.yaml",
-                app_id="test_app_id"
+                app_id="test_app_id",
+                skip_validation=False
             )
             import_model_mock.assert_called_once_with(
                 file="test.yaml",
@@ -89,7 +90,8 @@ class TestModelsAdd:
                 display_name="test_display_name",
                 provider_config="{}",
                 app_id="test_app_id",
-                type=ModelType.CHAT
+                type=ModelType.CHAT,
+                skip_validation=False
             )
             create_model_mock.assert_called_once_with(
                 name="test_name",
