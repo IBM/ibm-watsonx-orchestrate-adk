@@ -216,8 +216,9 @@ def trace_search(start_time: Optional[datetime] = None,
                     page_size: int = 100,
                     ):
         try:
-            # Resolve agent names to IDs for backward compatibility with existing CLI behavior/tests.
-            # Keep the explicit mapping lookup so callers patching the helper continue to work.
+            # agent-name and agent-id params are deprecated; the API no longer filters by agent.
+            # The resolution call is kept so that the deprecation warning in resolve_agent_names_to_ids
+            # still fires when a caller passes these flags.
             resolved_agent_ids = traces_helper.resolve_agent_names_to_ids(agent_names, agent_ids)
 
             # For local development with FORCE_SINGLE_TENANT=true, service_name is required, defaulting to "wxo-server" if not provided

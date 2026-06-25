@@ -355,7 +355,6 @@ class TracesClient(BaseWXOClient):
         if filters is None:
             filters = TraceFilters()
 
-        # API now handles filtering server-side, so we only fetch one page
         all_trace_summaries = []
         all_traces = []
         current_page = 1
@@ -364,7 +363,6 @@ class TracesClient(BaseWXOClient):
         last_params: Dict[str, Any] = {}
         traces_response: Optional[TracesResponse] = None
 
-        # Only fetch the first page since API handles filtering
         max_pages_to_fetch = 1
 
         while current_page <= max_pages_to_fetch:

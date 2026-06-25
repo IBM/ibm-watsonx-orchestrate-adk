@@ -242,7 +242,6 @@ def search_traces(
         - Not available in on-premises offering
         - Agent and service filtering are deprecated
     """
-    # Handle optional time parameters (deprecated but still supported for backward compatibility)
     if last is not None:
         if start_time is not None or end_time is not None:
             raise typer.BadParameter(
