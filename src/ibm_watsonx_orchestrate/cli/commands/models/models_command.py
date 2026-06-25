@@ -171,10 +171,11 @@ def models_import(
             help='The app id of a key_value connection containing authentications details for the model provider.'
         )
     ] = None,
-    skip_validation: Annotated[
+    validate: Annotated[
         bool, typer.Option(
-            '--skip-validation',
-            help='The app id of a key_value connection containing authentications details for the model provider.'
+            '--validate',
+            help='Validate the model after import to ensure it is functional.',
+            hidden=True
         )
     ] = False,
 ):
@@ -184,7 +185,7 @@ def models_import(
         app_id=app_id
     )
     for model in models:
-        models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
+        models_controller.publish_or_update_models(model=model, skip_validation=not validate)
 
 @models_app.command(name="add", help="Add an llm from a custom provider")
 def models_add(
@@ -217,10 +218,11 @@ def models_add(
         ModelType,
         typer.Option('--type', help='What type of model is it'),
     ] = ModelType.CHAT,
-    skip_validation: Annotated[
+    validate: Annotated[
         bool, typer.Option(
-            '--skip-validation',
-            help='The app id of a key_value connection containing authentications details for the model provider.'
+            '--validate',
+            help='Validate the model after creation to ensure it is functional.',
+            hidden=True
         )
     ] = False,
 ):
@@ -241,7 +243,7 @@ def models_add(
         model_type=type,
         app_id=app_id,
     )
-    models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
+    models_controller.publish_or_update_models(model=model, skip_validation=not validate)
 
 
 
@@ -273,7 +275,7 @@ def models_export(
     models_controller = ModelsController()
     models_controller.export_model(name=name, output_path=output_path)
 
-@models_app.command(name="validate", help="Validate a model's functionality")
+@models_app.command(name="validate", help="Validate a model's functionality", hidden=True)
 def models_validate(
     name: Annotated[
         str,
