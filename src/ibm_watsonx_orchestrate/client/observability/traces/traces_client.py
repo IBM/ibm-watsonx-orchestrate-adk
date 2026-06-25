@@ -24,7 +24,9 @@ class PaginationMeta(BaseModel):
 
 
 class Observation(BaseModel):
-    """Observation (span) from agentops-v3 API."""
+    """
+    A single recorded step within a trace, returned by GET /v1/agentops-v3/observations.
+    """
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(..., description="Observation ID")
