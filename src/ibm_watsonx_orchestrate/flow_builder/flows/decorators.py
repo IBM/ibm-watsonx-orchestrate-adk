@@ -38,7 +38,7 @@ def flow(*args,
          private_schema: type[BaseModel] | None = None,
          initiators: Sequence[str] = (),
          schedulable: bool = False,
-         suppress_agent_summarization: Optional[bool] = None,
+         suppress_agent_summarization: Optional[bool] = True,
          llm_model: str|ListVirtualModel|None=None,
          agent_conversation_memory_turns_limit: int|None=None,
          context_window: FlowContextWindow|None=None):

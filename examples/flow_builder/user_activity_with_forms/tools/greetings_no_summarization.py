@@ -5,8 +5,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
 @flow(
     name="greetings_no_summarization",
     display_name="Greetings (No Summarization)",
-    description="A simple greeting flow with agent summarization suppressed.",
-    suppress_agent_summarization=True
+    description="A simple greeting flow with agent summarization suppressed."
 )
 def build_greeting_flow(aflow: Flow = None) -> Flow:
     """
