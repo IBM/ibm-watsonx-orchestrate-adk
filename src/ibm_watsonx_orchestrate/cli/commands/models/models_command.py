@@ -171,13 +171,13 @@ def models_import(
             help='The app id of a key_value connection containing authentications details for the model provider.'
         )
     ] = None,
-    validate: Annotated[
+    skip_validation: Annotated[
         bool, typer.Option(
-            '--validate',
-            help='Validate the model after import to ensure it is functional.',
+            '--skip-validation/--no-skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.',
             hidden=True
         )
-    ] = False,
+    ] = True,
 ):
     models_controller = ModelsController()
     models = models_controller.import_model(
@@ -185,7 +185,7 @@ def models_import(
         app_id=app_id
     )
     for model in models:
-        models_controller.publish_or_update_models(model=model, skip_validation=not validate)
+        models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 @models_app.command(name="add", help="Add an llm from a custom provider")
 def models_add(
@@ -218,13 +218,13 @@ def models_add(
         ModelType,
         typer.Option('--type', help='What type of model is it'),
     ] = ModelType.CHAT,
-    validate: Annotated[
+    skip_validation: Annotated[
         bool, typer.Option(
-            '--validate',
-            help='Validate the model after creation to ensure it is functional.',
+            '--skip-validation/--no-skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.',
             hidden=True
         )
-    ] = False,
+    ] = True,
 ):
     provider_config_dict = {}
     if provider_config:
@@ -243,7 +243,7 @@ def models_add(
         model_type=type,
         app_id=app_id,
     )
-    models_controller.publish_or_update_models(model=model, skip_validation=not validate)
+    models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 
 
