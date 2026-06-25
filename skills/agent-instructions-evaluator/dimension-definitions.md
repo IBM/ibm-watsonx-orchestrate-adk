@@ -125,8 +125,8 @@ Can an LLM realistically follow all constraints at once? A prompt can be very cl
 - **Prompt length and attention drift risk:**
   - Short (≤50 lines): Low attention drift risk
   - Medium (51-100 lines): Moderate attention drift risk; prioritization becomes important
-  - Long (101-200 lines): High attention drift risk; agent will miss or forget constraints
-  - Very long (>200 lines): Severe attention drift; partial compliance guaranteed
+  - Long (101-200 lines): High attention drift risk; agent is likely to miss or forget constraints
+  - Very long (>200 lines): Severe attention drift; partial compliance very likely
   - Note: Dense procedural logic increases effective length (e.g., 100 lines of nested rules ≈ 150+ lines of simple instructions)
 
 ---

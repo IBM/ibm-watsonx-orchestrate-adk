@@ -5,6 +5,22 @@ Use this exact structure and section order for all evaluation reports.
 ```markdown
 # Agent Prompt Achievability Evaluation Report
 
+## Evaluation Disclaimer
+
+**This evaluation is subjective and based on the evaluating LLM's interpretation of its own ability to understand and follow the instructions.** The scores, findings, and recommendations should be treated as **indicative guidance** rather than absolute metrics. Different LLM models, versions, or instances may interpret the same instructions differently and achieve varying levels of compliance.
+
+**Key limitations:**
+- Scores reflect estimated achievability based on known LLM attention patterns and empirical thresholds, not guaranteed outcomes
+- The evaluation cannot predict actual runtime behavior across all possible user inputs and contexts
+- Tool grounding assessments are limited by the availability of formal tool definitions in the evaluation input
+- Findings are based on manual analysis and may not capture all edge cases or interactions
+
+**Recommended use:**
+- Use this report as a diagnostic tool to identify high-risk areas in prompt design
+- Validate findings through empirical testing with the target LLM in production-like conditions
+- Prioritize changes based on severity and operational impact, not just scores
+- Re-evaluate after making significant changes to instructions or tooling
+
 ## Artifact Summary
 - Artifact type: [voice assistant system prompt | agent YAML | instruction block | etc.]
 - Artifact name: [filename or identifier]
@@ -47,6 +63,19 @@ Use this exact structure and section order for all evaluation reports.
 - Weakest dimension: [dimension name] ([score]/5)
 - Reliability outlook: [paragraph explaining expected production behavior]
 - What would most improve this artifact: [top 1-2 changes]
+
+## Runtime Performance Risk
+- Token overhead risk: [Low / Medium / High]
+- Reasoning overhead risk: [Low / Medium / High]
+- Tool-call overhead risk: [Low / Medium / High]
+- Retry / repair-loop risk: [Low / Medium / High]
+- Latency variance risk: [Low / Medium / High]
+
+### Main performance risk drivers
+- [List the signals that drive runtime cost, e.g. prompt length, ambiguous tool triggers, interacting constraints]
+
+### Performance interpretation
+[Short paragraph explaining whether instruction complexity is likely to increase runtime cost, latency, tool-call count, or response variance. Distinguish deterministic evidence from judgment-based conclusions.]
 
 ## Dimension Analysis
 
@@ -171,6 +200,15 @@ Use this exact structure and section order for all evaluation reports.
     "tool_required_behaviors_missing_details": 0,
     "hard_conflicts": 0
   },
+  "runtime_performance_risk": {
+    "token_overhead_risk": "Low|Medium|High",
+    "reasoning_overhead_risk": "Low|Medium|High",
+    "tool_call_overhead_risk": "Low|Medium|High",
+    "retry_repair_loop_risk": "Low|Medium|High",
+    "latency_variance_risk": "Low|Medium|High",
+    "main_drivers": [],
+    "performance_interpretation": ""
+  },
   "dimension_scores": {
     "task_understanding": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
     "scope_applicability": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
@@ -229,7 +267,7 @@ Focus on production failure modes, not theoretical concerns.
 Prioritize by leverage: changes that improve multiple dimensions or address critical blockers.
 
 ### Rewrite Targets
-Be specific. Point to exact sections, line numbers, or rule bundles that should be rewritten first.
+Point to specific sections, line numbers, or rule bundles that contain the highest concentration of issues. For each target, describe what problems exist and suggest a rewrite strategy (approach/direction) without prescribing exact outcomes or specific line counts.
 
 ### Evaluation Harness Handoff
 The JSON object should be valid and complete. It serves as a data contract for automated harness integration.

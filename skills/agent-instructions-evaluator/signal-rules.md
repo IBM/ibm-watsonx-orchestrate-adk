@@ -81,21 +81,23 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 **Trigger 1:** The prompt exceeds **100 lines** of instruction content
 
-**Effect:** Note attention drift risk. The agent will struggle to keep all constraints in working memory simultaneously.
+**Effect:** Note attention drift risk. The agent may struggle to keep all constraints active simultaneously during response generation.
 
 **Trigger 2:** The prompt exceeds **150 lines** of instruction content
 
-**Effect:** Treat followability as fragile. The agent will miss or forget constraints, especially those mentioned early or late in the prompt.
+**Effect:** Treat followability as fragile. The agent is likely to miss or forget constraints, especially those mentioned early or late in the prompt.
 
 **Trigger 3:** The prompt exceeds **200 lines** of instruction content
 
-**Effect:** Treat followability as highly fragile. Partial compliance is guaranteed. The agent cannot reliably attend to all parts of the prompt.
+**Effect:** Treat followability as highly fragile. Partial compliance is very likely. The agent is unlikely to reliably attend to all parts of the prompt.
 
 **Scoring bounds:**
 - Prompts >150 lines: Instruction Followability should generally not exceed **2**
 - Prompts >200 lines: Instruction Followability should generally not exceed **1**
 
-**Why:** LLMs have limited attention span and working memory. Very long prompts cause attention drift where constraints mentioned early are forgotten by the time the agent generates a response, and constraints mentioned late may not be properly integrated with earlier context. This is especially severe when the prompt contains dense procedural logic, nested conditions, or many interacting rules.
+**Why:** LLMs have limited attention span during response generation. Very long prompts increase the risk of attention drift where constraints mentioned early may be forgotten by the time the agent generates a response, and constraints mentioned late may not be properly integrated with earlier context. This risk is especially high when the prompt contains dense procedural logic, nested conditions, or many interacting rules.
+
+**Performance effect:** Long prompts also increase input token cost and may increase latency. When long prompts contain dense procedural logic, the model may spend additional reasoning effort resolving which rules apply, leading to slower and more variable responses.
 
 **What counts toward line count:**
 - Instruction content (rules, constraints, workflows, examples)
@@ -107,6 +109,30 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 - Late constraints not integrated with earlier context
 - Middle sections most vulnerable to being skipped or misremembered
 - Interacting rules across distant sections fail to coordinate
+
+---
+
+## Rule F: Performance friction from instruction complexity
+
+**Trigger:** The prompt contains a high volume of interacting constraints, long instruction content, ambiguous tool triggers, conflicting rules, or workflow logic that must be resolved by the LLM at runtime.
+
+**Effect:** Note performance risk in addition to followability risk. The agent may require more reasoning tokens, produce longer outputs, call tools unnecessarily, enter correction loops, or show higher latency variance.
+
+**Performance risk indicators:**
+- Prompt length exceeds 100 / 150 / 200 instruction lines
+- Nested conditional branches exceed 10 / 20
+- Tool trigger rules are ambiguous or overlapping
+- Multiple rules compete in the same turn without priority
+- The prompt asks the model to decide, execute, validate, remember, and recover in one pass
+- Exact phrase requirements interact with tone, format, safety, or tool-use constraints
+- Failure handling is prompt-only rather than workflow-managed
+
+**Scoring impact:**
+- Does not automatically reduce every dimension score
+- Should influence Instruction Followability and Execution & Tool Grounding when applicable
+- Should be called out separately as a Runtime Performance Risk in the report
+
+**Why:** Unclear or conflicting instructions increase the amount of runtime deliberation needed to produce a compliant response. Even when the model eventually answers correctly, it may do so with higher latency, higher token usage, more tool calls, or greater variance across turns. Achievability is not only "can the model produce the right behavior?" — it is also "can the model produce the right behavior predictably, cheaply, and with bounded runtime variance?"
 
 ---
 
