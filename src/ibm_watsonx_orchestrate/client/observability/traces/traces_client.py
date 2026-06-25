@@ -242,20 +242,12 @@ class TracesClient(BaseWXOClient):
         current_page = 1
         total_count = None
         total_pages = None
-        pages_fetched = 0
 
-        # NOTE: This is a temporary workaround. The agentops-v3 API doesn't support
-        # filtering by traceId in the query parameters, so we must fetch all observations
-        # and filter client-side. This is inefficient and should be updated once the API
-        # supports server-side filtering.
         while current_page <= MAX_PAGINATION_PAGES:
-            # Build query parameters for agentops-v3 API
-            # Note: The new API only supports page, limit, workspace_id, and include_trace_details
-            # traceId filtering must be done client-side
-            params = {
+            params: Dict[str, Any] = {
                 "page": current_page,
                 "limit": page_size,
-                "include_trace_details": False  # Start with false to avoid backend issues
+                "traceId": trace_id,
             }
 
             # Add workspace_id if in IBM Cloud environment
@@ -263,49 +255,26 @@ class TracesClient(BaseWXOClient):
                 from ibm_watsonx_orchestrate_core.utils.workspaces import add_workspace_query_param
                 params = add_workspace_query_param(params)
             except ImportError:
-                # Workspace utilities not available, continue without workspace_id
                 pass
 
-            # Make API request to observations endpoint
             response = self._get(f"{self.base_endpoint}/observations", params=params)
             obs_response = ObservationsResponse.model_validate(response)
 
-            # Filter observations by traceId client-side since API doesn't support it
-            filtered_observations = [
-                obs for obs in obs_response.data
-                if obs.traceId == trace_id
-            ]
-            all_observations.extend(filtered_observations)
-            pages_fetched += 1
+            all_observations.extend(obs_response.data)
 
             if total_count is None:
-                # Note: total count reflects all observations, not just filtered ones
                 total_count = obs_response.meta.totalItems
                 total_pages = obs_response.meta.totalPages
 
-            # Check if we should continue fetching
             if not fetch_all or current_page >= obs_response.meta.totalPages:
                 break
 
             current_page += 1
 
-            # Log progress for large fetches
-            if pages_fetched % 10 == 0:
-                logger.info(f"Fetched {pages_fetched} pages, found {len(all_observations)} matching observations...")
-
-        # Warn if we hit the safety limit
         if current_page > MAX_PAGINATION_PAGES:
             logger.warning(
                 f"Reached maximum page limit ({MAX_PAGINATION_PAGES}). "
-                f"Some observations may not be fetched. Found {len(all_observations)} observations so far."
-            )
-
-        # Warn if we fetched many pages but found few matching observations (inefficient filtering)
-        if pages_fetched > 10 and len(all_observations) < pages_fetched * page_size * 0.1:
-            logger.warning(
-                f"Client-side filtering is inefficient: fetched {pages_fetched} pages "
-                f"but only {len(all_observations)} observations match trace_id. "
-                f"This is a known limitation of the current API."
+                f"Some observations may not be fetched. Found {len(all_observations)} so far."
             )
 
         return ObservationsExportResponse(
