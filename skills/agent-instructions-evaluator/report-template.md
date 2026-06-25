@@ -64,6 +64,19 @@ Use this exact structure and section order for all evaluation reports.
 - Reliability outlook: [paragraph explaining expected production behavior]
 - What would most improve this artifact: [top 1-2 changes]
 
+## Runtime Performance Risk
+- Token overhead risk: [Low / Medium / High]
+- Reasoning overhead risk: [Low / Medium / High]
+- Tool-call overhead risk: [Low / Medium / High]
+- Retry / repair-loop risk: [Low / Medium / High]
+- Latency variance risk: [Low / Medium / High]
+
+### Main performance risk drivers
+- [List the signals that drive runtime cost, e.g. prompt length, ambiguous tool triggers, interacting constraints]
+
+### Performance interpretation
+[Short paragraph explaining whether instruction complexity is likely to increase runtime cost, latency, tool-call count, or response variance. Distinguish deterministic evidence from judgment-based conclusions.]
+
 ## Dimension Analysis
 
 ### 1. Task Understanding
@@ -186,6 +199,15 @@ Use this exact structure and section order for all evaluation reports.
     "subjective_classifiers": [],
     "tool_required_behaviors_missing_details": 0,
     "hard_conflicts": 0
+  },
+  "runtime_performance_risk": {
+    "token_overhead_risk": "Low|Medium|High",
+    "reasoning_overhead_risk": "Low|Medium|High",
+    "tool_call_overhead_risk": "Low|Medium|High",
+    "retry_repair_loop_risk": "Low|Medium|High",
+    "latency_variance_risk": "Low|Medium|High",
+    "main_drivers": [],
+    "performance_interpretation": ""
   },
   "dimension_scores": {
     "task_understanding": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},

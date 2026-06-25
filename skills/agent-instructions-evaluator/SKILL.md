@@ -16,7 +16,7 @@ tags:
 
 ## Overview
 
-Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, or instruction overload.
+Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability and runtime efficiency rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, instruction overload, and performance friction caused by excessive or contradictory runtime reasoning.
 
 **Use this skill when you need:**
 - A practical evaluation report focused on runtime reliability
@@ -26,7 +26,7 @@ Evaluate agent instructions or agent definitions for operational achievability i
 
 ## Core Principle
 
-Score the artifact not by how much behavior it describes, but by how much behavior the agent can reliably execute. More rules do not automatically make a better prompt—more rules often lower achievability.
+Score the artifact not by how much behavior it describes, but by how much behavior the agent can reliably execute. More rules do not automatically make a better prompt—more rules often lower achievability. An instruction set that is technically understandable but expensive to reconcile at runtime should still be considered lower-achievability, because slow, unstable, or tool-heavy execution reduces production reliability.
 
 ## Evaluation Workflow
 
@@ -44,7 +44,7 @@ Before beginning analysis, collect all available metadata and context:
    - Tool: [`extract_agent_info.py`](scripts/extract_agent_info.py)
 
 2. **Extract tool metadata** for each referenced tool or agent collaborator:
-   - For Python-based tools and JSON-based tools: `python scripts/extract_tool_info.py <tool.py|tool.json>`
+   - For Python-based tools, JSON-based tools, and YAML-based tools (knowledge bases, MCP toolkits): `python scripts/extract_tool_info.py <tool.py|tool.json|tool.yaml>`
    
    This provides: tool signatures, parameters, return types, descriptions
    - Tool: [`extract_tool_info.py`](scripts/extract_tool_info.py)
@@ -191,7 +191,7 @@ Save both files if the environment supports it. Otherwise, output the complete m
 
 Refer to these files for detailed guidance:
 - [`dimension-definitions.md`](dimension-definitions.md): Complete scoring rubrics for all five dimensions
-- [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-D)
+- [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-F)
 - [`report-template.md`](report-template.md): Required report structure and section order
 - [`example-finding.md`](example-finding.md): Sample finding with all required elements
 

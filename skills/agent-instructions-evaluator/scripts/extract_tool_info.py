@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract metadata from any tool file (.py or .json).
+Extract metadata from any tool file (.py, .json, or .yaml/.yml).
 
 Automatically detects the file type and dispatches to the appropriate logic:
 
@@ -11,6 +11,9 @@ Python files (.py):
 JSON files (.json):
   - spec.kind == "flow"  → WxO Agentic Workflow
   - data.nodes (list)    → Langflow workflow
+
+YAML files (.yaml / .yml):
+  - kind == "knowledge_base"  → WxO Knowledge Base
 """
 
 import ast
@@ -18,6 +21,12 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+try:
+    import yaml as _yaml
+    _YAML_AVAILABLE = True
+except ImportError:
+    _YAML_AVAILABLE = False
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +152,117 @@ def _extract_python_metadata(file_path: str) -> Dict[str, Any]:
                     metadata['functions'].append(func_info)
 
     return metadata
+
+
+# ---------------------------------------------------------------------------
+# YAML tool extraction
+# ---------------------------------------------------------------------------
+
+def detect_yaml_tool_type(data: Dict[str, Any]) -> str:
+    """
+    Detect the kind of a YAML tool file.
+
+    Returns:
+        'knowledge_base' | 'mcp_toolkit' | 'unknown'
+    """
+    kind = data.get('kind')
+    if kind == 'knowledge_base':
+        return 'knowledge_base'
+    if kind == 'mcp':
+        return 'mcp_toolkit'
+    return 'unknown'
+
+
+def _extract_knowledge_base_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract metadata from a WxO Knowledge Base YAML file."""
+    documents = data.get('documents', [])
+    doc_list = [
+        {
+            'path': doc.get('path', ''),
+            'url': doc.get('url', ''),
+        }
+        for doc in documents
+        if isinstance(doc, dict)
+    ]
+
+    cst = data.get('conversational_search_tool', {})
+    conversational_search: Dict[str, Any] = {}
+    if cst:
+        conversational_search = {
+            'query_source': cst.get('query_source', ''),
+            'generation_enabled': cst.get('generation', {}).get('enabled', None),
+        }
+
+    return {
+        'file_type': 'yaml',
+        'type': 'knowledge_base',
+        'spec_version': data.get('spec_version', ''),
+        'name': data.get('name', ''),
+        'description': data.get('description', ''),
+        'document_count': len(doc_list),
+        'documents': doc_list,
+        'conversational_search_tool': conversational_search,
+    }
+
+
+def _extract_mcp_toolkit_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract metadata from a WxO MCP Toolkit YAML file."""
+    tools_raw = data.get('tools', [])
+    # tools can be ['*'] (wildcard), a list of names, or []
+    if tools_raw == ['*'] or tools_raw == '*':
+        tools_mode = 'all'
+        tool_list: List[str] = []
+    else:
+        tools_mode = 'explicit'
+        tool_list = [str(t) for t in tools_raw] if tools_raw else []
+
+    connections = data.get('connections', [])
+
+    return {
+        'file_type': 'yaml',
+        'type': 'mcp_toolkit',
+        'spec_version': data.get('spec_version', ''),
+        'name': data.get('name', ''),
+        'description': data.get('description', ''),
+        'transport': data.get('transport', ''),
+        'url': data.get('url', ''),
+        'tools_mode': tools_mode,
+        'tools': tool_list,
+        'connections': connections if isinstance(connections, list) else [],
+    }
+
+
+def _extract_yaml_metadata(file_path: str) -> Dict[str, Any]:
+    """Detect format and extract metadata from a .yaml/.yml tool file."""
+    if not _YAML_AVAILABLE:
+        return {
+            'file_type': 'yaml',
+            'type': 'unknown',
+            'error': "PyYAML is not installed. Run: pip install pyyaml",
+        }
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = _yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        return {
+            'file_type': 'yaml',
+            'type': 'unknown',
+            'error': 'YAML root is not a mapping.',
+        }
+
+    tool_type = detect_yaml_tool_type(data)
+
+    if tool_type == 'knowledge_base':
+        return _extract_knowledge_base_metadata(data)
+    if tool_type == 'mcp_toolkit':
+        return _extract_mcp_toolkit_metadata(data)
+
+    return {
+        'file_type': 'yaml',
+        'type': 'unknown',
+        'error': "Unrecognised YAML kind: '{}'".format(data.get('kind', '<none>')),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +441,9 @@ def _extract_json_metadata(file_path: str) -> Dict[str, Any]:
 
 def extract_tool_info(file_path: str) -> Dict[str, Any]:
     """
-    Detect file type (.py or .json) and extract tool metadata.
+    Detect file type (.py, .json, or .yaml/.yml) and extract tool metadata.
 
-    Returns a metadata dict with a 'file_type' key ('python' or 'json')
+    Returns a metadata dict with a 'file_type' key ('python', 'json', or 'yaml')
     and a 'type' key indicating the specific tool subtype.
     """
     path = Path(file_path)
@@ -333,11 +453,13 @@ def extract_tool_info(file_path: str) -> Dict[str, Any]:
         metadata = _extract_python_metadata(file_path)
     elif suffix == '.json':
         metadata = _extract_json_metadata(file_path)
+    elif suffix in ('.yaml', '.yml'):
+        metadata = _extract_yaml_metadata(file_path)
     else:
         metadata = {
             'file_type': 'unknown',
             'type': 'unknown',
-            'error': f"Unsupported file extension '{suffix}'. Expected .py or .json.",
+            'error': f"Unsupported file extension '{suffix}'. Expected .py, .json, .yaml, or .yml.",
         }
 
     metadata['file_path'] = file_path
@@ -499,6 +621,61 @@ def format_text_output(metadata: Dict[str, Any]) -> str:
             if node['description']:
                 lines.append(f"    {node['description']}")
 
+    # ---- Knowledge Base YAML ----
+    elif tool_type == 'knowledge_base':
+        lines += [
+            f"Name:         {metadata['name']}",
+            f"Description:  {metadata['description']}",
+            f"Spec Version: {metadata['spec_version']}",
+            f"Documents:    {metadata['document_count']}",
+            "",
+        ]
+
+        if metadata['documents']:
+            lines.append("Documents:")
+            for doc in metadata['documents']:
+                entry = f"  - {doc['path']}"
+                if doc['url']:
+                    entry += f"  ({doc['url']})"
+                lines.append(entry)
+            lines.append("")
+
+        cst = metadata.get('conversational_search_tool', {})
+        if cst:
+            lines.append("Conversational Search Tool:")
+            if cst.get('query_source'):
+                lines.append(f"  Query Source:       {cst['query_source']}")
+            if cst.get('generation_enabled') is not None:
+                lines.append(f"  Generation Enabled: {cst['generation_enabled']}")
+            lines.append("")
+
+    # ---- MCP Toolkit YAML ----
+    elif tool_type == 'mcp_toolkit':
+        lines += [
+            f"Name:         {metadata['name']}",
+            f"Description:  {metadata['description']}",
+            f"Spec Version: {metadata['spec_version']}",
+            f"Transport:    {metadata['transport']}",
+            f"URL:          {metadata['url']}",
+            "",
+        ]
+
+        if metadata['tools_mode'] == 'all':
+            lines.append("Tools:        * (all tools discovered at runtime)")
+        elif metadata['tools']:
+            lines.append(f"Tools ({len(metadata['tools'])}):")
+            for t in metadata['tools']:
+                lines.append(f"  - {t}")
+        else:
+            lines.append("Tools:        (none explicitly listed)")
+        lines.append("")
+
+        if metadata['connections']:
+            lines.append(f"Connections ({len(metadata['connections'])}):")
+            for c in metadata['connections']:
+                lines.append(f"  - {c}")
+            lines.append("")
+
     return '\n'.join(lines)
 
 
@@ -516,10 +693,11 @@ def format_compact_output(metadata: Dict[str, Any]) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: extract_tool_info.py <file.py|file.json> [--format text|json|compact]")
-        print("\nExtracts metadata from a tool file (.py or .json).")
+        print("Usage: extract_tool_info.py <file.py|file.json|file.yaml> [--format text|json|compact]")
+        print("\nExtracts metadata from a tool file (.py, .json, or .yaml/.yml).")
         print("\nPython files: detects @tool or @flow decorators.")
         print("JSON files:   detects WxO Agentic Workflow or Langflow format.")
+        print("YAML files:   detects WxO Knowledge Base (kind: knowledge_base) or MCP Toolkit (kind: mcp).")
         print("\nFormats:")
         print("  text    - Human-readable text (default)")
         print("  json    - Pretty-printed JSON")
