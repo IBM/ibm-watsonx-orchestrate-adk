@@ -33,6 +33,16 @@ except ImportError as e:
 
 
 @pytest.fixture(autouse=True, scope="module")
+def mock_config_for_all_tests():
+    """Mock Config class to prevent API key prompts during controller instantiation"""
+    with patch(
+        "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.Config"
+    ) as mock_config:
+        mock_config.return_value = MagicMock()
+        yield mock_config
+
+
+@pytest.fixture(autouse=True, scope="module")
 def cleanup_test_output():
     # Setup - ensure we start with a clean state
     test_output_dir = Path("test_output")
@@ -256,7 +266,9 @@ def tool2():
                 "agentops.batch_annotate.load_example", return_value=example_json
             ), patch(
                 "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AgentsController"
-            ) as mock_agent_controller:
+            ) as mock_agent_controller, patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.get_provider"
+            ) as mock_get_provider:
 
                 mock_agent = MagicMock()
                 mock_agent_controller_instance = MagicMock()
@@ -266,6 +278,10 @@ def tool2():
                     "tool1",
                     "tool2",
                 ]
+                
+                # Mock the LLM provider to avoid WO instance requirement
+                mock_provider = MagicMock()
+                mock_get_provider.return_value = mock_provider
 
                 output_dir = "test_output"
                 controller.generate(stories_path, tools_dir, output_dir)
@@ -283,56 +299,65 @@ def tool2():
             messages_dir = Path(temp_dir) / "messages"
             messages_dir.mkdir()
 
-            # Create sample summary_metrics.csv
+            # Create sample summary_metrics.csv with correct format for non-legacy evaluation
             metrics_file = Path(temp_dir) / "summary_metrics.csv"
             csv_content = (
-                "test_case,Total Step,Agent Step,Ground Truth Calls,Wrong Function Calls,Wrong Parameters,"
-                "Wrong Routing Calls,Text Match,Journey Success,Avg Resp Time (Secs)\n"
-                "data_complex,18,9,5,0,2,0,Summary Matched,False,2.09\n"
-                "data_simple,12,6,2,0,0,0,Summary Matched,True,2.43\n"
-                "Summary (Average),15.0,7.5,3.5,0.0,0.29,0.0,1.0,0.5,2.26\n"
+                "run_idx,orchestrate_agent_routing_accuracy,total_steps,llm_steps,average_agent_response_time,"
+                "total_tool_calls,expected_tool_calls,correct_tool_calls,missed_tool_calls,relevant_tool_calls,"
+                "tool_calls_with_incorrect_parameter,tool_call_recall,tool_call_precision,tool_match_success,"
+                "keyword_match,semantic_match,text_match,is_success,dataset_name,text_match_comment\n"
+                "1,1,8,4,0.475,3,3,2,1,2,0,0.67,0.67,False,False,False,,False,data_complex,Matched 0/0 text goals\n"
+                "1,1,10,5,0.665,4,4,4,0,4,0,1.0,1.0,True,False,False,,True,data_simple,Matched 0/0 text goals\n"
             )
             metrics_file.write_text(csv_content)
 
-            # Create messages file
-            message_file = messages_dir / "data_complex.messages.analyze.json"
-            message_content = [
-                {
-                    "message": {
-                        "role": "user",
-                        "content": "test message",
-                        "type": "text",
+            # Create messages files for both test cases
+            for test_case in ["data_complex", "data_simple"]:
+                message_file = messages_dir / f"{test_case}.messages.analyze.json"
+                message_content = [
+                    {
+                        "message": {
+                            "role": "user",
+                            "content": "test message",
+                            "type": "text",
+                        },
+                        "reason": None,
                     },
-                    "reason": None,
-                },
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "test response",
-                        "type": "text",
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "test response",
+                            "type": "text",
+                        },
+                        "reason": None,
                     },
-                    "reason": None,
-                },
-            ]
-            message_file.write_text(json.dumps(message_content, indent=2))
+                ]
+                message_file.write_text(json.dumps(message_content, indent=2))
 
-            # Create metrics file
-            metrics_file = messages_dir / "data_complex.metrics.json"
-            metrics_content = {
-                "total_tool_calls": 5,
-                "expected_tool_calls": 5,
-                "relevant_tool_calls": 3,
-                "correct_tool_calls": 3,
-                "total_routing_calls": 2,
-                "expected_routing_calls": 2,
-            }
-            metrics_file.write_text(json.dumps(metrics_content, indent=2))
+                # Create metrics file
+                metrics_file = messages_dir / f"{test_case}.metrics.json"
+                metrics_content = {
+                    "total_tool_calls": 5,
+                    "expected_tool_calls": 5,
+                    "relevant_tool_calls": 3,
+                    "correct_tool_calls": 3,
+                    "total_routing_calls": 2,
+                    "expected_routing_calls": 2,
+                }
+                metrics_file.write_text(json.dumps(metrics_content, indent=2))
 
-            with patch(
-                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.analyze"
-            ) as mock_analyze:
-                controller.analyze(data_path=temp_dir)
-                mock_analyze.assert_called_once_with(data_path=temp_dir)
+            # Create a dummy tool definition file
+            tool_def_file = Path(temp_dir) / "tools.py"
+            tool_def_file.write_text("def dummy_tool(): pass")
+
+            # Just verify the analyze function runs without errors
+            from agentops.arg_configs import AnalyzeMode
+            controller.analyze(
+                data_path=temp_dir,
+                tool_definition_path=str(tool_def_file),
+                mode=AnalyzeMode.default
+            )
+            # If we get here without exceptions, the test passed
 
     def test_external_validate(self, controller):
         config = {"auth_scheme": "api_key", "api_url": "test-url"}
