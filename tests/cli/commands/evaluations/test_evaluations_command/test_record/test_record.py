@@ -34,7 +34,9 @@ class TestRecord:
                 evaluations_command.record(
                     output_dir=output_dir, user_env_file=user_env_file
                 )
-                mock_controller.record.assert_called_once_with(output_dir=output_dir)
+                mock_controller.record.assert_called_once_with(
+                    output_dir=output_dir, context_variables=None
+                )
 
     def test_record_with_nonexistent_dir(self, user_env_file):
         mock_controller = MagicMock()
