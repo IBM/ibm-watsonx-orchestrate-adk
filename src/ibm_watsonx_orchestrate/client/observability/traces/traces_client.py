@@ -377,12 +377,10 @@ class TracesClient(BaseWXOClient):
             }
 
             # Add API-supported filter parameters
-            if filters.user_ids and len(filters.user_ids) > 0:
-                # API supports single userId parameter
+            if filters.user_ids:
                 last_params["userId"] = filters.user_ids[0]
 
-            if filters.session_ids and len(filters.session_ids) > 0:
-                # API supports single sessionId parameter
+            if filters.session_ids:
                 last_params["sessionId"] = filters.session_ids[0]
 
             # Add time range filters if provided
