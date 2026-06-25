@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch
 from datetime import datetime
 import pytest
 import typer
@@ -10,7 +10,8 @@ from ibm_watsonx_orchestrate.cli.commands.observability.traces.types import Sort
 from ibm_watsonx_orchestrate.client.observability.traces.traces_client import (
     TraceSummary,
     TraceSearchResponse,
-    SpansResponse,
+    ObservationsExportResponse,
+    Observation,
 )
 
 
@@ -27,8 +28,6 @@ class TestTracesSearch:
                     startTime="2024-01-01T00:00:00.000",
                     endTime="2024-01-01T00:01:00.000",
                     durationMs=60000,
-                    spanCount=5,
-                    serviceNames=["wxo-server"],
                     agentNames=["TestAgent"],
                     agentIds=["agent-123"],
                     userIds=["user-123"],
@@ -166,8 +165,6 @@ class TestTracesSearch:
                     startTime="2024-01-01T00:00:00.000",
                     endTime="2024-01-01T00:01:00.000",
                     durationMs=60000,
-                    spanCount=5,
-                    serviceNames=["wxo-server"],
                     agentNames=["TestAgent"],
                     agentIds=["agent-123"],
                     userIds=["user-123"],
@@ -207,45 +204,25 @@ class TestTracesExport:
     """Test cases for traces export command"""
 
     def test_export_trace_success(self):
-        mock_spans_response = SpansResponse(
-            traceData={
-                "resourceSpans": [
-                    {
-                        "resource": {"attributes": []},
-                        "scopeSpans": [
-                            {
-                                "scope": {"name": "test", "version": "1.0"},
-                                "spans": [
-                                    {
-                                        "traceId": "trace-123",
-                                        "spanId": "span-123",
-                                        "name": "test-span",
-                                        "kind": "SPAN_KIND_INTERNAL",
-                                        "startTimeUnixNano": "1234567890000000000",
-                                        "endTimeUnixNano": "1234567891000000000",
-                                        "attributes": [
-                                            {
-                                                "key": "agent.name",
-                                                "value": {"stringValue": "TestAgent"},
-                                            }
-                                        ],
-                                        "events": [],
-                                        "status": {"code": "STATUS_CODE_OK"},
-                                    }
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            },
+        mock_obs_response = ObservationsExportResponse(
+            observations=[
+                Observation(
+                    id="obs-123",
+                    traceId="1234567890abcdef1234567890abcdef",
+                    type="GENERATION",
+                    name="test-generation",
+                    startTime="2024-01-01T00:00:00.000Z",
+                    endTime="2024-01-01T00:00:01.000Z",
+                )
+            ],
             totalCount=1,
         )
-        mock_json_str = json.dumps({"traceData": "test"})
+        mock_json_str = json.dumps({"observations": []})
 
         with patch(
             "ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_controller.TracesController.export_trace_to_json"
         ) as mock_export:
-            mock_export.return_value = (mock_spans_response, mock_json_str)
+            mock_export.return_value = (mock_obs_response, mock_json_str)
 
             traces_command.export_trace(
                 trace_id="1234567890abcdef1234567890abcdef", output=None, pretty=True
@@ -260,40 +237,25 @@ class TestTracesExport:
     def test_export_trace_with_output_file(self, tmp_path):
         """Test trace export with output file"""
         output_file = tmp_path / "trace.json"
-        mock_spans_response = SpansResponse(
-            traceData={
-                "resourceSpans": [
-                    {
-                        "resource": {"attributes": []},
-                        "scopeSpans": [
-                            {
-                                "scope": {"name": "test", "version": "1.0"},
-                                "spans": [
-                                    {
-                                        "traceId": "trace-123",
-                                        "spanId": "span-123",
-                                        "name": "test-span",
-                                        "kind": "SPAN_KIND_INTERNAL",
-                                        "startTimeUnixNano": "1234567890000000000",
-                                        "endTimeUnixNano": "1234567891000000000",
-                                        "attributes": [],
-                                        "events": [],
-                                        "status": {"code": "STATUS_CODE_OK"},
-                                    }
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            },
+        mock_obs_response = ObservationsExportResponse(
+            observations=[
+                Observation(
+                    id="obs-456",
+                    traceId="1234567890abcdef1234567890abcdef",
+                    type="SPAN",
+                    name="test-span",
+                    startTime="2024-01-01T00:00:00.000Z",
+                    endTime="2024-01-01T00:00:01.000Z",
+                )
+            ],
             totalCount=1,
         )
-        mock_json_str = json.dumps({"traceData": "test"})
+        mock_json_str = json.dumps({"observations": []})
 
         with patch(
             "ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_controller.TracesController.export_trace_to_json"
         ) as mock_export:
-            mock_export.return_value = (mock_spans_response, mock_json_str)
+            mock_export.return_value = (mock_obs_response, mock_json_str)
 
             traces_command.export_trace(
                 trace_id="1234567890abcdef1234567890abcdef",
