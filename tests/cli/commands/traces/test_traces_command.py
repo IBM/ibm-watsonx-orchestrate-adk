@@ -19,11 +19,11 @@ from ibm_watsonx_orchestrate.client.observability.traces.traces_client import (
 # Shared mock data
 # ---------------------------------------------------------------------------
 
-TRACE_ID = "2d195388b09db2db586475cc763e4fb0"
-AGENT_ID = "28b3d783-8e38-4ad6-8073-acf4529e7128"
+TRACE_ID = "aaaabbbbccccdddd1111222233334444"
+AGENT_ID = "00000001-0000-0000-0000-000000000001"
 AGENT_NAME = "pet_agent"
-USER_ID = "f242eadf-0dc9-4eae-b2d7-65b09b4b4b16"
-SESSION_ID = "4758dfd3-c2f5-499e-9323-7497975435c5"
+USER_ID = "00000002-0000-0000-0000-000000000002"
+SESSION_ID = "00000003-0000-0000-0000-000000000003"
 
 _COMMON_METADATA = {
     "attributes": {
@@ -31,7 +31,7 @@ _COMMON_METADATA = {
         "agent.id": AGENT_ID,
         "agent.name": AGENT_NAME,
         "thread.id": SESSION_ID,
-        "conversation.id": "df79d926-e274-4f2a-bc2a-0450dd7efef4",
+        "conversation.id": "00000004-0000-0000-0000-000000000004",
     },
     "resourceAttributes": {
         "telemetry.sdk.language": "python",
@@ -44,7 +44,7 @@ _COMMON_METADATA = {
 
 MOCK_OBSERVATIONS = [
     Observation(
-        id="b64fb1082220674a",
+        id="aaaabbbb00000001",
         traceId=TRACE_ID,
         type="CHAIN",
         name="answer",
@@ -57,7 +57,7 @@ MOCK_OBSERVATIONS = [
         usage={"unit": "TOKENS", "input": 0, "output": 0, "total": 0},
     ),
     Observation(
-        id="d9d81dff12cf2e74",
+        id="aaaabbbb00000002",
         traceId=TRACE_ID,
         type="SPAN",
         name="answer.task",
@@ -70,7 +70,7 @@ MOCK_OBSERVATIONS = [
         usage={"unit": "TOKENS", "input": 0, "output": 0, "total": 0},
     ),
     Observation(
-        id="ff6308a55335b9ab",
+        id="aaaabbbb00000003",
         traceId=TRACE_ID,
         type="GENERATION",
         name="WatsonxChatModel.chat",
