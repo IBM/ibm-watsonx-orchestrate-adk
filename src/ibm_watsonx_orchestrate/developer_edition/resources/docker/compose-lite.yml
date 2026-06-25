@@ -1289,9 +1289,6 @@ services:
     profiles: [langfuse, ibm-telemetry]
     ports:
       - "3010:3000"
-    networks:
-      - default
-      - jaeger-network
     environment:
       <<: *langfuse-worker-env
       # NEXTAUTH_URL: http://localhost:3000
