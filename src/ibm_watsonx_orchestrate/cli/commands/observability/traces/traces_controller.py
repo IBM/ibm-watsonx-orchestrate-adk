@@ -339,8 +339,8 @@ def trace_search(start_time: Optional[datetime] = None,
 def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = True):
 
     try:
-        if not trace_id or len(trace_id) != 32:
-            logger.error("Error: trace_id must be a 32-character hexadecimal string")
+        if not trace_id or not trace_id.strip():
+            logger.error("Error: trace_id must be a non-empty string")
             raise typer.Exit(1)
 
         if output and not output.lower().endswith('.json'):

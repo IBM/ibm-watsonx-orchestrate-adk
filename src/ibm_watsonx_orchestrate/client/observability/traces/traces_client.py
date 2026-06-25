@@ -34,7 +34,7 @@ class Observation(BaseModel):
     type: str = Field(..., description="Observation type (e.g., GENERATION)")
     name: str = Field(..., description="Observation name")
     startTime: str = Field(..., description="Start time (ISO 8601)")
-    endTime: str = Field(..., description="End time (ISO 8601)")
+    endTime: Optional[str] = Field(None, description="End time (ISO 8601)")
     model: Optional[str] = Field(None, description="Model used")
     input: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Input data (can be dict, list, string, or any type)")
     output: Optional[Union[Dict[str, Any], List[Any], str, Any]] = Field(None, description="Output data (can be dict, list, string, or any type)")
@@ -63,6 +63,7 @@ class TraceItem(BaseModel):
     sessionId: Optional[str] = Field(None, description="Session ID")
     userId: Optional[str] = Field(None, description="User ID")
     tags: Optional[List[str]] = Field(None, description="Tags")
+    latency: Optional[float] = Field(None, description="Trace latency in seconds")
 
 
 class TracesResponse(BaseModel):
@@ -232,8 +233,8 @@ class TracesClient(BaseWXOClient):
                 print(f"Observation: {obs.name} ({obs.type})")
             ```
         """
-        if not trace_id or len(trace_id) != 32:
-            raise ValueError("trace_id must be a 32-character hexadecimal string")
+        if not trace_id or not trace_id.strip():
+            raise ValueError("trace_id must be a non-empty string")
 
         if page_size < 1 or page_size > 1000:
             raise ValueError("page_size must be between 1 and 1000")
@@ -280,7 +281,7 @@ class TracesClient(BaseWXOClient):
         return ObservationsExportResponse(
             observations=all_observations,
             totalCount=total_count,
-            page=current_page if not fetch_all else total_pages,
+            page=current_page if not fetch_all else 1,
             totalPages=total_pages
         )
 
@@ -440,15 +441,8 @@ class TracesClient(BaseWXOClient):
                         agent_name = attributes.get('agent.name')
                         agent_id = attributes.get('agent.id')
 
-                # Calculate latency from trace metadata if available
-                latency_seconds = None
-                if trace_item.metadata and isinstance(trace_item.metadata, dict):
-                    latency_seconds = trace_item.metadata.get('latency')
 
-                # Convert latency to milliseconds
-                duration_ms = 0.0
-                if latency_seconds is not None:
-                    duration_ms = float(latency_seconds) * 1000.0
+                duration_ms = float(trace_item.latency) * 1000.0 if trace_item.latency is not None else 0.0
 
                 # Create a TraceSummary from TraceItem
                 summary = TraceSummary(

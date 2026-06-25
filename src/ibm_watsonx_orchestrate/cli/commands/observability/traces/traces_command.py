@@ -336,8 +336,11 @@ def export_trace(
     """
     Export trace observations from the Watson Orchestrate observability platform.
 
-    This command fetches all observations for a given trace ID and exports them
-    to a file or stdout in JSON format.
+    This command fetches all spans for a given trace ID and exports them to
+    a file or stdout in JSON format (OpenTelemetry-compliant).
+
+    The JSON output is compatible with trace analysis tools like Jaeger, Zipkin,
+    and can be piped to tools like jq for processing in CI/CD pipelines.
 
     Examples:
         # Print to stdout
