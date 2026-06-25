@@ -196,7 +196,7 @@ class TracesController:
         )
         
         if show_progress:
-            trace_count = len(search_response.traces) if search_response.traces else len(search_response.traceSummaries)
+            trace_count = len(search_response.traceSummaries)
             logger.info(f"Found {trace_count} traces")
         
         return search_response

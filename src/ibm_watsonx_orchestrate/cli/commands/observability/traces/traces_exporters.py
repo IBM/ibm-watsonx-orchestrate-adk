@@ -51,11 +51,9 @@ class TraceExporter:
                 "observations": [obs.model_dump() for obs in observations_response.observations],
                 "total_count": observations_response.totalCount,
                 "exported_at": datetime.utcnow().isoformat() + "Z",
-                "format": "observations"
+                "format": "observations",
+                "trace_id": observations_response.observations[0].traceId,
             }
-            # Add trace_id from first observation
-            if len(observations_response.observations) > 0:
-                data["trace_id"] = observations_response.observations[0].traceId
         else:
             data = {
                 "error": "No trace data available",
