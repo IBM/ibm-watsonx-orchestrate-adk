@@ -304,7 +304,7 @@ def search_traces(
 
 @traces_app.command(
     name="export",
-    help="Export trace spans from the observability platform"
+    help="Export trace observations from the observability platform"
 )
 def export_trace(
     trace_id: Annotated[
@@ -335,20 +335,17 @@ def export_trace(
     ] = True
 ):
     """
-    Export trace spans from the Watson Orchestrate observability platform.
+    Export trace observations from the Watson Orchestrate observability platform.
 
-    This command fetches all spans for a given trace ID and exports them to
-    a file or stdout in JSON format (OpenTelemetry-compliant).
-
-    The JSON output is compatible with trace analysis tools like Jaeger, Zipkin,
-    and can be piped to tools like jq for processing in CI/CD pipelines.
+    This command fetches all observations for a given trace ID and exports them
+    to a file or stdout in JSON format.
 
     Examples:
         # Print to stdout
         orchestrate observability traces export -t 1234567890abcdef1234567890abcdef
 
         # Pipe to jq for processing
-        orchestrate observability traces export -t 1234567890abcdef1234567890abcdef | jq '.traceData.resourceSpans[0].scopeSpans[0].spans | length'
+        orchestrate observability traces export -t 1234567890abcdef1234567890abcdef | jq '.observations | length'
 
         # Export to JSON file
         orchestrate observability traces export --trace-id 1234567890abcdef1234567890abcdef --output trace.json

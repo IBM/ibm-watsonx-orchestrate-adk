@@ -1,6 +1,4 @@
 import logging
-import os
-import pprint
 import typer
 import rich
 
@@ -14,13 +12,12 @@ from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_exporters 
 from ibm_watsonx_orchestrate.cli.commands.observability.traces import traces_helper
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
-from ibm_watsonx_orchestrate.client.observability.traces import TraceFilters, TraceSort, SpanCountRange
 from ibm_watsonx_orchestrate.client.observability.traces.traces_client import (
     TracesClient,
-    SpansResponse,
+    ObservationsExportResponse,
     TraceSearchResponse,
     TraceFilters,
-    TraceSort
+    TraceSort,
 )
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.utils.docker_utils import get_container_env_var
@@ -34,134 +31,120 @@ console = Console()
 class TracesController:
     """
     Controller for trace operations.
-    
+
     This controller provides methods to search, fetch and export traces.
-    
+
     Example:
         ```python
-        # For CLI commands
         controller = TracesController()
-        spans = controller.fetch_trace_spans("abc123...")
-        
-        # For custom scripts
-        from ibm_watsonx_orchestrate.cli.commands.traces.traces_controller import TracesController
-        
-        controller = TracesController()
-        spans = controller.fetch_trace_spans("abc123...")
-        # Process spans programmatically
-        errors = [s for s in spans.spans if s.status.status_code == "ERROR"]
+        result = controller.fetch_trace_observations("abc123...")
+        for obs in result.observations:
+            print(obs.name, obs.type)
         ```
     """
-    
+
     def __init__(self):
         self.client: Optional[TracesClient] = None
-    
+
     def get_client(self) -> TracesClient:
         """Get or create TracesClient instance."""
         if not self.client:
             self.client = instantiate_client(TracesClient)
-        
+
         return self.client
-    
-    def fetch_trace_spans(
+
+    def fetch_trace_observations(
         self,
         trace_id: str,
         page_size: int = 100,
         fetch_all: bool = True,
         show_progress: bool = False
-    ) -> SpansResponse:
+    ) -> ObservationsExportResponse:
         """
-        Fetch all spans for a given trace ID.
-        
-        This method fetches spans from the API and returns the SpansResponse object.
-        
+        Fetch all observations for a given trace ID.
+
         Args:
             trace_id: Trace ID (32-character hexadecimal string)
-            page_size: Number of spans per page (1-1000)
+            page_size: Number of observations per page (1-1000)
             fetch_all: If True, automatically fetches all pages
             show_progress: If True, log progress (for CLI use)
-        
+
         Returns:
-            SpansResponse containing spans and pagination info
-        
+            ObservationsExportResponse containing observations and pagination info
+
         Raises:
             ClientAPIException: If the API request fails
             ValueError: If trace_id format is invalid
-        
+
         Example:
             ```python
             controller = TracesController()
-            spans = controller.fetch_trace_spans("abc123...")
-            print(f"Fetched {len(spans.spans)} spans")
+            result = controller.fetch_trace_observations("abc123...")
+            print(f"Fetched {len(result.observations)} observations")
             ```
         """
         if show_progress:
-            logger.info(f"Fetching spans for trace {trace_id[:8]}...")
-        
+            logger.info(f"Fetching observations for trace {trace_id[:8]}...")
+
         client = self.get_client()
-        spans_response = client.get_spans(
+        obs_response = client.get_observations(
             trace_id=trace_id,
             page_size=page_size,
             fetch_all=fetch_all
         )
-        
+
         if show_progress:
-            span_count = len(spans_response.spans) if spans_response.spans else 0
-            logger.info(f"Fetched {span_count} spans")
-        
-        return spans_response
-    
+            obs_count = len(obs_response.observations) if obs_response.observations else 0
+            logger.info(f"Fetched {obs_count} observations")
+
+        return obs_response
+
     def export_trace_to_json(
         self,
         trace_id: str,
         output_file: Optional[str] = None,
         pretty: bool = True,
         page_size: int = 50
-    ) -> tuple[SpansResponse, str]:
+    ) -> tuple[ObservationsExportResponse, str]:
         """
-        Fetch trace spans and export to JSON format.
-        
+        Fetch trace observations and export to JSON format.
+
         Args:
             trace_id: Trace ID (32-character hexadecimal string)
             output_file: Optional file path to write to
             pretty: If True, format with indentation
-            page_size: Number of spans per page
-        
+            page_size: Number of observations per page
+
         Returns:
-            Tuple of (SpansResponse, json_string)
-            - SpansResponse: The fetched spans (for programmatic use)
-            - json_string: The JSON export (for CLI and output file)
-        
+            Tuple of (ObservationsExportResponse, json_string)
+
         Raises:
             ClientAPIException: If the API request fails
             ValueError: If trace_id format is invalid
-        
+
         Example:
             ```python
             controller = TracesController()
-            spans, json_str = controller.export_trace_to_json(
+            result, json_str = controller.export_trace_to_json(
                 "abc123...",
                 output_file="trace.json"
             )
-            # Use spans object for analysis
-            errors = [s for s in spans.spans if s.status.status_code == "ERROR"]
             ```
         """
-        spans_response = self.fetch_trace_spans(
+        obs_response = self.fetch_trace_observations(
             trace_id=trace_id,
             page_size=page_size,
             fetch_all=True
         )
-        
-        # Export to JSON
+
         exporter = TraceExporter()
         json_str = exporter.export_to_json(
-            spans_response,
+            obs_response,
             output_file=output_file,
             pretty=pretty
         )
-        
-        return spans_response, json_str
+
+        return obs_response, json_str
         
     def search_traces(
         self,
@@ -172,60 +155,34 @@ class TracesController:
     ) -> TraceSearchResponse:
         """
         Search for traces using filters.
-        
-        This method searches for traces based on various criteria such as
-        time range, service names, agent IDs, agent names, user IDs, session IDs, and span count.
-        
+
         Args:
             filters: TraceFilters object with search criteria
             sort: TraceSort object for sorting results
             page_size: Number of results per page (1-1000)
             show_progress: If True, log progress (for CLI use)
-        
+
         Returns:
             TraceSearchResponse containing trace summaries and pagination info
-        
+
         Raises:
             ClientAPIException: If the API request fails
             ValueError: If parameters are invalid
-        
+
         Example:
             ```python
-            from ibm_watsonx_orchestrate.client.traces.traces_client import TraceFilters, TraceSort
-            
+            from ibm_watsonx_orchestrate.client.observability.traces.traces_client import TraceFilters, TraceSort
+
             controller = TracesController()
-            
-            # Search by time range
-            filters = TraceFilters(
-                start_time="2026-01-26T00:00:00.000Z",
-                end_time="2026-01-27T23:59:59.000Z"
-            )
-            
-            results = controller.search_traces(filters=filters)
-            print(f"Found {len(results.traceSummaries)} traces")
-            
-            # Search by time range and agent name
-            filters = TraceFilters(
-                start_time="2026-01-26T00:00:00.000Z",
-                end_time="2026-01-27T23:59:59.000Z",
-                agent_names=["AskOrchestrate"]
-            )
-            
-            results = controller.search_traces(filters=filters)
-            for trace in results.traceSummaries:
-                print(f"Trace: {trace.traceId}, Agent: {trace.agentNames[0]}")
-            
-            # Search with sorting and root spans
+
             filters = TraceFilters(
                 start_time="2026-01-26T00:00:00.000Z",
                 end_time="2026-01-27T23:59:59.000Z"
             )
             sort = TraceSort(field="start_time", direction="desc")
-            
-            results = controller.search_traces(
-                filters=filters,
-                sort=sort,
-            )
+
+            results = controller.search_traces(filters=filters, sort=sort)
+            print(f"Found {len(results.traceSummaries)} traces")
             ```
         """
         if show_progress:
@@ -259,12 +216,10 @@ def trace_search(start_time: Optional[datetime] = None,
                     page_size: int = 100,
                     ):
         try:
-            # Note: API supports sorting by timestamp field
-            # The sort_field value is passed to the API via the orderBy parameter
             # Resolve agent names to IDs for backward compatibility with existing CLI behavior/tests.
             # Keep the explicit mapping lookup so callers patching the helper continue to work.
             resolved_agent_ids = traces_helper.resolve_agent_names_to_ids(agent_names, agent_ids)
-            
+
             # For local development with FORCE_SINGLE_TENANT=true, service_name is required, defaulting to "wxo-server" if not provided
             try:
                 if is_local_dev() and (not service_names or len(service_names) == 0):
@@ -272,10 +227,7 @@ def trace_search(start_time: Optional[datetime] = None,
                     service_names = ["wxo-server"]
             except (KeyError, AttributeError): # In test environments or when config is not set up, skip local dev check
                 pass
-            
-            span_count_range = None
-            if min_spans is not None or max_spans is not None:
-                span_count_range = SpanCountRange(min=min_spans, max=max_spans)
+
             filters = TraceFilters(
                 start_time=start_time,
                 end_time=end_time,
@@ -284,7 +236,6 @@ def trace_search(start_time: Optional[datetime] = None,
                 agent_names=None,
                 user_ids=user_ids,
                 session_ids=session_ids,
-                span_count_range=span_count_range
             )
             
             sort = TraceSort(field=sort_field, direction=sort_direction)
@@ -391,59 +342,46 @@ def traces_export(trace_id: str, output: Optional[str] = None, pretty: bool = Tr
             logger.error("Error: trace_id must be a 32-character hexadecimal string")
             raise typer.Exit(1)
 
-        if output and not output.lower().endswith('.json'): # check json output file
+        if output and not output.lower().endswith('.json'):
             logger.warning(f"Output file '{output}' must have .json extension. Displaying output to stdout")
-            output=None
-        
+            output = None
+
         if not output and not pretty:
             logger.warning("--no-pretty can only be used when exporting to a file using --output/-o")
-        
+
         controller = TracesController()
-        
-        if output: # Show progress only if outputting to file
+
+        if output:  # Show progress only if outputting to file
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 console=console
             ) as progress:
-                task = progress.add_task(f"Fetching spans for trace {trace_id[:8]}...", total=None)
-                spans_response, json_str = controller.export_trace_to_json(
+                task = progress.add_task(f"Fetching observations for trace {trace_id[:8]}...", total=None)
+                obs_response, json_str = controller.export_trace_to_json(
                     trace_id=trace_id,
                     output_file=output,
                     pretty=pretty,
                 )
-                
-                if spans_response.spans:
-                    progress.update(task, description=f"Fetched {len(spans_response.spans)} spans")
-                elif spans_response.traceData:
-                    progress.update(task, description=f"Fetched trace data")
-        else: # Fetch without progress bar when outputting to stdout
-            spans_response, json_str = controller.export_trace_to_json(
+                if obs_response.observations:
+                    progress.update(task, description=f"Fetched {len(obs_response.observations)} observations")
+        else:  # Fetch without progress bar when outputting to stdout
+            obs_response, json_str = controller.export_trace_to_json(
                 trace_id=trace_id,
                 output_file=output,
                 pretty=pretty,
             )
-        
-        # Check if we have any data (support both old and new formats)
-        has_data = (spans_response.spans or
-                   spans_response.traceData or
-                   spans_response.observations)
-        
-        if not has_data:
+
+        if not obs_response.observations:
             logger.warning(f"No trace data found for trace ID {trace_id}")
             return
-        
+
         # Display success message or output to stdout
         if output:
-            if spans_response.observations:
-                logger.info(f"Successfully exported {len(spans_response.observations)} observations to {output}")
-            elif spans_response.spans:
-                logger.info(f"Successfully exported {len(spans_response.spans)} spans to {output}")
-            elif spans_response.traceData:
-                logger.info(f"Successfully exported trace data to {output}")
+            logger.info(f"Successfully exported {len(obs_response.observations)} observations to {output}")
             logger.info(f"Trace ID: {trace_id}")
-            if spans_response.totalCount:
-                logger.info(f"  Total items in trace: {spans_response.totalCount}")
+            if obs_response.totalCount:
+                logger.info(f"  Total items in trace: {obs_response.totalCount}")
         else:
             rich.print_json(json_str)
     
