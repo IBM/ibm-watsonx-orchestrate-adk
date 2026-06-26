@@ -3047,6 +3047,7 @@ class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
+    suppress_agent_summarization: bool | None = None
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
@@ -3079,6 +3080,9 @@ class FlowSpec(NodeSpec):
             model_spec["callbacks"] = [callback.to_json() for callback in self.callbacks]
         
         model_spec["schedulable"] = self.schedulable
+        # Only include suppress_agent_summarization if explicitly set
+        if self.suppress_agent_summarization is not None:
+            model_spec["suppress_agent_summarization"] = self.suppress_agent_summarization
 
         return model_spec
 
