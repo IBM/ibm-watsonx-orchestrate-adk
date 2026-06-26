@@ -88,6 +88,7 @@ services:
 
   wxo-knowledge-mcp-server:
     image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "8005:8005"
@@ -273,6 +274,7 @@ services:
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-May 30, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
@@ -1696,6 +1698,7 @@ services:
 
   wxo-server-voice:
     image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
+    platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
     ports: 

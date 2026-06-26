@@ -7,6 +7,14 @@
     "input_schema": {
       "$ref": "#/schemas/user_flow_application_form_input"
     },
+    "translation_support": {
+      "enabled": true,
+      "source_locale": "en",
+      "target_locales": [
+        "fr",
+        "es"
+      ]
+    },
     "schedulable": false
   },
   "nodes": {
@@ -1002,7 +1010,9 @@
                     "title": "List of Fruits",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
                   },
                   "multi-choice_as_dropdown_1": {
                     "type": "array",
@@ -1098,21 +1108,21 @@
                   "kind": "submit",
                   "display_name": "Submit",
                   "visible": true,
-                  "edge_id": "96e35238-b6fc-400a-9447-24328a257b9f"
+                  "edge_id": "6ceebded-9290-4dc2-bcf3-b193d3d54e26"
                 },
                 {
-                  "name": "1b65bb9a-75d8-4bdb-8175-05f4e48e261a",
+                  "name": "4340ece5-cfe1-44ec-baed-12f78aba59e1",
                   "kind": "submit",
                   "display_name": "Save Draft",
                   "visible": true,
-                  "edge_id": "dad0352b-3976-4414-8d19-e5ebd18882cd"
+                  "edge_id": "9e42b2e6-f8e1-4b47-8fbd-966c5b06f379"
                 },
                 {
-                  "name": "c8a3d6ef-0e57-47ec-b7ae-0ee7af10c19f",
+                  "name": "7e65a69f-2f5c-4e14-b44c-a133e6a97589",
                   "kind": "submit",
                   "display_name": "Submit for Review",
                   "visible": true,
-                  "edge_id": "2b2af54d-ae5b-404f-9b81-66a4caff82a5"
+                  "edge_id": "a306b1bf-6155-4525-85a4-2f8f65156f12"
                 },
                 {
                   "name": "cancel",
@@ -1171,7 +1181,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_submit",
-          "id": "96e35238-b6fc-400a-9447-24328a257b9f"
+          "id": "6ceebded-9290-4dc2-bcf3-b193d3d54e26"
         },
         {
           "start": "process_submit",
@@ -1180,7 +1190,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_save_draft",
-          "id": "dad0352b-3976-4414-8d19-e5ebd18882cd"
+          "id": "9e42b2e6-f8e1-4b47-8fbd-966c5b06f379"
         },
         {
           "start": "process_save_draft",
@@ -1189,7 +1199,7 @@
         {
           "start": "ApplicationForm",
           "end": "process_review",
-          "id": "2b2af54d-ae5b-404f-9b81-66a4caff82a5"
+          "id": "a306b1bf-6155-4525-85a4-2f8f65156f12"
         },
         {
           "start": "process_review",
@@ -1271,16 +1281,16 @@
           },
           "default": [
             [
-              "John",
-              "Doe"
+              "Doe",
+              "John"
             ],
             [
               "Doe",
               "Jane"
             ],
             [
-              "Doe",
-              "Jean"
+              "Jean",
+              "Doe"
             ]
           ]
         }
@@ -1445,6 +1455,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-05-22T07:14:03.234204+00:00"
+    "compiled_on": "2026-06-17T23:40:46.285514+00:00"
   }
 }

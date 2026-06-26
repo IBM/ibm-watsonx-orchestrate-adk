@@ -8,8 +8,8 @@ from typing_extensions import Annotated
 
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelType
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import  ModelPolicyStrategyMode
-from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController
-
+from ibm_watsonx_orchestrate.cli.commands.models.models_controller import ModelsController, \
+    PREMIER_MODEL_WARNING_MSG_PREFIX
 
 logger = logging.getLogger(__name__)
 models_app = typer.Typer(no_args_is_help=True)
@@ -27,6 +27,31 @@ models_app.add_typer(
     name="config",
     help="Set default LLM or adding/removing LLMs to/from denylist"
 )
+
+@models_config_app.command(name="are-premier-models-enabled", help="Check if OOTB premier models are enabled")
+def check_if_premier_models_enabled():
+    models_controller = ModelsController()
+    results = models_controller.get_model_selection_client().get()
+    enabled = results.model_selection_settings.premier_models_enabled
+    warnings = results.warnings
+    for msg in warnings:
+        if msg.startswith(PREMIER_MODEL_WARNING_MSG_PREFIX):
+            logger.warning(msg)
+    logger.info(f"Premier models enabled: {enabled}")
+
+
+@models_config_app.command(name="enable-premier-models", help="Enable usage of OOTB premier models")
+def enable_premier_models():
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(premier_models_enabled=True)
+    logger.info(f"You have enabled premier models for your tenant.")
+
+
+@models_config_app.command(name="disable-premier-models", help="Disable usage of OOTB premier models")
+def disable_premier_models():
+    models_controller = ModelsController()
+    models_controller.patch_model_selection_config(premier_models_enabled=False)
+    logger.info(f"You have disabled premier models for your tenant.")
 
 
 @models_config_app.command(name="list", help="Listing tenant level model selection configuration")
@@ -146,6 +171,13 @@ def models_import(
             help='The app id of a key_value connection containing authentications details for the model provider.'
         )
     ] = None,
+    skip_validation: Annotated[
+        bool, typer.Option(
+            '--skip-validation/--no-skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.',
+            hidden=True
+        )
+    ] = True,
 ):
     models_controller = ModelsController()
     models = models_controller.import_model(
@@ -153,7 +185,7 @@ def models_import(
         app_id=app_id
     )
     for model in models:
-        models_controller.publish_or_update_models(model=model)
+        models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 @models_app.command(name="add", help="Add an llm from a custom provider")
 def models_add(
@@ -186,6 +218,13 @@ def models_add(
         ModelType,
         typer.Option('--type', help='What type of model is it'),
     ] = ModelType.CHAT,
+    skip_validation: Annotated[
+        bool, typer.Option(
+            '--skip-validation/--no-skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.',
+            hidden=True
+        )
+    ] = True,
 ):
     provider_config_dict = {}
     if provider_config:
@@ -204,7 +243,7 @@ def models_add(
         model_type=type,
         app_id=app_id,
     )
-    models_controller.publish_or_update_models(model=model)
+    models_controller.publish_or_update_models(model=model, skip_validation=skip_validation)
 
 
 
@@ -235,6 +274,24 @@ def models_export(
 ):
     models_controller = ModelsController()
     models_controller.export_model(name=name, output_path=output_path)
+
+@models_app.command(name="validate", help="Validate a model's functionality", hidden=True)
+def models_validate(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the model you wish to export"),
+    ],
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Verbose JSON output",
+        ),
+    ] = False,
+):
+    models_controller = ModelsController()
+    models_controller.validate_model(name=name, verbose=verbose)
 
 @models_policy_app.command(name='import', help='Add a model policy')
 def models_policy_import(
