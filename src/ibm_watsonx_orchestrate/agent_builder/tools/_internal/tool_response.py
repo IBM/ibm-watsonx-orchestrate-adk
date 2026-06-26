@@ -37,6 +37,7 @@ class ToolResponse:
       self.context_updates = context_updates if context_updates is not None else {}
     else:
       self.content = content
+      self._meta = _meta if _meta is not None else {}
       self.context_updates = context_updates if context_updates is not None else {}
       self.structuredContent = None
 
