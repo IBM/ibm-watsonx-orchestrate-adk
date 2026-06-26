@@ -392,12 +392,33 @@ class FileUpload(BaseModel):
     url: Optional[str] = None
 
 class ContentSourceType(str, Enum):
-    """Content source types for knowledge bases"""
-    BOX = "Box"
+    """Supported external content source types.
 
-class ContentSource(BaseModel):
-    """Content source configuration for knowledge base"""
-    type: ContentSourceType = Field(..., description="Type of content source (e.g., 'Box')")
+    These values must match the connector IDs from wdp-connect-library
+    as they are used directly as datasource_name in Flight service calls.
+    """
+    amazons3 = "amazons3"
+    azureblobstorage = "azureblobstorage"
+    box = "box"
+    dropbox = "dropbox"
+    googlecloudstorage = "googlecloudstorage"
+    onedrive = "onedrive"
+    sharepoint_file = "sharepoint-file"
+
+class ContentSourceConfig(BaseModel):
+    """Configuration for the external content source of a knowledge base."""
+    type: ContentSourceType = Field(
+        ...,
+        description="Type of external source (box, sharepoint, google_drive, etc.)"
+    )
+    connection_id: str = Field(
+        ...,
+        description="Connection ID for the external source"
+    )
+    interaction_properties: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Source-specific interaction properties (e.g., folder_id, site_id, drive_id)"
+    )
 
 class KnowledgeBaseSyncJob(BaseModel):
     """Schedule repeat options for knowledge base ingestion"""
@@ -438,7 +459,7 @@ class KnowledgeBaseSpec(BaseModel):
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    content_source: Optional[ContentSource] = None
+    content_source: Optional[ContentSourceConfig] = None
     sync_job: Optional[KnowledgeBaseSyncJob] = None
     # For import/update
     documents: list[str] | list[FileUpload] = None
@@ -454,14 +475,14 @@ class KnowledgeBaseSpec(BaseModel):
                         "sync_job is not supported for knowledge bases using index_config. "
                         "sync_job can only be used with content_source."
                     )
-            
+
             # Ensure content_source is provided when sync_job is specified
             if self.content_source is None:
                 raise ValueError(
                     "sync_job requires content_source to be specified. "
-                    "Please provide a content_source (e.g., type: 'Box')."
+                    "Please provide a content_source (e.g., type: 'box')."
                 )
-        
+
         return self
 
 class KnowledgeBaseListEntry(BaseModel):
