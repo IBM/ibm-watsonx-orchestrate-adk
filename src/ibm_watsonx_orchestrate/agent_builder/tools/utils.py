@@ -270,7 +270,7 @@ def __get_python_tools_from_file(
         package_root: Optional[str] = None,
         requirements: Optional[List[str]] = None,
         connections: Optional[List[str]] = None,
-        belongs_to_toolkit: bool = False
+        belongs_to_toolkit: bool = False,
     ) -> List[BaseTool]:
     tools = []
 
@@ -302,8 +302,7 @@ def __get_python_tools_from_file(
             fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
-        obj.belongs_to_toolkit = belongs_to_toolkit
-        obj.validate_async_toolkit_requirement()
+        obj.validate_async_toolkit_requirement(belongs_to_toolkit)
 
         if connections and len(connections):
             obj.__tool_spec__.binding.python.connections = __parse_app_ids(connections)
