@@ -17,6 +17,8 @@ class FlowCallbackEventKind(str, Enum):
     ON_FLOW_START = "flow:on_flow_start"
     ON_FLOW_END = "flow:on_flow_end"
     ON_FLOW_ERROR = "flow:on_flow_error"
+    ON_FLOW_ABORT = "flow:on_flow_abort"
+    ON_FLOW_DELETE = "flow:on_flow_delete"
     
     # Task events
     ON_TASK_WAIT = "task:on_task_wait"  # the task is waiting for inputs before proceeding
@@ -30,6 +32,8 @@ class FlowState(str, Enum):
     INPUT_REQUIRED = "input_required"
     COMPLETED = "completed"
     FAILED = "failed"
+    ABORTED = "aborted"
+    DELETED = "deleted"
 
 
 class ErrorDetails(BaseModel):

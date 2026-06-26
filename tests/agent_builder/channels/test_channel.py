@@ -358,7 +358,7 @@ class TestChannelFromPython:
         another_whatsapp = TwilioWhatsappChannel(
             channel="twilio_whatsapp",
             name="another_channel",
-            account_sid="AC98765432109876543210987654321098",
+            account_sid="AC0000THISISFAKE000000000000000000",
             twilio_authentication_token="token2"
         )
 

@@ -47,9 +47,15 @@ class TempusClient(BaseWXOClient):
     def arun_flow(self, flow_id: str, input: dict) -> dict:
         return self._post(f"/flows/{flow_id}/versions/TIP/run/async", data=input)
     
+    def abort_flow(self, flow_instance_id: str) -> dict:
+        return self._post(f"/flows/{flow_instance_id}/abort")
+    
     def get_flow_model(self, flow_id: str, version: str = "TIP") -> dict:
         return self._get(f"/flow-models/{flow_id}/versions/{version}")
-
+    
+    def delete_flow(self, flow_instance_id: str) -> dict:
+        return self._delete(f"/flows/{flow_instance_id}")
+  
     def _get_headers(self) -> dict:
         '''
         if debug is True, set trace debug level 4 to get input and output data from task run
