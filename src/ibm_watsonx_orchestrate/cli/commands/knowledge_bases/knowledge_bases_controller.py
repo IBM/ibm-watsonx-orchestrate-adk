@@ -178,7 +178,7 @@ class KnowledgeBaseController:
         except ClientAPIException as e:
             raise ValueError(f"Connection credential validation failed: {_extract_api_error_message(e)}")
 
-    def import_knowledge_base(self, file: str, app_id: str):
+    def import_knowledge_base(self, file: str, app_id: str, sync: bool = False):
         client = self.get_client()
 
         knowledge_bases = parse_file(file=file)
@@ -250,14 +250,14 @@ class KnowledgeBaseController:
                     
                     logger.info(f"Existing knowledge base '{kb.name}' found. Updating...")
                     
-                    self.update_knowledge_base(existing[0].get("id"), kb=kb, file_dir=file_dir)
+                    self.update_knowledge_base(existing[0].get("id"), kb=kb, file_dir=file_dir, sync=sync)
                     continue
 
                 kb.validate_documents_or_index_exists()
                 response = None
                 kb_id = None
                 if kb.content_source:
-                    # content_source KB: documents and content_source are passed inline in the payload
+                    # content_source KB: content_source + documents (remote paths) passed inline in the payload
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True)
                     sync_job = payload.pop('sync_job', None)
@@ -289,9 +289,8 @@ class KnowledgeBaseController:
 
                     if response and 'knowledge_base' in response:
                         kb_id = response['knowledge_base']
-                        # content_source KBs are connector-backed and won't be indexed until
-                        # the first sync completes — skip polling to avoid a spurious failure.
-                        logger.info(f"Successfully started import for knowledge base '{kb.name}'")
+                        # Trigger an initial sync so the KB is indexed immediately after creation
+                        self._trigger_sync(client, kb_id, kb.name)
 
                         if kb.sync_job and kb_id:
                             self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
@@ -454,6 +453,30 @@ class KnowledgeBaseController:
                     logger.error(f"Unexpected error checking status for knowledge base '{kb_name}': {str(e)}")
                     return
     
+    def _trigger_sync(
+        self,
+        client: KnowledgeBaseClient,
+        kb_id: str,
+        kb_name: str,
+    ) -> None:
+        """
+        Trigger an on-demand sync for a connector-backed knowledge base and poll
+        until the KB reaches a terminal status.
+
+        Args:
+            client: The knowledge base client
+            kb_id: The knowledge base ID
+            kb_name: The knowledge base name (for logging)
+        """
+        try:
+            client.sync(kb_id)
+            logger.info(f"Sync triggered for knowledge base '{kb_name}', waiting for completion...")
+            self._poll_knowledge_base_status(client, kb_id, kb_name, False)
+        except ClientAPIException as e:
+            logger.error(f"Failed to trigger sync for knowledge base '{kb_name}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error triggering sync for knowledge base '{kb_name}': {str(e)}")
+
     def _create_schedule(
         self,
         client: KnowledgeBaseClient,
@@ -563,7 +586,7 @@ class KnowledgeBaseController:
 
 
     def update_knowledge_base(
-        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str | Path
+        self, knowledge_base_id: str, kb: KnowledgeBase, file_dir: str | Path, sync: bool = False
     ) -> None:
         if isinstance(file_dir, str):
             file_dir = Path(file_dir)
@@ -580,7 +603,7 @@ class KnowledgeBaseController:
         client = self.get_client()
         
         if kb.content_source:
-            # content_source KB: documents and content_source are passed inline in the payload
+            # content_source KB: content_source + documents (remote paths) passed inline in the payload
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True)
             sync_job = payload.pop('sync_job', None)
@@ -588,9 +611,10 @@ class KnowledgeBaseController:
             data = {'knowledge_base': json.dumps(payload)}
             client.update(knowledge_base_id, payload=data)
 
-            # content_source KBs are connector-backed and won't be indexed until
-            # the first sync completes — skip polling to avoid a spurious failure.
-            logger.info(f"Successfully started update for knowledge base '{kb.name}'")
+            if sync:
+                self._trigger_sync(client, knowledge_base_id, kb.name)
+            else:
+                logger.info(f"Successfully updated knowledge base '{kb.name}'")
 
             # Upsert schedule if sync_job is specified
             if kb.sync_job:
