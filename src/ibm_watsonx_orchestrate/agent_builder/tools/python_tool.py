@@ -188,14 +188,20 @@ class PythonTool(BaseTool):
         self.belongs_to_toolkit = belongs_to_toolkit
         self.is_async = inspect.iscoroutinefunction(self.fn)
     
-    def validate_async_toolkit_requirement(self) -> None:
+    def validate_async_toolkit_requirement(self, belongs_to_toolkit: bool = None) -> None:
         """
         Validate that async tools are only used within toolkits.
-        
+
+        Args:
+            belongs_to_toolkit: Override for toolkit membership. When provided, this value is
+                used instead of self.belongs_to_toolkit. This allows callers (e.g. utils.py) to
+                supply the correct membership flag at import time without mutating the tool object.
+
         Raises:
             BadRequest: If tool is async but not part of a toolkit
         """
-        if self.is_async and not self.belongs_to_toolkit:
+        check = belongs_to_toolkit if belongs_to_toolkit is not None else self.belongs_to_toolkit
+        if self.is_async and not check:
             raise BadRequest(
                 f"Async tools are only supported within toolkits. "
                 f"Tool '{self.name or self.fn.__name__}' is defined as async but is not part of a toolkit. "
