@@ -1,6 +1,6 @@
 from unittest.mock import patch, MagicMock, mock_open
 from ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller import ToolkitController, ToolkitKind, get_connection_id
-from ibm_watsonx_orchestrate.agent_builder.toolkits.types import RemoteMcpModel, LocalMcpModel, ToolkitSource, Language, ToolkitTransportKind, ToolkitSpec
+from ibm_watsonx_orchestrate.agent_builder.toolkits.types import RemoteMcpModel, LocalMcpModel, ToolkitSource, Language, ToolkitTransportKind, ToolkitSpec, PythonModel
 from ibm_watsonx_orchestrate.agent_builder.toolkits.base_toolkit import BaseToolkit
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -935,6 +935,78 @@ class TestToolkitControllerPublishOrUpdateToolkits:
                 tc.publish_or_update_toolkits([toolkit])
             
             assert "app-id cannot be empty or whitespace" in str(e)
+
+    def test_publish_or_update_toolkits_python_no_requirements_file(self):
+        """Python toolkit bundles without a requirements.txt should publish successfully."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_package_root, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip") as mock_populate_zip, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_formated_requirements_lines") as mock_get_reqs, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id") as mock_get_connection_id:
+
+            mock_get_connection_id.return_value = self.mock_conn_id
+            mock_get_reqs.return_value = ["ibm-watsonx-orchestrate==1.0.0\n"]
+            mock_client = MockToolkitsClient(create_res={"id": self.mock_id})
+            mock_get_client.return_value = mock_client
+
+            # package_root directory exists but contains no requirements.txt
+            python_spec = ToolkitSpec(
+                name=self.mock_name,
+                description=self.mock_description,
+                python=PythonModel(
+                    package_root=tmp_package_root,
+                    connections=[self.mock_app_id]
+                )
+            )
+            toolkit = BaseToolkit(spec=python_spec)
+
+            tc = ToolkitController()
+            tc.publish_or_update_toolkits([toolkit])
+
+            # get_formated_requirements_lines must have been called with None
+            # because requirements.txt is absent from the package root
+            mock_get_reqs.assert_called_once_with(None)
+            mock_client.upload.assert_called_once()
+
+    def test_publish_or_update_toolkits_python_with_requirements_file(self):
+        """Python toolkit bundles with a requirements.txt should pass the path to get_formated_requirements_lines."""
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as tmp_package_root, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController.get_client") as mock_get_client, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.ToolkitController._populate_zip") as mock_populate_zip, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_formated_requirements_lines") as mock_get_reqs, \
+            patch("ibm_watsonx_orchestrate.cli.commands.toolkit.toolkit_controller.get_connection_id") as mock_get_connection_id:
+
+            mock_get_connection_id.return_value = self.mock_conn_id
+            mock_get_reqs.return_value = ["requests==2.32.0\n", "ibm-watsonx-orchestrate==1.0.0\n"]
+            mock_client = MockToolkitsClient(create_res={"id": self.mock_id})
+            mock_get_client.return_value = mock_client
+
+            # create a requirements.txt in the package root
+            reqs_path = os.path.join(tmp_package_root, "requirements.txt")
+            with open(reqs_path, "w") as f:
+                f.write("requests==2.32.0\n")
+
+            python_spec = ToolkitSpec(
+                name=self.mock_name,
+                description=self.mock_description,
+                python=PythonModel(
+                    package_root=tmp_package_root,
+                    connections=[self.mock_app_id]
+                )
+            )
+            toolkit = BaseToolkit(spec=python_spec)
+
+            tc = ToolkitController()
+            tc.publish_or_update_toolkits([toolkit])
+
+            # get_formated_requirements_lines must have been called with the actual path
+            mock_get_reqs.assert_called_once_with(reqs_path)
+            mock_client.upload.assert_called_once()
+
+
 
 class TestToolkitControllerRemoveToolkit:
     mock_name = "mock_name"
