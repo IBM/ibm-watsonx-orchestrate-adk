@@ -218,12 +218,17 @@ class DocExtConfigTableField(DocExtConfigField):
         data['type'] = 'table'
         super().__init__(**data)
 
+class PageRange(BaseModel):
+    start: int = Field(description="The starting page number (1-based, inclusive)")
+    end: int = Field(description="The ending page number (1-based, inclusive)")
+
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
     llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
+    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted. Supported only when field_extraction_method='layout'.", default=None)
     
     @model_validator(mode='after')
     def validate_field_extraction_method(self) -> Self:
@@ -241,12 +246,15 @@ class DocExtConfig(BaseModel):
                     raise ValueError(
                         "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
                     )
+            
+            # Check for page_range
+            if self.page_range is not None:
+                raise ValueError(
+                    "page_range is only supported when field_extraction_method='layout'. "
+                    f"Current field_extraction_method is '{self.field_extraction_method}'."
+                )
         
         return self
-
-class PageRange(BaseModel):
-    start: int = Field(description="The starting page number (1-based, inclusive)")
-    end: int = Field(description="The ending page number (1-based, inclusive)")
 
 class LanguageCode(StrEnum):
     en = auto()
@@ -3593,8 +3601,10 @@ class DocumentProcessingCommonInput(BaseModel):
 
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
+        page_range (PageRange|None): Optional page range for text extractor and layout document extractor
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
+    page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from pages within the specified range are extracted.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
@@ -3605,7 +3615,10 @@ class DocProcInput(DocumentProcessingCommonInput):
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
-        page_range (PageRange | None): Optional page range for text extraction. When specified, only text from the specified page range will be extracted.
+    
+    Inherited Attributes:
+        document_ref (bytes|str): Document reference
+        page_range (PageRange | None): Optional page range for text extractor and layout document extractor
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
@@ -3627,11 +3640,6 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP Enable Text Hints',
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
-    )
-    page_range: PageRange | None = Field(
-        title='Page Range',
-        description='Optional page range for text extraction. When specified, only text from the specified page range will be extracted. Example: PageRange(start=1, end=5) extracts pages 1 through 5.',
-        default=None
     )
 
 class TextExtractionObjectResponse(AssemblyJsonOutput):
