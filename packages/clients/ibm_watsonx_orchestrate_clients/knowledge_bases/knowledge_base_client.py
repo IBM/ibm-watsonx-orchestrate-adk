@@ -28,6 +28,17 @@ class KnowledgeBaseClient(BaseWXOClient):
             # Re-serialize back to JSON
             payload['knowledge_base'] = json.dumps(kb_data)
         return self._post_form_data(f"{self.base_endpoint}/documents", data=payload)
+
+    def create_without_files(self, payload: dict) -> dict:
+        """Create a knowledge base without file uploads via POST /knowledge-bases."""
+        payload = resolve_and_inject_workspace(payload)
+        return self._post(self.base_endpoint, data=payload)
+
+    def update_without_files(self, knowledge_base_id: str, payload: dict) -> dict:
+        """Update a knowledge base without file uploads via PATCH /knowledge-bases/<id>."""
+        payload = resolve_and_inject_workspace(payload)
+        print(payload)
+        return self._patch(f"{self.base_endpoint}/{knowledge_base_id}", data=payload)
     
     def create_built_in(self, payload: dict, files: list) -> dict:
         # Parse the JSON-serialized knowledge_base data

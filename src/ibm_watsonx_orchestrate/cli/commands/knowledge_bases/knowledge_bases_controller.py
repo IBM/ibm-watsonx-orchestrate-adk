@@ -257,15 +257,13 @@ class KnowledgeBaseController:
                 response = None
                 kb_id = None
                 if kb.content_source:
-                    # content_source KB: content_source + documents (remote paths) passed inline in the payload
+                    # content_source KB: POST /knowledge-bases with JSON body (no /documents multipart)
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True)
-                    sync_job = payload.pop('sync_job', None)
-
-                    data = {'knowledge_base': json.dumps(payload)}
+                    payload.pop('sync_job', None)
 
                     try:
-                        response = client.create(payload=data)
+                        response = client.create_without_files(payload=payload)
                     except ClientAPIException as e:
                         error_msg = "Unknown error"
                         try:
@@ -287,8 +285,8 @@ class KnowledgeBaseController:
                         logger.error(f"Failed to create knowledge base: {error_msg}")
                         continue
 
-                    if response and 'knowledge_base' in response:
-                        kb_id = response['knowledge_base']
+                    if response and 'id' in response:
+                        kb_id = response['id']
                         # Trigger an initial sync so the KB is indexed immediately after creation
                         self._trigger_sync(client, kb_id, kb.name)
 
@@ -603,13 +601,12 @@ class KnowledgeBaseController:
         client = self.get_client()
         
         if kb.content_source:
-            # content_source KB: content_source + documents (remote paths) passed inline in the payload
+            # content_source KB: PATCH /knowledge-bases/<id> with JSON body (no /documents multipart)
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True)
-            sync_job = payload.pop('sync_job', None)
+            payload.pop('sync_job', None)
 
-            data = {'knowledge_base': json.dumps(payload)}
-            client.update(knowledge_base_id, payload=data)
+            client.update_without_files(knowledge_base_id, payload=payload)
 
             if sync:
                 self._trigger_sync(client, knowledge_base_id, kb.name)
