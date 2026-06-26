@@ -97,6 +97,7 @@ class FlowInput(BaseModel):
     display_name="Application form",
     description="Creates a sample application form.",
     input_schema=FlowInput,
+    suppress_agent_summarization=False
 )
 
 def build_user_form(aflow: Flow = None) -> Flow:
