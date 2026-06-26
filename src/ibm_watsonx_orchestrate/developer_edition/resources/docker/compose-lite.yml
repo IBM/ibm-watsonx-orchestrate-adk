@@ -1388,7 +1388,7 @@ services:
       PG_PASSWORD: ${POSTGRES_PASSWORD}
       PG_DATABASE: postgres
       USER_MGMT_BASE_URL: "" # TODO
-      WXO_SERVER_BASE_URL: http://host.docker.internal:4321
+      WXO_SERVER_BASE_URL: http://wxo-server:4321
       TRM_SERVER_BASE_URL: http://tools-runtime-manager:8080
       CONNECTION_MANAGER_SERVER_BASE_URL: http://wxo-server-connection-manager:3001
       REDIS_ENDPOINT: wxo-server-redis:6379

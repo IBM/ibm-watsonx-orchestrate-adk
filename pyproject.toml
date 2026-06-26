@@ -39,6 +39,7 @@ base_dependencies = [
     "rich>=13.9.4,<14.0.0",
     "typer>=0.26.1,<1.0.0",
     "urllib3>=2.7.0",
+    "croniter>=2.0.0",
     "pytz>=2025.2",
     "redis>=6.0.0",
     "websocket-client>=1.8.0,<2.0.0",

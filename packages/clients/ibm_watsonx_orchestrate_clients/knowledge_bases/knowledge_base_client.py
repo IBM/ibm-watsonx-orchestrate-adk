@@ -140,6 +140,18 @@ class KnowledgeBaseClient(BaseWXOClient):
     def delete(self, knowledge_base_id: str,) -> dict:
         return self._delete(f"{self.base_endpoint}/{knowledge_base_id}")
     
+    def get_schedule(self, knowledge_base_id: str) -> dict:
+        """
+        Get the schedule for a knowledge base.
+
+        Args:
+            knowledge_base_id: The knowledge base ID
+
+        Returns:
+            dict: Response from the API, or None if no schedule exists
+        """
+        return self._get(f"{self.base_endpoint}/{knowledge_base_id}/schedule")
+
     def create_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
         """
         Create a schedule for a knowledge base.
@@ -151,7 +163,7 @@ class KnowledgeBaseClient(BaseWXOClient):
         Returns:
             dict: Response from the API
         """
-        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/schedules", data=payload)
+        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/schedule", data=payload)
     
     def update_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
         """

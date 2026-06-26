@@ -94,12 +94,16 @@ def get_index_config(kb: KnowledgeBase, index: int = 0) -> IndexConnection | Non
     return None
 
 def get_kb_app_id(kb: KnowledgeBase) -> str | None:
+    if kb.content_source is not None:
+        return kb.content_source.connection_id  # app_id stored on spec before resolution
     index_config = get_index_config(kb)
     if not index_config:
         return
     return index_config.app_id
 
 def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
+    if kb.content_source is not None:
+        return kb.content_source.connection_id
     index_config = get_index_config(kb)
     if not index_config:
         return
@@ -192,9 +196,12 @@ class KnowledgeBaseController:
                     connections_map = build_connections_map("app_id")
                 conn = connections_map.get(app_id)
                 if conn:
-                    index_config = get_index_config(kb)
-                    if index_config:
-                        index_config.connection_id = conn.connection_id
+                    if kb.content_source is not None:
+                        kb.content_source.connection_id = conn.connection_id
+                    else:
+                        index_config = get_index_config(kb)
+                        if index_config:
+                            index_config.connection_id = conn.connection_id
                 else:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
@@ -282,7 +289,9 @@ class KnowledgeBaseController:
 
                     if response and 'knowledge_base' in response:
                         kb_id = response['knowledge_base']
-                        self._poll_knowledge_base_status(client, kb_id, kb.name, False)
+                        # content_source KBs are connector-backed and won't be indexed until
+                        # the first sync completes — skip polling to avoid a spurious failure.
+                        logger.info(f"Successfully started import for knowledge base '{kb.name}'")
 
                         if kb.sync_job and kb_id:
                             self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
@@ -466,7 +475,10 @@ class KnowledgeBaseController:
             client.create_schedule(kb_id, payload)
             logger.info(f"Successfully created schedule for knowledge base '{kb_name}' with pattern '{schedule_pattern}'")
         except ClientAPIException as e:
-            logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
+            if e.response is not None and e.response.status_code == 404:
+                logger.warning(f"Schedule endpoint not available for knowledge base '{kb_name}' (KB may not be indexed yet). Schedule was not created.")
+            else:
+                logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error creating schedule for knowledge base '{kb_name}': {str(e)}")
     
@@ -491,9 +503,42 @@ class KnowledgeBaseController:
             client.update_schedule(kb_id, payload)
             logger.info(f"Successfully updated schedule for knowledge base '{kb_name}' with pattern '{schedule_pattern}'")
         except ClientAPIException as e:
-            logger.error(f"Failed to update schedule for knowledge base '{kb_name}': {str(e)}")
+            if e.response is not None and e.response.status_code == 404:
+                logger.warning(f"Schedule endpoint not available for knowledge base '{kb_name}' (KB may not be indexed yet). Schedule was not updated.")
+            else:
+                logger.error(f"Failed to update schedule for knowledge base '{kb_name}': {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error updating schedule for knowledge base '{kb_name}': {str(e)}")
+
+    def _upsert_schedule(
+        self,
+        client: KnowledgeBaseClient,
+        kb_id: str,
+        schedule_pattern: str,
+        kb_name: str
+    ) -> None:
+        """
+        Create or update a schedule for a knowledge base, depending on whether
+        a schedule already exists.
+
+        Args:
+            client: The knowledge base client
+            kb_id: The knowledge base ID
+            schedule_pattern: The cron pattern for the schedule
+            kb_name: The knowledge base name (for logging)
+        """
+        try:
+            client.get_schedule(kb_id)
+            # Schedule exists — update it
+            self._update_schedule(client, kb_id, schedule_pattern, kb_name)
+        except ClientAPIException as e:
+            if e.response is not None and e.response.status_code == 404:
+                # No schedule yet — create one
+                self._create_schedule(client, kb_id, schedule_pattern, kb_name)
+            else:
+                logger.error(f"Failed to retrieve schedule for knowledge base '{kb_name}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error retrieving schedule for knowledge base '{kb_name}': {str(e)}")
     
     def get_id(
         self, id: str, name: str, workspace_id: Optional[str] = None
@@ -543,12 +588,13 @@ class KnowledgeBaseController:
             data = {'knowledge_base': json.dumps(payload)}
             client.update(knowledge_base_id, payload=data)
 
-            # Poll for update completion
-            self._poll_knowledge_base_status(client, knowledge_base_id, kb.name, True)
+            # content_source KBs are connector-backed and won't be indexed until
+            # the first sync completes — skip polling to avoid a spurious failure.
+            logger.info(f"Successfully started update for knowledge base '{kb.name}'")
 
-            # Update schedule if sync_job is specified
+            # Upsert schedule if sync_job is specified
             if kb.sync_job:
-                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+                self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
         elif kb.documents:
             status = client.status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
@@ -591,9 +637,9 @@ class KnowledgeBaseController:
             data = { 'knowledge_base': json.dumps(payload) }
             client.update(knowledge_base_id, payload=data)
             
-            # Update schedule if sync_job is specified
+            # Upsert schedule if sync_job is specified
             if kb.sync_job:
-                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+                self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
             
             # No polling needed when no documents are included
             logger.info(f"Knowledge base '{kb.name}' updated successfully")
