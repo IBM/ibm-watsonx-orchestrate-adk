@@ -3224,6 +3224,8 @@ class FlowEventType(Enum):
     ON_FLOW_WAIT = "flow:on_flow_wait"
     ON_FLOW_RESUME = "flow:on_flow_resume"
     ON_FLOW_MESSAGE = "flow:on_flow_message"
+    ON_FLOW_ABORT = "flow:on_flow_abort"
+    ON_FLOW_DELETE = "flow:on_flow_delete"
 
 @dataclass
 class FlowEvent:
