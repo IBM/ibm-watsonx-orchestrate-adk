@@ -139,6 +139,18 @@ class KnowledgeBaseClient(BaseWXOClient):
 
     def delete(self, knowledge_base_id: str,) -> dict:
         return self._delete(f"{self.base_endpoint}/{knowledge_base_id}")
+
+    def sync(self, knowledge_base_id: str) -> dict:
+        """
+        Trigger an on-demand sync for a connector-backed knowledge base.
+
+        Args:
+            knowledge_base_id: The knowledge base ID
+
+        Returns:
+            dict: Response from the API
+        """
+        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/sync", data={})
     
     def get_schedule(self, knowledge_base_id: str) -> dict:
         """

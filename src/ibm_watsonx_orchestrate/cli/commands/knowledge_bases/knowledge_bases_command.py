@@ -23,10 +23,17 @@ def knowledge_base_import(
             "--safe",
             help="Enable safe mode: prompt for confirmation before updating existing knowledge bases"
         )
+    ] = False,
+    sync: Annotated[
+        bool,
+        typer.Option(
+            "--sync",
+            help="For connector-backed (content_source) knowledge bases: trigger an on-demand sync and wait for completion. Applied automatically on first import; required explicitly on updates."
+        )
     ] = False
 ):
     controller = KnowledgeBaseController(safe_mode=safe)
-    controller.import_knowledge_base(file=file, app_id=app_id)
+    controller.import_knowledge_base(file=file, app_id=app_id, sync=sync)
 
 
 @knowledge_bases_app.command(name="list", help="List all knowledge bases")
