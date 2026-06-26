@@ -249,7 +249,46 @@ class KnowledgeBaseController:
                 kb.validate_documents_or_index_exists()
                 response = None
                 kb_id = None
-                if kb.documents:
+                if kb.content_source:
+                    # content_source KB: documents and content_source are passed inline in the payload
+                    kb.prioritize_built_in_index = True
+                    payload = kb.model_dump(exclude_none=True)
+                    sync_job = payload.pop('sync_job', None)
+
+                    data = {'knowledge_base': json.dumps(payload)}
+
+                    try:
+                        response = client.create(payload=data)
+                    except ClientAPIException as e:
+                        error_msg = "Unknown error"
+                        try:
+                            if e.response is not None and hasattr(e.response, 'text'):
+                                response_text = e.response.text
+                                if response_text:
+                                    try:
+                                        error_data = json.loads(response_text)
+                                        error_msg = error_data.get('detail', response_text)
+                                    except:
+                                        error_msg = response_text
+                                else:
+                                    error_msg = str(e)
+                            else:
+                                error_msg = str(e)
+                        except Exception:
+                            error_msg = str(e)
+
+                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        continue
+
+                    if response and 'knowledge_base' in response:
+                        kb_id = response['knowledge_base']
+                        self._poll_knowledge_base_status(client, kb_id, kb.name, False)
+
+                        if kb.sync_job and kb_id:
+                            self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
+                    else:
+                        logger.info(f"Successfully started import for knowledge base '{kb.name}'")
+                elif kb.documents:
                     files = [build_file_object(file_dir, file) for file in kb.documents]
                     file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
                     
@@ -274,10 +313,6 @@ class KnowledgeBaseController:
                     if response and 'knowledge_base' in response:
                         kb_id = response['knowledge_base']
                         self._poll_knowledge_base_status(client, kb_id, kb.name, False)
-                        
-                        # Create schedule if sync_job is specified
-                        if kb.sync_job and kb_id:
-                            self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     else:
                         logger.info(f"Successfully started import for knowledge base '{kb.name}'")
                 else:
@@ -499,7 +534,22 @@ class KnowledgeBaseController:
 
         client = self.get_client()
         
-        if kb.documents:
+        if kb.content_source:
+            # content_source KB: documents and content_source are passed inline in the payload
+            kb.prioritize_built_in_index = True
+            payload = kb.model_dump(exclude_none=True)
+            sync_job = payload.pop('sync_job', None)
+
+            data = {'knowledge_base': json.dumps(payload)}
+            client.update(knowledge_base_id, payload=data)
+
+            # Poll for update completion
+            self._poll_knowledge_base_status(client, knowledge_base_id, kb.name, True)
+
+            # Update schedule if sync_job is specified
+            if kb.sync_job:
+                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+        elif kb.documents:
             status = client.status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
             
@@ -514,14 +564,12 @@ class KnowledgeBaseController:
             for filename in removed_docs:
                 logger.warning(f'Document \"{filename}\" removed from knowledge base.')
 
-
             files = [build_file_object(file_dir, file) for file in kb.documents]
             file_urls = { get_file_name(file): file.url for file in kb.documents if isinstance(file, FileUpload) and file.url }
             
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True)
             payload.pop('documents')
-            # Remove sync_job from payload as it's handled separately
             sync_job = payload.pop('sync_job', None)
 
             data = {
@@ -533,10 +581,6 @@ class KnowledgeBaseController:
             
             # Poll for update completion when documents are included
             self._poll_knowledge_base_status(client, knowledge_base_id, kb.name, True)
-            
-            # Update schedule if sync_job is specified
-            if kb.sync_job:
-                self._update_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
         else:
             if kb.conversational_search_tool and kb.conversational_search_tool.index_config:
                 kb.prioritize_built_in_index = False
