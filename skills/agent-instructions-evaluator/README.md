@@ -1,6 +1,6 @@
 # Agent Instructions Evaluator
 
-Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, or instruction overload. 
+Evaluate agent instructions or agent definitions for operational achievability in production settings. This skill focuses on runtime reliability and runtime efficiency rather than writing quality, identifying issues from hidden state, conflicting rules, vague scope, brittle exact phrasing, underspecified tool behavior, instruction overload, and performance friction caused by excessive or contradictory runtime reasoning.
 
 ## What This Skill Does
 
@@ -10,6 +10,7 @@ Produces a structured, evidence-backed evaluation report with:
 - Detailed findings with evidence, impact analysis, and specific recommendations
 - Key risks and high-impact changes prioritized by leverage
 - Structured JSON for integration with evaluation harnesses
+- Runtime performance risk assessment covering token overhead, reasoning overhead, tool-call overhead, retry-loop risk, and latency variance
 
 ## Important Notes on Evaluation
 
@@ -21,6 +22,8 @@ Produces a structured, evidence-backed evaluation report with:
 
 Score the artifact not by how much behavior it describes, but by how much behavior the agent can reliably execute. More rules do not automatically make a better prompt—more rules often lower achievability.
 
+**Reliability and performance are coupled.** Instructions that are hard to follow are often also expensive to execute.
+
 ## Five Evaluation Dimensions
 
 1. **Task Understanding** (0-5): Can the agent understand its primary job?
@@ -28,6 +31,77 @@ Score the artifact not by how much behavior it describes, but by how much behavi
 3. **Execution & Tool Grounding** (0-5): Can the required behavior be executed with available tools?
 4. **Instruction Followability** (0-5): Can an LLM realistically follow all constraints at once?
 5. **State & Conflict Manageability** (0-5): Does the prompt require hidden state tracking or conflicting rules?
+
+## Utility Scripts
+
+The `scripts/` directory contains utility scripts for enhanced evaluation capabilities:
+
+### extract_agent_info.py
+
+Extract agent name, description, and metadata from watsonx Orchestrate agent YAML files. This script is used to:
+- Get details about collaborator definitions when evaluating supervisor agents
+- Extract agent metadata for analysis and reporting
+- Provide structured information about agent configurations
+
+**Quick usage:**
+```bash
+# Text format
+python scripts/extract_agent_info.py path/to/agent.yaml
+
+# JSON format
+python scripts/extract_agent_info.py path/to/agent.yaml --json
+
+# Extract specific field
+python scripts/extract_agent_info.py path/to/agent.yaml --field description
+```
+
+### extract_python_tool_info.py
+
+**Unified Python tool extractor** - handles both regular Python tools (`@tool`) and Flow Python tools (`@flow`). This script is used to:
+- Get details about Python tool definitions when evaluating agents
+- Extract tool parameters, return types, and descriptions
+- Automatically detect tool type (regular tool vs flow)
+- Provide structured information about tool capabilities without implementation code
+
+**Quick usage:**
+```bash
+# Text format (auto-detects @tool or @flow)
+python scripts/extract_python_tool_info.py path/to/tool.py
+
+# JSON format
+python scripts/extract_python_tool_info.py path/to/tool.py --format json
+
+# Compact format
+python scripts/extract_python_tool_info.py path/to/tool.py --format compact
+```
+
+### extract_json_tool_info.py
+
+**Unified JSON tool extractor** - handles both WxO Agentic Workflow (Flow) JSON and Langflow JSON formats. This script is used to:
+- Get details about JSON-based tool definitions when evaluating agents
+- Extract flow/workflow parameters, node count, and descriptions
+- Automatically detect JSON type (Flow vs Langflow)
+- Support both Flow JSON (exported from flow builder) and Langflow JSON (visual workflows)
+- Provide structured information about workflow capabilities
+
+**Quick usage:**
+```bash
+# Text format (auto-detects Flow or Langflow)
+python scripts/extract_json_tool_info.py path/to/tool.json
+
+# JSON format
+python scripts/extract_json_tool_info.py path/to/tool.json --format json
+
+# Compact format
+python scripts/extract_json_tool_info.py path/to/tool.json --format compact
+```
+
+See [`scripts/README.md`](scripts/README.md) for complete documentation.
+
+**Requirements:**
+```bash
+pip install -r scripts/requirements.txt
+```
 
 ## How to Use This Skill
 
@@ -80,13 +154,14 @@ Run agent-instructions-evaluator on 'agents/support_bot.yaml' and save the repor
 | Subjective classifiers | >7 | Inconsistent routing |
 | Hard conflicts | Any | Critical - agent violates rules |
 | Tool gaps | Any | Execution failures (Rule D) |
-| Prompt length | >150 lines | Attention drift risk |
+| Prompt length | >150 lines | Attention drift + token overhead risk (Rules E, F) |
+| Interacting constraints | High concentration | Performance friction, latency variance (Rule F) |
 
 ## Files in This Skill
 
 - **[`SKILL.md`](SKILL.md)** - Complete skill definition and evaluation methodology
 - **[`dimension-definitions.md`](dimension-definitions.md)** - Detailed scoring rubrics for all five dimensions
-- **[`signal-rules.md`](signal-rules.md)** - Deterministic rules (A-E) to reduce subjectivity
+- **[`signal-rules.md`](signal-rules.md)** - Deterministic rules (A-F) to reduce subjectivity
 - **[`report-template.md`](report-template.md)** - Required report structure and section order
 - **[`example-finding.md`](example-finding.md)** - Sample finding with all required elements
 
@@ -105,3 +180,4 @@ Run agent-instructions-evaluator on 'agents/support_bot.yaml' and save the repor
 - Be evidence-based: quote concrete lines, don't fabricate
 - Be operational: focus on production failure modes
 - Prioritize high-leverage fixes that improve multiple dimensions
+- **Reliability and performance are coupled.** Instructions that are hard to follow are often also expensive to execute.

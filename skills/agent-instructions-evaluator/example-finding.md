@@ -125,5 +125,30 @@ Common finding categories include:
 - **underspecified_constraint**: Rule is vague or ambiguous
 - **missing_failure_handling**: No guidance for error cases
 - **competing_constraints**: Multiple constraints that cannot be satisfied simultaneously
+- **runtime_performance_friction**: Instruction complexity is likely to increase token usage, reasoning overhead, tool-call variance, retry loops, or latency
 
 Use these categories to organize your findings, but always provide the five required elements for each finding.
+
+---
+
+## Example Finding: Runtime performance friction
+
+### Finding: Runtime performance friction from unresolved rule complexity
+
+**Evidence**
+> [Quote the long or conflicting rule bundle]
+> [Quote the ambiguous tool trigger or exception clause]
+
+**Why it matters**
+The agent must resolve multiple competing constraints at runtime before it can answer. Even if it eventually produces a correct response, this increases token usage, latency, tool-call variance, and correction-loop risk. Instructions that require the model to simultaneously decide, execute, validate, remember, and recover in one pass create bounded but elevated performance instability.
+
+**Deterministic or judgment-based**
+Both. The rule count, branch count, prompt length, and tool gaps are deterministic signals (per Rules C, D, E, and F). The expected runtime impact is judgment-based but supported by the concentration of complexity signals.
+
+**Score impact**
+- Instruction Followability: Lowered because the model must keep many interacting constraints active simultaneously.
+- Execution & Tool Grounding: Lowered if ambiguity may cause unnecessary or incorrect tool calls.
+- Runtime Performance Risk: Elevated — note in the Runtime Performance Risk section as Medium or High across relevant dimensions.
+
+**Recommended change**
+Externalize deterministic branching into workflow or state-machine logic. Keep the prompt focused on judgment, language generation, and exception handling that cannot be represented deterministically. Separate high-priority rules from low-priority guidance so the model does not need to arbitrate priority at inference time.
