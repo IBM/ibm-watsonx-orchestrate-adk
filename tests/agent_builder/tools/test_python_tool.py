@@ -196,7 +196,6 @@ def test_should_auto_detect_async_function():
     spec = json.loads(async_tool.dumps_spec())
     assert spec['is_async'] is True
     assert spec['name'] == 'async_tool'
-    assert spec['binding']['python']['is_async'] is True
 
 
 def test_should_auto_detect_sync_function():
@@ -212,7 +211,6 @@ def test_should_auto_detect_sync_function():
     spec = json.loads(sync_tool.dumps_spec())
     assert spec['is_async'] is False
     assert spec['name'] == 'sync_tool'
-    assert spec['binding']['python']['is_async'] is False
 
 
 def test_should_default_to_sync_for_regular_functions():
@@ -257,7 +255,6 @@ def test_should_auto_detect_async_with_other_parameters():
     assert spec['permission'] == 'admin'
     assert 'input' in spec['input_schema']['properties']
     assert 'count' in spec['input_schema']['properties']
-    assert spec['binding']['python']['is_async'] is True
 
 
 def test_should_reject_async_standalone_tool():
@@ -293,7 +290,6 @@ def test_should_allow_async_toolkit_tool():
     spec = json.loads(async_toolkit_tool.dumps_spec())
     assert spec['is_async'] is True
     assert spec['name'] == 'async_toolkit_tool'
-    assert spec['binding']['python']['is_async'] is True
 
 
 def test_should_allow_sync_standalone_tool():

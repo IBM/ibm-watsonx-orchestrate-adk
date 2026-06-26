@@ -271,7 +271,7 @@ class PythonTool(BaseTool):
             response_format=self.response_format if self.response_format else ToolResponseFormat.CONTENT
         )
 
-        spec.binding = ToolBinding(python=PythonToolBinding(function='', is_async=self.is_async))
+        spec.binding = ToolBinding(python=PythonToolBinding(function=''))
 
         linux_friendly_os_cwd = os.getcwd().replace("\\", "/")
         function_binding = (inspect.getsourcefile(self.fn)
