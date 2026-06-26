@@ -11,7 +11,6 @@ snapshots['test_should_allow_naked_decorators 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'The description',
@@ -34,7 +33,6 @@ snapshots['test_should_be_possible_to_override_defaults 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'the description',
@@ -57,7 +55,6 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:sample_tool',
-            'is_async': False
         }
     },
     'description': 'test python description',
@@ -269,7 +266,6 @@ snapshots['test_should_support_typed_none_args 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'the description',
@@ -297,7 +293,6 @@ snapshots['test_should_support_typed_optional_args 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'the description',
@@ -333,7 +328,6 @@ snapshots['test_should_support_typed_typings_inputs_and_outputs 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'the description',
@@ -362,7 +356,6 @@ snapshots['test_should_support_wxo_file_format_inputs_and_outputs 1'] = {
     'binding': {
         'python': {
             'function': 'tests.agent_builder.tools.test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'the description',
@@ -396,7 +389,6 @@ snapshots['test_should_use_correct_defaults 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:my_tool',
-            'is_async': False
         }
     },
     'description': 'test python description',
@@ -419,7 +411,6 @@ snapshots['test_should_work_with_dicts 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:sample_tool',
-            'is_async': False
         }
     },
     'description': 'test python description',
@@ -465,7 +456,6 @@ snapshots['test_should_work_with_lists 1'] = {
     'binding': {
         'python': {
             'function': 'test_python_tool:sample_tool',
-            'is_async': False
         }
     },
     'description': 'test python description',
