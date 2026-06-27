@@ -4,6 +4,7 @@ import tempfile
 import pytest
 import shutil
 from pathlib import Path
+import typer
 
 try:
     from ibm_watsonx_orchestrate.cli.commands.evaluations import evaluations_command
@@ -303,7 +304,7 @@ class TestRecord:
             evaluations_command.record(
                 output_dir=output_dir, user_env_file=user_env_file
             )
-            mock_record.assert_called_once_with(output_dir=output_dir)
+            mock_record.assert_called_once_with(output_dir=output_dir, context_variables=None)
 
     def test_record_with_nonexistent_dir(self, user_env_file):
         with pytest.raises(NotADirectoryError):
@@ -314,6 +315,81 @@ class TestRecord:
                 evaluations_command.record(
                     output_dir="nonexistent_dir", user_env_file=user_env_file
                 )
+
+    def test_record_with_context_variables(self, output_dir, user_env_file):
+        context_vars_json = '{"user_id": "user123", "environment": "production", "session_type": "demo"}'
+        
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.record"
+        ) as mock_record:
+            mock_record.return_value = {"status": "success"}
+            evaluations_command.record(
+                output_dir=output_dir,
+                user_env_file=user_env_file,
+                context_variables=context_vars_json
+            )
+            mock_record.assert_called_once_with(
+                output_dir=output_dir,
+                context_variables=context_vars_json
+            )
+
+    def test_record_with_invalid_context_variables_json(self, output_dir, user_env_file):
+        invalid_json = '{"user_id": "user123", invalid}'
+        
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.record"
+        ) as mock_record:
+            with pytest.raises(typer.BadParameter):
+                evaluations_command.record(
+                    output_dir=output_dir,
+                    user_env_file=user_env_file,
+                    context_variables=invalid_json
+                )
+            mock_record.assert_not_called()
+
+    def test_record_with_non_dict_context_variables(self, output_dir, user_env_file):
+        # Test with array instead of object
+        array_json = '["user123", "production"]'
+        
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.record"
+        ) as mock_record:
+            with pytest.raises(typer.BadParameter):
+                evaluations_command.record(
+                    output_dir=output_dir,
+                    user_env_file=user_env_file,
+                    context_variables=array_json
+                )
+            mock_record.assert_not_called()
+        
+        # Test with string instead of object
+        string_json = '"just a string"'
+        
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.record"
+        ) as mock_record:
+            with pytest.raises(typer.BadParameter):
+                evaluations_command.record(
+                    output_dir=output_dir,
+                    user_env_file=user_env_file,
+                    context_variables=string_json
+                )
+            mock_record.assert_not_called()
+
+    def test_record_without_context_variables(self, output_dir, user_env_file):
+        with patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.EvaluationsController.record"
+        ) as mock_record:
+            mock_record.return_value = {"status": "success"}
+            evaluations_command.record(
+                output_dir=output_dir,
+                user_env_file=user_env_file,
+                context_variables=None
+            )
+            mock_record.assert_called_once_with(
+                output_dir=output_dir,
+                context_variables=None
+            )
 
 
 class TestGenerate:

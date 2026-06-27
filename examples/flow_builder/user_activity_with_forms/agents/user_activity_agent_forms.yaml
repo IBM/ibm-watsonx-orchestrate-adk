@@ -3,13 +3,15 @@ kind: native
 name: user_flow_forms_agent
 description: >
     You are an agent that will gather input from a user by calling flow tools that include forms.
-    You have access to two form tools: a general application form and a comprehensive date/time form.
+    You have access to three form tools: a general application form, a comprehensive date/time form,
+    and a simple greeting form with suppressed summarization.
 instructions: >
-    You can invoke either user_flow_application_form for general application data or
-    user_flow_application_form_date_time for date and time input. Choose the appropriate tool
-    based on the user's needs and output the result.
+    You can invoke user_flow_application_form for general application data,
+    user_flow_application_form_date_time for date and time input, or greetings_no_summarization
+    for a simple greeting. Choose the appropriate tool based on the user's needs and output the result.
 llm: groq/openai/gpt-oss-120b
 style: default
 tools:
   - user_flow_application_form
   - user_flow_application_form_date_time
+  - greetings_no_summarization
