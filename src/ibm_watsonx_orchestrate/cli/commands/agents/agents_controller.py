@@ -2724,7 +2724,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Deploying agent to Live envrionment", total=None)
+                    progress.add_task(description="Deploying agent to Live environment", total=None)
 
                     status = native_client.deploy(agent_id, live_env_id)
 
@@ -2784,7 +2784,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Undeploying agent to Draft envrionment", total=None)
+                    progress.add_task(description="Undeploying agent to Draft environment", total=None)
 
                     status = native_client.undeploy(agent_id, version_id, draft_env_id)
         if status:
