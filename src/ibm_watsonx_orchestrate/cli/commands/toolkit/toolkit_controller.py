@@ -271,7 +271,8 @@ class ToolkitController:
                         with tempfile.TemporaryDirectory() as tmpdir, \
                         zipfile.ZipFile(zip_file_path, "a", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
                             
-                            requirements_file = os.path.join(package_root, 'requirements.txt')
+                            reqs_path = os.path.join(package_root, 'requirements.txt')
+                            requirements_file = reqs_path if os.path.isfile(reqs_path) else None
                             requirements_lines = get_formated_requirements_lines(requirements_file)
                             
                             temp_requirements_file = os.path.join(tmpdir, 'requirements.txt')

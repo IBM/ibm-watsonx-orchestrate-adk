@@ -4,6 +4,14 @@ This directory contains Skills for working with the IBM watsonx Orchestrate Agen
 
 ---
 
+## Important Notes on Using Skills
+
+**Model Interpretation:** Skill outputs are subject to interpretation by different LLM models. For best results, use a **coding agent with access to a frontier model** (e.g., IBM Bob, Claude 4.5 Sonnet, GPT-5.5, or equivalent) when working with these skills, as coding agents have tool access and stronger reasoning capabilities for complex analysis and generation tasks.
+
+**Using Skill Outputs:** All skill outputs (documentation, evaluations, implementations, analyses) are provided **as-is** and should be used as **guides and starting points** rather than treated as absolute or final deliverables. Different models may produce different results based on their interpretation. Review and validate all outputs in the context of your specific requirements and use cases.
+
+---
+
 ## Overview
 
 This skill set covers the complete journey of building enterprise AI agent solutions:
@@ -116,7 +124,30 @@ Reverse-engineers and documents existing **wxO projects**. It:
 
 ---
 
-### 5. customercare-mcp-builder
+### 5. agent-instructions-evaluator
+**Location:** `agent-instructions-evaluator/SKILL.md`
+
+Evaluates agent instructions and definitions for **operational achievability in production settings**. It:
+
+- Analyzes runtime reliability rather than writing quality
+- Identifies issues from hidden state, conflicting rules, vague scope, and brittle phrasing
+- Produces structured evaluation reports with evidence-backed findings
+- Provides per-dimension scores across 5 evaluation dimensions (0-5 scale)
+
+**Best for:** Validating agent instructions before deployment and identifying production failure risks
+
+**Key Capabilities:**
+- Evaluating agent instructions across 5 dimensions (Task Understanding, Scope & Applicability, Execution & Tool Grounding, Instruction Followability, State & Conflict Manageability)
+- Deterministic signal counting (exact phrases, nested branches, implicit state)
+- Evidence-backed findings with impact analysis and recommendations
+- Risk prioritization and high-leverage improvement identification
+- Structured JSON output for evaluation harnesses
+- Support for watsonx Orchestrate YAML, system prompts, and agent definitions
+- Production readiness assessment focused on runtime reliability
+
+---
+
+### 6. customercare-mcp-builder
 **Location:** `customercare-mcp-builder/SKILL.md`
 
 Expert guide for building production-ready MCP (Model Context Protocol) servers for customer care agents. Covers:
@@ -169,6 +200,7 @@ This creates a **closed-loop system** where:
    - `sop-builder/SKILL.md` - For SOP generation from workflows
    - `wxo-builder/SKILL.md` - For watsonx Orchestrate development
    - `wxo-analyzer/SKILL.md` - For analyzing existing wxO projects
+   - `agent-instructions-evaluator/SKILL.md` - For evaluating agent instructions
    - `customercare-mcp-builder/SKILL.md` - For customer care MCP servers
 3. The skill will be available in your conversations
 
@@ -185,6 +217,7 @@ fetch_skill("solution-architect", "./my_skills")
 fetch_skill("sop-builder", "./my_skills")
 fetch_skill("wxo-builder", "./my_skills")
 fetch_skill("wxo-analyzer", "./my_skills")
+fetch_skill("agent-instructions-evaluator", "./my_skills")
 fetch_skill("customercare-mcp-builder", "./my_skills")
 
 # Fetch all skills at once
@@ -209,6 +242,7 @@ Each skill follows the Skills format:
 - **sop-builder**: `sop-builder/SKILL.md`
 - **wxo-builder**: `wxo-builder/SKILL.md`
 - **wxo-analyzer**: `wxo-analyzer/SKILL.md`
+- **agent-instructions-evaluator**: `agent-instructions-evaluator/SKILL.md`
 - **customercare-mcp-builder**: `customercare-mcp-builder/SKILL.md`
 - **Reference Examples**: `customercare-mcp-builder/references/examples.md`
 - **IBM watsonx Orchestrate ADK**: https://github.com/IBM/ibm-watsonx-orchestrate-adk

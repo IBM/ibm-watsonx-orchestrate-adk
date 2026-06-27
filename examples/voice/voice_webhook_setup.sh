@@ -18,9 +18,10 @@ JWT_TOKEN=""
 # ============================================================
 
 ENV="draft"
+UPDATE_MODE=false
 
 usage() {
-  echo "Usage: $0 [--env draft|live]"
+  echo "Usage: $0 [--env draft|live] [--update]"
   exit 1
 }
 
@@ -29,6 +30,10 @@ while [[ $# -gt 0 ]]; do
     --env)
       ENV="$2"
       shift 2
+      ;;
+    --update)
+      UPDATE_MODE=true
+      shift
       ;;
     -h|--help)
       usage
@@ -62,6 +67,7 @@ echo "WEBHOOK_TYPE: $WEBHOOK_TYPE"
 echo "AGENT_ID:     $AGENT_ID"
 echo "WEBHOOK_URL:  $WEBHOOK_URL"
 echo "ENV:          $ENV"
+echo "UPDATE_MODE:  $UPDATE_MODE"
 echo "============================================================"
 
 # ============================================================
@@ -122,7 +128,40 @@ if [ "$CONFIG_STATUS" = "200" ]; then
     CONNECTION_ID=$(echo "$HAS_CONFIG" | tr -d '[:space:]')
     echo "  Using CONNECTION_ID from config: $CONNECTION_ID"
   fi
+
+  if [ "$UPDATE_MODE" = true ]; then
+    echo "  --update specified — updating existing configuration..."
+    PATCH_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
+      -X PATCH "${BASE_URL}/connections/applications/${APP_ID}/configurations/${ENV}" \
+      -H "Content-Type: application/json" \
+      -H "$AUTH" \
+      -d @- <<EOF
+{
+  "preference": "team",
+  "sso": false,
+  "server_url": "${WEBHOOK_URL}",
+  "security_scheme": "basic_auth"
+}
+EOF
+    )
+    PATCH_BODY=$(echo "$PATCH_RESPONSE" | sed '$d')
+    PATCH_STATUS=$(echo "$PATCH_RESPONSE" | tail -n1 | cut -d: -f2)
+    echo "  HTTP STATUS: $PATCH_STATUS"
+    echo "  BODY: $PATCH_BODY"
+
+    if [ "$PATCH_STATUS" = "200" ] || [ "$PATCH_STATUS" = "204" ]; then
+      echo "  Configuration updated successfully"
+    else
+      echo "ERROR: Unexpected status updating configuration: $PATCH_STATUS"
+      exit 1
+    fi
+  fi
 else
+  if [ "$UPDATE_MODE" = true ]; then
+    echo "ERROR: --update specified but no existing configuration found for webhook type '${WEBHOOK_TYPE}' (env=${ENV})"
+    exit 1
+  fi
+
   echo "  No configuration found — creating..."
   curl -sf -m 10 -X POST "${BASE_URL}/connections/applications/${APP_ID}/configurations" \
     -H "Content-Type: application/json" \
@@ -139,16 +178,19 @@ EOF
 fi
 
 # ============================================================
-# 3. Ensure runtime credentials (upsert — skip GET, POST and treat 409 as ok)
+# 3. Ensure / update runtime (realtime) credentials
+#    - normal mode: POST (upsert — treat 409 as ok)
+#    - update mode: PATCH; if 404 (doesn't exist yet), fall back to POST to create
 # ============================================================
 
 echo ""
-echo "[3/5] Creating runtime credentials (upsert)..."
-RUNTIME_CREATE_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
-  -X POST "${BASE_URL}/connections/applications/${APP_ID}/configs/${ENV}/runtime_credentials" \
-  -H "Content-Type: application/json" \
-  -H "$AUTH" \
-  -d @- <<EOF
+if [ "$UPDATE_MODE" = true ]; then
+  echo "[3/5] Updating realtime credentials (PATCH, falling back to create if missing)..."
+  RUNTIME_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
+    -X PATCH "${BASE_URL}/connections/applications/${APP_ID}/configs/${ENV}/runtime_credentials" \
+    -H "Content-Type: application/json" \
+    -H "$AUTH" \
+    -d @- <<EOF
 {
   "runtime_credentials": {
     "username": "<username>",
@@ -165,19 +207,90 @@ RUNTIME_CREATE_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
   }
 }
 EOF
-)
-RUNTIME_CREATE_BODY=$(echo "$RUNTIME_CREATE_RESPONSE" | sed '$d')
-RUNTIME_CREATE_STATUS=$(echo "$RUNTIME_CREATE_RESPONSE" | tail -n1 | cut -d: -f2)
-echo "  HTTP STATUS: $RUNTIME_CREATE_STATUS"
-echo "  BODY: $RUNTIME_CREATE_BODY"
+  )
+  RUNTIME_BODY=$(echo "$RUNTIME_RESPONSE" | sed '$d')
+  RUNTIME_STATUS=$(echo "$RUNTIME_RESPONSE" | tail -n1 | cut -d: -f2)
+  echo "  HTTP STATUS: $RUNTIME_STATUS"
+  echo "  BODY: $RUNTIME_BODY"
 
-if [ "$RUNTIME_CREATE_STATUS" = "200" ] || [ "$RUNTIME_CREATE_STATUS" = "201" ]; then
-  echo "  Runtime credentials created"
-elif [ "$RUNTIME_CREATE_STATUS" = "409" ]; then
-  echo "  Runtime credentials already exist"
+  if [ "$RUNTIME_STATUS" = "200" ] || [ "$RUNTIME_STATUS" = "204" ]; then
+    echo "  Realtime credentials updated"
+  elif [ "$RUNTIME_STATUS" = "404" ]; then
+    echo "  No existing runtime credentials found — creating..."
+    RUNTIME_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
+      -X POST "${BASE_URL}/connections/applications/${APP_ID}/configs/${ENV}/runtime_credentials" \
+      -H "Content-Type: application/json" \
+      -H "$AUTH" \
+      -d @- <<EOF
+{
+  "runtime_credentials": {
+    "username": "<username>",
+    "password": "<password>",
+    "custom_runtime_credentials": {
+      "voice_webhook_settings": {
+        "headers": {
+          "custom_header_1": "custom_value_1",
+          "custom_header_2": "custom_value_2"
+        },
+        "timeout": 2
+      }
+    }
+  }
+}
+EOF
+    )
+    RUNTIME_BODY=$(echo "$RUNTIME_RESPONSE" | sed '$d')
+    RUNTIME_STATUS=$(echo "$RUNTIME_RESPONSE" | tail -n1 | cut -d: -f2)
+    echo "  HTTP STATUS: $RUNTIME_STATUS"
+    echo "  BODY: $RUNTIME_BODY"
+
+    if [ "$RUNTIME_STATUS" = "200" ] || [ "$RUNTIME_STATUS" = "201" ]; then
+      echo "  Runtime credentials created"
+    else
+      echo "ERROR: Unexpected status creating runtime credentials: $RUNTIME_STATUS"
+      exit 1
+    fi
+  else
+    echo "ERROR: Unexpected status updating realtime credentials: $RUNTIME_STATUS"
+    exit 1
+  fi
 else
-  echo "ERROR: Unexpected status creating runtime credentials: $RUNTIME_CREATE_STATUS"
-  exit 1
+  echo "[3/5] Creating runtime credentials (upsert)..."
+  RUNTIME_RESPONSE=$(curl -s -m 10 -w "\nHTTP_STATUS:%{http_code}" \
+    -X POST "${BASE_URL}/connections/applications/${APP_ID}/configs/${ENV}/runtime_credentials" \
+    -H "Content-Type: application/json" \
+    -H "$AUTH" \
+    -d @- <<EOF
+{
+  "runtime_credentials": {
+    "username": "<username>",
+    "password": "<password>",
+    "custom_runtime_credentials": {
+      "voice_webhook_settings": {
+        "headers": {
+          "custom_header_1": "custom_value_1",
+          "custom_header_2": "custom_value_2"
+        },
+        "timeout": 2
+      }
+    }
+  }
+}
+EOF
+  )
+  RUNTIME_BODY=$(echo "$RUNTIME_RESPONSE" | sed '$d')
+  RUNTIME_STATUS=$(echo "$RUNTIME_RESPONSE" | tail -n1 | cut -d: -f2)
+  echo "  HTTP STATUS: $RUNTIME_STATUS"
+  echo "  BODY: $RUNTIME_BODY"
+
+  if [ "$RUNTIME_STATUS" = "200" ] || [ "$RUNTIME_STATUS" = "201" ]; then
+    echo "  Runtime credentials created"
+  elif [ "$RUNTIME_STATUS" = "409" ]; then
+    echo "  Runtime credentials already exist"
+  else
+    echo "ERROR: Unexpected status creating runtime credentials: $RUNTIME_STATUS"
+    exit 1
+  fi
 fi
 
 # ============================================================
