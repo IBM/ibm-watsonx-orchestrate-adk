@@ -88,6 +88,7 @@ services:
 
   wxo-knowledge-mcp-server:
     image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "8005:8005"
