@@ -173,11 +173,10 @@ def models_import(
     ] = None,
     skip_validation: Annotated[
         bool, typer.Option(
-            '--skip-validation/--no-skip-validation',
-            help='The app id of a key_value connection containing authentications details for the model provider.',
-            hidden=True
+            '--skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.'
         )
-    ] = True,
+    ] = False,
 ):
     models_controller = ModelsController()
     models = models_controller.import_model(
@@ -220,11 +219,10 @@ def models_add(
     ] = ModelType.CHAT,
     skip_validation: Annotated[
         bool, typer.Option(
-            '--skip-validation/--no-skip-validation',
-            help='The app id of a key_value connection containing authentications details for the model provider.',
-            hidden=True
+            '--skip-validation',
+            help='The app id of a key_value connection containing authentications details for the model provider.'
         )
-    ] = True,
+    ] = False,
 ):
     provider_config_dict = {}
     if provider_config:
@@ -275,7 +273,7 @@ def models_export(
     models_controller = ModelsController()
     models_controller.export_model(name=name, output_path=output_path)
 
-@models_app.command(name="validate", help="Validate a model's functionality", hidden=True)
+@models_app.command(name="validate", help="Validate a model's functionality")
 def models_validate(
     name: Annotated[
         str,
