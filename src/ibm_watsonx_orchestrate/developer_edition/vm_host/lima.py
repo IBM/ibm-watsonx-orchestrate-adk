@@ -26,8 +26,6 @@ from ibm_watsonx_orchestrate.utils.environment import EnvService
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMA_VERSION = "v1.2.1"
-# Set LIMA_HOME to point to the resources directory so Lima can find its templates
-DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
 
 class LimaLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
@@ -58,7 +56,7 @@ class LimaLifecycleManager(VMLifecycleManager):
         command: str | list,
         capture_output: bool = False,
         input: str | None = None,
-        env: dict | None = None,
+        env: dict | None = None, 
         **kwargs
     ) -> subprocess.CompletedProcess:
         """
@@ -69,14 +67,6 @@ class LimaLifecycleManager(VMLifecycleManager):
             files("ibm_watsonx_orchestrate.developer_edition.resources.lima.bin")
             / "limactl"
         )
-        
-        # DO NOT set LIMA_HOME - it causes path length issues
-        # Lima will use default ~/.lima directory for VM data
-        if env is None:
-            env = os.environ.copy()
-        else:
-            env = env.copy()
-        
         try:
             return subprocess.run(
                 [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
@@ -143,19 +133,13 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
     limactl_path = files(
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
-    
-    # DO NOT set LIMA_HOME - it causes path length issues
-    # Lima will use default ~/.lima directory for VM data
-    # Only the limactl binary location matters
-    env = os.environ.copy()
 
     try:
         out = subprocess.run(
             [str(limactl_path)] + command,
             check=True,
             capture_output=capture_output,
-            text=True,
-            env=env
+            text=True
         )
 
         if capture_output:
@@ -462,15 +446,10 @@ def _ensure_lima_vm_host_exists():
         logger.info('Found existing VM named ' + VM_NAME)
         return
 
-    # Use absolute path for template to avoid LIMA_HOME template search path issues
     template_path = files("ibm_watsonx_orchestrate.developer_edition.resources.lima.templates") / "docker.template.yaml"
-    # Convert to absolute path to bypass Lima's template search in LIMA_HOME/share/lima/templates
-    # Must convert Traversable to str first, then to Path for resolution
-    absolute_template_path = str(Path(str(template_path)).resolve())
-    
     vm_args = ['create'] + _get_lima_vm_base_args() + [
         '--containerd', 'none',
-        absolute_template_path
+        str(template_path)
     ]
 
     limactl(vm_args, capture_output=True)
