@@ -1127,12 +1127,13 @@ class Flow(Node):
             min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
-            enable_review: bool = False) -> tuple[DocExtNode, type[BaseModel]]:
+            enable_review: bool = False,
+            page_range: PageRange | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
 
-        doc_ext_config = DocExtNode.generate_config(llm=llm, fields=fields, field_extraction_method=field_extraction_method)
+        doc_ext_config = DocExtNode.generate_config(llm=llm, fields=fields, field_extraction_method=field_extraction_method, page_range=page_range)
 
         DocExtFieldValue = DocExtNode.generate_docext_field_value_model(fields=fields)
         
@@ -2107,6 +2108,25 @@ class Flow(Node):
         
         return self
 
+    def suppress_agent_summarization(self, suppress: bool = True) -> Self:
+        '''
+        Enable or disable agent summarization suppression for this flow.
+        
+        When set to True, the agent will not generate summaries during flow execution.
+
+        Parameters:
+        suppress (bool): Whether to suppress agent summarization. Defaults to True.
+
+        Returns:
+        Self: The current flow instance for method chaining.
+        '''
+        from ..types import FlowSpec
+        
+        if isinstance(self.spec, FlowSpec):
+            self.spec.suppress_agent_summarization = suppress
+        
+        return self
+
 class FlowRunStatus(str, Enum):
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
@@ -2305,6 +2325,7 @@ class FlowFactory(BaseModel):
                     output_schema: type[BaseModel]|None=None,
                     private_schema: type[BaseModel]|None=None,
                     schedulable: bool=False,
+                    suppress_agent_summarization: bool|None=None,
                     llm_model: str|ListVirtualModel|None=None,
                     agent_conversation_memory_turns_limit: int|None = None,
                     context_window: FlowContextWindow|None=None) -> Flow:
@@ -2332,6 +2353,7 @@ class FlowFactory(BaseModel):
             private_schema = private_schema_obj,
             output_schema_object = output_schema_obj,
             schedulable=schedulable,
+            suppress_agent_summarization=suppress_agent_summarization,
             context_window=context_window,
         )
 

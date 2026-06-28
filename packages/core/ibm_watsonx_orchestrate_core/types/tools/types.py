@@ -151,6 +151,7 @@ class OpenApiToolBinding(BaseModel):
     connection_id: str | None = None
     callback: Optional[CallbackBinding] = None
     acknowledgement: Optional[AcknowledgementBinding] = None
+    plugin_hook: Optional[str] = None
 
 
 class PythonToolBinding(BaseModel):
