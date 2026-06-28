@@ -188,6 +188,32 @@ class TestEvaluationsController:
 
             assert Path(output_dir).exists()
 
+    def test_record_with_context_variables(self, controller, monkeypatch, tmp_path):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / ".cache" / "orchestrate").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".config" / "orchestrate").mkdir(parents=True, exist_ok=True)
+        mock_runs = []
+        context_vars_json = '{"user_id": "user123", "environment": "production"}'
+        
+        with patch(
+            "agentops.record.record_chat.get_recent_runs", return_value=mock_runs
+        ), patch.object(
+            controller,
+            "_get_env_config",
+            return_value=("https://test-url", "test-tenant", "test-token"),
+        ), patch(
+            "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.record_chats"
+        ) as mock_record_chats:
+            output_dir = "test_output"
+            controller.record(output_dir, context_variables=context_vars_json)
+
+            # Verify record_chats was called with context_variables as JSON string in config
+            assert mock_record_chats.called
+            call_args = mock_record_chats.call_args
+            config = call_args[0][0]  # First positional argument is the config
+            assert hasattr(config, 'context_variables')
+            assert config.context_variables == context_vars_json
+
     def test_generate(self, controller):
         # Create temporary CSV file with test data
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=False) as tmp:
