@@ -145,7 +145,7 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
         if capture_output:
             return out.stdout.strip()
     except subprocess.CalledProcessError as e:
-        logger.error(f"An error occured while executing the command: {[str(limactl_path)] + command}")
+        logger.error(f"An error occurred while executing the command: {[str(limactl_path)] + command}")
         if "--debug" in sys.argv:
             logger.error(f"RETURN CODE: {e.returncode}")
             logger.error(f"STDERR: {e.stderr}")
