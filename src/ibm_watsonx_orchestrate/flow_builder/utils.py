@@ -19,6 +19,7 @@ from typing import Dict, List, Any, Optional
 from ibm_watsonx_orchestrate.client.tools.tempus_client import TempusClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import EventMetadata
 
 from enum import Enum
 class Operator(str, Enum):
@@ -1360,6 +1361,102 @@ def normalize_and_validate_tool_spec(tool_spec_raw: dict) -> ToolSpec:
     if 'input_schema' in tool_spec_raw and tool_spec_raw['input_schema'] == {}:
         del tool_spec_raw['input_schema']
     return ToolSpec.model_validate(tool_spec_raw)
+
+
+def validate_callback_tool_schema(
+    tool_spec: ToolSpec,
+    tool_identifier: str
+) -> None:
+    """
+    Validate that a tool has the correct input schema for flow callbacks.
+    
+    A callback tool can either:
+    1. Be a flow tool with NO input schema (flow tools that don't need inputs)
+    2. Accept List[FlowCallbackEventPayload] as input with an 'events' property
+    
+    Args:
+        tool_spec: The tool specification to validate
+        tool_identifier: The tool identifier string (for error messages)
+        
+    Raises:
+        ValueError: If the tool's input schema doesn't match callback requirements
+    """
+    # Check if this is a flow tool (has flow binding)
+    is_flow_tool = (
+        hasattr(tool_spec, 'binding') and
+        tool_spec.binding and
+        hasattr(tool_spec.binding, 'flow') and
+        tool_spec.binding.flow is not None
+    )
+    
+    # Allow flow tools with no input schema (they just respond to events)
+    if not tool_spec.input_schema:
+        if is_flow_tool:
+            return  # Valid: Flow tool with no inputs
+        else:
+            raise ValueError(
+                f"Callback tool '{tool_identifier}' must have an input schema. "
+                f"Non-flow callback tools must accept List[FlowCallbackEventPayload] as input."
+            )
+    
+    # Check if input schema has 'events' property with array type
+    input_props = tool_spec.input_schema.properties
+    if not input_props or 'events' not in input_props:
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' input schema must have an 'events' property "
+            f"of type List[FlowCallbackEventPayload]. "
+            f"Found properties: {list(input_props.keys()) if input_props else 'none'}"
+        )
+    
+    events_prop = input_props['events']
+    
+    # Validate it's an array type
+    if not hasattr(events_prop, 'type') or events_prop.type != 'array':
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' 'events' property must be an array. "
+            f"Expected: List[FlowCallbackEventPayload], found type: {getattr(events_prop, 'type', 'unknown')}"
+        )
+    
+    # Validate array items exist
+    if not hasattr(events_prop, 'items') or not events_prop.items:
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' 'events' array must specify item type. "
+            f"Expected: List[FlowCallbackEventPayload]"
+        )
+    
+    # Validate the FlowCallbackEventPayload structure
+    items_schema = events_prop.items
+    if not hasattr(items_schema, 'properties') or not items_schema.properties:
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' events array items must have properties. "
+            f"Expected: FlowCallbackEventPayload structure"
+        )
+    
+    payload_props = items_schema.properties
+    
+    # Check for required 'event' field in the payload
+    if 'event' not in payload_props:
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' event payload must have 'event' field. "
+            f"Expected: FlowCallbackEventPayload structure with 'event', 'output', and 'elicitation' fields. "
+            f"Found properties: {list(payload_props.keys())}"
+        )
+    
+    # Validate the 'event' field (EventMetadata) has required properties
+    # Get required fields dynamically from the EventMetadata Pydantic model
+    event_schema = EventMetadata.model_json_schema()
+    required_event_fields = event_schema.get('required', [])
+    
+    event_field = payload_props['event']
+    if hasattr(event_field, 'properties') and event_field.properties:
+        event_props = event_field.properties
+        missing_fields = [field for field in required_event_fields if field not in event_props]
+        
+        if missing_fields:
+            raise ValueError(
+                f"Callback tool '{tool_identifier}' event metadata is missing required fields: {missing_fields}. "
+                f"EventMetadata must have: {required_event_fields}"
+            )
 
 
 class RuleBuilder:

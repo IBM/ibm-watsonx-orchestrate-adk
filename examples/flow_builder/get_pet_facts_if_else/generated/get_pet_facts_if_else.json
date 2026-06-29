@@ -10,7 +10,8 @@
     "output_schema": {
       "$ref": "#/schemas/PetFacts"
     },
-    "schedulable": false
+    "schedulable": false,
+    "suppress_agent_summarization": true
   },
   "nodes": {
     "getDogFact": {
@@ -18,6 +19,12 @@
         "kind": "tool",
         "name": "getDogFact",
         "display_name": "getDogFact",
+        "input_schema": {
+          "$ref": "#/schemas/getDogFact_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/bo_1"
+        },
         "tool": "getDogFact"
       }
     },
@@ -26,14 +33,20 @@
         "kind": "tool",
         "name": "getCatFact",
         "display_name": "getCatFact",
+        "input_schema": {
+          "$ref": "#/schemas/getCatFact_input"
+        },
+        "output_schema": {
+          "$ref": "#/schemas/bo_2"
+        },
         "tool": "getCatFact"
       }
     },
-    "branch_1": {
+    "branch_3": {
       "spec": {
         "kind": "branch",
-        "name": "branch_1",
-        "display_name": "Branch_2",
+        "name": "branch_3",
+        "display_name": "branch_3",
         "evaluator": {
           "conditions": [
             {
@@ -73,16 +86,16 @@
   },
   "edges": [
     {
-      "start": "branch_1",
+      "start": "branch_3",
       "end": "getDogFact"
     },
     {
-      "start": "branch_1",
+      "start": "branch_3",
       "end": "getCatFact"
     },
     {
       "start": "__start__",
-      "end": "branch_1"
+      "end": "branch_3"
     },
     {
       "start": "getDogFact",
@@ -124,10 +137,53 @@
           }
         }
       }
+    },
+    "getDogFact_input": {
+      "type": "object",
+      "title": "getDogFact_input",
+      "required": [],
+      "properties": {}
+    },
+    "bo_1": {
+      "type": "object",
+      "title": "bo_1",
+      "description": "Successfully retrieved dog fact",
+      "required": [],
+      "properties": {
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "getCatFact_input": {
+      "type": "object",
+      "title": "getCatFact_input",
+      "required": [],
+      "properties": {}
+    },
+    "bo_2": {
+      "type": "object",
+      "title": "bo_2",
+      "description": "Successfully retrieved cat fact",
+      "required": [],
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T16:38:19.852652+00:00"
+    "compiled_on": "2026-06-28T17:17:18.834849+00:00"
   }
 }
