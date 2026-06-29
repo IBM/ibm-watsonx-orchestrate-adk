@@ -191,7 +191,9 @@ def __parse_app_ids(app_ids: List[str]) -> dict[str,str]:
     return app_id_dict
 
 def __validate_python_connections(tool: BaseTool):
-    if not tool.expected_credentials:
+    # Legacy tools from older ADK versions lack expected_credentials;
+    # their absence means no credentials were configured, so skip validation.
+    if not getattr(tool, 'expected_credentials', None):
         return
 
     connections_client = get_connections_client()
@@ -279,8 +281,10 @@ def __get_python_tools_from_file(
             continue
             
 
-        # Plugin tool - if it was given an app-id
-        if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
+        # Plugin tool - if it was given an app-id.
+        # Legacy tools from older ADK versions lack the `kind` attribute;
+        # they pre-date plugin support so we treat their absence as a plain tool.
+        if hasattr(obj, 'kind') and obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
             if connections and len(connections):
                 check_plugin_connection(connections)
             if obj.kind == PythonToolKind.AGENTPREINVOKE:
@@ -303,7 +307,11 @@ def __get_python_tools_from_file(
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
         obj.belongs_to_toolkit = belongs_to_toolkit
-        obj.validate_async_toolkit_requirement()
+        # Tools from older ADK versions lack validate_async_toolkit_requirement.
+        # Their absence implies the tool is sync (async support didn't exist yet),
+        # so skipping validation is safe — we treat it as a guaranteed sync tool.
+        if hasattr(obj, 'validate_async_toolkit_requirement'):
+            obj.validate_async_toolkit_requirement()
 
         if connections and len(connections):
             obj.__tool_spec__.binding.python.connections = __parse_app_ids(connections)
