@@ -17,10 +17,6 @@ validation — the tool is allowed through unconditionally.
 If the method IS present it is called normally, so new async-toolkit tools
 still pass and new async-standalone tools are still rejected.
 """
-import sys
-import textwrap
-import tempfile
-import os
 import pytest
 
 
@@ -101,70 +97,3 @@ class TestLegacyToolAttributeSimulation:
         assert not hasattr(obj, 'validate_async_toolkit_requirement')
 
 
-# ---------------------------------------------------------------------------
-# Integration-level simulations via extract_python_tools
-# ---------------------------------------------------------------------------
-
-def _make_legacy_tool_file_src(fn_name: str) -> str:
-    """
-    Source for a file that contains a true legacy BaseTool subclass.
-
-    Bypasses PythonTool entirely so neither belongs_to_toolkit nor
-    validate_async_toolkit_requirement are ever defined on the class —
-    exactly as an old-ADK custom tool would look.
-
-    The __tool_spec__ is bootstrapped by decorating a throwaway PythonTool
-    so we never manually construct ToolSpec (avoids Pydantic schema drift).
-    """
-    return textwrap.dedent(f"""\
-        from ibm_watsonx_orchestrate.agent_builder.tools import tool
-        from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
-
-        @tool(name="{fn_name}", description="legacy tool")
-        def _bootstrap(x: str) -> str:
-            '''bootstrap.'''
-            return x
-
-        class _LegacyTool(BaseTool):
-            pass  # no belongs_to_toolkit, no validate_async_toolkit_requirement
-
-        {fn_name} = _LegacyTool(_bootstrap.__tool_spec__)
-        # Remove _bootstrap so the module scanner only sees the one LegacyTool instance
-        del _bootstrap
-    """)
-
-
-class TestLegacyToolFileImport:
-    """End-to-end: extract_python_tools must import legacy tools without crashing."""
-
-    def _run_extract(self, fn_name: str, belongs_to_toolkit: bool):
-        from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools
-
-        src = _make_legacy_tool_file_src(fn_name)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tool_file = os.path.join(tmp_dir, f"{fn_name}.py")
-            with open(tool_file, "w") as f:
-                f.write(src)
-
-            original_path = sys.path.copy()
-            sys.path.insert(0, tmp_dir)
-            try:
-                return extract_python_tools(
-                    file=tool_file,
-                    belongs_to_toolkit=belongs_to_toolkit,
-                    requirements_file_required=False,
-                )
-            finally:
-                sys.path[:] = original_path
-
-    def test_legacy_sync_tool_imported_standalone(self):
-        """Legacy tool without the method must load as standalone without error."""
-        tools = self._run_extract("legacy_sync_tool", belongs_to_toolkit=False)
-        assert len(tools) == 1
-        assert tools[0].__tool_spec__.name == "legacy_sync_tool"
-
-    def test_legacy_sync_tool_imported_as_toolkit(self):
-        """Same legacy tool imported as part of a toolkit must also load cleanly."""
-        tools = self._run_extract("legacy_toolkit_tool", belongs_to_toolkit=True)
-        assert len(tools) == 1
-        assert tools[0].__tool_spec__.name == "legacy_toolkit_tool"

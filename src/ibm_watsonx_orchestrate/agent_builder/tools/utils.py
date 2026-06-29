@@ -191,9 +191,7 @@ def __parse_app_ids(app_ids: List[str]) -> dict[str,str]:
     return app_id_dict
 
 def __validate_python_connections(tool: BaseTool):
-    # Legacy tools from older ADK versions lack expected_credentials;
-    # their absence means no credentials were configured, so skip validation.
-    if not getattr(tool, 'expected_credentials', None):
+    if not tool.expected_credentials:
         return
 
     connections_client = get_connections_client()
@@ -281,10 +279,8 @@ def __get_python_tools_from_file(
             continue
             
 
-        # Plugin tool - if it was given an app-id.
-        # Legacy tools from older ADK versions lack the `kind` attribute;
-        # they pre-date plugin support so we treat their absence as a plain tool.
-        if hasattr(obj, 'kind') and obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
+        # Plugin tool - if it was given an app-id
+        if obj.kind in [PythonToolKind.AGENTPREINVOKE, PythonToolKind.AGENTPOSTINVOKE]:
             if connections and len(connections):
                 check_plugin_connection(connections)
             if obj.kind == PythonToolKind.AGENTPREINVOKE:
