@@ -383,7 +383,7 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
@@ -424,7 +424,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
@@ -605,9 +605,11 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
       WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
@@ -648,10 +650,12 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
+      AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -768,9 +772,11 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
       WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
@@ -807,7 +813,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
       CPD_VERIFY: ${CPD_VERIFY}
@@ -1230,7 +1236,7 @@ services:
   langfuse-worker:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse-worker:3
     restart: unless-stopped
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     depends_on: &langfuse-depends-on
       wxo-server-db:
         condition: service_healthy
@@ -1283,7 +1289,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     ports:
       - "3010:3000"
     environment:
@@ -1296,7 +1302,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/clickhouse/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     container_name: clickhouse
     hostname: clickhouse
     environment:
