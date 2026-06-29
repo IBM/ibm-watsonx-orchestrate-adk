@@ -153,7 +153,7 @@ class EvaluationsController:
             config = QuickEvalConfig(**config_data)
             quick_eval.main(config)
 
-    def record(self, output_dir) -> None:
+    def record(self, output_dir, context_variables: Optional[str] = None) -> None:
 
 
         random_uuid = str(uuid.uuid4())
@@ -165,6 +165,10 @@ class EvaluationsController:
             "tenant_name": tenant_name,
             "token": token
         }
+        
+        if context_variables:
+            # Pass the JSON string directly to agentops
+            config_data["context_variables"] = context_variables
 
         config_data["output_dir"].mkdir(parents=True, exist_ok=True)
         logger.info(f"Recording chat sessions to {config_data['output_dir']}")
