@@ -302,7 +302,8 @@ def __get_python_tools_from_file(
             fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
-        obj.validate_async_toolkit_requirement(belongs_to_toolkit)
+        obj.belongs_to_toolkit = belongs_to_toolkit
+        obj.validate_async_toolkit_requirement()
 
         if connections and len(connections):
             obj.__tool_spec__.binding.python.connections = __parse_app_ids(connections)
