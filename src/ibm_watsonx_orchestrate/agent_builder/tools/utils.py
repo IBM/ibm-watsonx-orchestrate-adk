@@ -303,9 +303,7 @@ def __get_python_tools_from_file(
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
         obj.belongs_to_toolkit = belongs_to_toolkit
-        # Tools from older ADK versions lack validate_async_toolkit_requirement.
-        # Their absence implies the tool is sync (async support didn't exist yet),
-        # so skipping validation is safe — we treat it as a guaranteed sync tool.
+        # Older tools don't have this validation
         if hasattr(obj, 'validate_async_toolkit_requirement'):
             obj.validate_async_toolkit_requirement()
 
