@@ -1514,8 +1514,10 @@ class TestImportModelSelection:
         )
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
                 patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls, \
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            mock_cfg_cls.return_value.read.return_value = None
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
                                                                                     mock_models_client=mock_model_client,
                                                                                     mock_model_selection_client=mock_model_selection_client)
@@ -1647,13 +1649,19 @@ class TestPatchModelSelection:
 
 class TestFormatModelsClientListAllResponse:
     """Test the format_models_client_list_all_response method with watsonx-only mode."""
-    
-    def test_format_models_watsonx_only_mode(self, monkeypatch):
-        """Test that watsonx/openai/gpt-oss-120b loses default and recommended flags in watsonx-only mode."""
-        # Set up watsonx-only environment (WATSONX_APIKEY present, GROQ_API_KEY absent)
-        monkeypatch.setenv("WATSONX_APIKEY", "test-key")
-        monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        
+
+    def _cfg_side_effect(self, has_watsonx: bool, has_groq: bool):
+        """Returns a side-effect callable for Config.read based on the flag values."""
+        def _side_effect(section, key):
+            if key == "LLM_HAS_WATSONX_APIKEY":
+                return has_watsonx
+            if key == "LLM_HAS_GROQ_API_KEY":
+                return has_groq
+            return None
+        return _side_effect
+
+    def test_format_models_watsonx_only_mode(self):
+        """When only WATSONX_APIKEY was persisted at server start, gpt-oss-120b loses default+recommended."""
         mock_response = [
             {
                 "id": "watsonx/openai/gpt-oss-120b",
@@ -1666,29 +1674,27 @@ class TestFormatModelsClientListAllResponse:
                 "tags": ["recommended"]
             }
         ]
-        
-        mc = ModelsController()
-        result = mc.format_models_client_list_all_response(mock_response)
-        
-        # Find the watsonx/openai/gpt-oss-120b model
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=False)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
         watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
         assert watsonx_gpt_model is not None
-        
-        # In watsonx-only mode, this model should NOT have default or recommended flags
+        # In watsonx-only mode this model must not be default or recommended
         assert watsonx_gpt_model.is_default is False
         assert watsonx_gpt_model.recommended is False
-        
-        # Other models should retain their flags
+        # Other models are unaffected
         other_model = next((m for m in result if m.name == "watsonx/other-model"), None)
         assert other_model is not None
         assert other_model.recommended is True
-    
-    def test_format_models_with_groq_key(self, monkeypatch):
-        """Test that watsonx/openai/gpt-oss-120b retains flags when GROQ_API_KEY is present."""
-        # Set up environment with GROQ_API_KEY
-        monkeypatch.setenv("GROQ_API_KEY", "test-groq-key")
-        monkeypatch.delenv("WATSONX_APIKEY", raising=False)
-        
+
+    def test_format_models_with_groq_key_only(self):
+        """When only GROQ_API_KEY was persisted, watsonx_only_mode is False — flags unchanged."""
         mock_response = [
             {
                 "id": "watsonx/openai/gpt-oss-120b",
@@ -1696,24 +1702,22 @@ class TestFormatModelsClientListAllResponse:
                 "tags": ["default", "recommended"]
             }
         ]
-        
-        mc = ModelsController()
-        result = mc.format_models_client_list_all_response(mock_response)
-        
-        # Find the watsonx/openai/gpt-oss-120b model
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=False, has_groq=True)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
         watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
         assert watsonx_gpt_model is not None
-        
-        # With GROQ_API_KEY present, flags should be retained
         assert watsonx_gpt_model.is_default is True
         assert watsonx_gpt_model.recommended is True
-    
-    def test_format_models_both_keys(self, monkeypatch):
-        """Test that watsonx/openai/gpt-oss-120b retains flags when both keys are present."""
-        # Set up environment with both keys
-        monkeypatch.setenv("GROQ_API_KEY", "test-groq-key")
-        monkeypatch.setenv("WATSONX_APIKEY", "test-watsonx-key")
-        
+
+    def test_format_models_both_keys(self):
+        """When both WATSONX_APIKEY and GROQ_API_KEY were persisted, watsonx_only_mode is False."""
         mock_response = [
             {
                 "id": "watsonx/openai/gpt-oss-120b",
@@ -1721,24 +1725,23 @@ class TestFormatModelsClientListAllResponse:
                 "tags": ["default", "recommended"]
             }
         ]
-        
-        mc = ModelsController()
-        result = mc.format_models_client_list_all_response(mock_response)
-        
-        # Find the watsonx/openai/gpt-oss-120b model
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=True)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
         watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
         assert watsonx_gpt_model is not None
-        
-        # With both keys present, flags should be retained (not watsonx-only mode)
+        # Both keys present — not watsonx-only mode; flags stay
         assert watsonx_gpt_model.is_default is True
         assert watsonx_gpt_model.recommended is True
-    
-    def test_format_models_other_models_unaffected(self, monkeypatch):
-        """Test that other models are not affected by watsonx-only mode logic."""
-        # Set up watsonx-only environment
-        monkeypatch.setenv("WATSONX_APIKEY", "test-key")
-        monkeypatch.delenv("GROQ_API_KEY", raising=False)
-        
+
+    def test_format_models_other_models_unaffected(self):
+        """Other models are never affected by the watsonx-only mode logic."""
         mock_response = [
             {
                 "id": "groq/openai/gpt-oss-120b",
@@ -1751,16 +1754,22 @@ class TestFormatModelsClientListAllResponse:
                 "tags": ["recommended"]
             }
         ]
-        
-        mc = ModelsController()
-        result = mc.format_models_client_list_all_response(mock_response)
-        
-        # Other models should retain their original flags
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=False)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
         groq_model = next((m for m in result if m.name == "groq/openai/gpt-oss-120b"), None)
         assert groq_model is not None
         assert groq_model.is_default is True
         assert groq_model.recommended is True
-        
+
         bedrock_model = next((m for m in result if m.name == "bedrock/openai.gpt-oss-120b-1:0"), None)
         assert bedrock_model is not None
         assert bedrock_model.recommended is True
+
+
