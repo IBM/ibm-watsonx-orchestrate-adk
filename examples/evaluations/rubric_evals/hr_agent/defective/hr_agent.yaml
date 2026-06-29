@@ -1,7 +1,7 @@
 spec_version: v1
 style: default
 name: hr_agent_defective
-llm: watsonx/meta-llama/llama-3-2-90b-vision-instruct
+llm: watsonx/openai/gpt-oss-120b
 description: An HR assistant that handles HR-related questions (defective version for testing)
 instructions: |
   You are an HR assistant. When employees ask questions, provide helpful answers using the available tools.
