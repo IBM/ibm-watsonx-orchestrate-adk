@@ -1,5 +1,6 @@
 import re
 import typer
+import logging
 
 from typing import Optional, List
 from typing_extensions import Annotated
@@ -7,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.traces_controller import trace_search, traces_export
 from ibm_watsonx_orchestrate.cli.commands.observability.traces.types import SortField, SortDirection
+
+logger = logging.getLogger(__name__)
 
 
 traces_app = typer.Typer(no_args_is_help=True)
@@ -51,20 +54,20 @@ def parse_last_duration(value: str) -> timedelta:
         return timedelta(days=amount)
     else:
         raise typer.BadParameter(
-            f"Unrecognised time unit '{unit}'. Use m/minutes, h/hours, or d/days."
+            f"Unrecognized time unit '{unit}'. Use m/minutes, h/hours, or d/days."
         )
 
 
 @traces_app.command(
     name="search",
-    help="Search for traces using filters"
+    help="Search for traces using filters like session ID, user ID, time range, and sorting."
 )
 def search_traces(
     start_time: Annotated[
         Optional[datetime],
         typer.Option(
             "--start-time",
-            help="Start time (ISO 8601). Required unless --last is used.",
+            help="Start time (ISO 8601 format). Required unless --last is used.",
             show_default=False
         )
     ] = None,
@@ -72,7 +75,7 @@ def search_traces(
         Optional[datetime],
         typer.Option(
             "--end-time",
-            help="End time (ISO 8601). Required unless --last is used.",
+            help="End time (ISO 8601 format). Required unless --last is used.",
             show_default=False
         )
     ] = None,
@@ -94,7 +97,7 @@ def search_traces(
         typer.Option(
             "--service-name",
             "-s",
-            help="Filter by service name (can be specified multiple times)",
+            help="[DEPRECATED] Filter by service name - No longer supported",
             show_default=False
         )
     ] = None,
@@ -103,7 +106,7 @@ def search_traces(
         typer.Option(
             "--agent-id",
             "-i",
-            help="Filter by agent ID (can be specified multiple times)",
+            help="[DEPRECATED] Filter by agent ID - No longer supported",
             show_default=False
         )
     ] = None,
@@ -112,7 +115,7 @@ def search_traces(
         typer.Option(
             "--agent-name",
             "-a",
-            help="Filter by agent name (can be specified multiple times)",
+            help="[DEPRECATED] Filter by agent name - No longer supported",
             show_default=False
         )
     ] = None,
@@ -137,7 +140,7 @@ def search_traces(
         Optional[int],
         typer.Option(
             "--min-spans",
-            help="Minimum number of spans in trace",
+            help="[DEPRECATED] Minimum number of spans - No longer supported",
             show_default=False
         )
     ] = None,
@@ -145,7 +148,7 @@ def search_traces(
         Optional[int],
         typer.Option(
             "--max-spans",
-            help="Maximum number of spans in trace",
+            help="[DEPRECATED] Maximum number of spans - No longer supported",
             show_default=False
         )
     ] = None,
@@ -161,7 +164,7 @@ def search_traces(
         SortDirection,
         typer.Option(
             "--sort-direction",
-            help="Sort direction",
+            help="Sort direction (asc or desc)",
             show_default=True
         )
     ] = SortDirection.DESC,
@@ -183,8 +186,22 @@ def search_traces(
     You must supply either a relative time window via --last, or an explicit
     --start-time together with --end-time.
 
-    This command allows you to find trace IDs based on criteria such as time range,
-    service names, agent IDs/names, user IDs, session IDs, and span count.
+    SUPPORTED FILTERS:
+        --session-id         Filter by session ID
+        --user-id            Filter by user ID
+        --start-time         Filter by start time (ISO 8601)
+        --end-time           Filter by end time (ISO 8601)
+        --last               Relative time window (e.g., 30m, 3h, 10d)
+        --sort-field         Field to sort by (start_time, end_time)
+        --sort-direction     Sort direction (asc or desc)
+        --limit              Maximum number of results
+
+      DEPRECATED FILTERS (will show warnings):
+        --service-name       Service filtering no longer supported
+        --agent-id           Agent filtering no longer supported
+        --agent-name         Agent filtering no longer supported
+        --min-spans          Span count filtering no longer supported
+        --max-spans          Span count filtering no longer supported
 
     Once you find the trace IDs, you can use 'orchestrate observability traces export'
     to export the full trace data.
@@ -223,6 +240,7 @@ def search_traces(
         - This endpoint is only accessible to Admins
         - Rate limit: 4 requests per minute
         - Not available in on-premises offering
+        - Agent and service filtering are deprecated
     """
     if last is not None:
         if start_time is not None or end_time is not None:
@@ -239,13 +257,53 @@ def search_traces(
                 "You must provide either --last or both --start-time and --end-time."
             )
 
-    trace_search(start_time, end_time, service_names, agent_ids, agent_names, user_ids,
-                session_ids, min_spans, max_spans, sort_field=sort_field.value, sort_direction=sort_direction.value, page_size=limit
-                )
+    # Show deprecation warnings for unsupported parameters only
+    has_warnings = False
+
+    if service_names:
+        logger.warning(
+            "Service name filtering (--service-name) is no longer supported. "
+            "This filter will be ignored."
+        )
+        has_warnings = True
+
+    if agent_ids or agent_names:
+        logger.warning(
+            "Agent filtering (--agent-id, --agent-name) is no longer supported. "
+            "This filter will be ignored."
+        )
+        has_warnings = True
+
+    if min_spans or max_spans:
+        logger.warning(
+            "Span count filtering (--min-spans, --max-spans) is no longer supported. "
+            "This filter will be ignored."
+        )
+        has_warnings = True
+
+    if has_warnings:
+        logger.info(
+            "💡 Tip: Use --session-id, --user-id, or time filters (--start-time, --end-time, --last) for filtering."
+        )
+
+    trace_search(
+        start_time=start_time,
+        end_time=end_time,
+        service_names=service_names,
+        agent_ids=agent_ids,
+        agent_names=agent_names,
+        user_ids=user_ids,
+        session_ids=session_ids,
+        min_spans=min_spans,
+        max_spans=max_spans,
+        sort_field=sort_field.value,
+        sort_direction=sort_direction.value,
+        page_size=limit
+    )
 
 @traces_app.command(
     name="export",
-    help="Export trace spans from the observability platform"
+    help="Export trace observations from the observability platform"
 )
 def export_trace(
     trace_id: Annotated[
@@ -276,28 +334,27 @@ def export_trace(
     ] = True
 ):
     """
-    Export trace spans from the Watson Orchestrate observability platform.
-    
+    Export trace observations from the Watson Orchestrate observability platform.
+
     This command fetches all spans for a given trace ID and exports them to
     a file or stdout in JSON format (OpenTelemetry-compliant).
-    
+
     The JSON output is compatible with trace analysis tools like Jaeger, Zipkin,
     and can be piped to tools like jq for processing in CI/CD pipelines.
-    
+
     Examples:
         # Print to stdout
         orchestrate observability traces export -t 1234567890abcdef1234567890abcdef
-        
+
         # Pipe to jq for processing
-        orchestrate observability traces export -t 1234567890abcdef1234567890abcdef | jq '.traceData.resourceSpans[0].scopeSpans[0].spans | length'
+        orchestrate observability traces export -t 1234567890abcdef1234567890abcdef | jq '.observations | length'
 
         # Export to JSON file
         orchestrate observability traces export --trace-id 1234567890abcdef1234567890abcdef --output trace.json
-          
+
     Note:
         - This endpoint is only accessible to Admins
         - Rate limit: 4 requests per minute
         - Trace ID must be a 32-character hexadecimal string
     """
     traces_export(trace_id, output, pretty)
-    
