@@ -225,8 +225,6 @@ def record(
     ] = None
 ):
     _check_import_error()
-    
-    
     validate_watsonx_credentials(user_env_file)
     
     # Validate context variables is valid JSON and is a dict/object
@@ -598,8 +596,6 @@ evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
 def list_plans():
     _check_import_error()
-
-
     controller = EvaluationsController()
     controller.list_red_teaming_attacks()
 
