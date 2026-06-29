@@ -74,4 +74,3 @@ class TestQuickEval:
                 mode=EvaluateMode.referenceless,
             )
 
-# Made with Bob

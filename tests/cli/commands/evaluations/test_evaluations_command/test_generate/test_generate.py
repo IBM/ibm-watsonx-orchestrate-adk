@@ -55,4 +55,3 @@ class TestGenerate:
                 evaluations_command.generate(**paths, user_env_file=user_env_file)
                 mock_controller.generate.assert_called_once_with(**paths)
 
-# Made with Bob

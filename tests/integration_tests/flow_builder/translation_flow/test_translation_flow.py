@@ -429,4 +429,3 @@ class TestTranslationErrorHandling:
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
 
-# Made with Bob
