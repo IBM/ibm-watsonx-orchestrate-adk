@@ -90,7 +90,6 @@ def external_agent_config():
         yield config_path
         Path(config_path).unlink()
 
-# Made with Bob
 
 
 

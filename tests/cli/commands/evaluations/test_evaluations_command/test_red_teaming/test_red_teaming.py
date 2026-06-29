@@ -82,4 +82,3 @@ class TestRedTeaming:
                     attack_paths="attacks", output_dir="test_output"
                 )
 
-# Made with Bob

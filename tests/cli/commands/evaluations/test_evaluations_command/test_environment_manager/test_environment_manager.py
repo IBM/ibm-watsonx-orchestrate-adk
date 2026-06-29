@@ -114,4 +114,3 @@ class TestEnvironmentManager:
                                     mock_evaluate.assert_called()
                                     assert len(t.imported_artifacts) == 3
 
-# Made with Bob

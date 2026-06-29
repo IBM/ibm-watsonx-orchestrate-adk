@@ -102,4 +102,3 @@ class TestValidateExternal:
             finally:
                 Path(csv_path).unlink()
 
-# Made with Bob

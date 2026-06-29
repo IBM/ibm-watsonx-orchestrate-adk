@@ -350,14 +350,21 @@ def tool2():
             tool_def_file = Path(temp_dir) / "tools.py"
             tool_def_file.write_text("def dummy_tool(): pass")
 
-            # Just verify the analyze function runs without errors
-            from agentops.arg_configs import AnalyzeMode
-            controller.analyze(
-                data_path=temp_dir,
-                tool_definition_path=str(tool_def_file),
-                mode=AnalyzeMode.default
-            )
-            # If we get here without exceptions, the test passed
+            from agentops.arg_configs import AnalyzeConfig, AnalyzeMode
+            with patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.run_analyze"
+            ) as mock_run_analyze:
+                controller.analyze(
+                    data_path=temp_dir,
+                    tool_definition_path=str(tool_def_file),
+                    mode=AnalyzeMode.default,
+                )
+                mock_run_analyze.assert_called_once()
+                actual_config = mock_run_analyze.call_args[0][0]
+                assert isinstance(actual_config, AnalyzeConfig)
+                assert actual_config.data_path == temp_dir
+                assert actual_config.tool_definition_path == str(tool_def_file)
+                assert actual_config.mode == AnalyzeMode.default
 
     def test_external_validate(self, controller):
         config = {"auth_scheme": "api_key", "api_url": "test-url"}

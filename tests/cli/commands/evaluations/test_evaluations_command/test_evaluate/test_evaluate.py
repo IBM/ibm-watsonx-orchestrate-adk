@@ -446,4 +446,3 @@ WATSONX_APIKEY=custom_key"""
                         langfuse_enabled=True,
                     )
 
-# Made with Bob

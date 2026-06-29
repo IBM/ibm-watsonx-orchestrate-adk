@@ -57,7 +57,6 @@ class TestAnalyze:
                 data_path="", user_env_file=user_env_file, mode="wrong_mode"
             )
 
-# Made with Bob
 
 
 
