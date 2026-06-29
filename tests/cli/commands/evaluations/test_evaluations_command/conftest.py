@@ -1,6 +1,7 @@
 """Shared fixtures for all evaluation tests"""
 import json
 import tempfile
+from datetime import datetime
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -95,16 +96,10 @@ def external_agent_config():
 
 @pytest.fixture
 def evaluation_results_dir():
-    """Create a temporary directory with evaluation results structure
-    
-    Creates an exact replica of the structure found in:
-    /Users/arjungupta/Documents/Development/non_legacy/2026-06-11_16-51-54/
-    """
-    import tempfile
-    
+    """Create a temporary directory with evaluation results structure"""
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the expected folder structure with timestamp directory
-        results_path = Path(temp_dir) / "2026-06-11_16-51-54"
+        results_path = Path(temp_dir) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         results_path.mkdir(parents=True, exist_ok=True)
         
         # Create subdirectories
