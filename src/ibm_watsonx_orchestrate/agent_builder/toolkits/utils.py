@@ -24,8 +24,8 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
             temp_path = Path(temp_dir)
             tools = []
             try:
-                resolved_requirements_file = folder_path.absolute().joinpath("requirements.txt") if get_package_root(str(folder_path)) is not None else None
-
+                requirements_file_path = folder_path.absolute().joinpath("requirements.txt")
+                resolved_requirements_file = str(requirements_file_path) if requirements_file_path.exists() else None
                 requirements_lines = get_formated_requirements_lines(requirement_file=resolved_requirements_file)
 
                 temp_requirements_path = temp_path / "requirements.txt"
@@ -34,9 +34,9 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
                     fp.writelines(requirements_lines)
 
                 # Get all Python files
-                python_files = python_files = list(temp_path.rglob('*.py'))
+                python_files = list(temp_path.rglob('*.py'))
                 for file in python_files:
-                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False))
+                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False, belongs_to_toolkit=True))
             finally:
                 # Remove temp directory from path
                 if temp_dir in sys.path:

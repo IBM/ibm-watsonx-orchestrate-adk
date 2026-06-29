@@ -29,8 +29,8 @@ class FlowWrapper:
             raise ValueError("Return value must be of type Flow")
         return result
     
-def flow(*args, 
-         name: Optional[str]=None, 
+def flow(*args,
+         name: Optional[str]=None,
          display_name: Optional[str]=None,
          description: str|None=None,
          input_schema: type[BaseModel] | None = None,
@@ -38,6 +38,7 @@ def flow(*args,
          private_schema: type[BaseModel] | None = None,
          initiators: Sequence[str] = (),
          schedulable: bool = False,
+         suppress_agent_summarization: Optional[bool] = True,
          llm_model: str|ListVirtualModel|None=None,
          agent_conversation_memory_turns_limit: int|None=None,
          context_window: FlowContextWindow|None=None):
@@ -68,6 +69,7 @@ def flow(*args,
                              private_schema = private_schema,
                              initiators = initiators,
                              schedulable = schedulable,
+                             suppress_agent_summarization = suppress_agent_summarization,
                              llm_model = llm_model,
                              agent_conversation_memory_turns_limit = agent_conversation_memory_turns_limit,
                              context_window=context_window)
