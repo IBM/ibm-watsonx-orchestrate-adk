@@ -1055,7 +1055,7 @@ class Flow(Node):
     
     def docclassifier(self, 
             name: str, 
-            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+            llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
             classes: type[BaseModel]| None = None, 
@@ -1118,7 +1118,7 @@ class Flow(Node):
     
     def docext(self,
             name: str, 
-            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+            llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
             fields: type[BaseModel]| None = None, 

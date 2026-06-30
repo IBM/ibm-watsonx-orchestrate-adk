@@ -12,7 +12,7 @@ description: >
       Addition and Subtraction (from left to right)
     
     Make sure to include decimal points when the user's input includes a float.
-llm: watsonx/ibm/granite-3-8b-instruct #Optional, Default=watsonx/meta-llama/llama-3-1-70b-instruct
+llm: watsonx/ibm/granite-3-8b-instruct #Optional, Default=watsonx/openai/gpt-oss-120b
 style: default #Optional, Valid options ['default', 'react']
 collaborators:
   - finance_agent_2
