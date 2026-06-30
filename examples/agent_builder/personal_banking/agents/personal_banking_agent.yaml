@@ -29,7 +29,7 @@ instructions: >
     The tools will guide you through the processes and request any missing information
     as needed. Always be clear about details and maintain a professional, helpful tone.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - transfer_money
   - list_accounts
