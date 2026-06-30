@@ -9,7 +9,7 @@ from ibm_watsonx_orchestrate.flow_builder.types import UserForm
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 
 from .types import DocExtConfigField, EndNodeSpec, NodeSpec, AgentNodeSpec, PageRange, PromptNodeSpec, SchemaRef, ScriptNodeSpec, TimerNodeSpec, StartNodeSpec, ToolNodeSpec, UserField, UserField, UserFieldKind, UserFieldOption, UserForm, UserFormButton, UserNodeSpec, DocProcSpec, \
-                    DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig
+                    DocExtSpec, DocExtConfig, DocClassifierSpec, DecisionsNodeSpec, DocClassifierConfig, LanguageCode
 
 from .data_map import DataMap, DataMapSpec, Assignment
 
@@ -1137,7 +1137,7 @@ class DocExtNode(Node):
         return cast(DocExtSpec, self.spec)
     
     @staticmethod
-    def generate_config(llm: str, fields: type[BaseModel], field_extraction_method: str, page_range: 'PageRange | None' = None) -> DocExtConfig:
+    def generate_config(llm: str, fields: type[BaseModel], field_extraction_method: str, page_range: PageRange | None = None) -> DocExtConfig:
         return DocExtConfig(llm=llm, fields=fields.__dict__.values(), field_extraction_method=field_extraction_method, page_range=page_range)
     
     @staticmethod

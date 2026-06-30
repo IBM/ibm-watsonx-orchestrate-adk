@@ -257,8 +257,93 @@ class DocExtConfig(BaseModel):
         return self
 
 class LanguageCode(StrEnum):
+    '''
+    The ISO-639 language codes understood by Document Processing functions.
+    Handwritten variants are only supported for English and German.
+    '''
+    # Latin-script languages
+    af = auto()
+    sq = auto()
+    ay = auto()
+    eu = auto()
+    bi = auto()
+    ca = auto()
+    cr = auto()
     en = auto()
+    et = auto()
+    fj = auto()
+    fil = auto()
     fr = auto()
+    gl = auto()
+    ga = auto()
+    ht = auto()
+    id = auto()
+    jv = auto()
+    kl = auto()
+    rw = auto()
+    kg = auto()
+    kj = auto()
+    la = auto()
+    latn = auto()
+    mg = auto()
+    gv = auto()
+    ng = auto()
+    nd = auto()
+    oc = auto()
+    oj = auto()
+    pl = auto()
+    qu = auto()
+    rm = auto()
+    rn = auto()
+    sg = auto()
+    sn = auto()
+    su = auto()
+    sw = auto()
+    ss = auto()
+    ts = auto()
+    tn = auto()
+    xh = auto()
+    zu = auto()
+    # Languages with dedicated WDU OCR engine codes
+    bn = auto()
+    da = auto()
+    nl = auto()
+    fi = auto()
+    de = auto()
+    el = auto()
+    he = auto()
+    it = auto()
+    no = auto()
+    pt = auto()
+    es = auto()
+    sv = auto()
+    tr = auto()
+    vi = auto()
+    # CJK
+    zh_cn = auto()
+    zh_tw = auto()
+    ja = auto()
+    ko = auto()
+    # Cyrillic-script languages
+    be = auto()
+    bg = auto()
+    mk = auto()
+    mn = auto()
+    ru = auto()
+    sr = auto()
+    uk = auto()
+    # Devanagari-script languages
+    hi = auto()
+    mr = auto()
+    ne = auto()
+    sa = auto()
+    ta = auto()
+    te = auto()
+    # Thai
+    th = auto()
+    # Handwritten variants
+    en_hw = auto()
+    de_hw = auto()
 
 class DocProcTask(StrEnum):
     '''
@@ -321,6 +406,7 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocClassifierConfig
     enable_review: bool = Field(description="Indicate if enable human in the loop review", default=False)
+    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -332,6 +418,8 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
         model_spec["config"] = self.config.model_dump()
         model_spec["task"] = DocProcTask.custom_document_classification
         model_spec["enable_review"] = self.enable_review
+        if self.language is not None:
+            model_spec["language"] = self.language
         return model_spec
     
 class DocExtSpec(DocProcCommonNodeSpec):
@@ -340,6 +428,7 @@ class DocExtSpec(DocProcCommonNodeSpec):
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     review_fields: List[str] = Field(description="The fields that require user to review", default=[])
     enable_review: bool = Field(description="Enable human in the loop review", default=False)
+    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -353,6 +442,8 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec["min_confidence"] = self.min_confidence
         model_spec["review_fields"] = self.review_fields
         model_spec["enable_review"] = self.enable_review
+        if self.language is not None:
+            model_spec["language"] = self.language
         return model_spec
     
 class DocProcField(BaseModel):
@@ -557,6 +648,11 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
+    language: Optional["LanguageCode"] = Field(
+        title="Language",
+        default=None,
+        description="The ISO-639 language code for the document. Defaults to English ('en') when not specified."
+    )
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -580,6 +676,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["page_range"] = self.page_range
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
+        if self.language is not None:
+            model_spec["language"] = self.language
         return model_spec
 
 class StartNodeSpec(NodeSpec):
@@ -3585,26 +3683,19 @@ class AssemblyJsonOutput(BaseModel):
                    "hierarchical relationships and spatial information. None if structure extraction "
                    "(document_structure=False) was not requested.")
 
-class LanguageCode(StrEnum):
-    '''
-    The ISO-639 language codes understood by Document Processing functions.
-    A special 'en_hw' code is used to enable an English handwritten model.
-    '''
-    en = auto()
-    fr = auto()
-    en_hw = auto()
-
 
 class DocumentProcessingCommonInput(BaseModel):
     '''
-    This class represents the common input of docext, docproc and docclassifier node 
+    This class represents the common input of docext, docproc and docclassifier node
 
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
         page_range (PageRange|None): Optional page range for text extractor and layout document extractor
+        language (LanguageCode|None): Optional ISO-639 language code to override the language set in the node spec at runtime
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
     page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from pages within the specified range are extracted.', default=None)
+    language: LanguageCode | None = Field(description='Optional ISO-639 language code for document processing. Overrides the language set in the node spec when provided.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
