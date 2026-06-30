@@ -248,6 +248,7 @@ class EnvService:
 
         persistable_env["LLM_HAS_GROQ_API_KEY"] = 'GROQ_API_KEY' in env
         persistable_env["LLM_HAS_WATSONX_APIKEY"] = 'WATSONX_APIKEY' in env
+        persistable_env["LLM_HAS_AZURE_APIKEY"] = 'AZURE_OPENAI_API_KEY' in env
         persistable_env["LLM_HAS_AWS_CREDS"] = 'BEDROCK_AWS_SECRET_ACCESS_KEY' in env and 'BEDROCK_AWS_ACCESS_KEY_ID' in env
         persistable_env["LLM_HAS_WO_INSTANCE"] = 'WO_INSTANCE' in env and \
                                                  (env.get('WO_API_KEY', None) is not None or env.get('WATSONX_PASSWORD', None) is not None)
@@ -498,6 +499,7 @@ class EnvService:
         # configure default/preferred model properly based on availability of apikeys
         wo_instance = env_dict.get("WO_INSTANCE")
         groq_key = env_dict.get("GROQ_API_KEY")
+        azure_key= env_dict.get("AZURE_OPENAI_API_KEY")
         aws_creds = env_dict.get("BEDROCK_AWS_ACCESS_KEY_ID") and env_dict.get("BEDROCK_AWS_SECRET_ACCESS_KEY")
         use_saas_ml_tools_runtime = bool(wo_instance)
         env_dict.setdefault("USE_SAAS_ML_TOOLS_RUNTIME", str(use_saas_ml_tools_runtime).lower())
@@ -505,7 +507,7 @@ class EnvService:
         if wo_instance:
             # both wx.ai and groq supported
             pass
-        elif any([llm_value, groq_key, aws_creds]):
+        elif any([llm_value, groq_key, aws_creds, azure_key]):
             PREFERRED_MODELS = []
             DEFAULT_LLM_MODEL = ""
             DEFAULT_FLOW_LLM_MODEL = ""
@@ -520,6 +522,10 @@ class EnvService:
                 PREFERRED_MODELS.append("groq/openai/gpt-oss-120b")
                 DEFAULT_LLM_MODEL = "groq/openai/gpt-oss-120b"
                 DEFAULT_FLOW_LLM_MODEL = "groq/openai/gpt-oss-120b"
+            if azure_key:
+                PREFERRED_MODELS.append("azure-openai/gpt-5.4")
+                DEFAULT_LLM_MODEL = "azure-openai/gpt-5.4"
+                DEFAULT_FLOW_LLM_MODEL = "azure-openai/gpt-5.4"
             if DEFAULT_FLOW_LLM_MODEL == "":
                 # TODO: For flows team to confirm
                 RuntimeError("Flow not supporting bedrock gpt oss as default yet")
@@ -527,7 +533,7 @@ class EnvService:
             EnvService.__set_if_not_in_user_env("DEFAULT_LLM_MODEL", DEFAULT_LLM_MODEL, env_dict, user_dict)
             EnvService.__set_if_not_in_user_env("DEFAULT_FLOW_LLM_MODEL", DEFAULT_FLOW_LLM_MODEL, env_dict, user_dict)
         else:
-            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")
+            raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `AZURE_OPENAI_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")
     
     @staticmethod
     def _check_dev_edition_server_health() -> bool:

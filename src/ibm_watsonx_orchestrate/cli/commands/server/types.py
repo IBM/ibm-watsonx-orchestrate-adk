@@ -91,6 +91,7 @@ class DirectAIEnvConfig(BaseModel):
     BEDROCK_AWS_SECRET_ACCESS_KEY: Optional[str]
     GROQ_API_KEY: Optional[str]
     USE_SAAS_ML_TOOLS_RUNTIME: bool
+    AZURE_OPENAI_API_KEY: Optional[str]
 
     @model_validator(mode="before")
     def validate_wxai_config(values):
@@ -102,9 +103,10 @@ class DirectAIEnvConfig(BaseModel):
         wxai_space_id_set = bool(config.get("WATSONX_SPACE_ID"))
         wxai_key_set = bool(config.get("WATSONX_APIKEY"))
         aws_bedrock_creds_set = bool(config.get("BEDROCK_AWS_ACCESS_KEY_ID")) and bool(config.get("BEDROCK_AWS_SECRET_ACCESS_KEY"))
+        azure_key_set= bool(config.get("AZURE_OPENAI_API_KEY"))
 
-        if not wxai_key_set and not groq_key_set and not aws_bedrock_creds_set:
-            raise ValueError("Missing configuration requirements 'GROQ_API_KEY' or 'WATSONX_APIKEY' or 'AWS_ACCESS_KEY_ID'+'AWS_SECRET_ACCESS_KEY'")
+        if not wxai_key_set and not groq_key_set and not aws_bedrock_creds_set and not azure_key_set:
+            raise ValueError("Missing configuration requirements 'GROQ_API_KEY' or 'AZURE_OPENAI_API_KEY' or 'WATSONX_APIKEY' or 'AWS_ACCESS_KEY_ID'+'AWS_SECRET_ACCESS_KEY'")
 
         # If Space id but no apikey
         
