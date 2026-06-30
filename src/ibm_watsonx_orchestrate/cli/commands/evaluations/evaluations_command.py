@@ -42,10 +42,6 @@ def _check_import_error():
                      "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
         sys.exit(1)
 
-def _feature_requires_legacy_eval():
-    if not USE_LEGACY_EVAL:
-        logger.error("Feature requires legacy evaluation. Please enable it using `export USE_LEGACY_EVAL=TRUE`")
-        sys.exit(1)
 
 def _native_agent_template():
     return {
@@ -163,8 +159,8 @@ def evaluate(
     validate_watsonx_credentials(user_env_file)
 
     if not USE_LEGACY_EVAL:
-        logger.warning("Using beta evaluation. This feature is still in beta.")
-        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`")
+        logger.warning("Using new evaluation pipeline")
+        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`. Note this will soon be deprecated")
     
     if langfuse_enabled:
         lf_sk_exists = os.environ.get("LANGFUSE_SECRET_KEY") is not None
@@ -229,8 +225,6 @@ def record(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
-    
     validate_watsonx_credentials(user_env_file)
     
     # Validate context variables is valid JSON and is a dict/object
@@ -381,7 +375,7 @@ def validate_external(
     ] = False
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
 
@@ -503,7 +497,7 @@ def validate_native(
     ] = None,
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     
@@ -573,7 +567,7 @@ def quick_eval(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     if not config_file:
         if not test_paths or not output_dir:
@@ -602,8 +596,6 @@ evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
 def list_plans():
     _check_import_error()
-    _feature_requires_legacy_eval()
-
     controller = EvaluationsController()
     controller.list_red_teaming_attacks()
 
@@ -660,7 +652,7 @@ def plan(
 
 ):
     _check_import_error()   
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
@@ -698,7 +690,7 @@ def run(
     ] = None,
 ):  
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
