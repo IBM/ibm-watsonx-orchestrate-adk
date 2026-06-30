@@ -202,6 +202,7 @@ class AgentSpec(BaseAgentSpec):
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     toolkits: Optional[List[str]] = []
+    skills: Optional[List[str]] = []
     plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     sync_tool_flow_interactions: Optional[bool] = None
