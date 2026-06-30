@@ -291,7 +291,7 @@ class ToolkitController:
     def publish_toolkit(self, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
 
         # Create toolkit metadata
-        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True, exclude_none=True)
 
         console = Console()
 
@@ -344,7 +344,7 @@ class ToolkitController:
     def update_toolkit(self, toolkit_id: str, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
         logger.info(f"Existing toolkit '{toolkit.__toolkit_spec__.name}' found. Updating...")
         # Create toolkit metadata
-        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True, exclude_none=True)
 
         console = Console()
 
