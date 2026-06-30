@@ -37,7 +37,6 @@ class KnowledgeBaseClient(BaseWXOClient):
     def update_without_files(self, knowledge_base_id: str, payload: dict) -> dict:
         """Update a knowledge base without file uploads via PATCH /knowledge-bases/<id>."""
         payload = resolve_and_inject_workspace(payload)
-        print(payload)
         return self._patch(f"{self.base_endpoint}/{knowledge_base_id}", data=payload)
     
     def create_built_in(self, payload: dict, files: list) -> dict:

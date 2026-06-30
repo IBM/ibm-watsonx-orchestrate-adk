@@ -285,12 +285,15 @@ class KnowledgeBaseController:
                         logger.error(f"Failed to create knowledge base: {error_msg}")
                         continue
 
-                    if response and 'id' in response:
-                        kb_id = response['id']
+                    kb_id = None
+                    if response:
+                        kb_id = response.get('id') or response.get('knowledge_base')
+
+                    if kb_id:
                         # Trigger an initial sync so the KB is indexed immediately after creation
                         self._trigger_sync(client, kb_id, kb.name)
 
-                        if kb.sync_job and kb_id:
+                        if kb.sync_job:
                             self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     else:
                         logger.info(f"Successfully started import for knowledge base '{kb.name}'")
@@ -360,10 +363,11 @@ class KnowledgeBaseController:
         kb_name: str,
         is_update: bool = False,
         poll_interval: int = 2,
-        max_wait_time: int = 1200 # 20 minutes
+        max_wait_time: int = 1200, # 20 minutes
+        use_sync_state: bool = False
     ) -> None:
         """
-        Poll the knowledge base status until it becomes 'ready' or 'error'.
+        Poll the knowledge base status until it reaches a terminal state.
         
         Args:
             client: The knowledge base client
@@ -371,6 +375,7 @@ class KnowledgeBaseController:
             kb_name: The knowledge base name (for logging)
             poll_interval: Time in seconds between status checks (default: 2)
             max_wait_time: Maximum time in seconds to wait (default: 1200)
+            use_sync_state: Whether to poll connector sync_state instead of built_in_index_status
         """
         start_time = time.time()
         status_display_map = {
@@ -378,7 +383,12 @@ class KnowledgeBaseController:
             'rebuilding': 'Rebuilding index',
             'ready': 'Ready',
             'not_ready': 'Not Ready',
-            'error': 'Error'
+            'error': 'Error',
+            'in_progress': 'Sync in progress',
+            'ready_for_promotion': 'Ready for promotion',
+            'stable': 'Stable',
+            'failed': 'Failed',
+            'unknown': 'Unknown'
         }
         
         last_status = None
@@ -388,6 +398,10 @@ class KnowledgeBaseController:
         animation_interval = 0.5  # Update dots every 0.5 seconds
         status = None  # Initialize status
         status_msg = ''  # Initialize status_msg
+        status_field = 'sync_state' if use_sync_state else 'built_in_index_status'
+        status_msg_field = 'sync_state_msg' if use_sync_state else 'built_in_index_status_msg'
+        success_states = {'stable'} if use_sync_state else {'ready'}
+        failure_states = {'failed'} if use_sync_state else {'error', 'not_ready'}
         
         with console.status(f"[bold green]{prefix_action_str} knowledge base '{kb_name}'.", spinner="dots") as status_display:
             while True:
@@ -405,23 +419,26 @@ class KnowledgeBaseController:
                 try:
                     if should_poll:
                         status_response = client.status(kb_id)
-                        status = status_response.get('built_in_index_status', '').lower()
-                        status_msg = status_response.get('built_in_index_status_msg', '')
+                        status = status_response.get(status_field, '').lower()
+                        status_msg = status_response.get(status_msg_field, '')
                         last_poll_time = current_time
+
+                        if use_sync_state:
+                            logger.info(f"Knowledge base '{kb_name}' sync_state: {status or '<empty>'}")
                         
                         # Update last_status if it changed
                         if status != last_status:
                             last_status = status
                         
                         # Check for terminal states
-                        if status == 'ready':
+                        if status in success_states:
                             action_str = "updated" if is_update else "imported"
-                            if status_msg:
+                            if status_msg and not (use_sync_state and status == 'stable'):
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{status_msg}[/bold white]")
                             else:
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}'")
                             return
-                        elif status == 'error' or status == "not_ready":
+                        elif status in failure_states:
                             action_str = "update" if is_update else "import"
                             if status_msg:
                                 console.print(f"[red]✗[/red] Knowledge base [bold red]'{kb_name}'[/bold red] {action_str} failed: [bold white]{status_msg}[/bold white]", style="bold red")
@@ -459,7 +476,7 @@ class KnowledgeBaseController:
     ) -> None:
         """
         Trigger an on-demand sync for a connector-backed knowledge base and poll
-        until the KB reaches a terminal status.
+        until sync_state reaches a terminal status.
 
         Args:
             client: The knowledge base client
@@ -469,7 +486,8 @@ class KnowledgeBaseController:
         try:
             client.sync(kb_id)
             logger.info(f"Sync triggered for knowledge base '{kb_name}', waiting for completion...")
-            self._poll_knowledge_base_status(client, kb_id, kb_name, False)
+            time.sleep(5)
+            self._poll_knowledge_base_status(client, kb_id, kb_name, False, use_sync_state=True)
         except ClientAPIException as e:
             logger.error(f"Failed to trigger sync for knowledge base '{kb_name}': {str(e)}")
         except Exception as e:
