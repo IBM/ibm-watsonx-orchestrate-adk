@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
 from ibm_watsonx_orchestrate.cli.commands.settings.settings_command import settings_app
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_command import tools_app
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
+from ibm_watsonx_orchestrate.cli.commands.skills.skills_command import skills_app
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_app
 from ibm_watsonx_orchestrate.cli.commands.chat.chat_command import chat_app
 from ibm_watsonx_orchestrate.cli.commands.models.models_command import models_app
@@ -37,6 +38,7 @@ app.add_typer(login_app)
 app.add_typer(environment_app, name="env", help='Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)')
 app.add_typer(agents_app, name="agents", help='Interact with the agents in your active env')
 app.add_typer(tools_app, name="tools", help='Interact with the tools in your active env')
+app.add_typer(skills_app, name="skills", help='Interact with the skills in your active env')
 app.add_typer(toolkits_app, name="toolkits", help="Interact with the toolkits in your active env")
 app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledge your agents can search through to your active env")
 app.add_typer(connections_app, name="connections", help='Manage authentication connections for external systems in your active env')
