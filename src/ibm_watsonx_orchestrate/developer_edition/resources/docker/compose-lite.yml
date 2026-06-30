@@ -1323,7 +1323,7 @@ services:
       start_period: 1s
 
   wxo-tempus-runtime:
-    image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
+    image: ${FLOW_RUNTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
     networks:
       - default
