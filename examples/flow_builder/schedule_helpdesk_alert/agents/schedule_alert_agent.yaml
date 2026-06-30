@@ -7,7 +7,7 @@ instructions: >
     1. Use the alert_helpdesk_flow tool to run the flow immediately or to schedule a recurring run of alert_helpdesk_flow.
     2. If we want to schedule a flow run, make sure we ask for how often (every day at 7am) and how many times (3 times).
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_core
 tools:
   - alert_helpdesk_flow
   - i__get_flow_status_intrinsic_tool__
