@@ -117,6 +117,19 @@ def existing_external_knowledge_base_content() -> dict:
         }
     }
 
+@pytest.fixture
+def content_source_knowledge_base_content() -> dict:
+    return {
+        "spec_version": SpecVersion.V1,
+        "name": "test_content_source_knowledge_base",
+        "description": "Connector-backed knowledge base",
+        "documents": ["document_1.pdf"],
+        "content_source": {
+            "type": "box",
+            "connection_id": "12345"
+        }
+    }
+
 class MockListConnectionResponse(BaseModel):
     connection_id: str
     app_id: str
@@ -148,6 +161,9 @@ class MockClient:
         assert payload == self.expected_payload
         assert files == self.expected_files
 
+    def create_without_files(self, payload):
+        assert payload == self.expected_payload
+
     def update(self, knowledge_base_id, payload):
         assert knowledge_base_id == self.expected_id
         assert payload == self.expected_payload
@@ -156,6 +172,10 @@ class MockClient:
         assert knowledge_base_id == self.expected_id
         assert payload == self.expected_payload
         assert files == self.expected_files
+
+    def update_without_files(self, knowledge_base_id, payload):
+        assert knowledge_base_id == self.expected_id
+        assert payload == self.expected_payload
     
     def get(self):
         return [self.fake_knowledge_base]
@@ -163,6 +183,9 @@ class MockClient:
     def status(self, knowledge_base_id):
         assert knowledge_base_id == self.expected_id
         return self.fake_status
+
+    def sync(self, knowledge_base_id):
+        assert knowledge_base_id == self.expected_id
 
     def get_by_name(self, name, workspace_id=None):
         if self.already_existing:
@@ -690,6 +713,91 @@ class TestPollKnowledgeBaseStatus:
             
             # Should call status multiple times
             assert mock_client.status.call_count == 4
+
+    def test_poll_sync_state_stable(self, caplog):
+        """Test polling connector sync_state until stable."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.side_effect = [
+                {'sync_state': 'in_progress', 'sync_state_msg': 'Syncing'},
+                {'sync_state': 'stable', 'sync_state_msg': 'No sync in progress.'}
+            ]
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, poll_interval=1, use_sync_state=True)
+            
+            assert mock_client.status.call_count == 2
+            assert sleep_mock.call_count >= 1
+            console_mock.print.assert_called_once_with("[green]✓[/green] Successfully imported knowledge base 'test-kb'")
+
+    def test_poll_sync_state_failed(self, caplog):
+        """Test polling connector sync_state failure."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'sync_state': 'failed',
+                'sync_state_msg': 'Indexing failed'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+            
+            assert mock_client.status.call_count >= 1
+
+class TestContentSourceKnowledgeBase:
+    def test_import_content_source_knowledge_base_polls_sync_state(self, content_source_knowledge_base_content):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="12345")}), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
+
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["prioritize_built_in_index"] = True
+
+            mock_client_instance = MockClient(expected_payload=knowledge_base_json)
+            mock_client_instance.create_without_files = Mock(return_value={'knowledge_base': mock_client_instance.expected_id})
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            knowledge_base_controller.import_knowledge_base("test.json", None)
+
+            mock_client_instance.sync.assert_called_once_with(mock_client_instance.expected_id)
+            poll_mock.assert_called_once_with(mock_client_instance, mock_client_instance.expected_id, 'test_content_source_knowledge_base', False, use_sync_state=True)
+
+    def test_update_content_source_knowledge_base_with_sync_polls_sync_state(self, content_source_knowledge_base_content):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            expected_id = uuid.uuid4()
+            expected_payload = knowledge_base.model_dump(exclude_none=True)
+            expected_payload["prioritize_built_in_index"] = True
+            mock_client_instance = MockClient(expected_payload=expected_payload, expected_id=expected_id)
+            mock_client_instance.update_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            controller = KnowledgeBaseController()
+            controller.update_knowledge_base(expected_id, knowledge_base, Path('.'), sync=True)
+
+            mock_client_instance.sync.assert_called_once_with(expected_id)
+            poll_mock.assert_called_once_with(mock_client_instance, expected_id, 'test_content_source_knowledge_base', False, use_sync_state=True)
+
+    def test_trigger_sync_polls_sync_state(self):
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch.object(controller, '_poll_knowledge_base_status') as poll_mock:
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_called_once_with('test-kb-id')
+        poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
         
         
 
