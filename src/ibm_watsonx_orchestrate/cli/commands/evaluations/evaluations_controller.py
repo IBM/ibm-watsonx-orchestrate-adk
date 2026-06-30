@@ -49,7 +49,7 @@ import uuid
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "TRUE").upper() == "TRUE"
+USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "FALSE").upper() == "TRUE"
 
 class EvaluateMode(StrEnum):
     default = "default" # referenceFUL evaluation
