@@ -1,6 +1,6 @@
 spec_version: v1
 kind: native
-style: default
+style: react_core
 name: email_agent
 llm: groq/openai/gpt-oss-120b
 description: Send Email to given email_id and body.

@@ -7,6 +7,6 @@ instructions: >
     Invoke document_processing_flow tool and output the result
 
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - document_processing_flow
