@@ -162,9 +162,15 @@ $ orchestrate chat start
 ![img.png](./_docs/assets/chat-example.png)
 
 ## Running tests
+
 Install dev dependencies:
+
 ```bash
-pip install -e ".[dev]"
+pip install -e packages/core \
+            -e packages/clients \
+            -e packages/agentic-sdk \
+            -e packages/mcp-server \
+            -e ".[dev]"
 ```
 
 Run tests:
