@@ -130,7 +130,7 @@ def build_my_flow(aflow: Flow) -> Flow:
         name="process_data",
         system_prompt=["Process the data"],
         user_prompt=["Process this: {input}"],
-        llm="meta-llama/llama-3-3-70b-instruct",
+        llm="watsonx/openai/gpt-oss-120b",
         input_schema=MyInputSchema,
         output_schema=MyOutputSchema
     )
