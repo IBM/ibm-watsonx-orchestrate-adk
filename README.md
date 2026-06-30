@@ -88,6 +88,7 @@ $ orchestrate --help
 │ env               Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)                                                                         │
 │ agents            Interact with the agents in your active env                                                                                                                                                           │
 │ tools             Interact with the tools in your active env                                                                                                                                                            │
+│ skills            Interact with the skills in your active env                                                                                                                                                           │
 │ toolkits          Interact with the toolkits in your active env                                                                                                                                                         │
 │ knowledge-bases   Upload knowledge your agents can search through to your active env                                                                                                                                    │
 │ connections       Manage authentication connections for external systems in your active env                                                                                                                             │
