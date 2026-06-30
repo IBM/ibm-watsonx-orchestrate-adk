@@ -26,8 +26,6 @@ from ibm_watsonx_orchestrate.utils.environment import EnvService
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMA_VERSION = "v1.2.1"
-# Set LIMA_HOME to point to the resources directory so Lima can find its templates
-DEFAULT_LIMA_HOME = 'ibm_watsonx_orchestrate.developer_edition.resources.lima'
 
 class LimaLifecycleManager(VMLifecycleManager):
     def __init__(self, ensure_installed: bool = True):
@@ -58,7 +56,7 @@ class LimaLifecycleManager(VMLifecycleManager):
         command: str | list,
         capture_output: bool = False,
         input: str | None = None,
-        env: dict | None = None,
+        env: dict | None = None, 
         **kwargs
     ) -> subprocess.CompletedProcess:
         """
@@ -69,14 +67,6 @@ class LimaLifecycleManager(VMLifecycleManager):
             files("ibm_watsonx_orchestrate.developer_edition.resources.lima.bin")
             / "limactl"
         )
-        
-        # DO NOT set LIMA_HOME - it causes path length issues
-        # Lima will use default ~/.lima directory for VM data
-        if env is None:
-            env = os.environ.copy()
-        else:
-            env = env.copy()
-        
         try:
             return subprocess.run(
                 [str(limactl_path), "shell", "ibm-watsonx-orchestrate", "--"] + command_list,
@@ -143,19 +133,13 @@ def limactl(command: List[str], capture_output=True) -> Optional[str]:
     limactl_path = files(
         'ibm_watsonx_orchestrate.developer_edition.resources.lima.bin'
     ) / 'limactl'
-    
-    # DO NOT set LIMA_HOME - it causes path length issues
-    # Lima will use default ~/.lima directory for VM data
-    # Only the limactl binary location matters
-    env = os.environ.copy()
 
     try:
         out = subprocess.run(
             [str(limactl_path)] + command,
             check=True,
             capture_output=capture_output,
-            text=True,
-            env=env
+            text=True
         )
 
         if capture_output:
@@ -324,6 +308,25 @@ def _ensure_qemu_installed():
     else:
         logger.error("QEMU still not found in PATH after symlink creation.")
 
+def _ensure_lima_templates_exist(lima_folder, version) -> bool:
+    """Check that Lima's bundled share/lima/templates exist.
+
+    Returns True if the templates are present, False if they are missing (which
+    means the caller should reinstall Lima to restore them).
+    """
+    templates_dir = os.path.join(lima_folder, 'share', 'lima', 'templates')
+    images_dir = os.path.join(templates_dir, '_images')
+
+    if not os.path.isdir(templates_dir) or not os.path.isdir(images_dir):
+        logger.warning(
+            f"Lima templates are missing at {templates_dir}. "
+            "Reinstalling Lima to restore them."
+        )
+        return False
+
+    return True
+
+
 def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
     bin_dir = os.path.join(lima_folder, 'bin')
@@ -342,7 +345,8 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
             existing_version = f"v{existing_version.split(' ')[-1]}"
 
             if version is None or existing_version == version:
-                return
+                if _ensure_lima_templates_exist(lima_folder, version):
+                    return
         except Exception as e:
             logger.warning(f"Error checking existing Lima version: {e}")
 
@@ -404,54 +408,6 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
         logger.error(f"Failed to download or extract Lima: {e}")
         sys.exit(1)
 
-    lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
-    limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
-
-    # Check if limactl already exists and get version
-    if os.path.exists(limactl_path):
-        try:
-            existing_version = subprocess.run(
-                [limactl_path, '-v'],
-                check=True,
-                text=True,
-                capture_output=True
-            ).stdout.strip()
-            existing_version = f"v{existing_version.split(' ')[-1]}"
-
-            if version is None or existing_version == version:
-                return 
-        except Exception as e:
-            logger.error(f"Error checking existing Lima version: {e}")
-            sys.exit(1)
-
-    # Fetch latest version if not provided
-    if version is None:
-        try:
-            version_output = subprocess.run(
-                ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            version = json.loads(version_output.stdout).get('tag_name', None)
-        except subprocess.CalledProcessError as e:
-            raise
-
-    # Remove old Lima directories if they exist
-    for subdir in ['bin', 'share']:
-        path_to_remove = os.path.join(lima_folder, subdir)
-        if os.path.exists(path_to_remove):
-            try:
-                shutil.rmtree(path_to_remove)
-            except Exception:
-                logger.error(f"Failed to remove {path_to_remove}")
-                sys.exit(1)
-
-    url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
-    subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
-        check=True
-    )
 
 def _ensure_lima_vm_host_exists():
     output = limactl(['list', '--format', 'json'])
@@ -462,15 +418,10 @@ def _ensure_lima_vm_host_exists():
         logger.info('Found existing VM named ' + VM_NAME)
         return
 
-    # Use absolute path for template to avoid LIMA_HOME template search path issues
     template_path = files("ibm_watsonx_orchestrate.developer_edition.resources.lima.templates") / "docker.template.yaml"
-    # Convert to absolute path to bypass Lima's template search in LIMA_HOME/share/lima/templates
-    # Must convert Traversable to str first, then to Path for resolution
-    absolute_template_path = str(Path(str(template_path)).resolve())
-    
     vm_args = ['create'] + _get_lima_vm_base_args() + [
         '--containerd', 'none',
-        absolute_template_path
+        str(template_path)
     ]
 
     limactl(vm_args, capture_output=True)
