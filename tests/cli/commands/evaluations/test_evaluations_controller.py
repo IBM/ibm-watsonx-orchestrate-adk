@@ -364,7 +364,7 @@ def tool2():
                 assert isinstance(actual_config, AnalyzeConfig)
                 assert actual_config.data_path == temp_dir
                 assert actual_config.tool_definition_path == str(tool_def_file)
-                assert actual_config.mode == AnalyzeMode.default
+                assert actual_config.mode is AnalyzeMode.default
 
     def test_external_validate(self, controller):
         config = {"auth_scheme": "api_key", "api_url": "test-url"}
