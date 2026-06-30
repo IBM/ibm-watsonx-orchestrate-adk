@@ -770,7 +770,7 @@ class TestToolkitControllerPublishOrUpdateToolkits:
             expected_payload = {
                 "name": self.mock_name,
                 "description": self.mock_description,
-                "mcp": mcp_spec.model_dump(exclude_unset=True)
+                "mcp": mcp_spec.model_dump(exclude_unset=True, exclude_none=True)
             }
 
             mock_client.create_toolkit.assert_called_once_with(expected_payload)
