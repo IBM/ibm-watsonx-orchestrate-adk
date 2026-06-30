@@ -4,6 +4,7 @@ Unit tests for Flow callback functionality.
 Tests the add_callback() method and callback serialization in flow specifications.
 """
 
+from unittest.mock import patch
 
 from ibm_watsonx_orchestrate.flow_builder.flows import FlowFactory
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
@@ -11,14 +12,18 @@ from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbac
 
 class TestFlowCallbacks:
     """Test suite for Flow callback functionality."""
-    
+
     def setup_method(self):
-        """Setup for each test method."""
-        pass
-    
+        """Setup for each test method — disable tool-client so no HTTP calls are made."""
+        self._instantiate_client_patch = patch(
+            "ibm_watsonx_orchestrate.flow_builder.flows.flow.instantiate_client",
+            return_value=None,
+        )
+        self._instantiate_client_patch.start()
+
     def teardown_method(self):
         """Cleanup after each test method."""
-        pass
+        self._instantiate_client_patch.stop()
     
     def test_add_callback_basic(self):
         """Test adding a single callback to a flow."""
