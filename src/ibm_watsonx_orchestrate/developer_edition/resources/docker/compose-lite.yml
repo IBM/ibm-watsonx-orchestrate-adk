@@ -747,6 +747,8 @@ services:
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
       CONTROLS_ENABLED: true
+      FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
+      FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -905,6 +907,8 @@ services:
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
+      FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
 
   opensearch:
     image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
