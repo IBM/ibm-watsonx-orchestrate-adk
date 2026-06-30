@@ -41,6 +41,7 @@ test_evaluations_command/
 
 The following fixtures are available to all tests:
 
+- `mock_get_env_config` - Auto-used fixture that mocks `EvaluationsController._get_env_config()` to return test environment values and avoid config/API credential prompts
 - `user_env_file` - Temporary .env file with test credentials (auto-used, module scope)
 - `valid_config` - Standard configuration dictionary
 - `config_file` - Temporary JSON config file
@@ -50,31 +51,31 @@ The following fixtures are available to all tests:
 
 ### Run all evaluation tests:
 ```bash
-pytest tests/cli/commands/evaluations/test_evaluations_command/
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/
 ```
 
 ### Run specific subcommand tests:
 ```bash
 # Test only the main evaluate command
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/
 
 # Test only quick-eval
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_quick_eval/
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_quick_eval/
 
 # Test only validate-external
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_validate_external/
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_validate_external/
 
 # Test only red-teaming
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_red_teaming/
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_red_teaming/
 ```
 
 ### Run specific test classes or methods:
 ```bash
-# Run only USE_LEGACY_EVAL flag tests
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/test_evaluate.py::TestLegacyEvalFlag
+# Run only the basic evaluate command tests
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/test_evaluate.py::TestEvaluate
 
-# Run a specific test
-pytest tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/test_evaluate.py::TestLegacyEvalFlag::test_evaluate_with_legacy_eval_false
+# Run a specific USE_LEGACY_EVAL test
+hatch run test tests/cli/commands/evaluations/test_evaluations_command/test_evaluate/test_evaluate.py::TestEvaluate::test_use_legacy_eval_false_no_deprecation_warning
 ```
 
 ## Test Coverage
