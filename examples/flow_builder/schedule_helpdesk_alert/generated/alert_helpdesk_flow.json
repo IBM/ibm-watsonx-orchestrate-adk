@@ -59,7 +59,7 @@
         "user_prompt": [
           "Here is the alert."
         ],
-        "llm": "meta-llama/llama-3-3-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "llm_parameters": {
           "min_new_tokens": 5,
           "max_new_tokens": 400,

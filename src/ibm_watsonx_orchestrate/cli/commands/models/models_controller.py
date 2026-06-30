@@ -19,7 +19,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.agent_builder.model_selection.types import ModelSelectionSettings, ModelSelectionPatch
-from ibm_watsonx_orchestrate.cli.config import Config
+from ibm_watsonx_orchestrate.cli.config import Config, USER_ENV_CACHE_HEADER
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
@@ -203,15 +203,36 @@ class ModelsController:
         return self.model_selection_client
 
     def format_models_client_list_all_response(self, original_response):
-        return [ModelListEntry(
-            name=conn.get("id"),
-            description=conn.get("description"),
-            is_custom=CUSTOM_MODEL_TAG in conn.get("tags", []),
-            is_default=DEFAULT_MODEL_TAG in conn.get("tags", []),
-            is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
-            recommended=RECOMMENDED_LLM_TAG in conn.get("tags", []),
-            is_premier=PREMIER_LLM_TAG in conn.get("tags", []),
-        ) for conn in original_response]
+        # Check if we're in watsonx-only mode using the flags persisted at server-start time.
+        # We cannot rely on os.getenv here because secrets are not in the CLI process environment.
+        cfg = Config()
+        has_watsonx = cfg.read(USER_ENV_CACHE_HEADER, "LLM_HAS_WATSONX_APIKEY")
+        has_groq = cfg.read(USER_ENV_CACHE_HEADER, "LLM_HAS_GROQ_API_KEY")
+        watsonx_only_mode = bool(has_watsonx) and not bool(has_groq)
+
+        result = []
+        for conn in original_response:
+            model_id = conn.get("id")
+            is_default = DEFAULT_MODEL_TAG in conn.get("tags", [])
+            is_recommended = RECOMMENDED_LLM_TAG in conn.get("tags", [])
+
+            # If in watsonx-only mode and this is the watsonx/openai/gpt-oss-120b model,
+            # remove default and recommended flags to discourage its use
+            if watsonx_only_mode and model_id == "watsonx/openai/gpt-oss-120b":
+                is_default = False
+                is_recommended = False
+
+            result.append(ModelListEntry(
+                name=model_id,
+                description=conn.get("description"),
+                is_custom=CUSTOM_MODEL_TAG in conn.get("tags", []),
+                is_default=is_default,
+                is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
+                recommended=is_recommended,
+                is_premier=PREMIER_LLM_TAG in conn.get("tags", []),
+            ))
+
+        return result
 
     def formatted_list_all(self) -> List[ModelListEntry]:
         models_client: ModelsClient = self.get_models_client()
