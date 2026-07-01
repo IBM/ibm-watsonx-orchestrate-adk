@@ -93,7 +93,7 @@ class QueryRewriteConfig(BaseModel):
 
     {
         "enabled": True,
-        "model_id": "meta-llama/llama-3-1-70b-instruct"
+        "model_id": "watsonx/openai/gpt-oss-120b"
     }
 
     """
@@ -104,7 +104,7 @@ class GenerationConfiguration(BaseModel):
     """
     example
     {
-        "model_id": "meta-llama/llama-3-1-70b-instruct",
+        "model_id": "watsonx/openai/gpt-oss-120b",
         "prompt_instruction": "When the documents are in different languages, you should respond in english.",
         "max_docs_passed_to_llm": 10,
         "retrieval_confidence_threshold": "Lowest",

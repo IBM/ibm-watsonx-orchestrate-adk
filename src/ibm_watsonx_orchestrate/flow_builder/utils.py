@@ -47,7 +47,13 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRe
         return schema_obj
     
     if isinstance(type_def, ToolRequestBody) or isinstance(type_def, ToolResponseBody):
-        schema_json = type_def.model_dump()
+
+        schema_json = type_def.model_dump(
+            exclude_none=True,
+            exclude_unset=True,
+            exclude_defaults=True,
+            by_alias=True,
+        )
         schema_obj = JsonSchemaObject.model_validate(schema_json)
 
         if openapi_decode:

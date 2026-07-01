@@ -307,6 +307,10 @@ def create_openapi_json_tool(
         connection_id=connection_id
     )
     
+    plugin_hook = route_spec.get('x-ibm-orchestrate-plugin', {}).get('hook')
+    if plugin_hook:
+        openapi_binding.plugin_hook = plugin_hook
+
     if callback_binding is not None:
         openapi_binding.callback = callback_binding
 

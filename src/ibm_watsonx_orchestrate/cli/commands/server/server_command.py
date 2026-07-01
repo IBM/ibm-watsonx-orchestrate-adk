@@ -584,6 +584,22 @@ def server_start(
 
     merged_env_dict = env_service.prepare_server_env_vars(user_env=user_env, should_drop_auth_routes=False, service_credentials=service_creds)
 
+    # Check if only WATSONX_APIKEY is present (watsonx-only mode) and warn user
+    if merged_env_dict.get("_WATSONX_ONLY_MODE") == "true":
+        logger.warning("\n" + "="*80)
+        logger.warning("WARNING: There are currently no supported models from the provider 'watsonx'.")
+        logger.warning("Agent performance may be suboptimal.")
+        logger.warning("="*80)
+        
+        # Prompt user for confirmation
+        response = input("\nDo you wish to proceed? (Y/n): ").strip().lower()
+        if response and response not in ['y', 'yes']:
+            logger.info("Server start cancelled by user.")
+            sys.exit(0)
+        
+        # Remove the internal flag before proceeding
+        del merged_env_dict["_WATSONX_ONLY_MODE"]
+
     if not DockerUtils.check_exclusive_observability(experimental_with_langfuse, experimental_with_ibm_telemetry):
         logger.error("Please select either langfuse or ibm telemetry for observability not both")
         sys.exit(1)
@@ -602,7 +618,9 @@ def server_start(
 
     if experimental_with_ibm_telemetry:
         merged_env_dict['USE_IBM_TELEMETRY'] = 'true'
+        merged_env_dict['AGENT_OPS_V3'] = 'true'
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = merged_env_dict.get('FLOW_TRACING_OTLP_ENDPOINT') or 'http://jaeger:4318/v1/traces'
+        merged_env_dict['LANGFUSE_ENABLED'] = 'true'
     else:
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = ''
 

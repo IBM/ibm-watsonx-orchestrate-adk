@@ -78,6 +78,7 @@ class FlowInputDateTime(BaseModel):
     display_name="Application form date time",
     description="Creates a comprehensive form with all date, time, and datetime field variations.",
     input_schema=FlowInputDateTime,
+    suppress_agent_summarization=True
 )
 
 def build_user_form_date_time(aflow: Flow = None) -> Flow:
