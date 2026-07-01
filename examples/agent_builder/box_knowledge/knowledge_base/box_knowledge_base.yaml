@@ -1,0 +1,12 @@
+spec_version: v1
+kind: knowledge_base
+name: box_hr_knowledge_base
+description: HR health benefits documentation synced from Box
+content_source:
+  type: box
+  interaction_properties:
+    recursive_folder_discovery: true
+documents:
+  - test_folder_ingestion/
+sync_job:
+  schedule: "*/60 * * * *"  # Every hour (default minimum interval)
