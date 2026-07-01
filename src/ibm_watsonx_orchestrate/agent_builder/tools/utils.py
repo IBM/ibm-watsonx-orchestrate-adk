@@ -433,10 +433,6 @@ def get_formated_requirements_lines(requirement_file: Optional[str] = None) -> L
     return requirements
 
 
-# ---------------------------------------------------------------------------
-# Inlined from langchain_core.utils.json_schema (removes langchain-core dep)
-# ---------------------------------------------------------------------------
-
 def _retrieve_ref(path: str, schema: dict[str, Any]) -> list[Any] | dict[Any, Any]:
     components = path.split("/")
     if components[0] != "#":
@@ -551,10 +547,6 @@ def dereference_refs(
         _dereference_refs_helper(schema_obj, full, None, keys_to_skip, shallow_refs=shallow),
     )
 
-
-# ---------------------------------------------------------------------------
-# Inlined from langchain_core.tools.base (removes langchain-core dep)
-# ---------------------------------------------------------------------------
 
 _FILTERED_ARGS = ("run_manager", "callbacks")
 _MIN_DOCSTRING_BLOCKS = 2
