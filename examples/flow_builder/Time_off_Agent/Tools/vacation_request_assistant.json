@@ -1,0 +1,428 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Testing_Date_and_Time_7817PX",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Vacation request assistant ",
+        "input_schema": {},
+        "output_schema": {},
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "endTime": {
+                    "type": "string",
+                    "format": "time",
+                    "default": "18:00:00+05:30[Asia/Calcutta]",
+                    "description": "end time"
+                },
+                "startTime": {
+                    "type": "string",
+                    "format": "time",
+                    "default": "10:00:00+05:30[Asia/Calcutta]",
+                    "description": "start time"
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "b2f32b54-bab0-40bc-a04a-f4d59a43dfe0",
+            "end": "user_flow_bee221",
+            "start": "__start__"
+        },
+        {
+            "id": "b2442b08-9ae3-4f9a-85ce-a2d41b59e718",
+            "end": "__end__",
+            "start": "user_flow_bee221"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 760
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "user_flow_bee221": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_bee221",
+                "position": {
+                    "x": -20,
+                    "y": 201
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 474
+                },
+                "initiators": [],
+                "display_name": "User activity 1",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "9689f0fc-4cdc-43d9-9f55-63fa4e0068c5",
+                    "end": "user_cff8f8",
+                    "start": "user_flow_bee221__start__"
+                },
+                {
+                    "id": "995f93f6-f79e-4ca6-8477-03e391e82943",
+                    "end": "user_f4103a",
+                    "start": "user_cff8f8"
+                },
+                {
+                    "id": "bdfb93d7-33c7-4517-a22f-45fbf0baa375",
+                    "end": "user_flow_bee221__end__",
+                    "start": "user_f4103a"
+                }
+            ],
+            "nodes": {
+                "user_cff8f8": {
+                    "spec": {
+                        "form": {
+                            "name": "form_90f6d1",
+                            "fields": [
+                                {
+                                    "kind": "date",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "format": "YYYY-MM-DD",
+                                        "ui:title": "Select Leave Dates",
+                                        "ui:widget": "MultiDateWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.min_date",
+                                                    "value_expression": "\"2026-05-10\""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.max_date",
+                                                    "value_expression": "\"2026-05-25\""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Select Leave Dates",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "max_date": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "min_date": {
+                                                "type": "string",
+                                                "format": "date"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "format": "date"
+                                                }
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "__previousMultiple": true,
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "time",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "ui:title": "Out-of-Office Start time",
+                                        "ui:widget": "TimeWidget",
+                                        "ui:options": {
+                                            "is_range": false,
+                                            "is_timezone": true,
+                                            "is_datepicker": false
+                                        }
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Out-of-Office Start time",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "time"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "__previousMultiple": false,
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "time-range",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:order": [
+                                            "start",
+                                            "end"
+                                        ],
+                                        "ui:title": "Availability window for handover",
+                                        "ui:widget": "TimeWidget",
+                                        "ui:options": {
+                                            "is_range": true,
+                                            "is_timezone": true,
+                                            "is_datepicker": false
+                                        },
+                                        "ui:end_label": "End time",
+                                        "ui:start_label": "Start time"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.min_time",
+                                                    "value_expression": "flow.private.startTime"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.max_time",
+                                                    "value_expression": "flow.private.endTime"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Availability window for handover",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "max_time": {
+                                                "type": "string",
+                                                "format": "time"
+                                            },
+                                            "min_time": {
+                                                "type": "string",
+                                                "format": "time"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "end": {
+                                                        "type": "string",
+                                                        "format": "time"
+                                                    },
+                                                    "start": {
+                                                        "type": "string",
+                                                        "format": "time"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "995f93f6-f79e-4ca6-8477-03e391e82943",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [
+                                    "field_2"
+                                ],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "date"
+                                        },
+                                        "title": "Select Leave Dates"
+                                    },
+                                    "field_2": {
+                                        "type": "array",
+                                        "items": {},
+                                        "title": "Out-of-Office Start time (Required)"
+                                    },
+                                    "field_3": {
+                                        "type": "array",
+                                        "items": {},
+                                        "title": "Availability window for handover"
+                                    }
+                                },
+                                "description": "Please select upto 3 dates for the interview.",
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_cff8f8",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Request your days-off"
+                    }
+                },
+                "user_f4103a": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_f4103a",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_ba32b9",
+                                "text": "Your request has been processed.",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 280
+                        },
+                        "display_name": "Final Message"
+                    }
+                },
+                "user_flow_bee221__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_bee221__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 426
+                        }
+                    }
+                },
+                "user_flow_bee221__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_bee221__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

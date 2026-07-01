@@ -28,7 +28,7 @@ class TestDocClassifierNode():
             name="document_classifier_node",
             display_name="document_classifier_node",
             description="Classify custom classes from a document",
-            llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
             classes=CustomClasses(),
         )
         expected_spec = json.loads(open(self.parent_dir_path + "/resources/doc_classifier_spec.json").read())

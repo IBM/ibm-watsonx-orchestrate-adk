@@ -416,3 +416,38 @@ def test_runs_on_without_execution_context_has_clear_error(monkeypatch):
         assert "runs-on mode requires request-scoped execution_context" in str(exc)
     else:
         raise AssertionError("Expected ValueError when runs-on mode lacks execution_context")
+
+
+def test_client_with_mcspv2_authenticator(monkeypatch):
+    """Test that Client with api_key, instance_url, and iam_url uses MCSPV2Authenticator."""
+    from unittest.mock import Mock, patch
+    from ibm_cloud_sdk_core.authenticators import MCSPV2Authenticator
+    
+    # Mock the ServiceInstance to capture the authenticator creation
+    captured_authenticator = {}
+    
+    def mock_get_authenticator(self, auth_type):
+        # Create a mock MCSPV2Authenticator
+        mock_auth = Mock(spec=MCSPV2Authenticator)
+        mock_auth.token_manager = Mock()
+        mock_auth.token_manager.get_token = Mock(return_value="test-mcspv2-token")
+        captured_authenticator['type'] = type(mock_auth).__name__
+        captured_authenticator['auth_type'] = auth_type
+        return mock_auth
+    
+    with patch('ibm_watsonx_orchestrate_clients.common.service_instance.service_instance.ServiceInstance._get_authenticator', mock_get_authenticator):
+        with patch('ibm_watsonx_orchestrate_clients.common.service_instance.service_instance.ServiceInstance._infer_auth_type', return_value='mcsp_v2'):
+            client = Client(
+                api_key='dummy',
+                instance_url='https://dummy.com/instances/test-instance-id',
+                iam_url='https://account-iam.platform.saas.ibm.com'
+            )
+            
+            # Verify the session was created with runs-elsewhere mode
+            assert client.session.mode == "runs-elsewhere"
+            assert client.session.base_url == "https://dummy.com/instances/test-instance-id/v1/orchestrate"
+            assert client.session.authenticator is not None
+            
+            # Verify MCSPV2Authenticator was used
+            assert captured_authenticator['type'] == 'Mock'
+            assert captured_authenticator['auth_type'] == 'mcsp_v2'

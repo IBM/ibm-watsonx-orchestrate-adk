@@ -14,11 +14,12 @@ from typing import List, Optional
 import requests
 import rich
 import rich.highlighter
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionSecurityScheme
 from ibm_watsonx_orchestrate.agent_builder.model_selection.types import ModelSelectionSettings, ModelSelectionPatch
-from ibm_watsonx_orchestrate.cli.config import Config
+from ibm_watsonx_orchestrate.cli.config import Config, USER_ENV_CACHE_HEADER
 from ibm_watsonx_orchestrate.client.model_policies.model_policies_client import ModelPoliciesClient
 from ibm_watsonx_orchestrate.agent_builder.model_policies.types import ModelPolicy, ModelPolicyInner, \
     ModelPolicyRetry, ModelPolicyStrategy, ModelPolicyStrategyMode, ModelPolicyTarget
@@ -34,8 +35,7 @@ from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdo
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate_clients.models.models_client import CUSTOM_MODEL_TAG, DEFAULT_MODEL_TAG, \
-    LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG
-
+    LLM_DISALLOWED_BY_ADMIN_TAG, RECOMMENDED_LLM_TAG, PREMIER_LLM_TAG
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,11 @@ WATSONX_URL = os.getenv("WATSONX_URL")
 MODEL_MARKER_ANNOTATION = """[green]✔[/] [italic dim]indicates the default model[/italic dim]\n"""\
                 """[yellow]★[/] [italic dim]indicates a supported and preferred model[/italic dim]\n"""\
                 """[bold cyan]◆[/] [italic dim]indicates a model from a custom provider[/italic dim]\n"""\
-                """[red]✖[/] [italic dim]indicates a model disallowed by tenant admin[/italic dim]"""\
+                """[red]✖[/] [italic dim]indicates a model disallowed by tenant admin[/italic dim]\n"""\
+                """[gold1]$[/] [italic dim]indicates a premier model[/italic dim]"""
 
+
+PREMIER_MODEL_WARNING_MSG_PREFIX = "Premier model"
 
 
 class ModelHighlighter(rich.highlighter.RegexHighlighter):
@@ -200,14 +203,36 @@ class ModelsController:
         return self.model_selection_client
 
     def format_models_client_list_all_response(self, original_response):
-        return [ModelListEntry(
-            name=conn.get("id"),
-            description=conn.get("description"),
-            is_custom=CUSTOM_MODEL_TAG in conn.get("tags", []),
-            is_default=DEFAULT_MODEL_TAG in conn.get("tags", []),
-            is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
-            recommended=RECOMMENDED_LLM_TAG in conn.get("tags", []),
-        ) for conn in original_response]
+        # Check if we're in watsonx-only mode using the flags persisted at server-start time.
+        # We cannot rely on os.getenv here because secrets are not in the CLI process environment.
+        cfg = Config()
+        has_watsonx = cfg.read(USER_ENV_CACHE_HEADER, "LLM_HAS_WATSONX_APIKEY")
+        has_groq = cfg.read(USER_ENV_CACHE_HEADER, "LLM_HAS_GROQ_API_KEY")
+        watsonx_only_mode = bool(has_watsonx) and not bool(has_groq)
+
+        result = []
+        for conn in original_response:
+            model_id = conn.get("id")
+            is_default = DEFAULT_MODEL_TAG in conn.get("tags", [])
+            is_recommended = RECOMMENDED_LLM_TAG in conn.get("tags", [])
+
+            # If in watsonx-only mode and this is the watsonx/openai/gpt-oss-120b model,
+            # remove default and recommended flags to discourage its use
+            if watsonx_only_mode and model_id == "watsonx/openai/gpt-oss-120b":
+                is_default = False
+                is_recommended = False
+
+            result.append(ModelListEntry(
+                name=model_id,
+                description=conn.get("description"),
+                is_custom=CUSTOM_MODEL_TAG in conn.get("tags", []),
+                is_default=is_default,
+                is_denied=LLM_DISALLOWED_BY_ADMIN_TAG in conn.get("tags", []),
+                recommended=is_recommended,
+                is_premier=PREMIER_LLM_TAG in conn.get("tags", []),
+            ))
+
+        return result
 
     def formatted_list_all(self) -> List[ModelListEntry]:
         models_client: ModelsClient = self.get_models_client()
@@ -338,7 +363,7 @@ class ModelsController:
 
         return model
 
-    def publish_or_update_models(self, model: VirtualModel) -> None:
+    def publish_or_update_models(self, model: VirtualModel, skip_validation: bool = False) -> None:
         models_client = self.get_models_client()
 
         existing_models = models_client.get_draft_by_name(model.name)
@@ -350,6 +375,9 @@ class ModelsController:
             self.update_model(model_id=existing_models[0].id, model=model)
         else:
             self.publish_model(model=model)
+        
+        if not skip_validation and model.model_type != ModelType.EMBEDDING:
+            self.validate_model(model.name)
     
     def publish_model(self, model: VirtualModel) -> None:
         self.get_models_client().create(model)
@@ -449,6 +477,68 @@ class ModelsController:
         if close_file_flag:
             logger.info(f"Successfully exported model '{model_name}' to '{output_path}'")
             zip_file_out.close()
+    
+    def validate_model(self, name: str, verbose: bool = False) -> dict:
+        console = rich.console.Console()
+        with Progress(
+            SpinnerColumn(spinner_name="dots"),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+                ) as progress:
+            progress.add_task(description=f"Validating model '{name}'", total=None)
+
+            client = self.get_models_client()
+            validation_report = client.validate(name)
+        logger.info(f"Validated model '{name}'")
+        if verbose:
+            rich.print_json(data=validation_report)
+        else:
+            summary_table = rich.table.Table(
+                show_header=False,
+                title="[bold]Validation Summary[/bold]",
+                show_lines=True)
+            columns = ["Label", "Result"]
+            for col in columns:
+                summary_table.add_column(col)
+
+            summary_report = validation_report.get("summary", {})
+            summary_table.add_row("Total Tests", str(summary_report.get("total_tests", "n/a")))
+            summary_table.add_row("Tests Passed", str(summary_report.get("passed", "n/a")))
+            summary_table.add_row("Tests Failed", str(summary_report.get("failed", "n/a")))
+            summary_table.add_row("Success Rate", str(summary_report.get("success_rate", "n/a")))
+            summary_table.add_row("Duration (ms)", str(summary_report.get("total_duration_ms", "n/a")))
+            
+            result_status = str(validation_report.get("overall_status", "n/a"))
+            status_color = "green" if result_status == "passed" else "red"
+            summary_table.add_row("Result", f"[{status_color} bold]{result_status}[/{status_color} bold]")
+
+            rich.print(summary_table)
+
+            test_table = rich.table.Table(
+                show_header=True,
+                title="[bold]Test Results[bold]",
+                show_lines=True)
+            columns = ["Test Case", "Status", "Result", "Duration (ms)"]
+            for col in columns:
+                test_table.add_column(col)
+
+            for test in validation_report.get("tests", []):
+                result_status = test.get("status", "n/a")
+                status_color = "green" if result_status == "success" else "red"
+
+                test_table.add_row(
+                    test.get("test_name", "Unknown"),
+                    result_status,
+                    test.get("message", "n/a"),
+                    str(test.get("duration_ms", "n/a")),
+                    style=f"bold {status_color}"
+                )
+            
+            rich.print(test_table)
+
+        return validation_report
+
 
     def import_model_policy(self, file: str) -> List[ModelPolicy]:
         policies = parse_policy_file(file)
@@ -656,11 +746,12 @@ class ModelsController:
                                      default_llm=None,
                                      add_to_llm_denylist: list[str] | None = None,
                                      remove_from_llm_denylist: list[str] | None = None,
+                                     premier_models_enabled: bool | None = None,
                                      ):
         existing_models = [m.name for m in self.formatted_list_all()]
         if default_llm and default_llm not in existing_models:
             logger.error(
-                f"You are trying to set a model name {default_llm} that does not exist as default"
+                f"You are trying to set a model name {default_llm} that does not exist as default. If you are trying to use a premier model, please enable premier models"
             )
             sys.exit(1)
         if add_to_llm_denylist:
@@ -675,6 +766,7 @@ class ModelsController:
                 default_llm=default_llm,
                 add_to_llm_denylist=add_to_llm_denylist,
                 remove_from_llm_denylist=remove_from_llm_denylist,
+                premier_models_enabled=premier_models_enabled,
             )
         )
         for msg in warnings:

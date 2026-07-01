@@ -1,0 +1,1280 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "IT_access_request_form_99040J",
+        "initiators": [],
+        "description": "\nIT access request form",
+        "display_name": "IT access request form",
+        "input_schema": {},
+        "output_schema": {},
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "programming_Language": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": "",
+                    "description": "programming languages"
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "2f0e5410-edb3-4d93-a71a-88b91be1efd8",
+            "end": "tool_3b6d82",
+            "start": "__start__"
+        },
+        {
+            "id": "cc2b5c42-69dd-4729-8677-16c0d753c5de",
+            "end": "tool_ea8893",
+            "start": "tool_3b6d82"
+        },
+        {
+            "id": "5c2a0c9a-c844-4123-a037-7f01c991d316",
+            "end": "user_flow_881332",
+            "start": "tool_ea8893"
+        },
+        {
+            "id": "0088b493-61db-456e-b32f-83abb1972402",
+            "end": "__end__",
+            "start": "user_flow_881332"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 1379
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "tool_3b6d82": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_3b6d82",
+                "tool": "get_continents:485a94f0-684c-4b71-b279-a3d0a08a1b31",
+                "position": {
+                    "x": 0,
+                    "y": 155
+                },
+                "description": "get a list of continents",
+                "display_name": "get_continents",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "output_schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "a list of continents"
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'get_continents'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "tool_ea8893": {
+            "spec": {
+                "kind": "tool",
+                "name": "tool_ea8893",
+                "tool": "get_countries_by_continent:85854ad8-a3c6-4919-800b-ed36568beac7",
+                "position": {
+                    "x": 0,
+                    "y": 301
+                },
+                "description": "Get the list of countries for the specified contient",
+                "display_name": "get_countries_by_continent",
+                "input_schema": {
+                    "type": "object",
+                    "required": [
+                        "continent"
+                    ],
+                    "properties": {
+                        "continent": {
+                            "type": "string",
+                            "title": "Continent"
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "error_handler_config": {
+                    "max_retries": 0,
+                    "error_message": "Something went wrong while running 'get_countries_by_continent'",
+                    "retry_interval": 1000
+                }
+            },
+            "input_map": {
+                "spec": {
+                    "maps": [],
+                    "name": "",
+                    "fallback_strategy": "ask_the_user"
+                }
+            }
+        },
+        "user_flow_881332": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_881332",
+                "position": {
+                    "x": -20,
+                    "y": 493
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 814
+                },
+                "initiators": [],
+                "display_name": "Access request",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "154a3063-f485-4f80-b8d5-4c2cc95845dd",
+                    "end": "script_aa5cde",
+                    "start": "user_flow_881332__start__"
+                },
+                {
+                    "id": "0c4c9148-9b5b-4dc6-8d7d-b3b16e8660f9",
+                    "end": "user_3924fb",
+                    "start": "script_aa5cde"
+                },
+                {
+                    "id": "16868b76-4c2b-4a92-8726-484d746660b4",
+                    "end": "user_2140f0",
+                    "start": "user_3924fb"
+                },
+                {
+                    "id": "85f57c69-bb25-4821-8d79-c64b22a1edca",
+                    "end": "user_b522cf",
+                    "start": "user_2140f0"
+                },
+                {
+                    "id": "dcce7bf9-69e3-442f-8805-f3df497d52c1",
+                    "end": "user_flow_881332__end__",
+                    "start": "user_b522cf"
+                }
+            ],
+            "nodes": {
+                "user_2140f0": {
+                    "spec": {
+                        "form": {
+                            "name": "form_34cc91",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Role",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Developer\",\"Product Manager\",\"Finance\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Role",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "behaviour",
+                                    "name": "field_2",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "behaviours": [
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": "Developer"
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_5": {
+                                                            "x-is-visible": false
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_5": {
+                                                            "x-is-visible": true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_5"
+                                        },
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": "Developer"
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_4": {
+                                                            "x-is-visible": false
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_4": {
+                                                            "x-is-visible": true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_4"
+                                        },
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": "Product Manager"
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_7": {
+                                                            "x-is-visible": false
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_7": {
+                                                            "x-is-visible": true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_7"
+                                        },
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": "Developer"
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_3": {
+                                                            "x-is-visible": false
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_3": {
+                                                            "x-is-visible": true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_3"
+                                        },
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": "Product Manager"
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_6": {
+                                                            "x-is-visible": false
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_6": {
+                                                            "x-is-visible": true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_6"
+                                        }
+                                    ],
+                                    "display_name": "Based on Role",
+                                    "behaviour_kind": "visibility",
+                                    "on_change_to_field": "field_1"
+                                },
+                                {
+                                    "kind": "array",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Programming Language",
+                                        "ui:widget": "MultiselectDropdown",
+                                        "ui:choiceLimitEnabled": false
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.private.programming_Language"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Programming Language",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "boolean",
+                                    "name": "field_4",
+                                    "uiSchema": {
+                                        "ui:title": "Git Access",
+                                        "ui:widget": "CheckboxWidget",
+                                        "ui:options": {
+                                            "label": false
+                                        }
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "False"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Git Access",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "default": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "array",
+                                    "name": "field_5",
+                                    "uiSchema": {
+                                        "ui:title": "Environment Access",
+                                        "ui:widget": "MultiselectDropdown",
+                                        "ui:choiceLimitEnabled": false
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Prod\",\"Dev\",\"Test\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Environment Access",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_6",
+                                    "uiSchema": {
+                                        "ui:title": "Tools Access",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Jira\",\"Figma\",\"Box\",\"Monday\",\"Analytics\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Tools Access",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_7",
+                                    "uiSchema": {
+                                        "ui:title": "Product Area ",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Product Area ",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "85f57c69-bb25-4821-8d79-c64b22a1edca",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {},
+                                    "field_3": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "field_4": {
+                                        "type": "boolean"
+                                    },
+                                    "field_5": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "field_6": {
+                                        "title": "Tools Access"
+                                    },
+                                    "field_7": {
+                                        "type": "string",
+                                        "title": "Product Area "
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_2140f0",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 426
+                        },
+                        "display_name": "Access request form"
+                    }
+                },
+                "user_3924fb": {
+                    "spec": {
+                        "form": {
+                            "name": "form_277135",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Continent",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.get_continents.output"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Continent",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "behaviour",
+                                    "name": "field_2",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "behaviours": [
+                                        {
+                                            "kind": "value_source",
+                                            "tool": "get_countries_by_continent:85854ad8-a3c6-4919-800b-ed36568beac7",
+                                            "impacted_field": "field_3",
+                                            "tool_input_map": {
+                                                "spec": {
+                                                    "maps": [
+                                                        {
+                                                            "metadata": {
+                                                                "assignmentType": "automap"
+                                                            },
+                                                            "target_variable": "self.tool.input.continent",
+                                                            "value_expression": ""
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "tool_input_schema": {
+                                                "type": "object",
+                                                "required": [
+                                                    "continent"
+                                                ],
+                                                "properties": {
+                                                    "continent": {
+                                                        "type": "string",
+                                                        "title": "Continent"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "display_name": "Load country options based on continent",
+                                    "behaviour_kind": "value-source",
+                                    "on_change_to_field": "field_1"
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Country",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Country",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "16868b76-4c2b-4a92-8726-484d746660b4",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "title": "Continent"
+                                    },
+                                    "field_3": {
+                                        "title": "Country"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_3924fb",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 256
+                        },
+                        "display_name": "Select your location"
+                    }
+                },
+                "user_b522cf": {
+                    "spec": {
+                        "form": {
+                            "name": "form_a0dd9e",
+                            "fields": [
+                                {
+                                    "kind": "boolean",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Access level",
+                                        "ui:widget": "RadioWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.default",
+                                                    "value_expression": "False"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Access level",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "default": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "behaviour",
+                                    "name": "field_2",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "behaviours": [
+                                        {
+                                            "condition": {
+                                                "if": {
+                                                    "properties": {
+                                                        "field_1": {
+                                                            "const": false
+                                                        }
+                                                    }
+                                                },
+                                                "else": {
+                                                    "properties": {
+                                                        "field_3": {
+                                                            "title": "Admin level Justification"
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "field_3": {
+                                                            "title": "User level Justification"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "impacted_field": "field_3"
+                                        }
+                                    ],
+                                    "display_name": "based on access level",
+                                    "behaviour_kind": "label",
+                                    "on_change_to_field": "field_1"
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Admin level Justification",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Admin level Justification",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "dcce7bf9-69e3-442f-8805-f3df497d52c1",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "boolean",
+                                        "oneOf": [
+                                            {
+                                                "const": true,
+                                                "title": "Admin"
+                                            },
+                                            {
+                                                "const": false,
+                                                "title": "User"
+                                            }
+                                        ],
+                                        "title": "Access level"
+                                    },
+                                    "field_3": {
+                                        "type": "string",
+                                        "title": "Admin level Justification"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_b522cf",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 596
+                        },
+                        "display_name": "Access level"
+                    }
+                },
+                "script_aa5cde": {
+                    "spec": {
+                        "fn": "flow.private.programming_Language = [\n    \"Python\",\n    \"JavaScript\",\n    \"Java\",\n    \"C++\",\n    \"C\",\n    \"C#\",\n    \"Go\",\n    \"Rust\",\n    \"TypeScript\",\n    \"Kotlin\",\n    \"Swift\",\n    \"Ruby\",\n    \"PHP\",\n    \"Scala\",\n    \"R\",\n    \"Dart\",\n    \"Shell\"\n]",
+                        "kind": "script",
+                        "name": "script_aa5cde",
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Variable info"
+                    }
+                },
+                "user_flow_881332__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_881332__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 766
+                        }
+                    }
+                },
+                "user_flow_881332__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_881332__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": false
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

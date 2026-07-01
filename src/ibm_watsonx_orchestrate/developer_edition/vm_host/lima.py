@@ -308,6 +308,25 @@ def _ensure_qemu_installed():
     else:
         logger.error("QEMU still not found in PATH after symlink creation.")
 
+def _ensure_lima_templates_exist(lima_folder, version) -> bool:
+    """Check that Lima's bundled share/lima/templates exist.
+
+    Returns True if the templates are present, False if they are missing (which
+    means the caller should reinstall Lima to restore them).
+    """
+    templates_dir = os.path.join(lima_folder, 'share', 'lima', 'templates')
+    images_dir = os.path.join(templates_dir, '_images')
+
+    if not os.path.isdir(templates_dir) or not os.path.isdir(images_dir):
+        logger.warning(
+            f"Lima templates are missing at {templates_dir}. "
+            "Reinstalling Lima to restore them."
+        )
+        return False
+
+    return True
+
+
 def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
     lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
     bin_dir = os.path.join(lima_folder, 'bin')
@@ -326,7 +345,8 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
             existing_version = f"v{existing_version.split(' ')[-1]}"
 
             if version is None or existing_version == version:
-                return
+                if _ensure_lima_templates_exist(lima_folder, version):
+                    return
         except Exception as e:
             logger.warning(f"Error checking existing Lima version: {e}")
 
@@ -388,54 +408,6 @@ def _ensure_lima_installed(version=DEFAULT_LIMA_VERSION):
         logger.error(f"Failed to download or extract Lima: {e}")
         sys.exit(1)
 
-    lima_folder = files("ibm_watsonx_orchestrate.developer_edition.resources") / "lima"
-    limactl_path = os.path.join(lima_folder, 'bin', 'limactl')
-
-    # Check if limactl already exists and get version
-    if os.path.exists(limactl_path):
-        try:
-            existing_version = subprocess.run(
-                [limactl_path, '-v'],
-                check=True,
-                text=True,
-                capture_output=True
-            ).stdout.strip()
-            existing_version = f"v{existing_version.split(' ')[-1]}"
-
-            if version is None or existing_version == version:
-                return 
-        except Exception as e:
-            logger.error(f"Error checking existing Lima version: {e}")
-            sys.exit(1)
-
-    # Fetch latest version if not provided
-    if version is None:
-        try:
-            version_output = subprocess.run(
-                ['curl', '-fsSL', 'https://api.github.com/repos/lima-vm/lima/releases/latest'],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            version = json.loads(version_output.stdout).get('tag_name', None)
-        except subprocess.CalledProcessError as e:
-            raise
-
-    # Remove old Lima directories if they exist
-    for subdir in ['bin', 'share']:
-        path_to_remove = os.path.join(lima_folder, subdir)
-        if os.path.exists(path_to_remove):
-            try:
-                shutil.rmtree(path_to_remove)
-            except Exception:
-                logger.error(f"Failed to remove {path_to_remove}")
-                sys.exit(1)
-
-    url = f"https://github.com/lima-vm/lima/releases/download/{version}/lima-{version[1:]}-{os_name}-{cpu_arch}.tar.gz"
-    subprocess.run(
-        ['sh', '-c', f'curl -fsSL "{url}" | tar Cxzvm "{lima_folder}"'],
-        check=True
-    )
 
 def _ensure_lima_vm_host_exists():
     output = limactl(['list', '--format', 'json'])

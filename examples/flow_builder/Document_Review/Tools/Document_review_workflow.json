@@ -1,0 +1,717 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Document_review_wolrkfow_897190",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Document review workflow",
+        "input_schema": {},
+        "output_schema": {}
+    },
+    "edges": [
+        {
+            "id": "08f52b07-aa88-4216-b793-71fe7d00d3bd",
+            "end": "user_flow_c6296f",
+            "start": "__start__"
+        },
+        {
+            "id": "c9dcd136-cee7-4de8-97a9-a0f753fc42af",
+            "end": "user_flow_156947",
+            "start": "user_flow_c6296f"
+        },
+        {
+            "id": "6bfc1b4f-8120-40c6-a451-e1f9309540a1",
+            "end": "user_flow_15e9f4",
+            "start": "user_flow_156947"
+        },
+        {
+            "id": "6fb5c29e-8c59-4c59-b63d-ba280b36b0e0",
+            "end": "__end__",
+            "start": "user_flow_15e9f4"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 814,
+                    "y": 601
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "user_flow_156947": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_156947",
+                "position": {
+                    "x": 386,
+                    "y": 197.375
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "Review Document",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                },
+                "assignment_policy": "data_map"
+            },
+            "edges": [
+                {
+                    "id": "00deafd2-ad87-4baa-9c24-a9ffc4b3c477",
+                    "end": "user_51ff23",
+                    "start": "user_flow_156947__start__"
+                },
+                {
+                    "id": "46fe258e-f400-4ace-9037-3bc57a3b5a97",
+                    "end": "user_flow_156947__end__",
+                    "start": "user_51ff23"
+                }
+            ],
+            "nodes": {
+                "user_51ff23": {
+                    "spec": {
+                        "form": {
+                            "name": "form_cc95a6",
+                            "fields": [
+                                {
+                                    "kind": "file",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Download document",
+                                        "ui:widget": "FileDownloadWidget"
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.value",
+                                                    "value_expression": "flow[\"Prepare Document\"][\"Submit Document for review\"].output[\"Document for review\"]"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Download document",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "wxo-file"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "ui:title": "Feedback",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Feedback",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "any",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Review Decesion",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has_no_value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"Approved\",\"Needs Changes\", \"Rejected\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has_no_value": true,
+                                                    "target_variable": "self.input.display_items"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Review Decesion",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "46fe258e-f400-4ace-9037-3bc57a3b5a97",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [
+                                    "field_3"
+                                ],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "file",
+                                        "title": "Download document"
+                                    },
+                                    "field_2": {
+                                        "type": "string",
+                                        "title": "Feedback"
+                                    },
+                                    "field_3": {
+                                        "title": "Review Decesion (Required)"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_51ff23",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Review document form"
+                    }
+                },
+                "user_flow_156947__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_156947__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "user_flow_156947__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_156947__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {},
+            "input_map": {
+                "spec": {
+                    "maps": [
+                        {
+                            "metadata": {
+                                "assignmentType": "variable"
+                            },
+                            "has_no_value": false,
+                            "target_variable": "self.input.assignees",
+                            "value_expression": "flow[\"Prepare Document\"][\"Submit Document for review\"].output.Reviewer"
+                        }
+                    ],
+                    "name": ""
+                }
+            }
+        },
+        "user_flow_15e9f4": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_15e9f4",
+                "position": {
+                    "x": 792,
+                    "y": 195
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 280
+                },
+                "initiators": [],
+                "display_name": "Review Feedback",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "f25b177b-0274-43bf-99c0-d71b6132d630",
+                    "end": "user_f61dd6",
+                    "start": "user_flow_15e9f4__start__"
+                },
+                {
+                    "id": "fbc0d474-2cd2-48ac-9096-0ca4855b70e7",
+                    "end": "user_flow_15e9f4__end__",
+                    "start": "user_f61dd6"
+                }
+            ],
+            "nodes": {
+                "user_f61dd6": {
+                    "spec": {
+                        "form": {
+                            "name": "form_df21f8",
+                            "fields": [
+                                {
+                                    "kind": "text",
+                                    "name": "field_1",
+                                    "text": "* Review Feedback: {flow[\"Review Document\"][\"Review document form\"].output.Feedback}\n* Review Decesion: {flow[\"Review Document\"][\"Review document form\"].output[\"Review Decesion\"]}",
+                                    "uiSchema": {
+                                        "ui:title": "Message 1",
+                                        "ui:widget": "DataWidget",
+                                        "ui:options": {
+                                            "label": false
+                                        }
+                                    },
+                                    "direction": "output",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Message 1",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "fbc0d474-2cd2-48ac-9096-0ca4855b70e7",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "string",
+                                        "title": "Message 1"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_f61dd6",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Feedback"
+                    }
+                },
+                "user_flow_15e9f4__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_15e9f4__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 240
+                        }
+                    }
+                },
+                "user_flow_15e9f4__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_15e9f4__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        },
+        "user_flow_c6296f": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "user_flow_c6296f",
+                "position": {
+                    "x": -20,
+                    "y": 201
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 312
+                },
+                "initiators": [],
+                "display_name": "Prepare Document",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "302477af-574a-4851-a619-5e16d40bd88b",
+                    "end": "user_9617b7",
+                    "start": "user_flow_c6296f__start__"
+                },
+                {
+                    "id": "66d07658-95d2-4f25-a9d2-6cfee05f8efd",
+                    "end": "user_flow_c6296f__end__",
+                    "start": "user_9617b7"
+                }
+            ],
+            "nodes": {
+                "user_9617b7": {
+                    "spec": {
+                        "form": {
+                            "name": "form_5cb362",
+                            "fields": [
+                                {
+                                    "kind": "file",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Document for review",
+                                        "ui:widget": "FileUpload",
+                                        "ui:upload_button_label": "Upload document"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Document for review",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "wxo-file"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "user",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "ui:multi": false,
+                                        "ui:title": "Reviewer",
+                                        "ui:widget": "UserPickerWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Reviewer",
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "wxo-user"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Optional Notes",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Optional Notes",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "66d07658-95d2-4f25-a9d2-6cfee05f8efd",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [
+                                    "field_2"
+                                ],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "array",
+                                        "items": {},
+                                        "multi": false,
+                                        "title": "Document for review",
+                                        "file_max_size": 30
+                                    },
+                                    "field_2": {
+                                        "type": "string",
+                                        "title": "Reviewer (Required)",
+                                        "format": "wxo-user"
+                                    },
+                                    "field_3": {
+                                        "type": "string",
+                                        "title": "Optional Notes"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_9617b7",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 110
+                        },
+                        "display_name": "Submit Document for review"
+                    }
+                },
+                "user_flow_c6296f__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "user_flow_c6296f__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 264
+                        }
+                    }
+                },
+                "user_flow_c6296f__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "user_flow_c6296f__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

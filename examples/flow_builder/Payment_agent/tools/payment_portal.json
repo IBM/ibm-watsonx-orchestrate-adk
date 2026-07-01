@@ -1,0 +1,463 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Payment_portal_new_3537oW",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Payment portal new",
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "cards": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": "",
+                    "description": ""
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "0981dea7-8228-4619-a4eb-655ce6421a56",
+            "end": "User activity 1",
+            "start": "__start__"
+        },
+        {
+            "id": "2d24147d-0f80-482c-a5c4-0b90109f66ef",
+            "end": "__end__",
+            "start": "User activity 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 910
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "User activity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "User activity 1",
+                "position": {
+                    "x": -301.35869631225154,
+                    "y": 197.14596271841208
+                },
+                "dimensions": {
+                    "width": 848,
+                    "height": 624
+                },
+                "initiators": [],
+                "display_name": "Payment Details",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "bce0ce76-cbd5-4f7d-8962-581b973ca11d",
+                    "end": "CodeBlock 1",
+                    "start": "User activity 1__start__"
+                },
+                {
+                    "id": "bf4d7b23-bee1-490a-b00b-45e4e4b68f3a",
+                    "end": "user_9cd97398-eac5-4ec9-b219-0778d7a40133",
+                    "start": "CodeBlock 1"
+                },
+                {
+                    "id": "29f93f14-a0ab-45bd-89c8-f566c523a802",
+                    "end": "User activity 1__end__",
+                    "start": "user_9cd97398-eac5-4ec9-b219-0778d7a40133"
+                },
+                {
+                    "id": "806d25b8-7a1e-4864-b06b-94c8ae1856c8",
+                    "end": "user_a523f2c9-28f1-4e66-9300-be0aec2c5918",
+                    "start": "user_9cd97398-eac5-4ec9-b219-0778d7a40133"
+                },
+                {
+                    "id": "accf321b-ea95-469b-b56a-bdbebfd8ad37",
+                    "end": "CodeBlock 2",
+                    "start": "user_a523f2c9-28f1-4e66-9300-be0aec2c5918"
+                },
+                {
+                    "id": "504d8488-909c-4a65-96f0-1ed232d0cdfd",
+                    "end": "user_9cd97398-eac5-4ec9-b219-0778d7a40133",
+                    "start": "CodeBlock 2"
+                }
+            ],
+            "nodes": {
+                "CodeBlock 1": {
+                    "spec": {
+                        "fn": "flow.private.cards = [\n    \"XXXX XXXX 7300\",\n    \"XXXX XXXX 5671\",\n    \"XXXX XXXX 6321\",\n    \"XXXX XXXX 5432\"\n]",
+                        "kind": "script",
+                        "name": "CodeBlock 1",
+                        "position": {
+                            "x": 126,
+                            "y": 110
+                        },
+                        "display_name": "cards"
+                    }
+                },
+                "CodeBlock 2": {
+                    "spec": {
+                        "fn": "flow.private.cards.append(flow[\"Payment Details\"][\"New card details\"].output[\"Card Number\"])\n",
+                        "kind": "script",
+                        "name": "CodeBlock 2",
+                        "position": {
+                            "x": 457,
+                            "y": 84.5
+                        },
+                        "display_name": "new card"
+                    }
+                },
+                "User activity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "User activity 1__end__",
+                        "position": {
+                            "x": 216,
+                            "y": 576
+                        }
+                    }
+                },
+                "User activity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "User activity 1__start__",
+                        "position": {
+                            "x": 216,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_9cd97398-eac5-4ec9-b219-0778d7a40133": {
+                    "spec": {
+                        "form": {
+                            "name": "form_00668654-efec-458c-9872-61e81cc9b57b",
+                            "fields": [
+                                {
+                                    "kind": "any",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Select your card",
+                                        "ui:widget": "ComboboxWidget",
+                                        "ui:placeholder": "Select an option"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "flow.private.cards"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "automap"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.display_items"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Select your card",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "29f93f14-a0ab-45bd-89c8-f566c523a802",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                },
+                                {
+                                    "kind": "submit",
+                                    "name": "4214ebec-1ca7-4f5d-8fda-d0bb60af7266",
+                                    "edge_id": "806d25b8-7a1e-4864-b06b-94c8ae1856c8",
+                                    "visible": true,
+                                    "display_name": "Add new card"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "title": "Select your card"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_9cd97398-eac5-4ec9-b219-0778d7a40133",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 126,
+                            "y": 256
+                        },
+                        "display_name": "Complete your payment"
+                    }
+                },
+                "user_a523f2c9-28f1-4e66-9300-be0aec2c5918": {
+                    "spec": {
+                        "form": {
+                            "name": "form_9d140206-83b5-4b02-95a3-dc74087d6381",
+                            "fields": [
+                                {
+                                    "kind": "text",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Full Name",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Full Name",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "ui:title": "Card Number",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Card Number",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:help": "MM/YYYY",
+                                        "ui:title": "Expiry Date",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Expiry Date",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "accf321b-ea95-469b-b56a-bdbebfd8ad37",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "string",
+                                        "title": "Full Name"
+                                    },
+                                    "field_2": {
+                                        "type": "string",
+                                        "title": "Card Number"
+                                    },
+                                    "field_3": {
+                                        "type": "string",
+                                        "title": "Expiry Date"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_a523f2c9-28f1-4e66-9300-be0aec2c5918",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 406,
+                            "y": 426
+                        },
+                        "display_name": "New card details"
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_under_specified": true,
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

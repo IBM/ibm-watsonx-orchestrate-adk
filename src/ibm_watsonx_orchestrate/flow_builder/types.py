@@ -67,6 +67,8 @@ def _to_json_from_json_schema(schema: JsonSchemaObject) -> dict[str, Any]:
     _assign_attribute(model_spec, "maximum", schema)
     _assign_attribute(model_spec, "minLength", schema)
     _assign_attribute(model_spec, "maxLength", schema)
+    _assign_attribute(model_spec, "minItems", schema)
+    _assign_attribute(model_spec, "maxItems", schema)
     _assign_attribute(model_spec, "format", schema)
     _assign_attribute(model_spec, "pattern", schema)
 
@@ -216,12 +218,17 @@ class DocExtConfigTableField(DocExtConfigField):
         data['type'] = 'table'
         super().__init__(**data)
 
+class PageRange(BaseModel):
+    start: int = Field(description="The starting page number (1-based, inclusive)")
+    end: int = Field(description="The ending page number (1-based, inclusive)")
+
 class DocExtConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other")
     type: str = Field(description="Document type", default="agreement")
-    llm: str = Field(description="The LLM used for the document extraction", default="meta-llama/llama-3-2-11b-vision-instruct")
+    llm: str = Field(description="The LLM used for the document extraction", default="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503")
     fields: list[Union[DocExtConfigField, DocExtConfigTableField]] = Field(default=[], description="Fields to extract from the document, including regular fields and table fields")
     field_extraction_method: str = Field(description="The method used to extract fields from the document", default="classic")
+    page_range: PageRange | None = Field(description="Optional page range for field extraction. When specified, only fields from pages within the specified range are extracted. Supported only when field_extraction_method='layout'.", default=None)
     
     @model_validator(mode='after')
     def validate_field_extraction_method(self) -> Self:
@@ -239,12 +246,15 @@ class DocExtConfig(BaseModel):
                     raise ValueError(
                         "'available_options' is not supported with field_extraction_method='classic'. Use field_extraction_method='layout' instead."
                     )
+            
+            # Check for page_range
+            if self.page_range is not None:
+                raise ValueError(
+                    "page_range is only supported when field_extraction_method='layout'. "
+                    f"Current field_extraction_method is '{self.field_extraction_method}'."
+                )
         
         return self
-
-class PageRange(BaseModel):
-    start: int = Field(description="The starting page number (1-based, inclusive)")
-    end: int = Field(description="The ending page number (1-based, inclusive)")
 
 class LanguageCode(StrEnum):
     en = auto()
@@ -289,7 +299,7 @@ class DocClassifierClass(BaseModel):
 class DocClassifierConfig(BaseModel):
     domain: str = Field(description="Domain of the document", default="other",title="Domain")
     type: Literal["class_configuration"] = Field(description="Document type", default="class_configuration",title="Type")
-    llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-3-2-11b-vision-instruct",title="LLM")
+    llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",title="LLM")
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     classes: list[DocClassifierClass] = Field(default=[], description="Classes which are needed to classify provided by user", title="Classes")
 
@@ -495,7 +505,7 @@ class DocProcSpec(DocProcCommonNodeSpec):
     kvp_model_name: str | None = Field(
         title='KVP Model Name',
         description="LLM model identifier for key-value pair extraction. "
-                   "Examples: 'meta-llama/llama-3-2-11b-vision-instruct', 'gpt-4-vision'. "
+                   "Examples: 'watsonx/mistralai/mistral-small-3-1-24b-instruct-2503'. "
                    "None uses the system default model. Choose based on accuracy needs "
                    "and performance requirements.",
         default=None
@@ -2993,6 +3003,11 @@ class Dimensions(BaseModel):
     width: float
     height: float
 
+class TranslationSupport(BaseModel):
+    '''Translation support configuration for flows'''
+    enabled: bool = Field(description="Whether translation is enabled for this flow", default=True)
+    source_locale: Optional[str] = Field(description="Source locale for translation (e.g., 'en', 'fr', 'ja', 'es', 'it', 'de', 'ko', 'zh-CN', 'zh-TW', 'pt-BR')", default='en')
+    target_locales: Optional[list[str]] = Field(description="Target locales for translation (default: empty list)", default_factory=list)
 
 class FlowCallback(BaseModel):
     """
@@ -3040,13 +3055,14 @@ class FlowSpec(NodeSpec):
     # who can initiate the flow
     initiators: Sequence[str] = [ANY_USER]
     schedulable: bool = False
+    suppress_agent_summarization: bool | None = None
 
     # flow can have private schema
     private_schema: JsonSchemaObject | SchemaRef | None = None
     dimensions: Dimensions | None = None
 
     context_window: FlowContextWindow | None = None
-    
+    translation_support: TranslationSupport | None = None
     # Callbacks are part of the FlowSpec - invoked by the flow engine when events occur
     callbacks: List[FlowCallback] = []
 
@@ -3066,10 +3082,15 @@ class FlowSpec(NodeSpec):
             model_spec["private_schema"] = _to_json_from_input_schema(self.private_schema)
         if self.context_window:
             model_spec["context_window"] = self.context_window.model_dump()
+        if self.translation_support:
+            model_spec["translation_support"] = self.translation_support.model_dump(exclude_none=True)
         if self.callbacks:
             model_spec["callbacks"] = [callback.to_json() for callback in self.callbacks]
         
         model_spec["schedulable"] = self.schedulable
+        # Only include suppress_agent_summarization if explicitly set
+        if self.suppress_agent_summarization is not None:
+            model_spec["suppress_agent_summarization"] = self.suppress_agent_summarization
 
         return model_spec
 
@@ -3133,6 +3154,25 @@ class ForeachSpec(FlowSpec):
         my_dict["foreach_policy"] = self.foreach_policy.name
         return my_dict
 
+class ParallelSpec(FlowSpec):
+    """
+    ParallelSpec represents the specification of a parallel subflow.
+    
+    """
+    evaluator: Conditions | None = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.kind = "parallel"
+
+    def to_json(self) -> dict[str, Any]:
+        my_dict = super().to_json()
+
+        # Only include evaluator if it exists and has conditions
+        if self.evaluator and isinstance(self.evaluator, Conditions) and len(self.evaluator.conditions) > 0:
+            my_dict["evaluator"] = self.evaluator.to_json()
+        return my_dict
+    
 class TaskData(NamedTuple):
  
     inputs: dict | None = None
@@ -3192,6 +3232,8 @@ class FlowEventType(Enum):
     ON_FLOW_WAIT = "flow:on_flow_wait"
     ON_FLOW_RESUME = "flow:on_flow_resume"
     ON_FLOW_MESSAGE = "flow:on_flow_message"
+    ON_FLOW_ABORT = "flow:on_flow_abort"
+    ON_FLOW_DELETE = "flow:on_flow_delete"
 
 @dataclass
 class FlowEvent:
@@ -3559,8 +3601,10 @@ class DocumentProcessingCommonInput(BaseModel):
 
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
+        page_range (PageRange|None): Optional page range for text extractor and layout document extractor
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
+    page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from pages within the specified range are extracted.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
@@ -3571,7 +3615,10 @@ class DocProcInput(DocumentProcessingCommonInput):
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
-        page_range (PageRange | None): Optional page range for text extraction. When specified, only text from the specified page range will be extracted.
+    
+    Inherited Attributes:
+        document_ref (bytes|str): Document reference
+        page_range (PageRange | None): Optional page range for text extractor and layout document extractor
     '''
     # This is declared as bytes but the runtime will understand if a URL is send in as input.
     # We need to use bytes here for Chat-with-doc to recognize the input as a File.
@@ -3593,11 +3640,6 @@ class DocProcInput(DocumentProcessingCommonInput):
         title='KVP Enable Text Hints',
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
-    )
-    page_range: PageRange | None = Field(
-        title='Page Range',
-        description='Optional page range for text extraction. When specified, only text from the specified page range will be extracted. Example: PageRange(start=1, end=5) extracts pages 1 through 5.',
-        default=None
     )
 
 class TextExtractionObjectResponse(AssemblyJsonOutput):
@@ -3730,27 +3772,31 @@ class DecisionsCondition(BaseModel):
 
 
 
+class DecisionActionOrCondition(BaseModel):
+    variable: str
+    value: Any
+
+
+class DecisionTableColumn(BaseModel):
+    variable: str
+    display_name: str
+
+
 class DecisionsRule(BaseModel):
     '''
     A set of decisions rules.
     '''
-    _conditions: dict[str, str]
-    _actions: dict[str, Union[numbers.Number, str]]
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._conditions = {}
-        self._actions = {}
+    conditions: list[DecisionActionOrCondition] = Field(default_factory=list)
+    actions: list[DecisionActionOrCondition] = Field(default_factory=list)
 
     def condition(self, key: str, cond: DecisionsCondition) -> Self:
-        self._conditions[key] = cond.condition()
+        self.conditions.append(DecisionActionOrCondition(variable=key, value=cond.condition()))
         return self
     
-    def action(self, key: str, value: Union[numbers.Number, date, str]) -> Self:
+    def action(self, key: str, value: Union[numbers.Number, date, str, bool]) -> Self:
         if isinstance(value, date):
-            self._actions[key] = value.strftime("%B %d, %Y")
-            return self
-        self._actions[key] = value
+            value = value.strftime("%B %d, %Y")
+        self.actions.append(DecisionActionOrCondition(variable=key, value=value))
         return self
 
     def to_json(self) -> dict[str, Any]:
@@ -3758,43 +3804,69 @@ class DecisionsRule(BaseModel):
         Serialize the rules into JSON object
         '''
         model_spec = {}
-        if self._conditions:
-            model_spec["conditions"] = self._conditions
-        if self._actions:
-            model_spec["actions"] = self._actions
+        if self.conditions:
+            model_spec["conditions"] = [condition.model_dump() for condition in self.conditions]
+        if self.actions:
+            model_spec["actions"] = [action.model_dump() for action in self.actions]
         return model_spec
 
 
 class DecisionsNodeSpec(NodeSpec):
     '''
-    Node specification for Decision Table
+    Node specification for Decision Table.
+
+    Accepts default_actions as either dict (for convenience) or list format.
     '''
     locale: str | None = None
     rules: list[DecisionsRule]
-    default_actions: dict[str, Union[int, float, complex, str]] | None
+    default_actions: list[DecisionActionOrCondition] | dict[str, Union[int, float, complex, str, bool]] | None = None
+    decision_table_columns: list[DecisionTableColumn] | None = Field(default=None, serialization_alias="decisionTableColumns")
 
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "decisions"
+        if isinstance(self.default_actions, dict):
+            self.default_actions = [
+                DecisionActionOrCondition(variable=key, value=value)
+                for key, value in self.default_actions.items()
+            ]
 
-    def default_action(self, key: str, value: Union[int, float, complex, date, str]) -> Self:
+    def default_action(self, key: str, value: Union[int, float, complex, date, str, bool]) -> Self:
         '''
         create a new default action
         '''
+        if self.default_actions is None:
+            self.default_actions = []
         if isinstance(value, date):
-            self.default_actions[key] = value.strftime("%B %d, %Y")
-            return self
-        self.default_actions[key] = value
+            value = value.strftime("%B %d, %Y")
+        if isinstance(self.default_actions, dict):
+            self.default_actions = [
+                DecisionActionOrCondition(variable=k, value=v)
+                for k, v in self.default_actions.items()
+            ]
+        self.default_actions.append(DecisionActionOrCondition(variable=key, value=value))
         return self
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        
+        # DecisionsNode input and output schema will always be empty
+        if "input_schema" in model_spec:
+            del model_spec["input_schema"]
+        if "output_schema" in model_spec:
+            del model_spec["output_schema"]
+        
         if self.locale:
             model_spec["locale"] = self.locale
         if self.rules:
             model_spec["rules"] = [rule.to_json() for rule in self.rules]
         if self.default_actions:
-            model_spec["default_actions"] = self.default_actions
+            model_spec["default_actions"] = {
+                action.variable: action.value
+                for action in self.default_actions
+            }
+        if self.decision_table_columns:
+            model_spec["decisionTableColumns"] = [column.model_dump() for column in self.decision_table_columns]
 
         return model_spec
 

@@ -305,8 +305,9 @@ class WorkspacesController:
         Returns:
             Tuple of (workspace_name, workspace_id)
         """
-        from ibm_watsonx_orchestrate.cli.workspace_context import GLOBAL_WORKSPACE_ID, GLOBAL_WORKSPACE_NAME
-        
+        from ibm_watsonx_orchestrate_core.utils.workspaces import GLOBAL_WORKSPACE_NAME
+        from ibm_watsonx_orchestrate_core.utils.workspaces import GLOBAL_WORKSPACE_ID
+
         if not workspace_name:
             workspace_name = self._get_active_workspace()
             if not workspace_name:

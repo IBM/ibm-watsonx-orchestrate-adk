@@ -1,0 +1,722 @@
+{
+    "spec": {
+        "kind": "flow",
+        "name": "Event_Planning_form_0924vq",
+        "initiators": [],
+        "description": "No description",
+        "display_name": "Event Planning form",
+        "private_schema": {
+            "type": "object",
+            "properties": {
+                "endDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "default": "2027-05-01T17:00:00+05:30[Asia/Calcutta]",
+                    "description": ""
+                },
+                "startDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "default": "2026-04-22T09:00:00+05:30[Asia/Calcutta]",
+                    "description": ""
+                }
+            }
+        }
+    },
+    "edges": [
+        {
+            "id": "95b673ec-f759-4ef8-a0a6-164b2f52c307",
+            "end": "UserActivity 1",
+            "start": "__start__"
+        },
+        {
+            "id": "ecf4631c-2076-49ef-94d9-fc780f2a3a12",
+            "end": "__end__",
+            "start": "UserActivity 1"
+        }
+    ],
+    "nodes": {
+        "__end__": {
+            "spec": {
+                "kind": "end",
+                "name": "__end__",
+                "position": {
+                    "x": 0,
+                    "y": 904
+                }
+            }
+        },
+        "__start__": {
+            "spec": {
+                "kind": "start",
+                "name": "__start__",
+                "position": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        "UserActivity 1": {
+            "spec": {
+                "kind": "user_flow",
+                "name": "UserActivity 1",
+                "position": {
+                    "x": -20,
+                    "y": 201
+                },
+                "dimensions": {
+                    "width": 286,
+                    "height": 618
+                },
+                "initiators": [],
+                "display_name": "User activity 1",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "assignees": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "wxo-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "edges": [
+                {
+                    "id": "8a7ad995-b8a1-4776-8eff-93cc78a079d3",
+                    "end": "user_0fdf7a52-8b8e-4b9c-9f61-7bf2c803486b",
+                    "start": "UserActivity 1__start__"
+                },
+                {
+                    "id": "302cc49a-1ac1-4182-a9d8-fb0cc1f89f43",
+                    "end": "user_48653f41-45ae-4704-bdbf-8224763429a1",
+                    "start": "user_12e094df-0826-4b13-9c97-7abef410efae"
+                },
+                {
+                    "id": "8cb1c192-ddfd-4466-a421-2c0456b41c5c",
+                    "end": "user_12e094df-0826-4b13-9c97-7abef410efae",
+                    "start": "user_0fdf7a52-8b8e-4b9c-9f61-7bf2c803486b"
+                },
+                {
+                    "id": "2c3b838a-0890-42af-9e53-dfda3aa225cd",
+                    "end": "UserActivity 1__end__",
+                    "start": "user_48653f41-45ae-4704-bdbf-8224763429a1"
+                }
+            ],
+            "nodes": {
+                "UserActivity 1__end__": {
+                    "spec": {
+                        "kind": "end",
+                        "name": "UserActivity 1__end__",
+                        "position": {
+                            "x": 20,
+                            "y": 570
+                        }
+                    }
+                },
+                "UserActivity 1__start__": {
+                    "spec": {
+                        "kind": "start",
+                        "name": "UserActivity 1__start__",
+                        "position": {
+                            "x": 20,
+                            "y": 0
+                        }
+                    }
+                },
+                "user_0fdf7a52-8b8e-4b9c-9f61-7bf2c803486b": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_0fdf7a52-8b8e-4b9c-9f61-7bf2c803486b",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_e41dbb65-4bc3-4417-bbe1-614ad69639dc",
+                                "text": "Welcome to event planning portal        \n",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 108
+                        },
+                        "display_name": "Weclome"
+                    }
+                },
+                "user_12e094df-0826-4b13-9c97-7abef410efae": {
+                    "spec": {
+                        "form": {
+                            "name": "form_e66ebdf7-cc60-4a03-88cc-3be9f63824c8",
+                            "fields": [
+                                {
+                                    "kind": "datetime",
+                                    "name": "field_1",
+                                    "uiSchema": {
+                                        "ui:title": "Event Date & Time",
+                                        "ui:widget": "TimeWidget",
+                                        "ui:options": {
+                                            "is_range": false,
+                                            "is_timezone": true,
+                                            "is_datepicker": true
+                                        }
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.min_time",
+                                                    "value_expression": "flow.private.startDate"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.max_time",
+                                                    "value_expression": "flow.private.endDate"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Event Date & Time",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "max_time": {
+                                                "type": "string",
+                                                "format": "date-time"
+                                            },
+                                            "min_time": {
+                                                "type": "string",
+                                                "format": "date-time"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "format": "date-time"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "__previousMultiple": false,
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "date-range",
+                                    "name": "field_2",
+                                    "uiSchema": {
+                                        "format": "YYYY-MM-DD",
+                                        "ui:order": [
+                                            "start",
+                                            "end"
+                                        ],
+                                        "ui:title": "Prepation window",
+                                        "ui:widget": "DateWidget",
+                                        "ui:options": {
+                                            "range": true
+                                        },
+                                        "ui:end_label": "End date",
+                                        "ui:start_label": "Start date"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Prepation window",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "end": {
+                                                        "type": "string",
+                                                        "format": "date"
+                                                    },
+                                                    "start": {
+                                                        "type": "string",
+                                                        "format": "date"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "file",
+                                    "name": "field_3",
+                                    "uiSchema": {
+                                        "ui:title": "Attach Relevant Documents",
+                                        "ui:widget": "FileUpload",
+                                        "ui:upload_button_label": "Upload"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.min_num_files",
+                                                    "value_expression": "1"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.max_num_files",
+                                                    "value_expression": "3"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Attach Relevant Documents",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "max_num_files": {
+                                                "type": "integer"
+                                            },
+                                            "min_num_files": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "format": "wxo-file"
+                                                }
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "array",
+                                    "name": "field_4",
+                                    "uiSchema": {
+                                        "ui:title": "Services Required",
+                                        "ui:widget": "MultiselectDropdown",
+                                        "ui:choiceLimitEnabled": true
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "pyExpression"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.choices",
+                                                    "value_expression": "[\"IT Supoort\", \"Catering\",\"Meeting Room\",\"Travel Arrangement\"]"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_text",
+                                                    "value_expression": ""
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "variable"
+                                                    },
+                                                    "has-no-value": true,
+                                                    "target_variable": "self.input.display_items",
+                                                    "value_expression": ""
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Services Required",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "choices"
+                                        ],
+                                        "properties": {
+                                            "choices": {
+                                                "type": "array",
+                                                "items": {}
+                                            },
+                                            "default": {},
+                                            "display_text": {
+                                                "type": "string"
+                                            },
+                                            "display_items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "number",
+                                    "name": "field_5",
+                                    "uiSchema": {
+                                        "ui:title": "Number of Attendees",
+                                        "ui:widget": "NumberWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.minimum",
+                                                    "value_expression": "25"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.maximum",
+                                                    "value_expression": "300"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Number of Attendees",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "maximum": {
+                                                "type": "integer"
+                                            },
+                                            "minimum": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "text",
+                                    "name": "field_6",
+                                    "regex": "^[A-Z][A-Z][A-Z]-\\d\\d\\d\\d$",
+                                    "uiSchema": {
+                                        "ui:help": "For operations team (example:ABC-1234)",
+                                        "ui:title": "Project Code ",
+                                        "ui:widget": "TextWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Project Code ",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {},
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "regex_error_msg": "Please enter a valid string value",
+                                    "uiSchemaParkingLot": {}
+                                },
+                                {
+                                    "kind": "user",
+                                    "name": "field_7",
+                                    "uiSchema": {
+                                        "ui:multi": true,
+                                        "ui:title": "Number of Organisers",
+                                        "ui:widget": "UserPickerWidget"
+                                    },
+                                    "direction": "input",
+                                    "input_map": {
+                                        "spec": {
+                                            "maps": [
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.min_num_users",
+                                                    "value_expression": "1"
+                                                },
+                                                {
+                                                    "metadata": {
+                                                        "assignmentType": "literal"
+                                                    },
+                                                    "has-no-value": false,
+                                                    "target_variable": "self.input.max_num_users",
+                                                    "value_expression": "5"
+                                                }
+                                            ],
+                                            "name": ""
+                                        }
+                                    },
+                                    "display_name": "Number of Organisers",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "required": [],
+                                        "properties": {
+                                            "max_num_users": {
+                                                "type": "integer"
+                                            },
+                                            "min_num_users": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "output_schema": {
+                                        "type": "object",
+                                        "required": [
+                                            "value"
+                                        ],
+                                        "properties": {
+                                            "value": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "format": "wxo-user"
+                                                }
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    },
+                                    "uiSchemaParkingLot": {}
+                                }
+                            ],
+                            "buttons": [
+                                {
+                                    "kind": "submit",
+                                    "name": "submit",
+                                    "edge_id": "302cc49a-1ac1-4182-a9d8-fb0cc1f89f43",
+                                    "visible": true,
+                                    "display_name": "Submit"
+                                },
+                                {
+                                    "kind": "cancel",
+                                    "name": "cancel",
+                                    "visible": true,
+                                    "display_name": "Cancel"
+                                }
+                            ],
+                            "jsonSchema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "field_1": {
+                                        "type": "array",
+                                        "items": {},
+                                        "title": "Event Date & Time"
+                                    },
+                                    "field_2": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "date"
+                                        },
+                                        "title": "Prepation window"
+                                    },
+                                    "field_3": {
+                                        "type": "array",
+                                        "items": {},
+                                        "multi": true,
+                                        "title": "Attach Relevant Documents",
+                                        "file_types": [
+                                            ".pdf"
+                                        ],
+                                        "description": "(Agenda / Requirements)",
+                                        "file_max_size": 30
+                                    },
+                                    "field_4": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "title": "Services Required",
+                                        "maxItems": 3,
+                                        "minItems": 1
+                                    },
+                                    "field_5": {
+                                        "type": "integer",
+                                        "title": "Number of Attendees"
+                                    },
+                                    "field_6": {
+                                        "type": "string",
+                                        "title": "Project Code "
+                                    },
+                                    "field_7": {
+                                        "type": "string",
+                                        "title": "Number of Organisers",
+                                        "format": "wxo-user"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "display_name": "Form 1"
+                        },
+                        "kind": "user",
+                        "name": "user_12e094df-0826-4b13-9c97-7abef410efae",
+                        "fields": [],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 254
+                        },
+                        "display_name": "Event Planning Form"
+                    }
+                },
+                "user_48653f41-45ae-4704-bdbf-8224763429a1": {
+                    "spec": {
+                        "kind": "user",
+                        "name": "user_48653f41-45ae-4704-bdbf-8224763429a1",
+                        "fields": [
+                            {
+                                "kind": "text",
+                                "name": "text_output_8b435d3f-e16c-4aca-a55a-6e29d9d4f8c7",
+                                "text": "Your response has been recorded, Operations Team will get in touch with you soon!!",
+                                "direction": "output",
+                                "input_schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "value"
+                                    ],
+                                    "properties": {
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        ],
+                        "owners": [],
+                        "position": {
+                            "x": 20,
+                            "y": 424
+                        },
+                        "display_name": "End Message"
+                    }
+                }
+            },
+            "schemas": {}
+        }
+    },
+    "schemas": {},
+    "metadata": {
+        "llm_model": "groq/openai/gpt-oss-120b",
+        "source_kind": "ui",
+        "is_under_specified": true,
+        "is_system_generated_description": true
+    },
+    "output_map": {
+        "spec": {
+            "maps": [],
+            "name": "",
+            "fallback_strategy": "ask_the_user"
+        }
+    }
+}

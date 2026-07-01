@@ -4,6 +4,9 @@
     "name": "hello_message_script_flow",
     "display_name": "hello_message_script_flow",
     "description": "Creates a flow with two script nodes: set_greeting_node and return_greeting_node.",
+    "private_schema": {
+      "$ref": "#/schemas/GreetMessage"
+    },
     "schedulable": false
   },
   "nodes": {
@@ -20,6 +23,9 @@
         "kind": "script",
         "name": "codeblock_2",
         "display_name": "codeblock_2",
+        "output_schema": {
+          "$ref": "#/schemas/MessageOutput"
+        },
         "fn": "self.output.message = flow.private.greeting"
       }
     },
@@ -52,9 +58,36 @@
       "end": "__end__"
     }
   ],
-  "schemas": {},
+  "schemas": {
+    "GreetMessage": {
+      "type": "object",
+      "title": "GreetMessage",
+      "required": [
+        "greeting"
+      ],
+      "properties": {
+        "greeting": {
+          "type": "string",
+          "title": "Greeting"
+        }
+      }
+    },
+    "MessageOutput": {
+      "type": "object",
+      "title": "MessageOutput",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message"
+        }
+      }
+    }
+  },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2025-11-19T15:57:24.990373+00:00"
+    "compiled_on": "2026-06-11T11:56:17.727928+00:00"
   }
 }

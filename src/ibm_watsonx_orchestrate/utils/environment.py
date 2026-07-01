@@ -509,17 +509,33 @@ class EnvService:
             PREFERRED_MODELS = []
             DEFAULT_LLM_MODEL = ""
             DEFAULT_FLOW_LLM_MODEL = ""
-            if llm_value:
-                PREFERRED_MODELS.extend(["watsonx/meta-llama/llama-3-2-90b-vision-instruct"])
-                DEFAULT_LLM_MODEL = "watsonx/meta-llama/llama-3-2-90b-vision-instruct"
-                DEFAULT_FLOW_LLM_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
-            if aws_creds:
-                PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
-                DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"
-            if groq_key:
+            WX_GPT_OSS="watsonx/openai/gpt-oss-120b"
+            
+            # If both GROQ and WATSONX keys are present, prioritize GROQ and exclude watsonx model
+            if groq_key and llm_value:
+                # Only add GROQ model, exclude watsonx/openai/gpt-oss-120b
                 PREFERRED_MODELS.append("groq/openai/gpt-oss-120b")
                 DEFAULT_LLM_MODEL = "groq/openai/gpt-oss-120b"
                 DEFAULT_FLOW_LLM_MODEL = "groq/openai/gpt-oss-120b"
+            elif llm_value:
+                # Only WATSONX_APIKEY is present - add watsonx model but mark as unsupported
+                PREFERRED_MODELS.extend([WX_GPT_OSS])
+                DEFAULT_LLM_MODEL = WX_GPT_OSS
+                DEFAULT_FLOW_LLM_MODEL = WX_GPT_OSS
+                # Store flag to indicate watsonx-only mode for warning
+                env_dict["_WATSONX_ONLY_MODE"] = "true"
+            elif groq_key:
+                # Only GROQ_API_KEY is present
+                PREFERRED_MODELS.append("groq/openai/gpt-oss-120b")
+                DEFAULT_LLM_MODEL = "groq/openai/gpt-oss-120b"
+                DEFAULT_FLOW_LLM_MODEL = "groq/openai/gpt-oss-120b"
+            
+            if aws_creds:
+                PREFERRED_MODELS.append("bedrock/openai.gpt-oss-120b-1:0")
+                # Only set as default if no other keys present
+                if not groq_key and not llm_value:
+                    DEFAULT_LLM_MODEL = "bedrock/openai.gpt-oss-120b-1:0"
+            
             if DEFAULT_FLOW_LLM_MODEL == "":
                 # TODO: For flows team to confirm
                 RuntimeError("Flow not supporting bedrock gpt oss as default yet")
