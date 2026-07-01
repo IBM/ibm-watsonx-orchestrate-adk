@@ -680,7 +680,7 @@ class KnowledgeBaseController:
             # No polling needed when no documents are included
             logger.info(f"Knowledge base '{kb.name}' updated successfully")
 
-    def knowledge_base_status( self, id: str, name: str, format: ListFormats = None) ->  dict | str | None:
+    def knowledge_base_status(self, id: str, name: str, verbose: bool = False, format: ListFormats = None) -> dict | str | None:
         knowledge_base_id = self.get_id(id, name)
         response = self.get_client().status(knowledge_base_id)
 
@@ -688,9 +688,12 @@ class KnowledgeBaseController:
             response[f"documents ({len(response['documents'])})"] = ", ".join([str(doc.get('metadata', {}).get('original_file_name', '<Unnamed File>')) for doc in response['documents']])
             response.pop('documents')
 
+        if not verbose:
+            response.pop('draft_index', None)
+
         table = rich.table.Table(
-            show_header=True, 
-            header_style="bold white", 
+            show_header=True,
+            header_style="bold white",
             show_lines=True
         )
 
@@ -703,7 +706,6 @@ class KnowledgeBaseController:
         if format == ListFormats.JSON:
             return response
         
-
         [table.add_column(to_column_name(col), {}) for col in response.keys()]
         table.add_row(*[str(val) for val in response.values()])
         
@@ -781,6 +783,23 @@ class KnowledgeBaseController:
                     return rich_table_to_markdown(table)
                 case _:
                     rich.print(table)   
+
+    def sync_knowledge_base(self, id: str, name: str) -> None:
+        knowledge_base_id = self.get_id(id, name)
+        client = self.get_client()
+
+        # Verify this is a content_source knowledge base
+        status_response = client.status(knowledge_base_id)
+        if 'sync_state' not in status_response:
+            kb_name = name or id
+            logger.error(
+                f"Knowledge base '{kb_name}' is not a connector-backed (content_source) knowledge base. "
+                "The sync command is only supported for content_source knowledge bases."
+            )
+            sys.exit(1)
+
+        kb_name = status_response.get('name', name or id)
+        self._trigger_sync(client, knowledge_base_id, kb_name)
 
     def remove_knowledge_base(self, id: str, name: str):
         knowledge_base_id = self.get_id(id, name)      
