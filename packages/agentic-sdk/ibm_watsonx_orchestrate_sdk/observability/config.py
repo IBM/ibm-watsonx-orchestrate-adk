@@ -16,6 +16,7 @@ import json
 import base64
 from typing import Any, Optional, Dict, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
+from urllib.parse import urljoin
 
 if TYPE_CHECKING:
     from ibm_watsonx_orchestrate_sdk.common.session import AgenticSession
@@ -255,21 +256,22 @@ class TracerConfig:
     def endpoint(self) -> Optional[str]:
         """Get the OTLP endpoint.
 
-        If session is configured, constructs trace injection URL as:
-        session.base_url + trace_injection_path
-        
-        If trace_injection_path starts with http:// or https://, uses it directly.
-        
-        Otherwise falls back to WXO_OTLP_ENDPOINT environment variable.
+        If session is configured, constructs the trace injection URL using
+        ``urllib.parse.urljoin(base_url, trace_injection_path)``.
+
+        If ``trace_injection_path`` is already an absolute URL (starts with
+        ``http://`` or ``https://``), it is returned as-is.
+
+        Otherwise falls back to the ``WXO_OTLP_ENDPOINT`` environment variable.
         """
         if self.session and self.session.base_url:
-            # Check if trace_injection_path is already a full URL
+            # Already an absolute URL — use directly
             if self.trace_injection_path.startswith(('http://', 'https://')):
                 return self.trace_injection_path
-            # Construct trace injection URL from instance URL and path
-            base_url = self.session.base_url.rstrip('/')
-            path = self.trace_injection_path.lstrip('/')
-            return f"{base_url}/{path}"
+            # Ensure base ends with "/" so urljoin appends rather than replaces
+            # the last path segment (standard urljoin behaviour).
+            base = self.session.base_url.rstrip('/') + '/'
+            return urljoin(base, self.trace_injection_path.lstrip('/'))
         return os.environ.get(ENV_OTLP_ENDPOINT)
 
     @property
@@ -290,6 +292,11 @@ class TracerConfig:
 
         Returns:
             Dictionary of HTTP headers for authentication.
+
+        Raises:
+            RuntimeError: If an authenticator is present but token retrieval fails,
+                so the caller (e.g. DynamicAuthOTLPSpanExporter) can decide whether
+                to abort the export or fall back to cached credentials.
         """
         headers: Dict[str, str] = {}
 
@@ -303,20 +310,27 @@ class TracerConfig:
 
             # Use authenticator for runs-elsewhere mode
             if self.session.authenticator:
+                auth = self.session.authenticator
+                token = None
                 try:
-                    # Authenticator has a method to get the token
-                    token = None
-                    if hasattr(self.session.authenticator, 'token_manager'):
-                        token = self.session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
-                    elif hasattr(self.session.authenticator, 'get_token'):
-                        token = self.session.authenticator.get_token()  # type: ignore[attr-defined]
-                    
-                    if token:
-                        headers["Authorization"] = f"Bearer {token}"
-                        logger.debug("Using authenticator from AgenticSession for authentication")
-                        return headers
-                except Exception as e:
-                    logger.warning(f"Failed to get token from authenticator: {e}")
+                    if hasattr(auth, 'token_manager'):
+                        token = auth.token_manager.get_token()  # type: ignore[attr-defined]
+                    elif hasattr(auth, 'get_token'):
+                        token = auth.get_token()  # type: ignore[attr-defined]
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to retrieve authentication token from authenticator: {exc}"
+                    ) from exc
+
+                if token:
+                    headers["Authorization"] = f"Bearer {token}"
+                    logger.debug("Using authenticator from AgenticSession for authentication")
+                    return headers
+                else:
+                    logger.warning(
+                        "Authenticator returned an empty token; "
+                        "the OTLP request will be sent without an Authorization header."
+                    )
 
         logger.debug("No authentication configured")
         return headers
