@@ -9,7 +9,7 @@ import io
 import yaml
 import time
 from pathlib import Path
-from typing import List, Any, Optional
+from typing import List, Any, Literal, Optional
 from zipfile import ZipFile
 from io import BytesIO
 from rich.console import Console
@@ -290,11 +290,13 @@ class KnowledgeBaseController:
                         kb_id = response.get('id') or response.get('knowledge_base')
 
                     if kb_id:
-                        # Trigger an initial sync so the KB is indexed immediately after creation
-                        self._trigger_sync(client, kb_id, kb.name)
+                        logger.info(f"Successfully imported knowledge base '{kb.name}'")
 
                         if kb.sync_job:
                             self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
+
+                        # Trigger an initial sync so the KB is indexed immediately after creation
+                        self._trigger_sync(client, kb_id, kb.name)
                     else:
                         logger.info(f"Successfully started import for knowledge base '{kb.name}'")
                 elif kb.documents:
@@ -384,7 +386,8 @@ class KnowledgeBaseController:
             'ready': 'Ready',
             'not_ready': 'Not Ready',
             'error': 'Error',
-            'in_progress': 'Sync in progress',
+            'started': 'Started',
+            'in_progress': 'In progress',
             'ready_for_promotion': 'Ready for promotion',
             'stable': 'Stable',
             'failed': 'Failed',
@@ -392,7 +395,8 @@ class KnowledgeBaseController:
         }
         
         last_status = None
-        prefix_action_str = "Updating" if is_update else "Importing"
+        prefix_action_str = "Syncing" if use_sync_state else ("Updating" if is_update else "Importing")
+        action_str = "synced" if use_sync_state else ("updated" if is_update else "imported")
         dot_count = 0  # Track the number of dots for animation
         last_poll_time = 0  # Track when we last polled the API
         animation_interval = 0.5  # Update dots every 0.5 seconds
@@ -422,9 +426,6 @@ class KnowledgeBaseController:
                         status = status_response.get(status_field, '').lower()
                         status_msg = status_response.get(status_msg_field, '')
                         last_poll_time = current_time
-
-                        if use_sync_state:
-                            logger.info(f"Knowledge base '{kb_name}' sync_state: {status or '<empty>'}")
                         
                         # Update last_status if it changed
                         if status != last_status:
@@ -432,14 +433,12 @@ class KnowledgeBaseController:
                         
                         # Check for terminal states
                         if status in success_states:
-                            action_str = "updated" if is_update else "imported"
                             if status_msg and not (use_sync_state and status == 'stable'):
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{status_msg}[/bold white]")
                             else:
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}'")
                             return
                         elif status in failure_states:
-                            action_str = "update" if is_update else "import"
                             if status_msg:
                                 console.print(f"[red]✗[/red] Knowledge base [bold red]'{kb_name}'[/bold red] {action_str} failed: [bold white]{status_msg}[/bold white]", style="bold red")
                             else:
@@ -485,8 +484,6 @@ class KnowledgeBaseController:
         """
         try:
             client.sync(kb_id)
-            logger.info(f"Sync triggered for knowledge base '{kb_name}', waiting for completion...")
-            time.sleep(5)
             self._poll_knowledge_base_status(client, kb_id, kb_name, False, use_sync_state=True)
         except ClientAPIException as e:
             logger.error(f"Failed to trigger sync for knowledge base '{kb_name}': {str(e)}")
@@ -626,14 +623,14 @@ class KnowledgeBaseController:
 
             client.update_without_files(knowledge_base_id, payload=payload)
 
-            if sync:
-                self._trigger_sync(client, knowledge_base_id, kb.name)
-            else:
-                logger.info(f"Successfully updated knowledge base '{kb.name}'")
+            logger.info(f"Successfully updated knowledge base '{kb.name}'")
 
             # Upsert schedule if sync_job is specified
             if kb.sync_job:
                 self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+
+            if sync:
+                self._trigger_sync(client, knowledge_base_id, kb.name)
         elif kb.documents:
             status = client.status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
