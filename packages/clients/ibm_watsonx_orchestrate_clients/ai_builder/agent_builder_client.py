@@ -20,7 +20,7 @@ class AgentBuilderClient(BaseWXOClient):
     def _get_chat_model_name_or_default(self, chat_nodel_name):
         if chat_nodel_name:
             return chat_nodel_name
-        return 'watsonx/meta-llama/llama-3-3-70b-instruct'
+        return 'watsonx/openai/gpt-oss-120b'
 
     def submit_chat(self, chat_llm: str |None, user_message: str | None = None,
                                          agent_id:str | None = None) -> dict:

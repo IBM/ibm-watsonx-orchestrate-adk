@@ -37,7 +37,7 @@ instructions: |
   
   Be helpful and educational about the flow callback system and its appropriate use cases.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - example_flow_with_callbacks
   - query_flow_events

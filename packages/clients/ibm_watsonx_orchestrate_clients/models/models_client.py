@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from pydantic import ValidationError
 from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, ClientAPIException
@@ -13,6 +13,7 @@ CUSTOM_MODEL_TAG = "third party"
 DEFAULT_MODEL_TAG = "default"
 LLM_DISALLOWED_BY_ADMIN_TAG = "wxo-reserved-tag-admin-disallowed"
 RECOMMENDED_LLM_TAG = "recommended"
+PREMIER_LLM_TAG = "wxo-reserved-tag-premier"
 
 
 class ModelsClient(BaseWXOClient):
@@ -78,4 +79,6 @@ class ModelsClient(BaseWXOClient):
 
     def get_draft_by_name(self, model_name: str) -> List[ListVirtualModel]:
         return self.get_drafts_by_names([model_name])
-
+    
+    def validate(self, model_name) -> Dict:
+        return self._post("/models/validate", data={"model": model_name})

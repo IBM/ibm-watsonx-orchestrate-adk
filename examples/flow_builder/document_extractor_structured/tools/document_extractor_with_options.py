@@ -64,7 +64,7 @@ def build_docext_with_options_flow(aflow: Flow) -> Flow:
         name="invoice_extractor_with_options",
         display_name="Extract Invoice Fields with Options",
         description="Extracts invoice information with available_options to reduce hallucinations for inferred fields",
-        llm="watsonx/meta-llama/llama-3-2-11b-vision-instruct",
+        llm="watsonx/mistralai/mistral-small-3-1-24b-instruct-2503",
         fields=Fields(),
         field_extraction_method="layout"  # Required for available_options
     )

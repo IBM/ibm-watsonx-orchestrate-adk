@@ -97,6 +97,7 @@ class FlowInput(BaseModel):
     display_name="Application form",
     description="Creates a sample application form.",
     input_schema=FlowInput,
+    suppress_agent_summarization=False
 )
 
 def build_user_form(aflow: Flow = None) -> Flow:
@@ -263,5 +264,6 @@ flow.input.listOfFruits = ["apple", "oranges", "bananas"]
     
     # add the user flow to the flow sequence to create the flow edges
     aflow.sequence(START, init_data, user_flow, END)
+    aflow.target_locales(["fr", "es"])
   
     return aflow

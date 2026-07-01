@@ -49,7 +49,7 @@ import uuid
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "TRUE").upper() == "TRUE"
+USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "FALSE").upper() == "TRUE"
 
 class EvaluateMode(StrEnum):
     default = "default" # referenceFUL evaluation
@@ -112,7 +112,7 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-3-70b-instruct"
+                model_id="watsonx/openai/gpt-oss-120b"
             ),
             "skip_legacy_evaluation": not USE_LEGACY_EVAL,
             "langfuse_enabled": langfuse_enabled,
@@ -153,7 +153,7 @@ class EvaluationsController:
             config = QuickEvalConfig(**config_data)
             quick_eval.main(config)
 
-    def record(self, output_dir) -> None:
+    def record(self, output_dir, context_variables: Optional[str] = None) -> None:
 
 
         random_uuid = str(uuid.uuid4())
@@ -165,6 +165,10 @@ class EvaluationsController:
             "tenant_name": tenant_name,
             "token": token
         }
+        
+        if context_variables:
+            # Pass the JSON string directly to agentops
+            config_data["context_variables"] = context_variables
 
         config_data["output_dir"].mkdir(parents=True, exist_ok=True)
         logger.info(f"Recording chat sessions to {config_data['output_dir']}")
@@ -267,13 +271,13 @@ class EvaluationsController:
         
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
-            model_id = "meta-llama/llama-3-3-70b-instruct"
+            model_id = "watsonx/openai/gpt-oss-120b"
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
-            model_id = "meta-llama/llama-3-3-70b-instruct"
+            model_id = "watsonx/openai/gpt-oss-120b"
         else:
             provider = "gateway"
-            model_id = "meta-llama/llama-3-3-70b-instruct"
+            model_id = "watsonx/openai/gpt-oss-120b"
         
         logger.info(f"Using LLM provider: {provider}, model: {model_id}")
         
@@ -700,7 +704,7 @@ class EvaluationsController:
             ),
             "provider_config": ProviderConfig(
                 provider=provider,
-                model_id="meta-llama/llama-3-3-70b-instruct",
+                model_id="watsonx/openai/gpt-oss-120b",
             ),
         }
 

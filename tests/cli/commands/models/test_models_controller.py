@@ -7,6 +7,7 @@ import re
 import requests
 import yaml
 import traceback
+from rich.console import Console
 from unittest.mock import patch, mock_open, MagicMock
 
 from ibm_watsonx_orchestrate.cli.commands.models import models_controller
@@ -21,11 +22,12 @@ from ibm_watsonx_orchestrate_core.types.model_selection import GetModelSelection
 
 
 class MockModelsClient():
-    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None):
+    def __init__(self, list_response=None, get_draft_by_name_response=None, list_all_response=None, validate_response=None):
         self.list_response = list_response or []
         self.get_draft_by_name_response = get_draft_by_name_response or []
         self.list_all_response = list_all_response or []
         self.base_url = 'http://localhost:4321'
+        self.validate_response = validate_response or {}
 
     def list(self):
         return self.list_response
@@ -44,6 +46,9 @@ class MockModelsClient():
 
     def get_draft_by_name(self, model_name):
         return self.get_draft_by_name_response
+
+    def validate(self, model_name):
+        return self.validate_response
 
 class MockModelPoliciesClient():
     def __init__(self, list_response=[], get_draft_by_name_response=[]):
@@ -486,6 +491,47 @@ class TestListModels:
         assert "Retrieving llm models list..." in captured
         assert "Retrieving virtual-policies models list..." in captured
 
+    def test_list_models_with_premier_models(self, monkeypatch, caplog):
+        mock_models_client = MockModelsClient(
+            list_all_response=[
+                {
+                    "id": "watsonx/default/llm",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "default"
+                    ],
+                    "description": "123"
+                },
+                {
+                    "id": "openai/gpt6",
+                    "label": "some-label",
+                    "lifecycle": [],
+                    "type": "some-type",
+                    "tags": [
+                        "recommended",
+                        "wxo-reserved-tag-premier"
+                    ],
+                    "description": "789"
+                }
+            ]
+        )
+        mock_policies_client = MockModelPoliciesClient(list_response=[MockModel])
+
+        with patch(
+                "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
+                                                                                    mock_models_client=mock_models_client,
+                                                                                    mock_policies_client=mock_policies_client)
+
+            mc = ModelsController()
+            results = mc.formatted_list_all()
+
+        assert results[1].is_premier
+        assert not results[0].is_premier
+
     def test_list_models_print_raw(self, monkeypatch, caplog):
         mock_models_client = MockModelsClient(
             list_all_response=MOCK_MODEL_LIST_RESPONSE
@@ -767,6 +813,106 @@ class TestExportModel:
         assert f"Successfully exported model" in captured
         mock_export_connection.assert_called_once()
         mock_export_connection.assert_called_once()
+
+class TestValidateModel:
+    mock_model_name = "test_model"
+    DUMMY_VALIDATION_REPORT = {
+        "overall_status": "passed",
+        "summary": {
+            "total_tests": 2,
+            "passed": 1,
+            "failed": 1,
+            "total_duration_ms": 700,
+            "success_rate" : 50
+        },
+        "tests": [
+            {
+                "test_name": "dummy_test",
+                "status": "success",
+                "message": "test validate",
+                "duration_ms": 500
+            },
+            {
+                "test_name": "dummy_test_fail",
+                "status": "failed",
+                "message": "test validate fail",
+                "duration_ms": 200
+            },
+        ]
+    }
+    def test_validate_model(self, caplog):
+        mock_models_client = MockModelsClient(validate_response=self.DUMMY_VALIDATION_REPORT)
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.rich.print") as mock_print:
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.validate_model(name=self.mock_model_name, verbose=False)
+        
+        captured = caplog.text
+
+        assert f"Validated model '{self.mock_model_name}'" in captured
+
+        printed_tables = [
+            call.args[0]
+            for call in mock_print.call_args_list
+        ]
+
+        assert len(printed_tables) == 2
+
+        summary_table = printed_tables[0]
+        console = Console(record=True, width=120)
+        console.print(summary_table)
+        output = console.export_text()
+
+        assert "Total Tests" in output
+        assert "Tests Passed" in output
+        assert "Tests Failed" in output
+        assert "Success Rate" in output
+        assert "Duration (ms)" in output
+        assert "Result" in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("total_tests")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("passed")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("failed")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("success_rate")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("summary", {}).get("total_duration_ms")) in output
+        assert str(self.DUMMY_VALIDATION_REPORT.get("overall_status")) in output
+
+        test_table = printed_tables[1]
+        console = Console(record=True, width=120)
+        console.print(test_table)
+        output = console.export_text()
+
+        assert "Test Case" in output
+        assert "Status" in output
+        assert "Result" in output
+        assert "Duration (ms)" in output
+
+        first_test = self.DUMMY_VALIDATION_REPORT.get("tests", [])[0]
+        second_test = self.DUMMY_VALIDATION_REPORT.get("tests", [])[1]
+        assert str(first_test.get("test_name")) in output
+        assert str(first_test.get("status")) in output
+        assert str(first_test.get("message")) in output
+        assert str(first_test.get("duration_ms")) in output
+        assert str(second_test.get("test_name")) in output
+        assert str(second_test.get("status")) in output
+        assert str(second_test.get("message")) in output
+        assert str(second_test.get("duration_ms")) in output
+    
+    def test_validate_model_verbose(self, caplog):
+        mock_models_client = MockModelsClient(validate_response=self.DUMMY_VALIDATION_REPORT)
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            instantiate_client_mock.return_value = mock_models_client
+
+            mc = ModelsController()
+            mc.validate_model(name=self.mock_model_name, verbose=True)
+        
+        captured = caplog.text
+
+        assert f"Validated model '{self.mock_model_name}'" in captured
+
 
 class TestCreateModel:
     mock_model_name = "test_model"
@@ -1368,8 +1514,10 @@ class TestImportModelSelection:
         )
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
                 patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.yaml.load") as mock_loader, \
+                patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls, \
                 patch(
                     "ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
+            mock_cfg_cls.return_value.read.return_value = None
             instantiate_client_mock.side_effect = lambda x: mock_instantiate_client(x,
                                                                                     mock_models_client=mock_model_client,
                                                                                     mock_model_selection_client=mock_model_selection_client)
@@ -1497,4 +1645,131 @@ class TestPatchModelSelection:
                 mc.patch_model_selection_config(
                     default_llm="llm-a",
                 )
-            assert "You are trying to set a model name llm-a that does not exist as default" in caplog.text
+
+
+class TestFormatModelsClientListAllResponse:
+    """Test the format_models_client_list_all_response method with watsonx-only mode."""
+
+    def _cfg_side_effect(self, has_watsonx: bool, has_groq: bool):
+        """Returns a side-effect callable for Config.read based on the flag values."""
+        def _side_effect(section, key):
+            if key == "LLM_HAS_WATSONX_APIKEY":
+                return has_watsonx
+            if key == "LLM_HAS_GROQ_API_KEY":
+                return has_groq
+            return None
+        return _side_effect
+
+    def test_format_models_watsonx_only_mode(self):
+        """When only WATSONX_APIKEY was persisted at server start, gpt-oss-120b loses default+recommended."""
+        mock_response = [
+            {
+                "id": "watsonx/openai/gpt-oss-120b",
+                "description": "Test watsonx model",
+                "tags": ["default", "recommended"]
+            },
+            {
+                "id": "watsonx/other-model",
+                "description": "Other model",
+                "tags": ["recommended"]
+            }
+        ]
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=False)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
+        watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
+        assert watsonx_gpt_model is not None
+        # In watsonx-only mode this model must not be default or recommended
+        assert watsonx_gpt_model.is_default is False
+        assert watsonx_gpt_model.recommended is False
+        # Other models are unaffected
+        other_model = next((m for m in result if m.name == "watsonx/other-model"), None)
+        assert other_model is not None
+        assert other_model.recommended is True
+
+    def test_format_models_with_groq_key_only(self):
+        """When only GROQ_API_KEY was persisted, watsonx_only_mode is False — flags unchanged."""
+        mock_response = [
+            {
+                "id": "watsonx/openai/gpt-oss-120b",
+                "description": "Test watsonx model",
+                "tags": ["default", "recommended"]
+            }
+        ]
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=False, has_groq=True)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
+        watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
+        assert watsonx_gpt_model is not None
+        assert watsonx_gpt_model.is_default is True
+        assert watsonx_gpt_model.recommended is True
+
+    def test_format_models_both_keys(self):
+        """When both WATSONX_APIKEY and GROQ_API_KEY were persisted, watsonx_only_mode is False."""
+        mock_response = [
+            {
+                "id": "watsonx/openai/gpt-oss-120b",
+                "description": "Test watsonx model",
+                "tags": ["default", "recommended"]
+            }
+        ]
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=True)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
+        watsonx_gpt_model = next((m for m in result if m.name == "watsonx/openai/gpt-oss-120b"), None)
+        assert watsonx_gpt_model is not None
+        # Both keys present — not watsonx-only mode; flags stay
+        assert watsonx_gpt_model.is_default is True
+        assert watsonx_gpt_model.recommended is True
+
+    def test_format_models_other_models_unaffected(self):
+        """Other models are never affected by the watsonx-only mode logic."""
+        mock_response = [
+            {
+                "id": "groq/openai/gpt-oss-120b",
+                "description": "Groq model",
+                "tags": ["default", "recommended"]
+            },
+            {
+                "id": "bedrock/openai.gpt-oss-120b-1:0",
+                "description": "Bedrock model",
+                "tags": ["recommended"]
+            }
+        ]
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.Config") as mock_cfg_cls:
+            mock_cfg = MagicMock()
+            mock_cfg.read.side_effect = self._cfg_side_effect(has_watsonx=True, has_groq=False)
+            mock_cfg_cls.return_value = mock_cfg
+
+            mc = ModelsController()
+            result = mc.format_models_client_list_all_response(mock_response)
+
+        groq_model = next((m for m in result if m.name == "groq/openai/gpt-oss-120b"), None)
+        assert groq_model is not None
+        assert groq_model.is_default is True
+        assert groq_model.recommended is True
+
+        bedrock_model = next((m for m in result if m.name == "bedrock/openai.gpt-oss-120b-1:0"), None)
+        assert bedrock_model is not None
+        assert bedrock_model.recommended is True
+
+

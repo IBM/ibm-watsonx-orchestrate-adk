@@ -51,7 +51,6 @@ def test_mask_property_rejects_non_string_property():
     with pytest.raises(ValueError, match="Only string properties can be masked"):
         aflow.mask_property("flow.input.age", MaskingPolicy.MASK_ALL)
 
-# Made with Bob
 
 
 def test_mask_property_serializes_masking_extensions_in_flow_json():

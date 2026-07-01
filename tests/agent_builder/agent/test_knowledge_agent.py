@@ -107,18 +107,18 @@ def test_chat_with_docs_confidence_thresholds():
 
 def test_chat_with_docs_query_rewrite():
     """Query rewrite config is stored correctly."""
-    qr = QueryRewriteConfig(enabled=True, model_id="meta-llama/llama-3-1-70b-instruct")
+    qr = QueryRewriteConfig(enabled=True, model_id="watsonx/openai/gpt-oss-120b")
     cwd = ChatWithDocsConfig(query_rewrite=qr)
     spec = _base_default_spec(knowledge_base=["my_kb"], chat_with_docs=cwd)
     agent = AgentSpec(**spec)
     assert agent.chat_with_docs.query_rewrite.enabled is True
-    assert agent.chat_with_docs.query_rewrite.model_id == "meta-llama/llama-3-1-70b-instruct"
+    assert agent.chat_with_docs.query_rewrite.model_id == "watsonx/openai/gpt-oss-120b"
 
 
 def test_chat_with_docs_generation_config():
     """Generation configuration is stored correctly."""
     gen = GenerationConfiguration(
-        model_id="meta-llama/llama-3-1-70b-instruct",
+        model_id="watsonx/openai/gpt-oss-120b",
         prompt_instruction="Respond in English.",
         max_docs_passed_to_llm=5,
         generated_response_length=GeneratedResponseLength.Concise,
@@ -129,7 +129,7 @@ def test_chat_with_docs_generation_config():
     spec = _base_default_spec(knowledge_base=["my_kb"], chat_with_docs=cwd)
     agent = AgentSpec(**spec)
     g = agent.chat_with_docs.generation
-    assert g.model_id == "meta-llama/llama-3-1-70b-instruct"
+    assert g.model_id == "watsonx/openai/gpt-oss-120b"
     assert g.max_docs_passed_to_llm == 5
     assert g.generated_response_length == GeneratedResponseLength.Concise
     assert g.idk_message == "I don't know."
