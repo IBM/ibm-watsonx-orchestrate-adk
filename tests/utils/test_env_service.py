@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -93,6 +94,6 @@ def test_apply_llm_defaults():
 def test_llm_defaults_missing_keys():
     env = {}
 
-    with pytest.raises(RuntimeError, match="Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`"):
+    with pytest.raises(RuntimeError, match=re.escape("Please set at least one of `GROQ_API_KEY`, `AZURE_OPENAI_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")):
         EnvService.apply_llm_api_key_defaults(env)
 
