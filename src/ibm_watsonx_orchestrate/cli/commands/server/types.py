@@ -92,6 +92,9 @@ class DirectAIEnvConfig(BaseModel):
     GROQ_API_KEY: Optional[str]
     USE_SAAS_ML_TOOLS_RUNTIME: bool
     AZURE_OPENAI_API_KEY: Optional[str]
+    AZURE_OPENAI_RESOURCE_NAME: Optional[str]
+    GPT_5_4_AZURE_OPENAI_DEPLOYMENT_ID: Optional[str]
+    AZURE_OPENAI_API_VERSION: Optional[str]
 
     @model_validator(mode="before")
     def validate_wxai_config(values):
