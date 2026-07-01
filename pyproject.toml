@@ -30,7 +30,6 @@ base_dependencies = [
     "ibm_watsonx_orchestrate_core",
     "ibm_watsonx_orchestrate_clients",
     "jsonref==1.1.0",
-    "langchain-core~=1.4.0",
     "packaging>=24.2",
     "pydantic>=2.10.3,<3.0.0",
     "pyjwt>=2.10.1,<3.0.0",

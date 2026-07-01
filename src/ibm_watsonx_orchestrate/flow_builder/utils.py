@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, TypeAdapter
 
-from langchain_core.utils.json_schema import dereference_refs
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import dereference_refs
 import typer
 
 from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
