@@ -257,8 +257,9 @@ def test_should_auto_detect_async_with_other_parameters():
     assert 'count' in spec['input_schema']['properties']
 
 
-def test_should_reject_async_standalone_tool():
+def test_should_reject_async_standalone_tool(monkeypatch):
     """Test that async standalone tools are rejected by validate_async_toolkit_requirement."""
+    monkeypatch.setenv("WXO_ENABLE_ASYNC_ENFORCEMENT", "true")
     from ibm_watsonx_orchestrate_core.utils.exceptions import BadRequest
 
     @tool(
