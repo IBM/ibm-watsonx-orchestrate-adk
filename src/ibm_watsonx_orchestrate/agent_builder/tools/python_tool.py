@@ -10,6 +10,7 @@ import logging
 from pydantic import TypeAdapter, BaseModel
 
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
+from ibm_watsonx_orchestrate.agent_builder.tools.feature_flags import is_async_enforcement_enabled
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredentials
 from .base_tool import BaseTool
@@ -195,6 +196,8 @@ class PythonTool(BaseTool):
         Raises:
             BadRequest: If tool is async but not part of a toolkit
         """
+        if not is_async_enforcement_enabled():
+            return
         if self.is_async and not self.belongs_to_toolkit:
             raise BadRequest(
                 f"Async tools are only supported within toolkits. "
