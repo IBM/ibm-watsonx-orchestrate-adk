@@ -44,6 +44,7 @@ text_to_speech:
     language: "en"  # Optional
     model: "example model"  # Optional, e.g. aura-2-thalia-en
     mip_opt_out: false  # Optional: opt out of model improvement program
+    normalize_volume: true  # Optional: normalize volume variance
 language: "en-us"  # Optional: default language (default: en-us)
 
 
