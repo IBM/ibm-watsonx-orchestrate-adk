@@ -491,6 +491,7 @@ class KnowledgeBaseListEntry(BaseModel):
     app_id: Optional[str] = Field(description="The app id for a connection that connects the knowledge base to an external knowledge store")
     id: Optional[str] = Field(description="Unique identifier of the knowledge base")
     is_global: Optional[bool] = Field(default=None, description="Is the knowledge base present in the global workspace")
+    sync_pattern: Optional[str] = Field(default=None, description="Cron schedule pattern for automatic sync (content_source knowledge bases only)")
 
     def get_row_details(self):
         row = [self.name, self.description, self.app_id, self.id]

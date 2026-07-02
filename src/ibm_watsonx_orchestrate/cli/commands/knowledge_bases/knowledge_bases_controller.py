@@ -23,7 +23,8 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown, check_safe_mode_and_prompt
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion, KnowledgeBaseSyncJob
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import format_cron_pattern_human, format_next_occurrence_relative
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME, GLOBAL_WORKSPACE_ID, WorkspaceContext
 
@@ -450,7 +451,10 @@ class KnowledgeBaseController:
                     dots = "." * dot_count
                     
                     # Update the spinner text with current status and animated dots
-                    friendly_status = status_display_map.get(last_status, last_status.replace('_', ' ').title()) if last_status else ""
+                    if use_sync_state and status_msg:
+                        friendly_status = status_msg
+                    else:
+                        friendly_status = status_display_map.get(last_status, last_status.replace('_', ' ').title()) if last_status else ""
                     
                     if friendly_status:
                         status_display.update(f"[bold green]{prefix_action_str} knowledge base '{kb_name}' - {friendly_status}{dots}", spinner="dots")
@@ -511,10 +515,7 @@ class KnowledgeBaseController:
             client.create_schedule(kb_id, payload)
             logger.info(f"Successfully created schedule for knowledge base '{kb_name}' with pattern '{schedule_pattern}'")
         except ClientAPIException as e:
-            if e.response is not None and e.response.status_code == 404:
-                logger.warning(f"Schedule endpoint not available for knowledge base '{kb_name}' (KB may not be indexed yet). Schedule was not created.")
-            else:
-                logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
+            logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error creating schedule for knowledge base '{kb_name}': {str(e)}")
     
@@ -572,7 +573,7 @@ class KnowledgeBaseController:
                 # No schedule yet — create one
                 self._create_schedule(client, kb_id, schedule_pattern, kb_name)
             else:
-                logger.error(f"Failed to retrieve schedule for knowledge base '{kb_name}': {str(e)}")
+                logger.error(f"Failed to create schedule for knowledge base '{kb_name}': {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error retrieving schedule for knowledge base '{kb_name}': {str(e)}")
     
@@ -682,7 +683,8 @@ class KnowledgeBaseController:
 
     def knowledge_base_status(self, id: str, name: str, verbose: bool = False, format: ListFormats = None) -> dict | str | None:
         knowledge_base_id = self.get_id(id, name)
-        response = self.get_client().status(knowledge_base_id)
+        client = self.get_client()
+        response = client.status(knowledge_base_id)
 
         if 'documents' in response:
             response[f"documents ({len(response['documents'])})"] = ", ".join([str(doc.get('metadata', {}).get('original_file_name', '<Unnamed File>')) for doc in response['documents']])
@@ -690,6 +692,22 @@ class KnowledgeBaseController:
 
         if not verbose:
             response.pop('draft_index', None)
+
+        # For content_source KBs (identified by sync_state), strip irrelevant fields
+        # and show schedule info
+        if 'sync_state' in response:
+            response.pop('prioritize_built_in_index', None)
+            response.pop('built_in_index_status_msg', None)
+            try:
+                schedule = client.get_schedule(knowledge_base_id)
+                pattern = schedule.get('repeat_opts', {}).get('pattern')
+                next_occurrence = schedule.get('next_occurrence')
+                if pattern:
+                    response['sync_schedule'] = format_cron_pattern_human(pattern)
+                if next_occurrence:
+                    response['next_sync'] = format_next_occurrence_relative(next_occurrence)
+            except ClientAPIException:
+                pass
 
         table = rich.table.Table(
             show_header=True,
@@ -721,7 +739,8 @@ class KnowledgeBaseController:
             logger.error("For knowledge base list, `--verbose` and `--format` are mutually exclusive options")
             sys.exit(1)
 
-        response = self.get_client().get()
+        client = self.get_client()
+        response = client.get()
         knowledge_bases = [KnowledgeBase.model_validate(knowledge_base) for knowledge_base in response]
 
         knowledge_base_list = []
@@ -733,8 +752,8 @@ class KnowledgeBaseController:
         else:
             knowledge_base_details=[]
             table = rich.table.Table(
-                show_header=True, 
-                header_style="bold white", 
+                show_header=True,
+                header_style="bold white",
                 show_lines=True
             )
 
@@ -752,8 +771,27 @@ class KnowledgeBaseController:
             
             if is_private_workspace:
                 table.add_column("Global", justify="center" )
-            
+
             connections_dict = build_connections_map("connection_id")
+
+            has_content_source = any(kb.content_source for kb in knowledge_bases)
+
+            # Fetch schedules for all content_source KBs
+            # schedule_map: kb_id -> raw cron pattern
+            schedule_map: dict[str, str] = {}
+            if has_content_source:
+                for kb in knowledge_bases:
+                    if kb.content_source and kb.id:
+                        try:
+                            schedule = client.get_schedule(str(kb.id))
+                            pattern = schedule.get('repeat_opts', {}).get('pattern')
+                            if pattern:
+                                schedule_map[str(kb.id)] = pattern
+                        except ClientAPIException:
+                            pass
+
+            if has_content_source:
+                table.add_column("Sync Pattern", {})
             
             for kb in knowledge_bases:
                 app_id = ""
@@ -763,18 +801,28 @@ class KnowledgeBaseController:
                     if conn:
                         app_id = conn.app_id
 
+                raw_pattern = schedule_map.get(str(kb.id))
                 entry = KnowledgeBaseListEntry(
                     name=kb.name,
                     id=str(kb.id),
                     description=kb.description,
                     app_id=app_id,
+                    sync_pattern=raw_pattern,
                 )
                 if is_private_workspace:
                     entry.is_global = kb.workspace == GLOBAL_WORKSPACE_NAME
                 if format == ListFormats.JSON:
                     knowledge_base_details.append(entry)
                 else:
-                    table.add_row(*entry.get_row_details())
+                    row = entry.get_row_details()
+                    if has_content_source:
+                        if not kb.content_source:
+                            row.append("N/A")
+                        elif raw_pattern:
+                            row.append(format_cron_pattern_human(raw_pattern))
+                        else:
+                            row.append("")
+                    table.add_row(*row)
 
             match format:
                 case ListFormats.JSON:
@@ -782,7 +830,7 @@ class KnowledgeBaseController:
                 case ListFormats.Table:
                     return rich_table_to_markdown(table)
                 case _:
-                    rich.print(table)   
+                    rich.print(table)
 
     def sync_knowledge_base(self, id: str, name: str) -> None:
         knowledge_base_id = self.get_id(id, name)
@@ -859,7 +907,17 @@ class KnowledgeBaseController:
 
         knowledge_base.spec_version = SpecVersion.V1
         knowledge_base.kind = KnowledgeBaseKind.KNOWLEDGE_BASE
-        
+
+        # For content_source KBs, fetch the schedule and include it in the export
+        if knowledge_base.content_source:
+            try:
+                schedule = self.get_client().get_schedule(knowledge_base_id)
+                pattern = schedule.get('repeat_opts', {}).get('pattern')
+                if pattern:
+                    knowledge_base.sync_job = KnowledgeBaseSyncJob(schedule=pattern)
+            except ClientAPIException:
+                pass
+
         connection_id = get_kb_connection_id(knowledge_base)
         app_id = None
         if connection_id:
@@ -867,9 +925,14 @@ class KnowledgeBaseController:
             conn = connections_map.get(connection_id)
             if conn:
                 app_id = conn.app_id
-                index_config = get_index_config(knowledge_base)
-                index_config.app_id = app_id
-                index_config.connection_id = None
+                if knowledge_base.content_source:
+                    # content_source KBs store app_id in connection_id on the spec
+                    # (it is resolved to the real connection_id at import time)
+                    knowledge_base.content_source.connection_id = app_id
+                else:
+                    index_config = get_index_config(knowledge_base)
+                    index_config.app_id = app_id
+                    index_config.connection_id = None
             else:
                 logger.warning(f"Connection '{connection_id}' not found, unable to resolve app_id for Knowledge base {logEnding}")
 
