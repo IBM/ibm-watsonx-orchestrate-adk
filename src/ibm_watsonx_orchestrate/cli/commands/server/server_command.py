@@ -607,9 +607,6 @@ def server_start(
     # Add LANGFUSE_ENABLED and DOCPROC_ENABLED into the merged_env_dict, for tempus to pick up.
     if experimental_with_langfuse:
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-        merged_env_dict['LANGFUSE_HOST'] = 'http://langfuse-web:3000'
-        postgres_password = merged_env_dict.get('POSTGRES_PASSWORD', '')
-        merged_env_dict['LANGFUSE_DB_URL'] = f"postgresql://postgres:{postgres_password}@wxo-server-db:5432/langfuse"
 
     if with_doc_processing:
         merged_env_dict['DOCPROC_ENABLED'] = 'true'
@@ -624,9 +621,6 @@ def server_start(
         merged_env_dict['AGENT_OPS_V3'] = 'true'
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = merged_env_dict.get('FLOW_TRACING_OTLP_ENDPOINT') or 'http://jaeger:4318/v1/traces'
         merged_env_dict['LANGFUSE_ENABLED'] = 'true'
-        merged_env_dict['LANGFUSE_HOST'] = 'http://langfuse-web:3000'
-        postgres_password = merged_env_dict.get('POSTGRES_PASSWORD', '')
-        merged_env_dict['LANGFUSE_DB_URL'] = f"postgresql://postgres:{postgres_password}@wxo-server-db:5432/langfuse"
     else:
         merged_env_dict['FLOW_TRACING_OTLP_ENDPOINT'] = ''
 
