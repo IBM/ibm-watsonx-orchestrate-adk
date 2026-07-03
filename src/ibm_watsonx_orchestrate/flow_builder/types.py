@@ -391,6 +391,7 @@ class DocClassifierConfig(BaseModel):
 class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
+    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -399,6 +400,8 @@ class DocProcCommonNodeSpec(NodeSpec):
         model_spec = super().to_json()
         model_spec["task"] = self.task
         model_spec["enable_hw"] = self.enable_hw
+        if self.language is not None:
+            model_spec["language"] = self.language
         
         return model_spec
     
@@ -406,7 +409,6 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
     version : str = Field(description="A version of the spec")
     config : DocClassifierConfig
     enable_review: bool = Field(description="Indicate if enable human in the loop review", default=False)
-    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -418,8 +420,6 @@ class DocClassifierSpec(DocProcCommonNodeSpec):
         model_spec["config"] = self.config.model_dump()
         model_spec["task"] = DocProcTask.custom_document_classification
         model_spec["enable_review"] = self.enable_review
-        if self.language is not None:
-            model_spec["language"] = self.language
         return model_spec
     
 class DocExtSpec(DocProcCommonNodeSpec):
@@ -428,7 +428,6 @@ class DocExtSpec(DocProcCommonNodeSpec):
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
     review_fields: List[str] = Field(description="The fields that require user to review", default=[])
     enable_review: bool = Field(description="Enable human in the loop review", default=False)
-    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -442,8 +441,6 @@ class DocExtSpec(DocProcCommonNodeSpec):
         model_spec["min_confidence"] = self.min_confidence
         model_spec["review_fields"] = self.review_fields
         model_spec["enable_review"] = self.enable_review
-        if self.language is not None:
-            model_spec["language"] = self.language
         return model_spec
     
 class DocProcField(BaseModel):
@@ -648,12 +645,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
-    language: Optional["LanguageCode"] = Field(
-        title="Language",
-        default=None,
-        description="The ISO-639 language code for the document. Defaults to English ('en') when not specified."
-    )
-    
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
@@ -676,8 +667,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["page_range"] = self.page_range
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
-        if self.language is not None:
-            model_spec["language"] = self.language
         return model_spec
 
 class StartNodeSpec(NodeSpec):
