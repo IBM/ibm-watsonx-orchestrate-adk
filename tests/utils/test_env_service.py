@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -93,6 +94,76 @@ def test_apply_llm_defaults():
 def test_llm_defaults_missing_keys():
     env = {}
 
-    with pytest.raises(RuntimeError, match="Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`"):
+    with pytest.raises(RuntimeError, match=re.escape("Please set at least one of `GROQ_API_KEY`, `AZURE_OPENAI_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`")):
         EnvService.apply_llm_api_key_defaults(env)
+
+
+def test_apply_llm_defaults_watsonx_only():
+    """Test that watsonx-only mode sets the internal flag and uses watsonx model as default."""
+    env = {
+        "WATSONX_APIKEY": "test-key",
+        "WATSONX_SPACE_ID": "test-space"
+    }
+    EnvService.apply_llm_api_key_defaults(env)
+    
+    # Should set watsonx model as default
+    assert env["DEFAULT_LLM_MODEL"] == "watsonx/openai/gpt-oss-120b"
+    assert env["DEFAULT_FLOW_LLM_MODEL"] == "watsonx/openai/gpt-oss-120b"
+    assert "watsonx/openai/gpt-oss-120b" in env["PREFERRED_MODELS"]
+    
+    # Should set the internal flag for watsonx-only mode
+    assert env.get("_WATSONX_ONLY_MODE") == "true"
+
+
+def test_apply_llm_defaults_groq_only():
+    """Test that groq-only mode uses groq model as default."""
+    env = {
+        "GROQ_API_KEY": "test-groq-key"
+    }
+    EnvService.apply_llm_api_key_defaults(env)
+    
+    # Should set groq model as default
+    assert env["DEFAULT_LLM_MODEL"] == "groq/openai/gpt-oss-120b"
+    assert env["DEFAULT_FLOW_LLM_MODEL"] == "groq/openai/gpt-oss-120b"
+    assert "groq/openai/gpt-oss-120b" in env["PREFERRED_MODELS"]
+    
+    # Should NOT set the watsonx-only flag
+    assert "_WATSONX_ONLY_MODE" not in env
+
+
+def test_apply_llm_defaults_both_keys():
+    """Test that when both GROQ and WATSONX keys are present, GROQ is preferred and watsonx model is excluded."""
+    env = {
+        "GROQ_API_KEY": "test-groq-key",
+        "WATSONX_APIKEY": "test-watsonx-key",
+        "WATSONX_SPACE_ID": "test-space"
+    }
+    EnvService.apply_llm_api_key_defaults(env)
+    
+    # Should prefer groq model as default
+    assert env["DEFAULT_LLM_MODEL"] == "groq/openai/gpt-oss-120b"
+    assert env["DEFAULT_FLOW_LLM_MODEL"] == "groq/openai/gpt-oss-120b"
+    
+    # Should only include groq model in preferred, NOT watsonx
+    assert "groq/openai/gpt-oss-120b" in env["PREFERRED_MODELS"]
+    assert "watsonx/openai/gpt-oss-120b" not in env["PREFERRED_MODELS"]
+    
+    # Should NOT set the watsonx-only flag
+    assert "_WATSONX_ONLY_MODE" not in env
+
+
+def test_apply_llm_defaults_aws_bedrock():
+    """Test that AWS Bedrock credentials work correctly."""
+    env = {
+        "BEDROCK_AWS_ACCESS_KEY_ID": "test-access-key",
+        "BEDROCK_AWS_SECRET_ACCESS_KEY": "test-secret-key"
+    }
+    EnvService.apply_llm_api_key_defaults(env)
+    
+    # Should set bedrock model as default
+    assert env["DEFAULT_LLM_MODEL"] == "bedrock/openai.gpt-oss-120b-1:0"
+    assert "bedrock/openai.gpt-oss-120b-1:0" in env["PREFERRED_MODELS"]
+    
+    # Should NOT set the watsonx-only flag
+    assert "_WATSONX_ONLY_MODE" not in env
 

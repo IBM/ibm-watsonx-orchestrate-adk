@@ -15,7 +15,7 @@ from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client
 from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
-from pydantic import Field, AliasChoices, field_validator
+from pydantic import Field, AliasChoices, field_validator, field_serializer
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -83,6 +83,7 @@ class AgentRestrictionType(str, Enum):
 class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
+    MSFTSTUDIO = "msftstudio"
     SALESFORCE = "salesforce"
     WATSONX = "watsonx" #provider type returned from an assistant agent
     A2A = 'external_chat/A2A/0.2.1'
@@ -167,6 +168,7 @@ class AgentStyle(str, Enum):
     CUSTOM = "custom"
     CUSTOMER_CARE = "experimental_customer_care"
     REACT_INTRINSIC = "react_intrinsic"
+    REACT_CORE = "react_core"
 
     def __str__(self):
         return self.value 
@@ -192,8 +194,8 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str = Field(default_factory=get_default_llm)
-    style: AgentStyle = AgentStyle.DEFAULT
+    llm: str | None = Field(default_factory=get_default_llm)
+    style: AgentStyle = AgentStyle.REACT_CORE
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
     structured_output: Optional[JsonSchemaObject] = None
@@ -202,6 +204,7 @@ class AgentSpec(BaseAgentSpec):
     collaborators: Optional[List[str]] | Optional[List['BaseAgentSpec']] = []
     tools: Optional[List[str]] | Optional[List['BaseTool']] = []
     toolkits: Optional[List[str]] = []
+    skills: Optional[List[str]] = []
     plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     sync_tool_flow_interactions: Optional[bool] = None
@@ -234,6 +237,13 @@ class AgentSpec(BaseAgentSpec):
             raise BadRequest(f"The specified kind '{self.kind}' cannot be used to create a native agent.")
         return self
     
+    @field_serializer("style")
+    def serialise_style(self, style: AgentStyle) -> str:
+        # Both REACT_CORE and REACT_INTRINSIC must be sent to the backend as "react_intrinsic"
+        if style == AgentStyle.REACT_CORE:
+            return AgentStyle.REACT_INTRINSIC.value
+        return style.value
+
     @field_validator("plugins", mode="before")
     def ensure_plugins_object(cls, v):
         if v is None:
@@ -247,6 +257,7 @@ class AgentSpec(BaseAgentSpec):
         return v
 
 def validate_agent_fields(values: dict) -> dict:
+
     # Check for empty strings or whitespace
     for field in ["id", "name", "kind", "description", "collaborators", "tools", "knowledge_base", "plugins"]:
         value = values.get(field)
