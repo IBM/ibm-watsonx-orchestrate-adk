@@ -41,7 +41,7 @@ def build_prompt_node(aflow: Flow) -> PromptNode:
         user_prompt=[
             "Here is the {message}"
         ],
-        llm="meta-llama/llama-3-3-70b-instruct",
+        llm="watsonx/openai/gpt-oss-120b",
         llm_parameters={    
             "temperature": 0,
             "min_new_tokens": 5,

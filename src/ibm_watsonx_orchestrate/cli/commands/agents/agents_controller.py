@@ -270,6 +270,11 @@ def _raise_guidelines_warning(response: AgentUpsertResponse) -> None:
     if response.warning:
         logger.warning(f"Agent Configuration Issue: {response.warning}")
 
+def _raise_style_deprecation_warning(agent_style: AgentStyle) -> None:
+    DEPRECATED_STYLES = {AgentStyle.DEFAULT, AgentStyle.REACT, AgentStyle.PLANNER}
+    if agent_style in DEPRECATED_STYLES:
+        logger.warning(f"The selected style '{agent_style}' is set to be deprecated. Please update to 'react_core' to avoid future issues. See migration guide for assistance: https://www.ibm.com/docs/SSAVQO/agent_builder/agent-style-migration.html")
+
 class AgentsController:
     def __init__(self, safe_mode: bool = False):
         self.native_client = None
@@ -918,17 +923,31 @@ class AgentsController:
                         logger.error(f"Plugin {plugin.plugin_name} not found in fetched tools.")
                         sys.exit(1)
 
-                    python_binding = tool.get("binding", {}).get("python", {})
-                    tool_type = python_binding.get("type")
+                    binding = tool.get("binding", {}) or {}
+                    python_binding = binding.get("python") or {}
+                    openapi_binding = binding.get("openapi") or {}
+                    tool_type = python_binding.get("type") or openapi_binding.get("plugin_hook")
 
                     if not tool_type:
-                        logger.error(f"Tool '{plugin.plugin_name}' missing 'type' in binding.")
+                        if openapi_binding:
+                            detail = (
+                                "OpenAPI tools require the 'x-ibm-orchestrate-plugin.hook' extension "
+                                "(agent_pre_invoke or agent_post_invoke) on the operation"
+                            )
+                        elif python_binding:
+                            detail = "Python tools require a plugin 'type' (agent_pre_invoke or agent_post_invoke) in the binding"
+                        else:
+                            detail = "expected binding.python.type or binding.openapi.plugin_hook"
+                        logger.error(
+                            f"Tool '{plugin.plugin_name}' is not a plugin: {detail}. "
+                            f"Re-import the tool as a plugin before referencing it in the agent spec."
+                        )
                         sys.exit(1)
 
                     if tool_type != phase_name:
                         logger.error(
-                            f"Tool '{plugin.plugin_name}' has type '{tool_type}' "
-                            f"but is placed under the '{phase_name}' section of the Agent spec. Please update this."
+                            f"Tool '{plugin.plugin_name}' is a '{tool_type}' plugin but is listed under "
+                            f"the '{phase_name}' section of the agent spec. Move it under '{tool_type}'."
                         )
                         sys.exit(1)
 
@@ -1383,6 +1402,8 @@ class AgentsController:
                     sys.exit(1)
 
             agent_kind = agent.kind
+            if agent_kind == AgentKind.NATIVE:
+                _raise_style_deprecation_warning(agent.style)
 
             if len(all_existing_agents) > 1:
                 logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to update agent")
@@ -2169,6 +2190,7 @@ class AgentsController:
                         "Style": {},
                         "Collaborators": {},
                         "Tools": {},
+                        "Skills": {},
                         "Plugins": {},
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
@@ -2207,6 +2229,7 @@ class AgentsController:
                             agent.style,
                             ", ".join(agent.collaborators),
                             ", ".join(agent.tools),
+                            ", ".join(agent.skills or []),
                             ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
@@ -2403,6 +2426,8 @@ class AgentsController:
     def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent, exclude: List[str] | None = None, workspace_id: Optional[str] = None):
         ref_agent = self.reference_agent_dependencies(agent, workspace_id=workspace_id)
         agent_spec = ref_agent.model_dump(mode='json', exclude_none=True, exclude=exclude)
+        if agent_spec.get("style") == AgentStyle.REACT_INTRINSIC.value:
+            agent_spec["style"] = "react_core"
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
@@ -2710,7 +2735,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Deploying agent to Live envrionment", total=None)
+                    progress.add_task(description="Deploying agent to Live environment", total=None)
 
                     status = native_client.deploy(agent_id, live_env_id)
 
@@ -2770,7 +2795,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Undeploying agent to Draft envrionment", total=None)
+                    progress.add_task(description="Undeploying agent to Draft environment", total=None)
 
                     status = native_client.undeploy(agent_id, version_id, draft_env_id)
         if status:

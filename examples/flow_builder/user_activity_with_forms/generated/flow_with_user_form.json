@@ -15,7 +15,8 @@
         "es"
       ]
     },
-    "schedulable": false
+    "schedulable": false,
+    "suppress_agent_summarization": false
   },
   "nodes": {
     "userflow_1": {
@@ -1455,6 +1456,6 @@
   },
   "metadata": {
     "source_kind": "adk/python",
-    "compiled_on": "2026-06-17T23:40:46.285514+00:00"
+    "compiled_on": "2026-06-25T15:00:46.189951+00:00"
   }
 }

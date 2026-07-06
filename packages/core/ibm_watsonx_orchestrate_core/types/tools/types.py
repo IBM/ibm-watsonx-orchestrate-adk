@@ -151,6 +151,7 @@ class OpenApiToolBinding(BaseModel):
     connection_id: str | None = None
     callback: Optional[CallbackBinding] = None
     acknowledgement: Optional[AcknowledgementBinding] = None
+    plugin_hook: Optional[str] = None
 
 
 class PythonToolBinding(BaseModel):
@@ -159,6 +160,7 @@ class PythonToolBinding(BaseModel):
     connections: Optional[dict[str, str]] = None
     type: Optional[str] = None
     agent_run_paramater: Optional[str] = None
+    is_async: bool = False
 
 
 class WxFlowsToolBinding(BaseModel):
@@ -685,6 +687,7 @@ class AgentPreInvokePayload(PluginPayload):
     model: Optional[str] = None
     system_prompt: Optional[str] = None
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 # ---------------------------------------------------------------------------
 # Agent Post-Invoke Payload
@@ -695,6 +698,7 @@ class AgentPostInvokePayload(PluginPayload):
     agent_id: str
     messages: List[Message]
     tool_calls: Optional[List[Dict[str, Any]]] = None
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 # ---------------------------------------------------------------------------
 # Agent Pre-Invoke Result - AgentPreInvokeResult = PluginResult[AgentPreInvokePayload]
