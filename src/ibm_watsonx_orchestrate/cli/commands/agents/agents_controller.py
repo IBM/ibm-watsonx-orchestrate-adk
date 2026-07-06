@@ -2906,15 +2906,17 @@ class AgentsController:
             logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
             sys.exit(1)
 
-        connection_uuids = []
+        existing_connection_ids = agent.get("connection_ids", []) or []
+        connection_uuids = list(existing_connection_ids)
+
         for app_id in connection_ids:
             connection = connections_client.get_draft_by_app_id(app_id=app_id)
             if not connection:
                 logger.error(f"No connection exists with the app-id '{app_id}'")
                 sys.exit(1)
-            if connection.connection_id in agent.get("connection_ids", []):
-                logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
-                sys.exit(1)
+            if connection.connection_id in existing_connection_ids:
+                logger.warning(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}', skipping")
+                continue
             connection_uuids.append(connection.connection_id)
 
         # Connect the connections to the agent
