@@ -107,6 +107,61 @@ class TestDynamicAuthOTLPSpanExporterErrorHandling:
         config = _make_config_with_authenticator(token=token)
         return DynamicAuthOTLPSpanExporter(endpoint=config.endpoint, config=config)
 
+    def test_init_succeeds_when_get_auth_headers_raises(self, caplog):
+        """__init__ must not raise even if get_auth_headers() fails; a warning is logged."""
+        config = _make_config_with_authenticator()
+        config.get_auth_headers.side_effect = RuntimeError("token endpoint down")
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="ibm_watsonx_orchestrate_sdk.observability.exporters",
+        ):
+            exporter = DynamicAuthOTLPSpanExporter(endpoint=config.endpoint, config=config)
+
+        assert exporter is not None
+        assert "Failed to fetch initial authentication headers" in caplog.text
+
+    def test_export_proceeds_when_header_update_raises(self):
+        """If session.headers.update() raises the export must still be attempted."""
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        config = _make_config_with_authenticator(token="tok")
+        exporter = DynamicAuthOTLPSpanExporter(endpoint=config.endpoint, config=config)
+
+        fake_session = MagicMock()
+        fake_session.headers.update.side_effect = RuntimeError("headers locked")
+        inner = MagicMock()
+        inner._session = fake_session
+        inner.export.return_value = SpanExportResult.SUCCESS
+        exporter._exporter = inner
+
+        result = exporter.export([MagicMock()])
+
+        inner.export.assert_called_once()
+        assert result == SpanExportResult.SUCCESS
+
+    def test_export_warns_when_header_update_raises(self, caplog):
+        """A warning must be emitted when session.headers.update() fails."""
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        config = _make_config_with_authenticator(token="tok")
+        exporter = DynamicAuthOTLPSpanExporter(endpoint=config.endpoint, config=config)
+
+        fake_session = MagicMock()
+        fake_session.headers.update.side_effect = RuntimeError("headers locked")
+        inner = MagicMock()
+        inner._session = fake_session
+        inner.export.return_value = SpanExportResult.SUCCESS
+        exporter._exporter = inner
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="ibm_watsonx_orchestrate_sdk.observability.exporters",
+        ):
+            exporter.export([MagicMock()])
+
+        assert "Failed to update session headers" in caplog.text
+
     def test_export_proceeds_when_get_auth_headers_raises(self):
         """If get_auth_headers raises during export (not __init__), the exception
         must be caught, a warning logged, and the underlying exporter still called."""

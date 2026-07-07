@@ -45,8 +45,17 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
         self._endpoint = endpoint
         self._config = config
         self._lock = threading.Lock()
-        # Create base exporter with initial headers
-        initial_headers = config.get_auth_headers()
+        # Fetch initial headers; if that fails the exporter is still created
+        # without auth headers so construction never raises.
+        try:
+            initial_headers = config.get_auth_headers()
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch initial authentication headers; "
+                "exporter will be created without auth headers: %s",
+                exc,
+            )
+            initial_headers = {}
         self._exporter: Any = OTLPSpanExporter(endpoint=endpoint, headers=initial_headers)
         logger.debug("Created DynamicAuthOTLPSpanExporter for endpoint: %s", endpoint)
 
@@ -76,8 +85,15 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
 
             # Update the exporter's session headers (OTLPSpanExporter uses requests.Session)
             if fresh_headers and hasattr(self._exporter, "_session") and self._exporter._session:
-                self._exporter._session.headers.update(fresh_headers)
-                logger.debug("Refreshed authentication token for span export")
+                try:
+                    self._exporter._session.headers.update(fresh_headers)
+                    logger.debug("Refreshed authentication token for span export")
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to update session headers with refreshed token: %s. "
+                        "Proceeding with previously cached credentials.",
+                        exc,
+                    )
 
         return self._exporter.export(spans)
 
