@@ -687,6 +687,7 @@ class AgentPreInvokePayload(PluginPayload):
     model: Optional[str] = None
     system_prompt: Optional[str] = None
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 # ---------------------------------------------------------------------------
 # Agent Post-Invoke Payload
@@ -697,6 +698,7 @@ class AgentPostInvokePayload(PluginPayload):
     agent_id: str
     messages: List[Message]
     tool_calls: Optional[List[Dict[str, Any]]] = None
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 # ---------------------------------------------------------------------------
 # Agent Pre-Invoke Result - AgentPreInvokeResult = PluginResult[AgentPreInvokePayload]
