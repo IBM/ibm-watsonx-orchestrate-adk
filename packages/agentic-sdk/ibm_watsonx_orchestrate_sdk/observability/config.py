@@ -117,7 +117,20 @@ class TracerConfig:
     _session: Optional["AgenticSession"] = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
-        """Extract session from client and tenant_id/user_id from token if client is provided."""
+        """Extract session from client and tenant_id/user_id from token if client is provided.
+
+        Note on JWT decoding
+        --------------------
+        The JWT payload is decoded **without signature verification** because
+        the token was already issued and validated by the authentication server
+        (IAM / MCSP) before it ever reaches this code.  The session that carries
+        the token can only have been obtained by a successful authentication
+        exchange, so the claims here are trusted.  We read them purely to
+        extract convenience values (tenant_id, user_id) that are already
+        present in the token the platform handed us — we are not re-validating
+        identity.  If signature verification were required, the platform SDK's
+        own authenticator layer is the correct place for it, not here.
+        """
         if self.client is not None:
             if hasattr(self.client, 'session'):
                 self._session = self.client.session
@@ -159,12 +172,16 @@ class TracerConfig:
                 logger.debug("No token available to extract tenant_id")
                 return None
             
-            # JWT tokens have 3 parts separated by dots: header.payload.signature
+            # Split the JWT into its three base64url parts.
+            # Signature verification is intentionally skipped — the token was
+            # already verified by the authentication server (IAM / MCSP) when
+            # the session was created.  We only read claims to extract
+            # tenant_id / user_id that the platform already put there.
             parts = token.split('.')
             if len(parts) != 3:
                 logger.warning("Token is not a valid JWT format")
                 return None
-            
+
             # Decode the payload (second part)
             payload = parts[1]
             # Add padding if needed (JWT base64 encoding may not have padding)
