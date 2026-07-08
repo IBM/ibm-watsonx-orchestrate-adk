@@ -1399,8 +1399,15 @@ def validate_callback_tool_schema(
                 f"Non-flow callback tools must accept List[FlowCallbackEventPayload] as input."
             )
     
-    # Check if input schema has 'events' property with array type
+    # Check if input schema has 'events' property with array type.
+    # OpenAPI tools wrap the request body under a '__requestBody__' property;
+    # unwrap it transparently so both flow tools and OpenAPI tools are validated
+    # with the same logic.
     input_props = tool_spec.input_schema.properties
+    if input_props and '__requestBody__' in input_props:
+        request_body = input_props['__requestBody__']
+        input_props = getattr(request_body, 'properties', None)
+
     if not input_props or 'events' not in input_props:
         raise ValueError(
             f"Callback tool '{tool_identifier}' input schema must have an 'events' property "
@@ -1424,39 +1431,41 @@ def validate_callback_tool_schema(
             f"Expected: List[FlowCallbackEventPayload]"
         )
     
-    # Validate the FlowCallbackEventPayload structure
+    # Validate the callback payload structure.
+    # Array items must describe an object schema, but the nested 'event' field is optional.
     items_schema = events_prop.items
-    if not hasattr(items_schema, 'properties') or not items_schema.properties:
+    item_properties = getattr(items_schema, 'properties', None)
+    is_object_schema = getattr(items_schema, 'type', None) == 'object' or item_properties is not None
+    if not is_object_schema:
         raise ValueError(
-            f"Callback tool '{tool_identifier}' events array items must have properties. "
-            f"Expected: FlowCallbackEventPayload structure"
+            f"Callback tool '{tool_identifier}' events array items must be objects. "
+            f"Expected an object schema for callback payload items."
         )
-    
-    payload_props = items_schema.properties
-    
-    # Check for required 'event' field in the payload
-    if 'event' not in payload_props:
+
+    if not item_properties or 'event' not in item_properties:
+        return
+
+    event_field = item_properties['event']
+    event_properties = getattr(event_field, 'properties', None)
+    is_event_object_schema = getattr(event_field, 'type', None) == 'object' or event_properties is not None
+    if not is_event_object_schema:
         raise ValueError(
-            f"Callback tool '{tool_identifier}' event payload must have 'event' field. "
-            f"Expected: FlowCallbackEventPayload structure with 'event', 'output', and 'elicitation' fields. "
-            f"Found properties: {list(payload_props.keys())}"
+            f"Callback tool '{tool_identifier}' event field must be an object schema when provided."
         )
-    
-    # Validate the 'event' field (EventMetadata) has required properties
-    # Get required fields dynamically from the EventMetadata Pydantic model
+
+    if not event_properties:
+        return
+
+    # Validate the 'event' field (EventMetadata) has required properties when explicitly defined.
     event_schema = EventMetadata.model_json_schema()
     required_event_fields = event_schema.get('required', [])
-    
-    event_field = payload_props['event']
-    if hasattr(event_field, 'properties') and event_field.properties:
-        event_props = event_field.properties
-        missing_fields = [field for field in required_event_fields if field not in event_props]
-        
-        if missing_fields:
-            raise ValueError(
-                f"Callback tool '{tool_identifier}' event metadata is missing required fields: {missing_fields}. "
-                f"EventMetadata must have: {required_event_fields}"
-            )
+    missing_fields = [field for field in required_event_fields if field not in event_properties]
+
+    if missing_fields:
+        raise ValueError(
+            f"Callback tool '{tool_identifier}' event metadata is missing required fields: {missing_fields}. "
+            f"EventMetadata must have: {required_event_fields}"
+        )
 
 
 class RuleBuilder:
