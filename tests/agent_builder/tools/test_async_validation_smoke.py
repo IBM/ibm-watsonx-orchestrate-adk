@@ -52,14 +52,13 @@ def test_sync_standalone_tool_should_succeed():
     assert not spec.is_async, f"Expected is_async=False, got {spec.is_async}"
 
 
-def test_async_standalone_with_package_root_should_fail(monkeypatch):
+def test_async_standalone_with_package_root_should_fail():
     """Regression test: async standalone tool imported with --package-root must be rejected.
 
     Previously, import_python_tool set belongs_to_toolkit = package_root is not None, which caused
     extract_python_tools to treat any package-root import as a toolkit import and bypass the
     async restriction.  The fix: belongs_to_toolkit is always False for standalone imports.
     """
-    monkeypatch.setenv("EXPERIMENTAL_ASYNC_TOOLKITS", "true")
     from ibm_watsonx_orchestrate.agent_builder.tools.utils import extract_python_tools
 
     tool_src = textwrap.dedent("""\
