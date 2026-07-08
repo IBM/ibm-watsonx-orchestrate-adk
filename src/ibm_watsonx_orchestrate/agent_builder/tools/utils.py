@@ -15,7 +15,6 @@ from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 from ibm_watsonx_orchestrate.utils.utils import sanitize_app_id
-from ibm_watsonx_orchestrate.agent_builder.tools.feature_flags import is_async_enforcement_enabled
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.cli.commands.tools.types import RegistryType
 from ibm_watsonx_orchestrate.agent_builder.tools.base_tool import BaseTool
@@ -303,11 +302,10 @@ def __get_python_tools_from_file(
             fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
-        if is_async_enforcement_enabled():
-            obj.belongs_to_toolkit = belongs_to_toolkit
-            # Older tools don't have this validation
-            if hasattr(obj, 'validate_async_toolkit_requirement'):
-                obj.validate_async_toolkit_requirement()
+        obj.belongs_to_toolkit = belongs_to_toolkit
+        # Older tools don't have this validation
+        if hasattr(obj, 'validate_async_toolkit_requirement'):
+            obj.validate_async_toolkit_requirement()
 
         if connections and len(connections):
             obj.__tool_spec__.binding.python.connections = __parse_app_ids(connections)
