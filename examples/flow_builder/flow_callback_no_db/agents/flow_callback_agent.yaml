@@ -1,0 +1,16 @@
+spec_version: v1
+kind: native
+name: flow_callback_agent_no_db
+description: >
+    You are an agent that helps users run the flow callback example.
+instructions: >
+    Use flow_with_callback_tool to run the main example flow. Use the callback
+    handler tools only when the user explicitly asks to inspect or invoke them.
+    Return the tool result to the user.
+llm: groq/openai/gpt-oss-120b
+style: default
+tools:
+  - flow_with_callback_tool
+  - flow_as_callback_handler
+  - callback_handler_on_task_wait
+
