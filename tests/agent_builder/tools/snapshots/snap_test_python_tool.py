@@ -10,7 +10,7 @@ snapshots = Snapshot()
 snapshots['test_should_allow_naked_decorators 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'The description',
@@ -21,7 +21,6 @@ snapshots['test_should_allow_naked_decorators 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'my_tool',
     'output_schema': {
     },
@@ -32,7 +31,7 @@ snapshots['test_should_allow_naked_decorators 1'] = {
 snapshots['test_should_be_possible_to_override_defaults 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'the description',
@@ -43,7 +42,6 @@ snapshots['test_should_be_possible_to_override_defaults 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'myName',
     'output_schema': {
     },
@@ -54,7 +52,7 @@ snapshots['test_should_be_possible_to_override_defaults 1'] = {
 snapshots['test_should_support_pydantic_typed_args 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:sample_tool',
+            'function': 'test_python_tool:sample_tool'
         }
     },
     'description': 'test python description',
@@ -193,7 +191,6 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'sample_tool',
     'output_schema': {
         'properties': {
@@ -265,7 +262,7 @@ snapshots['test_should_support_pydantic_typed_args 1'] = {
 snapshots['test_should_support_typed_none_args 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'the description',
@@ -280,7 +277,6 @@ snapshots['test_should_support_typed_none_args 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'myName',
     'output_schema': {
         'type': 'null'
@@ -292,7 +288,7 @@ snapshots['test_should_support_typed_none_args 1'] = {
 snapshots['test_should_support_typed_optional_args 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'the description',
@@ -308,7 +304,6 @@ snapshots['test_should_support_typed_optional_args 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'myName',
     'output_schema': {
         'anyOf': [
@@ -327,7 +322,7 @@ snapshots['test_should_support_typed_optional_args 1'] = {
 snapshots['test_should_support_typed_typings_inputs_and_outputs 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'the description',
@@ -343,7 +338,6 @@ snapshots['test_should_support_typed_typings_inputs_and_outputs 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'myName',
     'output_schema': {
         'type': 'string'
@@ -355,7 +349,7 @@ snapshots['test_should_support_typed_typings_inputs_and_outputs 1'] = {
 snapshots['test_should_support_wxo_file_format_inputs_and_outputs 1'] = {
     'binding': {
         'python': {
-            'function': 'tests.agent_builder.tools.test_python_tool:my_tool',
+            'function': 'tests.agent_builder.tools.test_python_tool:my_tool'
         }
     },
     'description': 'the description',
@@ -373,7 +367,6 @@ snapshots['test_should_support_wxo_file_format_inputs_and_outputs 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'myName',
     'output_schema': {
         'description': 'A URL identifying the File to be used.',
@@ -388,7 +381,7 @@ snapshots['test_should_support_wxo_file_format_inputs_and_outputs 1'] = {
 snapshots['test_should_use_correct_defaults 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:my_tool',
+            'function': 'test_python_tool:my_tool'
         }
     },
     'description': 'test python description',
@@ -399,7 +392,6 @@ snapshots['test_should_use_correct_defaults 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'my_tool',
     'output_schema': {
     },
@@ -410,7 +402,7 @@ snapshots['test_should_use_correct_defaults 1'] = {
 snapshots['test_should_work_with_dicts 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:sample_tool',
+            'function': 'test_python_tool:sample_tool'
         }
     },
     'description': 'test python description',
@@ -437,7 +429,6 @@ snapshots['test_should_work_with_dicts 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'sample_tool',
     'output_schema': {
         'items': {
@@ -455,7 +446,7 @@ snapshots['test_should_work_with_dicts 1'] = {
 snapshots['test_should_work_with_lists 1'] = {
     'binding': {
         'python': {
-            'function': 'test_python_tool:sample_tool',
+            'function': 'test_python_tool:sample_tool'
         }
     },
     'description': 'test python description',
@@ -482,7 +473,6 @@ snapshots['test_should_work_with_lists 1'] = {
         ],
         'type': 'object'
     },
-    'is_async': False,
     'name': 'sample_tool',
     'output_schema': {
         'items': {

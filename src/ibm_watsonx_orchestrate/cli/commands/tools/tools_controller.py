@@ -238,6 +238,8 @@ def get_connection_ids(app_ids: list[str] | str = None, environment: str = None,
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
+    
+    return tools
 
 
 def load_flow_model_from_file(file: str) -> dict:
