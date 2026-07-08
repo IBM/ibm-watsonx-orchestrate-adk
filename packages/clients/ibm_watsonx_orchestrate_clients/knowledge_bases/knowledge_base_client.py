@@ -129,5 +129,13 @@ class KnowledgeBaseClient(BaseWXOClient):
             payload['knowledge_base'] = json.dumps(kb_data)
         return self._patch_form_data(f"{self.base_endpoint}/{knowledge_base_id}/documents", data=payload, files=files)
 
+    def validate_creds(self, connection_id: str, url: str = None, port: str = None) -> dict:
+        payload = {"connection_id": connection_id}
+        if url is not None:
+            payload["url"] = url
+        if port is not None:
+            payload["port"] = port
+        return self._post(f"{self.base_endpoint}/validate-creds", data=payload)
+
     def delete(self, knowledge_base_id: str,) -> dict:
         return self._delete(f"{self.base_endpoint}/{knowledge_base_id}")
