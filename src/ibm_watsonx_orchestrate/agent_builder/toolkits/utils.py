@@ -52,7 +52,7 @@ def extract_python_toolkit_tools_from_folder(folder_path:str| Path, app_ids: Opt
                         continue
                     
 
-                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False, belongs_to_toolkit=True))
+                    tools.extend(extract_python_tools(file=file, package_root=temp_dir, app_ids=app_ids, requirements_file=temp_requirements_path, log_requirements_path=False, requirements_file_required=False))
 
             finally:
                 # Remove temp directory from path
