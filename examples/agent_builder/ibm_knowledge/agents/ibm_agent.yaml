@@ -8,3 +8,5 @@ style: react_core
 knowledge_base:
   - ibm_knowledge_base
 tools: []
+chat_with_docs:
+  enabled: true
