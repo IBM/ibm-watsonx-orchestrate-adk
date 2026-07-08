@@ -105,6 +105,15 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
         return
     return index_config.connection_id
 
+_VECTOR_INDEX_FIELDS = ("milvus", "elastic_search", "open_search", "astradb", "custom_search")
+
+def get_vector_index_type(index_config: IndexConnection) -> str | None:
+    """Return the vector_index_type string matching the populated connection field."""
+    for field in _VECTOR_INDEX_FIELDS:
+        if getattr(index_config, field, None) is not None:
+            return field
+    return None
+
 def get_url_and_port_from_index_config(index_config: IndexConnection) -> tuple[str | None, str | None]:
     """Extract the URL (or host) and port from whichever connection type is populated."""
     conn = index_config.elastic_search or index_config.open_search or index_config.custom_search
@@ -137,10 +146,14 @@ class KnowledgeBaseController:
         if not connection_id:
             return
 
+        vector_index_type = get_vector_index_type(index_config)
+        if not vector_index_type:
+            return
+
         url, port = get_url_and_port_from_index_config(index_config)
 
         try:
-            self.get_client().validate_creds(connection_id=connection_id, url=url, port=port)
+            self.get_client().validate_creds(connection_id=connection_id, vector_index_type=vector_index_type, url=url, port=port)
         except ClientAPIException as e:
             error_msg = str(e)
             try:
