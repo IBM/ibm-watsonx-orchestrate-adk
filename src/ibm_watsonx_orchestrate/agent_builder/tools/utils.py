@@ -269,8 +269,7 @@ def __get_python_tools_from_file(
         file_name: str,
         package_root: Optional[str] = None,
         requirements: Optional[List[str]] = None,
-        connections: Optional[List[str]] = None,
-        belongs_to_toolkit: bool = False,
+        connections: Optional[List[str]] = None
     ) -> List[BaseTool]:
     tools = []
 
@@ -302,11 +301,6 @@ def __get_python_tools_from_file(
             fn = obj.__tool_spec__.binding.python.function.split(":")[-1]
             obj.__tool_spec__.binding.python.function = f"{pkg}:{fn}"
 
-        obj.belongs_to_toolkit = belongs_to_toolkit
-        # Older tools don't have this validation
-        if hasattr(obj, 'validate_async_toolkit_requirement'):
-            obj.validate_async_toolkit_requirement()
-
         if connections and len(connections):
             obj.__tool_spec__.binding.python.connections = __parse_app_ids(connections)
 
@@ -315,7 +309,7 @@ def __get_python_tools_from_file(
     
     return tools
 
-def extract_python_tools(file: str, requirements_file: Optional[str] = None, app_ids: Optional[List[str]] = None, package_root: Optional[str] = None, log_requirements_path: bool = True, requirements_file_required: bool = True, belongs_to_toolkit: bool = False) -> List[BaseTool]:
+def extract_python_tools(file: str, requirements_file: Optional[str] = None, app_ids: Optional[List[str]] = None, package_root: Optional[str] = None, log_requirements_path: bool = True, requirements_file_required: bool = True) -> List[BaseTool]:
     try:
 
         # standard file import
@@ -358,8 +352,7 @@ def extract_python_tools(file: str, requirements_file: Optional[str] = None, app
         file_name=file_name,
         package_root=resolved_package_root,
         requirements=requirements,
-        connections=app_ids,
-        belongs_to_toolkit=belongs_to_toolkit
+        connections=app_ids
     )
 
     return tools
