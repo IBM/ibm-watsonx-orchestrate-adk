@@ -55,7 +55,7 @@ class FieldMapping:
 class OpenSearchConnection:
     """OpenSearch connection configuration."""
 
-    url: str
+    url: str | None  # URL can be provided in connection
     port: str | None
     index: str
     credentials: OpenSearchCredentials

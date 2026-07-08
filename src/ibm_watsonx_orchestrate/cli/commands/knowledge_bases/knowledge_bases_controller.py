@@ -105,6 +105,17 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
         return
     return index_config.connection_id
 
+def get_url_and_port_from_index_config(index_config: IndexConnection) -> tuple[str | None, str | None]:
+    """Extract the URL (or host) and port from whichever connection type is populated."""
+    conn = index_config.elastic_search or index_config.open_search or index_config.custom_search
+    if conn:
+        return getattr(conn, 'url', None), getattr(conn, 'port', None)
+    if index_config.milvus:
+        return index_config.milvus.grpc_host, index_config.milvus.grpc_port
+    if index_config.astradb:
+        return index_config.astradb.api_endpoint, index_config.astradb.port
+    return None, None
+
 class KnowledgeBaseController:
     def __init__(self, safe_mode: bool = False):
         self.client = None
@@ -115,7 +126,33 @@ class KnowledgeBaseController:
         if not self.client:
             self.client = instantiate_client(KnowledgeBaseClient)
         return self.client
-    
+
+    def _validate_connection_creds(self, index_config: IndexConnection) -> None:
+        """Validate credentials for a connection-based knowledge base.
+
+        Calls POST /knowledge-bases/validate-creds and raises an error if the
+        response is non-200, aborting the create/update operation.
+        """
+        connection_id = index_config.connection_id
+        if not connection_id:
+            return
+
+        url, port = get_url_and_port_from_index_config(index_config)
+
+        try:
+            self.get_client().validate_creds(connection_id=connection_id, url=url, port=port)
+        except ClientAPIException as e:
+            error_msg = str(e)
+            try:
+                if e.response is not None and hasattr(e.response, 'text') and e.response.text:
+                    try:
+                        error_msg = json.loads(e.response.text).get('detail', e.response.text)
+                    except Exception:
+                        error_msg = e.response.text
+            except Exception:
+                pass
+            raise ValueError(f"Connection credential validation failed: {error_msg}")
+
     def import_knowledge_base(self, file: str, app_id: str):
         client = self.get_client()
 
@@ -140,6 +177,15 @@ class KnowledgeBaseController:
                 else:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
+
+            # Validate connection credentials before creating/updating
+            index_config = get_index_config(kb)
+            if index_config and index_config.connection_id:
+                try:
+                    self._validate_connection_creds(index_config)
+                except ValueError as e:
+                    logger.error(str(e))
+                    continue
 
             # Ensure these values are None to prevent issues with datetime not being JSON serializable
             kb.updated_at = None
@@ -408,6 +454,12 @@ class KnowledgeBaseController:
     ) -> None:
         if isinstance(file_dir, str):
             file_dir = Path(file_dir)
+
+        # Validate connection credentials before updating
+        index_config = get_index_config(kb)
+        if index_config and index_config.connection_id:
+            self._validate_connection_creds(index_config)
+
         if kb.documents:
             status = self.get_client().status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
