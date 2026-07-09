@@ -27,6 +27,19 @@ from .types import *
 
 APPLICATIONS_FILE_VERSION = '1.16.0'
 
+# Fields allowed by the catalog native agent schema (native_schema.json).
+# Fields present in the ADK agent spec but absent from this set are internal
+# platform fields that the catalog validator rejects via additionalProperties:false.
+NATIVE_AGENT_CATALOG_FIELDS = {
+    'agent_role', 'billing', 'bundled', 'category', 'change_log', 'channels',
+    'chat_with_docs', 'collaborators', 'context_access_enabled', 'context_variables',
+    'delete_by', 'description', 'display_name', 'guidelines', 'hidden',
+    'hide_reasoning', 'icon', 'instructions', 'kind', 'knowledge_base',
+    'language_support', 'llm', 'llm_config', 'name', 'part_number', 'publisher',
+    'related_links', 'restrictions', 'scope', 'starter_prompts', 'style',
+    'supported_apps', 'tags', 'tools', 'version', 'welcome_content',
+}
+
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +82,12 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
             parent_agent_name
         ).model_dump()
 
-        extra_agent_fields = {k: v for k, v in extra_agent_fields.items() if v is not None}
+        # Keep all non-None fields, plus explicitly keep delete_by even when None
+        # because null is a valid required value for that field in the catalog schema.
+        extra_agent_fields = {
+            k: v for k, v in extra_agent_fields.items()
+            if v is not None or k == "delete_by"
+        }
 
         agent_data.update(extra_agent_fields)
 
@@ -363,8 +381,22 @@ class PartnersOfferingController:
                 
                 _validate_agent_placeholders(agent_data, agent_name)
 
+                # Strip fields not in the catalog schema before packaging.
+                # The ADK agent spec contains internal platform fields (e.g. plugins,
+                # spec_version, is_schedulable) that the catalog rejects via
+                # additionalProperties:false. Only native agents need this filter;
+                # external agent schema validation is handled separately.
+                if agent_kind == AgentKind.NATIVE:
+                    catalog_data = {k: v for k, v in agent_data.items() if k in NATIVE_AGENT_CATALOG_FIELDS}
+                    # hidden is required by the catalog schema but excluded from
+                    # agent exports that use exclude_unset=True — ensure it is present.
+                    if "hidden" not in catalog_data:
+                        catalog_data["hidden"] = False
+                else:
+                    catalog_data = agent_data
+
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
-                zf.writestr(agent_json_path, json.dumps(agent_data, indent=2))
+                zf.writestr(agent_json_path, json.dumps(catalog_data, indent=2))
             
             # --- Add & validate tools ---
             tools_client = instantiate_client(ToolClient)
