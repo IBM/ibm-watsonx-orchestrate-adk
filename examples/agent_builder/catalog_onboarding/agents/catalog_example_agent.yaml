@@ -1,0 +1,75 @@
+spec_version: v1
+kind: native
+name: catalog_example_agent
+display_name: "Catalog Example Agent"
+description: >
+  A reference example showing all required fields for submitting a native agent
+  to the watsonx Orchestrate Agent Catalog.
+instructions: >
+  You are a helpful assistant. Answer questions clearly and concisely.
+llm: groq/openai/gpt-oss-120b
+style: default
+tools: []
+collaborators: []
+
+# ── Catalog submission fields ─────────────────────────────────────────────────
+# All fields below are REQUIRED when submitting to the watsonx Orchestrate
+# Agent Catalog via the IBM Concierge app. The ADK will scaffold placeholder
+# values for any missing fields during `offering create` — replace them before
+# running `offering package`.
+
+publisher: "Acme Corp"           # No underscores allowed (e.g. "Acme Corp" not "Acme_Corp")
+category: agent                  # Always "agent" — do not edit
+agent_role: manager              # "manager" for the top-level agent; "collaborator" for sub-agents
+hidden: false                    # true to hide from catalog, false to publish
+restrictions: editable           # "editable", "non_editable", or "custom"
+bundled: false                   # true if bundled with another product
+delete_by: null                  # Deletion date as YYYY-MM-DD, or null
+
+version: "1.0.0"                 # Semantic version x.y.z — MUST increment on each re-submission
+change_log:
+  - Initial release              # One entry per version bump
+
+language_support:
+  - English                      # Each entry must start with a capital letter
+
+tags:
+  - Productivity                 # Each entry must start with a capital letter
+
+icon: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z'/></svg>"
+
+# Part numbers — set all to null for a free agent.
+# BUSINESS RULE: if part_number.<platform> is not null,
+#                scope.form_factor.<platform> MUST be "paid".
+# Note: the key is "ibmcloud" — no underscore.
+part_number:
+  aws: null
+  ibmcloud: null
+  cp4d: null
+
+scope:
+  form_factor:
+    aws: free                    # "paid" only when part_number.aws is not null
+    ibmcloud: free               # "paid" only when part_number.ibmcloud is not null
+    cp4d: free                   # "paid" only when part_number.cp4d is not null
+
+channels: []                     # e.g. ["Teams", "Slack", "WhatsAppTwilio"]
+
+# related_links rules:
+#   key  — must start with a capital letter, no underscores
+#   type — must be "hyperlink" or "embedded" (not "embeded")
+related_links:
+  - key: Support
+    value: "https://support.acmecorp.com"
+    type: hyperlink
+  - key: Documentation
+    value: "https://docs.acmecorp.com"
+    type: hyperlink
+  - key: Terms and Conditions
+    value: "https://acmecorp.com/terms"
+    type: hyperlink
+
+billing:
+  metered: false
+
+supported_apps: []
