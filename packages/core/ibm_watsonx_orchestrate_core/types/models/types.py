@@ -26,6 +26,7 @@ class ModelProvider(str, Enum):
     TOGETHER_AI = 'together-ai'
     WATSONX = 'watsonx'
     X_AI = 'x-ai'
+    REDHAT_AI = 'redhat-ai'
 
     def __str__(self):
         return self.value
