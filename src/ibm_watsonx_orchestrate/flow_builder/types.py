@@ -20,8 +20,7 @@ from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandle
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
-from langchain_core.tools.base import create_schema_from_function
-from langchain_core.utils.json_schema import dereference_refs
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import create_schema_from_function, dereference_refs
 
 from ibm_watsonx_orchestrate.agent_builder.tools import PythonTool
 from ibm_watsonx_orchestrate.flow_builder.data_map import Assignment, DataMap, add_assignment, ensure_datamap
