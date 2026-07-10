@@ -2931,21 +2931,29 @@ class AgentsController:
             logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
             sys.exit(1)
 
-        connection_uuids = []
+        existing_connection_ids = set(agent.get("connection_ids", []) or [])
+        connection_uuids = list(existing_connection_ids)
+        new_app_ids = []
+
         for app_id in connection_ids:
             connection = connections_client.get_draft_by_app_id(app_id=app_id)
             if not connection:
                 logger.error(f"No connection exists with the app-id '{app_id}'")
                 sys.exit(1)
-            if connection.connection_id in agent.get("connection_ids", []):
-                logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
-                sys.exit(1)
+            if connection.connection_id in existing_connection_ids:
+                logger.warning(f"Connection '{app_id}' is already connected to agent '{agent_name}', skipping")
+                continue
             connection_uuids.append(connection.connection_id)
+            new_app_ids.append(app_id)
+
+        if not new_app_ids:
+            logger.info(f"No new connections to add to agent '{agent_name}'")
+            return
 
         # Connect the connections to the agent
-        logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
+        logger.info(f"Connecting {len(new_app_ids)} new connection(s) to agent '{agent_name}': {', '.join(new_app_ids)}")
         native_client.connect_connections(agent_id, connection_uuids)
-        logger.info(f"Successfully connected connections to agent '{agent_name}'")
+        logger.info(f"Successfully connected {len(new_app_ids)} new connection(s) to agent '{agent_name}'")
 
 
     def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:
