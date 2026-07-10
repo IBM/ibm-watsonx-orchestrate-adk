@@ -248,46 +248,34 @@ def tool2():
 """
         )
 
-        example_json = {
-            "utterance": "test story",
-            "tools": ["tool1", "tool2"],
-            "expected": {
-                "tools": ["tool1", "tool2"],
-                "args": [{"arg1": "val1"}, {"arg2": "val2"}],
-            },
-        }
-
         try:
             with patch(
-                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.build_snapshot"
-            ) as mock_build_snapshot, patch(
-                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.generate_test_cases_from_stories"
-            ) as mock_generate, patch(
-                "agentops.batch_annotate.load_example", return_value=example_json
-            ), patch(
-                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AgentsController"
-            ) as mock_agent_controller, patch(
                 "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.get_provider"
-            ) as mock_get_provider:
+            ) as mock_get_provider, patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.get_wxo_client"
+            ) as mock_get_wxo_client, patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.WXORuntimeAdapter"
+            ) as mock_adapter, patch(
+                "ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.AutomaticEvalDataGenerator"
+            ) as mock_generator_cls, patch.object(
+                controller,
+                "_get_env_config",
+                return_value=("test-url", "test-tenant", "test-token"),
+            ):
+                mock_get_provider.return_value = MagicMock()
+                mock_get_wxo_client.return_value = MagicMock()
+                mock_adapter.return_value = MagicMock()
 
-                mock_agent = MagicMock()
-                mock_agent_controller_instance = MagicMock()
-                mock_agent_controller.return_value = mock_agent_controller_instance
-                mock_agent_controller_instance.get_agent.return_value = mock_agent
-                mock_agent_controller_instance.get_agent_tool_names.return_value = [
-                    "tool1",
-                    "tool2",
-                ]
-                
-                # Mock the LLM provider to avoid WO instance requirement
-                mock_provider = MagicMock()
-                mock_get_provider.return_value = mock_provider
+                mock_generator = MagicMock()
+                mock_generator.generate_eval_data.return_value = {}
+                mock_generator_cls.return_value = mock_generator
 
                 output_dir = "test_output"
                 controller.generate(stories_path, tools_dir, output_dir)
 
-                mock_build_snapshot.assert_called_once()
-                mock_generate.assert_called_once()
+                mock_get_provider.assert_called()
+                mock_generator_cls.assert_called_once()
+                mock_generator.generate_eval_data.assert_called_once()
         finally:
             Path(stories_path).unlink()
             shutil.rmtree(tools_dir)
