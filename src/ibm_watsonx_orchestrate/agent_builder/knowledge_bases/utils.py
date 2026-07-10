@@ -9,12 +9,19 @@ from croniter import croniter
 def get_minimum_schedule_interval_minutes() -> int:
     """
     Get the minimum allowed schedule interval in minutes.
-    Can be configured via KNOWLEDGE_BASE_MIN_SCHEDULE_INTERVAL_MINUTES environment variable.
-    
+    Can be configured via KB_SCHEDULE_MIN_INTERVAL_MINUTES or
+    KNOWLEDGE_BASE_MIN_SCHEDULE_INTERVAL_MINUTES environment variables.
+    KB_SCHEDULE_MIN_INTERVAL_MINUTES takes precedence.
+
     Returns:
         int: Minimum interval in minutes (default: 60)
     """
-    return int(os.environ.get("KNOWLEDGE_BASE_MIN_SCHEDULE_INTERVAL_MINUTES", "60"))
+    raw = (
+        os.environ.get("KB_SCHEDULE_MIN_INTERVAL_MINUTES")
+        or os.environ.get("KNOWLEDGE_BASE_MIN_SCHEDULE_INTERVAL_MINUTES")
+        or "60"
+    )
+    return int(raw)
 
 
 def get_schedule_pattern_interval_minutes(pattern: str) -> Optional[int]:

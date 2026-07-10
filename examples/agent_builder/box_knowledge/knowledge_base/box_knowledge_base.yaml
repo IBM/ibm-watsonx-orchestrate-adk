@@ -7,4 +7,4 @@ content_source:
 documents:
   - ask_hr_demo_health_benefits.pdf
 sync_job:
-  schedule: "*/60 * * * *"  # Every hour (default minimum interval)
+  schedule: "*/5 * * * *"  # Every hour (default minimum interval)
