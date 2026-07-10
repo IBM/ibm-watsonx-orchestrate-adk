@@ -221,7 +221,8 @@ class DeepgramTTSConfig(BaseModel):
   language: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   mip_opt_out: Optional[bool] = None
-
+  normalize_volume: Optional[bool] = None
+  
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_tts_config: Optional[WatsonTTSConfig] = None
