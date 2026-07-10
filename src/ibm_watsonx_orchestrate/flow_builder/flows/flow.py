@@ -38,7 +38,7 @@ from ..types import (
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
-    UserFormButton
+    UserFormButton, LanguageCode
 )
 from ..masking_utils import MaskingPolicy, InputPolicy
 from .constants import CURRENT_USER, START, END, ANY_USER
@@ -1061,12 +1061,14 @@ class Flow(Node):
             classes: type[BaseModel]| None = None, 
             description: str | None = None,
             min_confidence: float = 0.0,
-            enable_review: bool = False) -> DocClassifierNode:
+            enable_hw: bool = False,
+            enable_review: bool = False,
+            language: LanguageCode | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
         
-        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence,input_classes=classes)
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes)
 
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
@@ -1083,7 +1085,9 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             config=doc_classifier_config,
             version=version,
-            enable_review=enable_review
+            enable_hw=enable_hw,
+            enable_review=enable_review,
+            language=language
         )
         node = DocClassifierNode(spec=task_spec)
         
@@ -1128,7 +1132,8 @@ class Flow(Node):
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
             enable_review: bool = False,
-            page_range: PageRange | None = None) -> tuple[DocExtNode, type[BaseModel]]:
+            page_range: PageRange | None = None,
+            language: LanguageCode | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1157,7 +1162,8 @@ class Flow(Node):
             min_confidence=min_confidence,
             review_fields=review_fields,
             field_extraction_method=field_extraction_method,
-            enable_review=enable_review
+            enable_review=enable_review,
+            language=language
         )
         node = DocExtNode(spec=task_spec)
         
@@ -1211,6 +1217,7 @@ class Flow(Node):
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
+            language: LanguageCode | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
@@ -1250,6 +1257,7 @@ class Flow(Node):
             kvp_force_schema_name=kvp_force_schema_name,
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
+            language=language,
             output_format=output_format
         )
 
