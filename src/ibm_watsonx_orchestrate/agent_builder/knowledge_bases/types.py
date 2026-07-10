@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, model_validator, Field, field_validator
+from pydantic import BaseModel, model_validator, Field
 
 
 class SpecVersion(str, Enum):
@@ -423,24 +423,6 @@ class ContentSourceConfig(BaseModel):
 class KnowledgeBaseSyncJob(BaseModel):
     """Schedule repeat options for knowledge base ingestion"""
     schedule: str = Field(..., description="Cron pattern (e.g., '0 0 * * *' for daily at midnight)")
-
-    @field_validator("schedule")
-    @classmethod
-    def validate_schedule_minimum_interval(cls, value: str) -> str:
-        from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import (
-            get_minimum_schedule_interval_minutes,
-            get_schedule_pattern_interval_minutes
-        )
-        
-        minimum_interval_minutes = get_minimum_schedule_interval_minutes()
-        interval_minutes = get_schedule_pattern_interval_minutes(value)
-
-        if interval_minutes is not None and interval_minutes < minimum_interval_minutes:
-            raise ValueError(
-                f"Schedule interval must be at least {minimum_interval_minutes} minutes"
-            )
-
-        return value
     
 class KnowledgeBaseSpec(BaseModel):
     """Schema for a complete knowledge-base."""
