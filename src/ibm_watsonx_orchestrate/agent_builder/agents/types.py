@@ -83,6 +83,7 @@ class AgentRestrictionType(str, Enum):
 class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
+    MSFTSTUDIO = "msftstudio"
     SALESFORCE = "salesforce"
     WATSONX = "watsonx" #provider type returned from an assistant agent
     A2A = 'external_chat/A2A/0.2.1'
