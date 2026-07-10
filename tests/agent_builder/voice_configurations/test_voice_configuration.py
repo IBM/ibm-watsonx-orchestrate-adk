@@ -178,6 +178,54 @@ def emotech_tts_config():
     }
   }
 
+@pytest.fixture
+def google_stt_config():
+  return{
+    "name": "google_stt_test",
+    "speech_to_text":{
+      "provider": "google_stt",
+      "google_stt_config":{
+        "project_id": "voice-runtime",
+        "api_key": "test_google_api_key",
+        "language_code": "en-US",
+        "model": "long",
+        "sample_rate_hertz": 16000,
+        "enable_automatic_punctuation": True,
+        "enable_interim_results": True
+      }
+    },
+    "text_to_speech": {
+      "provider": "test_tts_provider",
+      "watson_tts_config": {
+        "api_url": "example.url/tts",
+        "api_key": "example tts key",
+        "voice": "example voice"
+      }
+    }
+  }
+
+@pytest.fixture
+def google_cloud_tts_config():
+  return{
+    "name": "google_cloud_tts_test",
+    "speech_to_text":{
+      "provider": "test_stt_provider",
+      "watson_stt_config":{
+        "api_url": "example.url/stt",
+        "api_key": "example stt key",
+        "model": "example model"
+      }
+    },
+    "text_to_speech": {
+      "provider": "google_cloud_tts",
+      "google_cloud_tts_config": {
+        "api_key": "test_google_api_key",
+        "voice": "en-US-Neural2-C",
+        "language": "en-US"
+      }
+    }
+  }
+
 @pytest.fixture(params=[
   "name",
   "speech_to_text.provider",
@@ -260,6 +308,30 @@ class TestVoiceConfigurationInit:
     assert config.text_to_speech.emotech_tts_config.api_url == config_data['text_to_speech']['emotech_tts_config']['api_url']
     assert config.text_to_speech.emotech_tts_config.api_key == config_data['text_to_speech']['emotech_tts_config']['api_key']
     assert config.text_to_speech.emotech_tts_config.voice == config_data['text_to_speech']['emotech_tts_config']['voice']
+
+  def test_google_stt_config(self,google_stt_config):
+    config_data = google_stt_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.speech_to_text.provider == "google_stt"
+    assert config.speech_to_text.google_stt_config.project_id == config_data['speech_to_text']['google_stt_config']['project_id']
+    assert config.speech_to_text.google_stt_config.api_key == config_data['speech_to_text']['google_stt_config']['api_key']
+    assert config.speech_to_text.google_stt_config.language_code == config_data['speech_to_text']['google_stt_config']['language_code']
+    assert config.speech_to_text.google_stt_config.model == config_data['speech_to_text']['google_stt_config']['model']
+    assert config.speech_to_text.google_stt_config.sample_rate_hertz == config_data['speech_to_text']['google_stt_config']['sample_rate_hertz']
+    assert config.speech_to_text.google_stt_config.enable_automatic_punctuation == config_data['speech_to_text']['google_stt_config']['enable_automatic_punctuation']
+    assert config.speech_to_text.google_stt_config.enable_interim_results == config_data['speech_to_text']['google_stt_config']['enable_interim_results']
+
+  def test_google_cloud_tts_config(self,google_cloud_tts_config):
+    config_data = google_cloud_tts_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.text_to_speech.provider == "google_cloud_tts"
+    assert config.text_to_speech.google_cloud_tts_config.api_key == config_data['text_to_speech']['google_cloud_tts_config']['api_key']
+    assert config.text_to_speech.google_cloud_tts_config.voice == config_data['text_to_speech']['google_cloud_tts_config']['voice']
+    assert config.text_to_speech.google_cloud_tts_config.language == config_data['text_to_speech']['google_cloud_tts_config']['language']
 
   def test_deepgram_keyterm_with_supported_model_nova3(self):
     """Test that keyterm works with nova-3 model"""

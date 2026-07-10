@@ -1,0 +1,20 @@
+name: google_voice_config
+llm_aggregation_timeout_seconds: 0.8
+speech_to_text:
+  provider: google_stt
+  google_stt_config:
+    project_id: "voice-runtime"
+    api_key: "your-google-api-key"
+    language_code: "en-US"
+    model: "long"
+    sample_rate_hertz: 16000
+    enable_automatic_punctuation: true
+    enable_interim_results: true
+text_to_speech:
+  provider: google_cloud_tts
+  google_cloud_tts_config:
+    api_key: "your-google-api-key"
+    voice: "en-US-Neural2-C"
+    language: "en-US"
+    speaking_rate: 1.0
+language: "en-US"

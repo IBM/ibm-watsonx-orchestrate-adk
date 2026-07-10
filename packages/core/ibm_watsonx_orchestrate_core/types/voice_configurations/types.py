@@ -153,15 +153,28 @@ class DeepgramSTTConfig(BaseModel):
     
     return self
 
+class GoogleSTTConfig(BaseModel):
+  project_id: Annotated[str, Field(min_length=1, max_length=256)]
+  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  language_code: Annotated[str, Field(min_length=2, max_length=16)]
+  model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
+  sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
+  enable_automatic_punctuation: Optional[bool] = None
+  enable_interim_results: Optional[bool] = None
+  enable_word_time_offsets: Optional[bool] = None
+  enable_word_confidence: Optional[bool] = None
+  profanity_filter: Optional[bool] = None
+
 class SpeechToTextConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_stt_config: Optional[WatsonSTTConfig] = None
   emotech_stt_config: Optional[EmotechSTTConfig] = None
   deepgram_stt_config: Optional[DeepgramSTTConfig] = None
+  google_stt_config: Optional[GoogleSTTConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config'])
+    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config','google_stt_config'])
     return self
 
 class WatsonTTSConfig(BaseModel):
@@ -223,16 +236,28 @@ class DeepgramTTSConfig(BaseModel):
   mip_opt_out: Optional[bool] = None
   normalize_volume: Optional[bool] = None
   
+
+class GoogleCloudTTSConfig(BaseModel):
+  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  voice: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Annotated[str, Field(min_length=2, max_length=16)]
+  speaking_rate: Optional[Annotated[float, Field(ge=0.25, le=4.0)]] = None
+  pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = None
+  volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
+  effects_profile_id: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
+  ssml_gender: Optional[Annotated[str, Field(min_length=1, max_length=32)]] = None
+
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_tts_config: Optional[WatsonTTSConfig] = None
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
+  google_cloud_tts_config: Optional[GoogleCloudTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config'])
+    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_cloud_tts_config'])
     return self
 
 class DTMFInput(BaseModel):
