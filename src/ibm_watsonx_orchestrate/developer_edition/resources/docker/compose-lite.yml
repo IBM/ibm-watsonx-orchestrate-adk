@@ -750,6 +750,7 @@ services:
       WDP_FLIGHT_URL: grpc+tls://${FLIGHT_SERVICE_HOST:-wdpflight-svc}:${FLIGHT_SERVICE_PORT:-9443}
       FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
       FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
+      KB_SCHEDULE_MIN_INTERVAL_MINUTES: ${KB_SCHEDULE_MIN_INTERVAL_MINUTES:-60}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
