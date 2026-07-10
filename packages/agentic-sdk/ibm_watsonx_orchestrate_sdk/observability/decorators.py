@@ -391,4 +391,3 @@ def configure_tracing(fn: Callable) -> Callable:
         return fn(config, *args, **kwargs)
 
     return wrapper
-

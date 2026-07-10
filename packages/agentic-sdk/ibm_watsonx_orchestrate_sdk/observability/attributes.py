@@ -45,6 +45,10 @@ ATTR_TOOL_ID = "tool.id"
 ATTR_TOOL_INPUT = "tool.input"
 ATTR_TOOL_OUTPUT = "tool.output"
 
+# --- Langfuse observation metadata attributes ---
+ATTR_LANGFUSE_TOOL_NAME = "langfuse.observation.metadata.tool.name"
+ATTR_LANGFUSE_TOOL_ID = "langfuse.observation.metadata.tool.id"
+
 # --- Agent span attributes ---
 ATTR_AGENT_NAME = "agent.name"
 ATTR_AGENT_INPUT = "agent.input"

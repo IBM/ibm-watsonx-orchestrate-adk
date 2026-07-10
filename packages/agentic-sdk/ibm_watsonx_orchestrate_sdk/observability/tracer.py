@@ -160,6 +160,7 @@ class BaggageSpanProcessor:
                 span.set_attribute(ATTR_WORKSPACE_ID, self._config.workspace_id)
             if self._config.environment:
                 span.set_attribute(ATTR_ENVIRONMENT_NAME, self._config.environment)
+            span.set_attribute(ATTR_USER_ID, self._config.user_id or "Unknown User")
 
     def on_end(self, span: "ReadableSpan") -> None:
         pass
@@ -428,11 +429,8 @@ class Tracer:
         if not merged.get(ATTR_CONVERSATION_ID):
             merged[ATTR_CONVERSATION_ID] = str(uuid.uuid4())
         
-        # Add user.id: use provided user_id, or fall back to config.user_id
-        if user_id:
-            merged[ATTR_USER_ID] = user_id
-        elif self._config.user_id:
-            merged[ATTR_USER_ID] = self._config.user_id
+        # Add user.id: use provided user_id, fall back to config.user_id, then "Unknown User"
+        merged[ATTR_USER_ID] = user_id if user_id is not None else (self._config.user_id or "Unknown User")
         
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)

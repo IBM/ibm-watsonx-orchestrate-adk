@@ -135,133 +135,116 @@ class TracerConfig:
             if hasattr(self.client, 'session'):
                 self._session = self.client.session
                 logger.debug("Extracted session from client object")
-                
+
                 # Extract tenant_id from token if not explicitly provided
                 if not self.tenant_id:
                     extracted_tenant_id = self._extract_tenant_id_from_token()
                     if extracted_tenant_id:
                         self.tenant_id = extracted_tenant_id
-                        logger.debug(f"Extracted tenant_id from token: {self.tenant_id}")
-                
+                        logger.debug("Extracted tenant_id from token: %s", self.tenant_id)
+
                 # Extract user_id from token if not explicitly provided
                 if not self.user_id:
                     self.user_id = self._extract_user_id_from_token()
-                    logger.debug(f"Extracted user_id from token: {self.user_id}")
+                    if self.user_id:
+                        logger.debug("Extracted user_id from token: %s", self.user_id)
             else:
                 logger.warning("Client object does not have a session attribute")
 
+        self.validate()
+
+    def _decode_jwt_payload(self) -> Optional[Dict[str, Any]]:
+        """Fetch the current session token and decode its JWT payload.
+
+        Signature verification is intentionally skipped — the token was
+        already verified by the authentication server (IAM / MCSP) when
+        the session was created.  We only read claims to extract
+        tenant_id / user_id that the platform already put there.
+
+        Returns:
+            Decoded payload dict, or ``None`` if no token is available or
+            the token is not a valid JWT.
+        """
+        token = None
+        if self._session:
+            if hasattr(self._session, 'access_token') and self._session.access_token:
+                token = self._session.access_token
+            elif hasattr(self._session, 'authenticator'):
+                if hasattr(self._session.authenticator, 'token_manager'):
+                    token = self._session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
+                elif hasattr(self._session.authenticator, 'get_token'):
+                    token: Any = self._session.authenticator.get_token()  # type: ignore[attr-defined]
+
+        if not token:
+            logger.debug("No token available to decode JWT payload")
+            return None
+
+        parts = token.split('.')
+        if len(parts) != 3:
+            logger.warning("Token is not a valid JWT format")
+            return None
+
+        # Decode the payload (second part); add padding as required by base64.
+        payload = parts[1]
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += '=' * padding
+
+        try:
+            return json.loads(base64.urlsafe_b64decode(payload))
+        except Exception as exc:
+            logger.warning("Failed to decode JWT payload: %s", exc)
+            return None
+
     def _extract_tenant_id_from_token(self) -> Optional[str]:
         """Extract tenant_id from JWT token.
-        
+
         Returns:
             Tenant ID if found in token, None otherwise.
         """
         try:
-            # Get token from session
-            token = None
-            if self._session:
-                if hasattr(self._session, 'access_token') and self._session.access_token:
-                    token = self._session.access_token
-                elif hasattr(self._session, 'authenticator'):
-                    if hasattr(self._session.authenticator, 'token_manager'):
-                        token = self._session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
-                    elif hasattr(self._session.authenticator, 'get_token'):
-                        token: Any = self._session.authenticator.get_token()  # type: ignore[attr-defined]
-            
-            if not token:
-                logger.debug("No token available to extract tenant_id")
-                return None
-            
-            # Split the JWT into its three base64url parts.
-            # Signature verification is intentionally skipped — the token was
-            # already verified by the authentication server (IAM / MCSP) when
-            # the session was created.  We only read claims to extract
-            # tenant_id / user_id that the platform already put there.
-            parts = token.split('.')
-            if len(parts) != 3:
-                logger.warning("Token is not a valid JWT format")
+            payload_data = self._decode_jwt_payload()
+            if payload_data is None:
                 return None
 
-            # Decode the payload (second part)
-            payload = parts[1]
-            # Add padding if needed (JWT base64 encoding may not have padding)
-            padding = 4 - len(payload) % 4
-            if padding != 4:
-                payload += '=' * padding
-            
-            # Decode base64
-            decoded = base64.urlsafe_b64decode(payload)
-            payload_data = json.loads(decoded)
-            
-            # Look for tenant_id in various possible claim names
             tenant_id = (
                 payload_data.get('tenant_id') or
-                payload_data.get('tenantId') 
+                payload_data.get('tenantId')
             )
-            
+
             if tenant_id:
-                logger.debug(f"Found tenant_id in token: {tenant_id}")
+                logger.debug("Found tenant_id in token: %s", tenant_id)
                 return str(tenant_id)
             else:
                 logger.debug("No tenant_id found in token payload")
                 return None
-                
-        except Exception as e:
-            logger.warning(f"Failed to extract tenant_id from token: {e}")
+
+        except Exception as exc:
+            logger.warning("Failed to extract tenant_id from token: %s", exc)
             return None
 
-    def _extract_user_id_from_token(self) -> str:
+    def _extract_user_id_from_token(self) -> Optional[str]:
         """Extract user_id from JWT token.
-        
+
         Returns:
-            User ID if found in token (from idpUniqueId field), "unknown" otherwise.
+            User ID string (from ``idpUniqueId`` claim) if found, ``None`` otherwise.
         """
-        user_id = "unknown"
-        
         try:
-            # Get token from session
-            token = None
-            if self._session:
-                if hasattr(self._session, 'access_token') and self._session.access_token:
-                    token = self._session.access_token
-                elif hasattr(self._session, 'authenticator'):
-                    if hasattr(self._session.authenticator, 'token_manager'):
-                        token = self._session.authenticator.token_manager.get_token()  # type: ignore[attr-defined]
-                    elif hasattr(self._session.authenticator, 'get_token'):
-                        token: Any = self._session.authenticator.get_token()  # type: ignore[attr-defined]
-            
-            if not token:
-                logger.debug("No token available to extract user_id")
-            elif len(token.split('.')) != 3:
-                logger.warning("Token is not a valid JWT format")
+            payload_data = self._decode_jwt_payload()
+            if payload_data is None:
+                return None
+
+            extracted_user_id = payload_data.get('idpUniqueId')
+            if extracted_user_id:
+                logger.debug("Found user_id in token: %s", extracted_user_id)
+                return str(extracted_user_id)
             else:
-                # JWT tokens have 3 parts separated by dots: header.payload.signature
-                parts = token.split('.')
-                
-                # Decode the payload (second part)
-                payload = parts[1]
-                # Add padding if needed (JWT base64 encoding may not have padding)
-                padding = 4 - len(payload) % 4
-                if padding != 4:
-                    payload += '=' * padding
-                
-                # Decode base64
-                decoded = base64.urlsafe_b64decode(payload)
-                payload_data = json.loads(decoded)
-                
-                # Look for user_id in idpUniqueId claim
-                extracted_user_id = payload_data.get('idpUniqueId')
-                
-                if extracted_user_id:
-                    user_id = str(extracted_user_id)
-                    logger.debug(f"Found user_id in token: {user_id}")
-                else:
-                    logger.debug("No idpUniqueId found in token payload")
-                
-        except Exception as e:
-            logger.warning(f"Failed to extract user_id from token: {e}")
-        
-        return user_id
+                logger.debug("No idpUniqueId found in token payload")
+                return None
+
+        except Exception as exc:
+            logger.warning("Failed to extract user_id from token: %s", exc)
+            return None
 
 
     @property
@@ -292,11 +275,11 @@ class TracerConfig:
         return os.environ.get(ENV_OTLP_ENDPOINT)
 
     @property
-    def is_trace_injection_mode(self) -> bool:
-        """Check if tracer is configured for trace injection mode.
+    def has_client(self) -> bool:
+        """Check if a client has been configured.
 
         Returns:
-            True if client is configured (trace injection mode), False otherwise.
+            True if a Client object was supplied, False otherwise.
         """
         return self.client is not None
 
@@ -361,7 +344,7 @@ class TracerConfig:
         attrs.update(self.resource_attributes)
 
         # Add trace injection context attributes if configured
-        if self.is_trace_injection_mode:
+        if self.has_client:
             if self.tenant_id:
                 attrs["tenant.id"] = self.tenant_id
             if self.agent_id:
@@ -377,12 +360,11 @@ class TracerConfig:
         """Validate the configuration.
 
         Raises:
-            ValueError: If trace injection mode is enabled but required parameters are missing.
+            ValueError: If a client is configured but required trace injection
+                parameters are missing or invalid.
         """
-        if self.is_trace_injection_mode:
+        if self.has_client:
             missing_params = []
-            if not self.client:
-                missing_params.append("client (Client object required for authentication)")
             if not self.tenant_id:
                 missing_params.append("tenant_id")
             if not self.agent_id:
@@ -406,6 +388,6 @@ class TracerConfig:
 
             logger.info(
                 "TracerConfig validated for trace injection mode: "
-                f"tenant_id={self.tenant_id}, agent_id={self.agent_id}, "
-                f"workspace_id={self.workspace_id}, environment={self.environment}"
+                "tenant_id=%s, agent_id=%s, workspace_id=%s, environment=%s",
+                self.tenant_id, self.agent_id, self.workspace_id, self.environment,
             )
