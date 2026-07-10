@@ -83,6 +83,7 @@ class AgentRestrictionType(str, Enum):
 class AgentProvider(str, Enum):
     WXAI = "wx.ai"
     EXT_CHAT = "external_chat"
+    MSFTSTUDIO = "msftstudio"
     SALESFORCE = "salesforce"
     WATSONX = "watsonx" #provider type returned from an assistant agent
     A2A = 'external_chat/A2A/0.2.1'
@@ -193,7 +194,7 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str = Field(default_factory=get_default_llm)
+    llm: str | None = Field(default_factory=get_default_llm)
     style: AgentStyle = AgentStyle.REACT_CORE
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
