@@ -29,8 +29,10 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
     Authorization header before each export to ensure tokens are fresh.
     This is essential for long-running applications where tokens may expire.
 
-    Thread-safe: a lock serialises header updates so that concurrent exports
-    do not race on the underlying session headers dict.
+    Thread-safe: a lock serialises header mutation so that concurrent exports
+    do not race on the underlying session headers dict.  The token is copied
+    under the lock and the (slow) network export is performed outside it so
+    that high-throughput callers are not serialised on I/O.
 
     Implements the SpanExporter protocol from OpenTelemetry SDK.
 
@@ -62,9 +64,12 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
     def export(self, spans: Sequence["ReadableSpan"]) -> SpanExportResult:
         """Export spans with dynamically refreshed authentication token.
 
-        The header refresh and the export are serialised under a lock so
-        concurrent callers cannot interleave a stale header update with a
-        fresh one on the shared ``requests.Session``.
+        The header mutation is performed under the lock so concurrent callers
+        cannot interleave stale and fresh header updates on the shared
+        ``requests.Session``.  The actual network export is intentionally
+        outside the lock: ``requests.Session`` connection pools are
+        thread-safe for concurrent sends, so serialising the slow I/O call
+        is unnecessary and would hurt throughput.
 
         Args:
             spans: Sequence of spans to export
@@ -95,6 +100,9 @@ class DynamicAuthOTLPSpanExporter(SpanExporter):
                         exc,
                     )
 
+        # Export outside the lock: the requests.Session connection pool is
+        # thread-safe for concurrent requests; only the header mutation above
+        # required serialisation.
         return self._exporter.export(spans)
 
     def shutdown(self) -> None:
