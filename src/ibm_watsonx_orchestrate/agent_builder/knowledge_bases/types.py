@@ -209,7 +209,7 @@ class ElasticSearchConnection(BaseModel):
                     }
     }
     """
-    url: Optional[str] = None
+    url: Optional[str] = None  # URL can be provided in connection
     index: Optional[str] = None
     port: Optional[str] = None
     query_body: Optional[dict] = None
