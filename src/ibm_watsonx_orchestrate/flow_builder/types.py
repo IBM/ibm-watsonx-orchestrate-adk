@@ -391,6 +391,7 @@ class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
     language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
+    error_handler_config: Optional["NodeErrorHandlerConfig"] = Field(description="Error handling and retry configuration for this node.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -401,7 +402,8 @@ class DocProcCommonNodeSpec(NodeSpec):
         model_spec["enable_hw"] = self.enable_hw
         if self.language is not None:
             model_spec["language"] = self.language
-        
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         return model_spec
     
 class DocClassifierSpec(DocProcCommonNodeSpec):

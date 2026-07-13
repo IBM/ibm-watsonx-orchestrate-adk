@@ -1077,17 +1077,18 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
-    def docclassifier(self, 
-            name: str, 
+    def docclassifier(self,
+            name: str,
             llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            classes: type[BaseModel]| None = None, 
+            classes: type[BaseModel]| None = None,
             description: str | None = None,
             min_confidence: float = 0.0,
             enable_hw: bool = False,
             enable_review: bool = False,
-            language: LanguageCode | None = None) -> DocClassifierNode:
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1111,7 +1112,8 @@ class Flow(Node):
             version=version,
             enable_hw=enable_hw,
             enable_review=enable_review,
-            language=language
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocClassifierNode(spec=task_spec)
         
@@ -1145,19 +1147,20 @@ class Flow(Node):
 
     
     def docext(self,
-            name: str, 
+            name: str,
             llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            fields: type[BaseModel]| None = None, 
+            fields: type[BaseModel]| None = None,
             description: str | None = None,
             enable_hw: bool = False,
-            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
+            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code.
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
             enable_review: bool = False,
             page_range: PageRange | None = None,
-            language: LanguageCode | None = None) -> tuple[DocExtNode, type[BaseModel]]:
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1187,7 +1190,8 @@ class Flow(Node):
             review_fields=review_fields,
             field_extraction_method=field_extraction_method,
             enable_review=enable_review,
-            language=language
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocExtNode(spec=task_spec)
         
@@ -1242,7 +1246,8 @@ class Flow(Node):
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
             language: LanguageCode | None = None,
-            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -1282,7 +1287,8 @@ class Flow(Node):
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
             language=language,
-            output_format=output_format
+            output_format=output_format,
+            error_handler_config=error_handler_config
         )
 
         node = DocProcNode(spec=task_spec)
