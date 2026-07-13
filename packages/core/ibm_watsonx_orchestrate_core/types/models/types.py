@@ -52,19 +52,6 @@ class ModelType(str, Enum):
         return self.value
 
 
-class ModelType(str, Enum):
-    CHAT = 'chat'
-    CHAT_VISION = 'chat_vision'
-    COMPLETION = 'completion'
-    EMBEDDING = 'embedding'
-
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
-
-
 class ProviderConfig(BaseModel):
     # Required fields
     provider: Optional[str] = ''
