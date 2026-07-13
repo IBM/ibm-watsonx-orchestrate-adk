@@ -1,6 +1,18 @@
-from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import KnowledgeBaseController, parse_file, get_relative_file_path
+from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller import (
+    KnowledgeBaseController,
+    parse_file,
+    get_relative_file_path,
+)
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import (
+    IndexConnection,
+    MilvusConnection,
+    ElasticSearchConnection,
+    OpenSearchConnection,
+    AstraDBConnection,
+    CustomSearchConnection,
+)
 from ibm_watsonx_orchestrate.client.base_api_client import ClientAPIException
 import json
 from unittest.mock import patch, mock_open, Mock
@@ -680,3 +692,330 @@ class TestPollKnowledgeBaseStatus:
             assert mock_client.status.call_count == 4
         
         
+
+# ---------------------------------------------------------------------------
+# Helpers shared by the validation tests
+# ---------------------------------------------------------------------------
+
+def _make_mock_response(text: str | None, status_code: int = 400):
+    """Build a minimal requests.Response-like mock for ClientAPIException."""
+    resp = Mock()
+    resp.status_code = status_code
+    resp.text = text
+    return resp
+
+
+def _make_client_api_exception(response_text: str | None = None, status_code: int = 400) -> ClientAPIException:
+    resp = _make_mock_response(response_text, status_code)
+    exc = ClientAPIException(response=resp)
+    return exc
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _validate_connection_creds
+# ---------------------------------------------------------------------------
+
+class TestValidateConnectionCreds:
+    """Unit tests for KnowledgeBaseController._validate_connection_creds."""
+
+    def _controller_with_mock_client(self, validate_side_effect=None):
+        """Return a controller whose KB client's validate_creds is a mock."""
+        controller = KnowledgeBaseController()
+        mock_client = Mock()
+        if validate_side_effect is not None:
+            mock_client.validate_creds.side_effect = validate_side_effect
+        controller.client = mock_client
+        return controller, mock_client
+
+    # ------------------------------------------------------------------
+    # get_vector_index_type helper
+    # ------------------------------------------------------------------
+
+    def test_get_vector_index_type_milvus(self):
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            milvus=MilvusConnection(grpc_host="host", grpc_port="30564", collection="col", database="db"),
+        )
+        assert KnowledgeBaseController.get_vector_index_type(index_config) == "milvus"
+
+    def test_get_vector_index_type_elastic_search(self):
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            elastic_search=ElasticSearchConnection(url="https://es.example.com", index="idx"),
+        )
+        assert KnowledgeBaseController.get_vector_index_type(index_config) == "elastic_search"
+
+    def test_get_vector_index_type_open_search(self):
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            open_search=OpenSearchConnection(url="https://os.example.com", index="idx"),
+        )
+        assert KnowledgeBaseController.get_vector_index_type(index_config) == "open_search"
+
+    def test_get_vector_index_type_astradb(self):
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            astradb=AstraDBConnection(api_endpoint="https://astra.example.com", data_type="vector"),
+        )
+        assert KnowledgeBaseController.get_vector_index_type(index_config) == "astradb"
+
+    def test_get_vector_index_type_custom_search(self):
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            custom_search=CustomSearchConnection(url="https://custom.example.com"),
+        )
+        assert KnowledgeBaseController.get_vector_index_type(index_config) == "custom_search"
+
+    def test_get_vector_index_type_none_when_no_connection_type_set(self):
+        # connection_id present but no recognised connection type field set
+        index_config = IndexConnection(connection_id="conn-1")
+        assert KnowledgeBaseController.get_vector_index_type(index_config) is None
+
+    # ------------------------------------------------------------------
+    # get_url_and_port_from_index_config helper
+    # ------------------------------------------------------------------
+
+    def test_get_url_and_port_milvus(self):
+        index_config = IndexConnection(
+            milvus=MilvusConnection(grpc_host="milvus.host", grpc_port="30564", collection="col", database="db"),
+        )
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url == "milvus.host"
+        assert port == "30564"
+
+    def test_get_url_and_port_elastic_search(self):
+        index_config = IndexConnection(
+            elastic_search=ElasticSearchConnection(url="https://es.example.com", port="9200", index="idx"),
+        )
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url == "https://es.example.com"
+        assert port == "9200"
+
+    def test_get_url_and_port_open_search(self):
+        index_config = IndexConnection(
+            open_search=OpenSearchConnection(url="https://os.example.com", port="31871", index="idx"),
+        )
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url == "https://os.example.com"
+        assert port == "31871"
+
+    def test_get_url_and_port_custom_search(self):
+        index_config = IndexConnection(
+            custom_search=CustomSearchConnection(url="https://custom.example.com"),
+        )
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url == "https://custom.example.com"
+        assert port is None
+
+    def test_get_url_and_port_astradb(self):
+        index_config = IndexConnection(
+            astradb=AstraDBConnection(api_endpoint="https://astra.example.com", port="443", data_type="vector"),
+        )
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url == "https://astra.example.com"
+        assert port == "443"
+
+    def test_get_url_and_port_no_connection_type(self):
+        index_config = IndexConnection()
+        url, port = KnowledgeBaseController.get_url_and_port_from_index_config(index_config)
+        assert url is None
+        assert port is None
+
+    # ------------------------------------------------------------------
+    # _validate_connection_creds: skipped paths
+    # ------------------------------------------------------------------
+
+    def test_validate_skipped_when_no_connection_id(self):
+        """_validate_connection_creds returns immediately when connection_id is absent."""
+        controller, mock_client = self._controller_with_mock_client()
+        index_config = IndexConnection(
+            milvus=MilvusConnection(grpc_host="h", grpc_port="p", collection="c", database="d"),
+        )  # no connection_id
+        controller._validate_connection_creds(index_config)
+        mock_client.validate_creds.assert_not_called()
+
+    def test_validate_skipped_when_vector_index_type_is_none(self):
+        """_validate_connection_creds returns immediately when no recognised connection type is set."""
+        controller, mock_client = self._controller_with_mock_client()
+        # Has a connection_id but no milvus/elastic/etc field populated
+        index_config = IndexConnection(connection_id="conn-1")
+        controller._validate_connection_creds(index_config)
+        mock_client.validate_creds.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # _validate_connection_creds: successful call
+    # ------------------------------------------------------------------
+
+    def test_validate_succeeds_and_calls_client(self):
+        """Happy path: validate_creds is called with the right arguments."""
+        controller, mock_client = self._controller_with_mock_client()
+        index_config = IndexConnection(
+            connection_id="conn-42",
+            milvus=MilvusConnection(grpc_host="milvus.host", grpc_port="30564", collection="col", database="db"),
+        )
+        controller._validate_connection_creds(index_config)  # must not raise
+        mock_client.validate_creds.assert_called_once_with(
+            connection_id="conn-42",
+            vector_index_type="milvus",
+            url="milvus.host",
+            port="30564",
+        )
+
+    # ------------------------------------------------------------------
+    # _validate_connection_creds: ClientAPIException → ValueError
+    # ------------------------------------------------------------------
+
+    def test_validate_raises_value_error_on_api_exception_with_json_detail(self):
+        """ClientAPIException with a JSON body containing 'detail' raises ValueError using that message."""
+        body = json.dumps({"detail": "invalid token"})
+        exc = _make_client_api_exception(response_text=body)
+        controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            milvus=MilvusConnection(grpc_host="h", grpc_port="p", collection="c", database="d"),
+        )
+        with pytest.raises(ValueError, match="invalid token"):
+            controller._validate_connection_creds(index_config)
+
+    def test_validate_raises_value_error_on_api_exception_with_plain_text_body(self):
+        """ClientAPIException with a plain-text (non-JSON) body uses a generic error message."""
+        exc = _make_client_api_exception(response_text="Forbidden")
+        controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            open_search=OpenSearchConnection(url="https://os.example.com", index="idx"),
+        )
+        with pytest.raises(ValueError, match="Unexpected server error"):
+            controller._validate_connection_creds(index_config)
+
+    def test_validate_raises_value_error_on_api_exception_with_malformed_json_body(self):
+        """ClientAPIException whose body looks like JSON but isn't valid uses a generic error message."""
+        exc = _make_client_api_exception(response_text="{not valid json")
+        controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            elastic_search=ElasticSearchConnection(url="https://es.example.com", index="idx"),
+        )
+        with pytest.raises(ValueError, match="Unexpected server error"):
+            controller._validate_connection_creds(index_config)
+
+    def test_validate_raises_value_error_on_api_exception_with_no_response_body(self):
+        """ClientAPIException with an empty response body still raises a ValueError."""
+        exc = _make_client_api_exception(response_text=None)
+        controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            custom_search=CustomSearchConnection(url="https://custom.example.com"),
+        )
+        with pytest.raises(ValueError, match=r"Connection credential validation failed"):
+            controller._validate_connection_creds(index_config)
+
+    def test_validate_raises_value_error_on_api_exception_with_empty_string_body(self):
+        """ClientAPIException with an empty-string body (falsy) still raises a ValueError."""
+        exc = _make_client_api_exception(response_text="")
+        controller, _ = self._controller_with_mock_client(validate_side_effect=exc)
+        index_config = IndexConnection(
+            connection_id="conn-1",
+            astradb=AstraDBConnection(api_endpoint="https://astra.example.com", data_type="vector"),
+        )
+        with pytest.raises(ValueError, match=r"Connection credential validation failed"):
+            controller._validate_connection_creds(index_config)
+
+
+# ---------------------------------------------------------------------------
+# Integration-style tests: validation failure propagation on create / update
+# ---------------------------------------------------------------------------
+
+class TestValidationFailurePropagation:
+    """Verify that a ValueError from _validate_connection_creds is caught at
+    both call-sites (import_knowledge_base / update_knowledge_base) and that
+    the KB is skipped / the update aborts gracefully."""
+
+    # Fixture data: external KB with a milvus index and a connection_id already set
+    @pytest.fixture
+    def kb_with_connection(self):
+        return {
+            "spec_version": SpecVersion.V1,
+            "name": "test_external_kb",
+            "description": "desc",
+            "conversational_search_tool": {
+                "index_config": [
+                    {
+                        "connection_id": "conn-bad",
+                        "milvus": {
+                            "grpc_host": "cf94d93e.example.com",
+                            "grpc_port": "30564",
+                            "database": "db",
+                            "collection": "col",
+                            "embedding_model_id": "sentence-transformers/all-minilm-l12-v2",
+                        },
+                    }
+                ]
+            },
+        }
+
+    def test_import_logs_error_and_skips_kb_on_validation_failure(self, caplog, kb_with_connection):
+        """import_knowledge_base: bad creds → logger.error, KB creation skipped."""
+        controller = KnowledgeBaseController()
+        kb = KnowledgeBase(**kb_with_connection)
+
+        with patch.object(controller, "get_client") as get_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.parse_file",
+                   return_value=[kb]):
+
+            mock_client = Mock()
+            mock_client.get_by_names.return_value = []  # KB doesn't exist yet → create path
+            mock_client.validate_creds.side_effect = _make_client_api_exception(
+                response_text=json.dumps({"detail": "bad credentials"})
+            )
+            get_client_mock.return_value = mock_client
+
+            controller.import_knowledge_base("test.yaml", app_id=None)
+
+        assert "bad credentials" in caplog.text
+        mock_client.create.assert_not_called()
+        mock_client.create_built_in.assert_not_called()
+
+    def test_import_logs_error_and_skips_kb_on_validation_failure_update_path(self, caplog, kb_with_connection):
+        """import_knowledge_base: existing KB with bad creds → logger.error, update skipped."""
+        controller = KnowledgeBaseController()
+        kb = KnowledgeBase(**kb_with_connection)
+        existing_id = uuid.uuid4()
+
+        with patch.object(controller, "get_client") as get_client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.parse_file",
+                   return_value=[kb]):
+
+            mock_client = Mock()
+            # Pretend the KB already exists so the update branch is taken
+            mock_client.get_by_names.return_value = [{"name": kb.name, "id": existing_id, "workspace_id": None}]
+            mock_client.validate_creds.side_effect = _make_client_api_exception(
+                response_text=json.dumps({"detail": "bad credentials"})
+            )
+            get_client_mock.return_value = mock_client
+
+            controller.import_knowledge_base("test.yaml", app_id=None)
+
+        assert "bad credentials" in caplog.text
+        mock_client.update.assert_not_called()
+        mock_client.update_with_documents.assert_not_called()
+
+    def test_update_knowledge_base_logs_error_and_returns_on_validation_failure(self, caplog, kb_with_connection):
+        """update_knowledge_base: bad creds → logger.error, no update call made."""
+        controller = KnowledgeBaseController()
+        kb = KnowledgeBase(**kb_with_connection)
+        kb_id = uuid.uuid4()
+
+        with patch.object(controller, "get_client") as get_client_mock:
+            mock_client = Mock()
+            mock_client.validate_creds.side_effect = _make_client_api_exception(
+                response_text=json.dumps({"detail": "invalid api key"})
+            )
+            get_client_mock.return_value = mock_client
+
+            controller.update_knowledge_base(kb_id, kb=kb, file_dir=Path("/tmp"))
+
+        assert "invalid api key" in caplog.text
+        mock_client.update.assert_not_called()
+        mock_client.update_with_documents.assert_not_called()
+        mock_client.status.assert_not_called()
