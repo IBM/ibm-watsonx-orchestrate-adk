@@ -1,9 +1,9 @@
-name: google_voice_config
+name: google_voice_config99
 llm_aggregation_timeout_seconds: 0.8
 speech_to_text:
   provider: google_stt
   google_stt_config:
-    project_id: "voice-runtime"
+    project_id: "project-id"
     api_key: "your-google-api-key"
     language_code: "en-US"
     model: "long"

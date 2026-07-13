@@ -12,4 +12,4 @@ tags:
 llm: groq/openai/gpt-oss-120b
 style: react
 hidden: false
-voice_configuration: google_voice_config_google_stt_tts
+voice_configuration: google_voice_config99
