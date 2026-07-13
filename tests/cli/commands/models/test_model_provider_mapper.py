@@ -1,7 +1,8 @@
 import pytest
 
 from ibm_watsonx_orchestrate.agent_builder.models.types import ProviderConfig, ModelProvider
-from ibm_watsonx_orchestrate.cli.commands.models.model_provider_mapper import validate_ProviderConfig
+from ibm_watsonx_orchestrate.cli.commands.models.model_provider_mapper import validate_ProviderConfig, \
+    PROVIDER_REQUIRED_FIELDS
 
 
 class TestModelProviderEnum:
@@ -82,3 +83,7 @@ class TestRedhatAIProviderValidation:
         # Should log info message about required fields in connection
         assert 'test-connection-id' in caplog.text
 
+    def test_required_fields_registered(self):
+        required = PROVIDER_REQUIRED_FIELDS[ModelProvider.REDHAT_AI]
+        assert 'custom_host' in required
+        assert 'api_key' in required
