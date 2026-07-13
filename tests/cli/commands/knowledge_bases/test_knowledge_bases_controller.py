@@ -159,7 +159,10 @@ class MockClient:
     
     def get_by_names(self, names):
         return [{"name": "existing-knowledge-base", "id": self.expected_id}]
-        
+
+    def validate_creds(self, connection_id, vector_index_type, url=None, port=None):
+        pass
+
     
 class MockConnectionClient:
     def __init__(self, get_response=[], get_by_id_response=[], get_conn_by_id_response=[], list_response=[]):
