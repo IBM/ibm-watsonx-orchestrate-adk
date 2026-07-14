@@ -167,7 +167,6 @@ class PythonTool(BaseTool):
                 dynamic_input_schema: Optional[ToolRequestBody] = None,
                 dynamic_output_schema: Optional[ToolResponseBody] = None,
                 response_format: Optional[ToolResponseFormat] = None,
-                belongs_to_toolkit: bool = False,
                 ):
         self.fn = fn
         self.name = name
@@ -186,22 +185,6 @@ class PythonTool(BaseTool):
         self.dynamic_input_schema = dynamic_input_schema
         self.dynamic_output_schema = dynamic_output_schema
         self.response_format = response_format
-        self.belongs_to_toolkit = belongs_to_toolkit
-        self.is_async = inspect.iscoroutinefunction(self.fn)
-    
-    def validate_async_toolkit_requirement(self) -> None:
-        """
-        Validate that async tools are only used within toolkits.
-
-        Raises:
-            BadRequest: If tool is async but not part of a toolkit
-        """
-        if self.is_async and not self.belongs_to_toolkit:
-            raise BadRequest(
-                f"Async tools are only supported within toolkits. "
-                f"Tool '{self.name or self.fn.__name__}' is defined as async but is not part of a toolkit. "
-                f"Please either: 1) Add this tool to a toolkit, or 2) Make it synchronous by removing 'async def'."
-            )
 
     def __call__(self, *args, **kwargs):
 
@@ -260,7 +243,6 @@ class PythonTool(BaseTool):
             display_name=self.display_name,
             description=_desc,
             permission=self.permission,
-            is_async=self.is_async,
             response_format=self.response_format if self.response_format else ToolResponseFormat.CONTENT
         )
 
@@ -646,7 +628,7 @@ def tool(
             enable_dynamic_output_schema=enable_dynamic_output_schema,
             dynamic_input_schema=dynamic_input_schema,
             dynamic_output_schema=dynamic_output_schema,
-            response_format=response_format,
+            response_format=response_format
         )
             
         _all_tools.append(t)
