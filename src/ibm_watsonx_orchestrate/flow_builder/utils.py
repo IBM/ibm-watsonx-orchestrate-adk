@@ -1370,9 +1370,12 @@ def validate_callback_tool_schema(
     """
     Validate that a tool has the correct input schema for flow callbacks.
     
-    A callback tool can either:
+    A callback tool must satisfy one of the following:
     1. Be a flow tool with NO input schema (flow tools that don't need inputs)
     2. Accept List[FlowCallbackEventPayload] as input with an 'events' property
+
+    Non-flow tools with no input schema are rejected (case 1 is exclusively for
+    flow tools).
     
     Args:
         tool_spec: The tool specification to validate
