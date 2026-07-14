@@ -13,9 +13,7 @@ filterwarnings("ignore", category=UserWarning, module=r"fuzzywuzzy\.fuzz")
 
 from agentops import main as evaluate
 from agentops import quick_eval
-from agentops.tool_planner import build_snapshot
 from agentops.analyze_run import run as run_analyze
-from agentops.batch_annotate import generate_test_cases_from_stories
 from agentops.arg_configs import TestConfig, AuthConfig, LLMUserConfig, ChatRecordingConfig, AnalyzeConfig, ProviderConfig, AttackConfig, QuickEvalConfig, AnalyzeMode
 from agentops.record.record_chat import record_chats
 from agentops.external_agent.external_validate import ExternalAgentValidation
@@ -42,15 +40,11 @@ from ibm_watsonx_orchestrate.cli.config import (
     DEFAULT_LOCAL_SERVICE_URL,
 )
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
-from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
-from ibm_watsonx_orchestrate.agent_builder.agents import AgentKind
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 import uuid
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-USE_LEGACY_EVAL = os.environ.get("USE_LEGACY_EVAL", "FALSE").upper() == "TRUE"
-
 class EvaluateMode(StrEnum):
     default = "default" # referenceFUL evaluation
     referenceless = "referenceless"
@@ -114,7 +108,7 @@ class EvaluationsController:
                 provider=provider,
                 model_id="watsonx/openai/gpt-oss-120b"
             ),
-            "skip_legacy_evaluation": not USE_LEGACY_EVAL,
+            "skip_legacy_evaluation": True,
             "langfuse_enabled": langfuse_enabled,
             "is_adk": True
         }
@@ -177,14 +171,8 @@ class EvaluationsController:
 
     def generate(self, stories_path: str, tools_path: str, output_dir: str) -> None:
         """
-        Generate evaluation test cases from user stories.
-        
-        When USE_LEGACY_EVAL is True: Uses the legacy implementation with build_snapshot
-        and generate_test_cases_from_stories.
-        
-        When USE_LEGACY_EVAL is False: Uses AutomaticEvalDataGenerator for a more
-        comprehensive evaluation data generation approach.
-        
+        Generate evaluation test cases from user stories using AutomaticEvalDataGenerator.
+
         Args:
             stories_path: Path to CSV file containing user stories
             tools_path: Path to tools definition file (Python or JSON)
@@ -209,48 +197,10 @@ class EvaluationsController:
                     stories_by_agent[agent_name] = []
                 stories_by_agent[agent_name].append(row["story"])
 
-        if USE_LEGACY_EVAL:
-            logger.info("Using legacy evaluation data generation")
-            self._generate_legacy(stories_by_agent, tools_path_obj, output_dir_obj)
-        else:
-            logger.info("Using AutomaticEvalDataGenerator for evaluation data generation")
-            self._generate(stories_by_agent, tools_path_obj, output_dir_obj)
+        logger.info("Using AutomaticEvalDataGenerator for evaluation data generation")
+        self._generate(stories_by_agent, tools_path_obj, output_dir_obj)
 
         logger.info("Test cases stored at: %s", output_dir_obj)
-
-    def _generate_legacy(self, stories_by_agent: Dict[str, List[str]], tools_path: Path, output_dir: Path) -> None:
-        """
-        Legacy implementation of generate using build_snapshot and generate_test_cases_from_stories.
-        
-        Args:
-            stories_by_agent: Dictionary mapping agent names to lists of user stories
-            tools_path: Path to tools definition file
-            output_dir: Output directory for generated test cases
-        """
-        for agent_name, stories in stories_by_agent.items():
-            logger.info(f"Found {len(stories)} stories for agent '{agent_name}'")
-            try:
-                agent_controller = AgentsController()
-                agent = agent_controller.get_agent(agent_name, AgentKind.NATIVE)
-                allowed_tools = agent_controller.get_agent_tool_names(agent.tools)
-            except Exception as e:
-                logger.warning(f"Could not get tools for agent {agent_name}: {str(e)}")
-                allowed_tools = []
-
-            logger.info(f"Running tool planner for agent {agent_name}")
-            agent_snapshot_path = output_dir / f"{agent_name}_snapshot_llm.json"
-            build_snapshot(agent_name, tools_path, stories, agent_snapshot_path)
-
-            logger.info(f"Running batch annotate for agent {agent_name}")
-            generate_test_cases_from_stories(
-                agent_name=agent_name,
-                stories=stories,
-                tools_path=tools_path,
-                snapshot_path=agent_snapshot_path,
-                output_dir=output_dir / f"{agent_name}_test_cases",
-                allowed_tools=allowed_tools,
-                num_variants=2
-            )
 
     def _generate(self, stories_by_agent: Dict[str, List[str]], tools_path: Path, output_dir: Path) -> None:
         """
@@ -271,7 +221,8 @@ class EvaluationsController:
         
         if "WATSONX_SPACE_ID" in os.environ and "WATSONX_APIKEY" in os.environ:
             provider = "watsonx"
-            model_id = "watsonx/openai/gpt-oss-120b"
+            ## note: "watsonx/openai/gpt-oss-120b" is a LiteLLM model string; "openai/gpt-oss-120b" is the native WatsonX model ID. Here we talk directly to the WatsonX API, so we use the bare "openai/gpt-oss-120b" because. In contrast, the evaluate() method (line 109) correctly uses "watsonx/openai/gpt-oss-120b" because it goes through LiteLLM. 
+            model_id = "openai/gpt-oss-120b"
         elif "WO_INSTANCE" in os.environ and ("WO_API_KEY" in os.environ or "WO_PASSWORD" in os.environ):
             provider = "model_proxy"
             model_id = "watsonx/openai/gpt-oss-120b"
@@ -299,17 +250,18 @@ class EvaluationsController:
         tool_sequence_client = get_provider(model_id=model_id)
         
         # Process each agent
+        total_agents = len(stories_by_agent)
+        failed_agents = 0
         for agent_name, stories in stories_by_agent.items():
             logger.info(f"Processing {len(stories)} stories for agent '{agent_name}' with AutomaticEvalDataGenerator")
-            
             try:
                 # Create WXO client and runtime adapter
                 wxo_client = get_wxo_client(url, tenant_name, token)
                 wxo_runtime_adapter = WXORuntimeAdapter(wxo_client)
-                
+
                 # Load or convert OpenAPI specification
                 openapi_spec = self._load_openapi_spec(tools_path)
-                
+
                 # Initialize AutomaticEvalDataGenerator
                 generator_kwargs = {
                     "runtime_adapted_agent": wxo_runtime_adapter,
@@ -317,17 +269,17 @@ class EvaluationsController:
                     "tool_sequence_client": tool_sequence_client,
                     "openapi_spec": openapi_spec,
                 }
-                
+
                 if template_path:
                     generator_kwargs["user_prompt_path"] = str(template_path)
-                
+
                 generator = AutomaticEvalDataGenerator(**generator_kwargs)
-                
+
                 # Convert stories to DataFrame format expected by AutomaticEvalDataGenerator
                 user_stories_df = pd.DataFrame({
                     "story": stories
                 })
-                
+
                 # Generate evaluation data
                 logger.info(f"Generating evaluation data for agent '{agent_name}'...")
                 results = generator.generate_eval_data(
@@ -335,25 +287,27 @@ class EvaluationsController:
                     max_turns=10,  # Maximum conversation turns per evaluation
                     agent_name=agent_name,
                 )
-                
+
                 # Save results to output directory
                 agent_output_dir = output_dir / f"{agent_name}_test_cases"
                 agent_output_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 for session_id, eval_data in results.items():
                     output_file = agent_output_dir / f"{session_id}.json"
                     with output_file.open('w') as f:
                         json.dump(eval_data, f, indent=2)
-                
+
                 logger.info(f"Generated {len(results)} evaluation cases for agent '{agent_name}'")
-                
             except Exception as e:
-                logger.error(f"Error generating evaluation data for agent '{agent_name}': {str(e)}")
-                logger.exception(e)
-                # Fall back to legacy approach for this agent if AutomaticEvalDataGenerator fails
-                logger.warning(f"Falling back to legacy generation for agent '{agent_name}'")
-                self._generate_legacy({agent_name: stories}, tools_path, output_dir)
-    
+                failed_agents += 1
+                # Log the error and continue so remaining agents are still processed
+                logger.error(f"Failed to generate evaluation data for agent '{agent_name}': {e}")
+
+        if failed_agents:
+            logger.warning(f"{failed_agents}/{total_agents} agents failed during evaluation data generation")
+        else:
+            logger.info(f"Successfully generated evaluation data for all {total_agents} agents")
+
     def _load_openapi_spec(self, tools_path: Path) -> Dict:
         """
         Load or convert tools definition to OpenAPI specification format.
