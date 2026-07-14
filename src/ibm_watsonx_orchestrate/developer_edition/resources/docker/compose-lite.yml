@@ -38,7 +38,7 @@ services:
       - wxo-server-db:/var/lib/postgresql/data
       - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
       - architect-migrations:/docker-entrypoint-initdb.d/agent_architecture/migrations:ro
-    command: -c shared_preload_libraries=pgsodium
+    command: -c shared_preload_libraries=pgsodium -c max_connections=200
 
 
   wxo-server-connection-manager:
