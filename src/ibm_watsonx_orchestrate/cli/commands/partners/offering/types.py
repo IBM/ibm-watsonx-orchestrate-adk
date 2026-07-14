@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PLACEHOLDERS = {
     'domain' : 'HR',
-    'version' : '1.0',
+    'version' : '1.0.0',
     'part_number': 'my-part-number',
     'form_factor': 'free',
     'tenant_type': {
@@ -129,6 +129,10 @@ class ToolCatalogExtras(BaseModel):
             extras.hidden = False
         return extras
 
+# scope is intentionally included: a partner with non-null part_number values but
+# scope.form_factor still at the all-free default will fail the catalog schema's
+# allOf business rule. Including scope here causes _validate_agent_placeholders to
+# emit a warning before packaging.
 AGENT_CATALOG_ONLY_PLACEHOLDERS = {
     'icon': "inline-svg-of-icon",
     'scope': OfferingAgentScope(),

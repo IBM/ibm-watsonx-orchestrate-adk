@@ -202,6 +202,14 @@ class TestValidateAgentPlaceholders:
             _validate_agent_placeholders(agent_data, "test_agent")
         assert "version" in caplog.text
 
+    def test_warns_on_scope_placeholder(self, caplog):
+        """scope at its all-free default must warn — a partner with non-null part_number
+        and scope still at 'free' will fail the catalog schema's allOf business rule."""
+        agent_data = {"scope": AGENT_CATALOG_ONLY_PLACEHOLDERS["scope"].model_dump()}
+        with caplog.at_level(logging.WARNING):
+            _validate_agent_placeholders(agent_data, "test_agent")
+        assert "scope" in caplog.text
+
     def test_no_warning_when_fields_are_customized(self, caplog):
         agent_data = {
             "icon": "<svg>real icon</svg>",
