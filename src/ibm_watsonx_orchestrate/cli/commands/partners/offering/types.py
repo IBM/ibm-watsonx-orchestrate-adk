@@ -82,6 +82,53 @@ class OfferingAgentRole(str, Enum):
     def __repr__(self):
         return repr(self.value)
     
+TOOL_CATALOG_ONLY_PLACEHOLDERS = {
+    'icon': "inline-svg-of-icon",
+    'change_log': ["Initial release"],
+    'version': "1.0.0",
+}
+
+class ToolCatalogExtras(BaseModel):
+    """Fields injected into a tool YAML during `offering create` if absent."""
+    category: Optional[str] = None
+    kind: Optional[str] = None
+    version: Optional[str] = None
+    change_log: Optional[List[str]] = None
+    bundled: Optional[bool] = None
+    delete_by: Optional[str] = None
+    publisher: Optional[str] = None
+    language_support: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    icon: Optional[str] = None
+    hidden: Optional[bool] = None
+
+    @staticmethod
+    def from_tool_details(tool_data: dict, publisher_name: str) -> 'ToolCatalogExtras':
+        extras = ToolCatalogExtras()
+        if "category" not in tool_data:
+            extras.category = "tool"
+        if "kind" not in tool_data:
+            extras.kind = "native"
+        if "publisher" not in tool_data:
+            extras.publisher = publisher_name
+        if "language_support" not in tool_data:
+            extras.language_support = ["English"]
+        if "tags" not in tool_data:
+            extras.tags = []
+        if "icon" not in tool_data:
+            extras.icon = TOOL_CATALOG_ONLY_PLACEHOLDERS['icon']
+        if "change_log" not in tool_data:
+            extras.change_log = TOOL_CATALOG_ONLY_PLACEHOLDERS['change_log']
+        if "bundled" not in tool_data:
+            extras.bundled = False
+        if "version" not in tool_data:
+            extras.version = TOOL_CATALOG_ONLY_PLACEHOLDERS['version']
+        if "delete_by" not in tool_data:
+            extras.delete_by = None
+        if "hidden" not in tool_data:
+            extras.hidden = False
+        return extras
+
 AGENT_CATALOG_ONLY_PLACEHOLDERS = {
     'icon': "inline-svg-of-icon",
     'scope': OfferingAgentScope(),

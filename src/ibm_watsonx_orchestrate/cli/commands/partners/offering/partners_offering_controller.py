@@ -27,7 +27,7 @@ from .types import *
 
 APPLICATIONS_FILE_VERSION = '1.16.0'
 
-# Fields allowed by the catalog native agent schema (native_schema.json).
+# Fields allowed by the catalog native agent schema (partner-native-agent.schema.json).
 # Fields present in the ADK agent spec but absent from this set are internal
 # platform fields that the catalog validator rejects via additionalProperties:false.
 NATIVE_AGENT_CATALOG_FIELDS = {
@@ -39,6 +39,20 @@ NATIVE_AGENT_CATALOG_FIELDS = {
     'related_links', 'restrictions', 'scope', 'starter_prompts', 'style',
     'supported_apps', 'tags', 'tools', 'version', 'welcome_content',
 }
+
+# Fields allowed by the catalog native tool schema (partner-native-tool.schema.json).
+# The ADK ToolSpec / PythonToolBinding carry internal fields (id, response_format,
+# workspace, connections, type, agent_run_paramater, is_async inside binding) that
+# the catalog rejects via additionalProperties:false.
+NATIVE_TOOL_CATALOG_FIELDS = {
+    'name', 'display_name', 'description', 'permission', 'version', 'is_async',
+    'category', 'delete_by', 'publisher', 'bundled', 'binding', 'language_support',
+    'tags', 'input_schema', 'output_schema', 'applications', 'icon', 'change_log',
+    'kind', 'hidden', 'toolkit_id',
+}
+
+# Fields allowed inside binding.python by the tool schema (additionalProperties:false).
+NATIVE_TOOL_PYTHON_BINDING_FIELDS = {'function', 'requirements'}
 
 
 logger = logging.getLogger(__name__)
@@ -96,11 +110,21 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
 
 
 def _create_applications_entry(connection_config: dict) -> dict:
+    """Build an applications entry conforming to partner-applications.schema.json.
+
+    The schema requires: app_id, name, icon, security_schema, documentation_link.
+    We read catalog metadata written by export_connection(include_catalog=True).
+    security_schema defaults to an empty bearer_token stub when not present so
+    the entry is schema-valid — partners must fill in real auth config before submission.
+    """
+    catalog = connection_config.get('catalog', {})
     return {
         'app_id': connection_config.get('app_id'),
-        'name': connection_config.get('catalog',{}).get('name','applications_file'),
-        'description': connection_config.get('catalog',{}).get('description',''),
-        'icon': connection_config.get('catalog',{}).get('icon','')
+        'name': catalog.get('name') or connection_config.get('app_id', ''),
+        'description': catalog.get('description'),
+        'icon': catalog.get('icon') or '',
+        'security_schema': catalog.get('security_schema') or {'bearer_token': {}},
+        'documentation_link': catalog.get('documentation_link'),
     }
 
 def _compare_placeholders(value, placeholder) -> bool:
@@ -111,8 +135,13 @@ def _compare_placeholders(value, placeholder) -> bool:
 
 def _validate_agent_placeholders(agent_data: dict, agent_name: str) -> None:
     for label, placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
-        if _compare_placeholders(agent_data.get(label),  placeholder):
+        if _compare_placeholders(agent_data.get(label), placeholder):
             logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
+
+def _validate_tool_placeholders(tool_data: dict, tool_name: str) -> None:
+    for label, placeholder in TOOL_CATALOG_ONLY_PLACEHOLDERS.items():
+        if _compare_placeholders(tool_data.get(label), placeholder):
+            logger.warning(f"Placeholder '{label}' detected for tool '{tool_name}', please ensure '{label}' is correct before packaging.")
 
 
 
@@ -428,9 +457,31 @@ class PartnersOfferingController:
                     logger.error(f"Tool {tool_name} has invalid or missing name in spec")
                     sys.exit(1)
 
-                # Write tool spec directly into zip
+                # Inject catalog-required fields that are absent from the tool spec
+                # (e.g. exported specs omit fields with exclude_unset=True).
+                extras = ToolCatalogExtras.from_tool_details(tool_data, publisher_name)
+                extra_fields = {
+                    k: v for k, v in extras.model_dump().items()
+                    if v is not None or k == "delete_by"
+                }
+                tool_data.update(extra_fields)
+
+                _validate_tool_placeholders(tool_data, tool_name)
+
+                # Strip fields not in the catalog tool schema (additionalProperties:false).
+                # Also strip internal fields from binding.python (connections, type, etc.)
+                catalog_tool_data = {k: v for k, v in tool_data.items() if k in NATIVE_TOOL_CATALOG_FIELDS}
+                if "binding" in catalog_tool_data and "python" in catalog_tool_data["binding"]:
+                    catalog_tool_data["binding"] = {
+                        "python": {
+                            k: v for k, v in catalog_tool_data["binding"]["python"].items()
+                            if k in NATIVE_TOOL_PYTHON_BINDING_FIELDS
+                        }
+                    }
+
+                # Write filtered tool spec into zip
                 tool_zip_path = f"{top_level_folder}/tools/{tool_name}/config.json"
-                zf.writestr(tool_zip_path, json.dumps(tool_data, indent=2))
+                zf.writestr(tool_zip_path, json.dumps(catalog_tool_data, indent=2))
 
                 # --- Build artifact zip in-memory instead of source ---
                 artifact_zip_path = f"{top_level_folder}/tools/{tool_name}/attachments/{tool_name}.zip"
