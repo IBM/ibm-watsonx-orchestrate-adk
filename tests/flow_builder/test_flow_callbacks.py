@@ -4,21 +4,30 @@ Unit tests for Flow callback functionality.
 Tests the add_callback() method and callback serialization in flow specifications.
 """
 
+from unittest.mock import patch
 
+import pytest
+
+from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject, ToolPermission, ToolRequestBody, ToolSpec
 from ibm_watsonx_orchestrate.flow_builder.flows import FlowFactory
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
+from ibm_watsonx_orchestrate.flow_builder.utils import validate_callback_tool_schema
 
 
 class TestFlowCallbacks:
     """Test suite for Flow callback functionality."""
-    
+
     def setup_method(self):
-        """Setup for each test method."""
-        pass
-    
+        """Setup for each test method — disable tool-client so no HTTP calls are made."""
+        self._instantiate_client_patch = patch(
+            "ibm_watsonx_orchestrate.flow_builder.flows.flow.instantiate_client",
+            return_value=None,
+        )
+        self._instantiate_client_patch.start()
+
     def teardown_method(self):
         """Cleanup after each test method."""
-        pass
+        self._instantiate_client_patch.stop()
     
     def test_add_callback_basic(self):
         """Test adding a single callback to a flow."""
@@ -296,3 +305,140 @@ class TestFlowCallbacks:
         flow_json = flow.to_json()
         callback = flow_json["spec"]["callbacks"][0]
         assert callback["batch_interval"] == 0
+
+
+def test_validate_callback_tool_schema_accepts_items_without_event():
+    tool_spec = ToolSpec(
+        name="callback_tool",
+        description="callback tool",
+        permission=ToolPermission.READ_ONLY,
+        binding={"openapi": {"http_method": "POST", "http_path": "/callback", "servers": ["test"]}},
+        input_schema=ToolRequestBody(
+            type="object",
+            properties={
+                "events": JsonSchemaObject(
+                    type="array",
+                    items=JsonSchemaObject(
+                        type="object",
+                        properties={
+                            "output": JsonSchemaObject(type="object")
+                        }
+                    )
+                )
+            }
+        )
+    )
+
+    validate_callback_tool_schema(tool_spec, "callback_tool")
+
+
+def test_validate_callback_tool_schema_accepts_event_object_with_empty_properties():
+    tool_spec = ToolSpec(
+        name="callback_tool",
+        description="callback tool",
+        permission=ToolPermission.READ_ONLY,
+        binding={"openapi": {"http_method": "POST", "http_path": "/callback", "servers": ["test"]}},
+        input_schema=ToolRequestBody(
+            type="object",
+            properties={
+                "events": JsonSchemaObject(
+                    type="array",
+                    description="Array of event objects for batched delivery",
+                    items=JsonSchemaObject(
+                        type="object",
+                        properties={
+                            "event": JsonSchemaObject(
+                                type="object",
+                                description="",
+                                properties={}
+                            )
+                        }
+                    )
+                )
+            }
+        )
+    )
+
+    validate_callback_tool_schema(tool_spec, "callback_tool")
+
+
+def test_validate_callback_tool_schema_accepts_event_items_with_additional_properties():
+    tool_spec = ToolSpec(
+        name="callback_tool",
+        description="callback tool",
+        permission=ToolPermission.READ_ONLY,
+        binding={"openapi": {"http_method": "POST", "http_path": "/callback", "servers": ["test"]}},
+        input_schema=ToolRequestBody(
+            type="object",
+            properties={
+                "events": JsonSchemaObject(
+                    type="array",
+                    title="Events",
+                    items=JsonSchemaObject(
+                        type="object",
+                        additionalProperties=True
+                    )
+                )
+            },
+            required=["events"]
+        )
+    )
+
+    validate_callback_tool_schema(tool_spec, "callback_tool")
+
+
+def test_validate_callback_tool_schema_rejects_non_object_event_when_present():
+    tool_spec = ToolSpec(
+        name="callback_tool",
+        description="callback tool",
+        permission=ToolPermission.READ_ONLY,
+        binding={"openapi": {"http_method": "POST", "http_path": "/callback", "servers": ["test"]}},
+        input_schema=ToolRequestBody(
+            type="object",
+            properties={
+                "events": JsonSchemaObject(
+                    type="array",
+                    items=JsonSchemaObject(
+                        type="object",
+                        properties={
+                            "event": JsonSchemaObject(type="string")
+                        }
+                    )
+                )
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="event field must be an object schema"):
+        validate_callback_tool_schema(tool_spec, "callback_tool")
+
+
+def test_validate_callback_tool_schema_rejects_event_missing_required_fields():
+    tool_spec = ToolSpec(
+        name="callback_tool",
+        description="callback tool",
+        permission=ToolPermission.READ_ONLY,
+        binding={"openapi": {"http_method": "POST", "http_path": "/callback", "servers": ["test"]}},
+        input_schema=ToolRequestBody(
+            type="object",
+            properties={
+                "events": JsonSchemaObject(
+                    type="array",
+                    items=JsonSchemaObject(
+                        type="object",
+                        properties={
+                            "event": JsonSchemaObject(
+                                type="object",
+                                properties={
+                                    "kind": JsonSchemaObject(type="string")
+                                }
+                            )
+                        }
+                    )
+                )
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="event metadata is missing required fields"):
+        validate_callback_tool_schema(tool_spec, "callback_tool")
