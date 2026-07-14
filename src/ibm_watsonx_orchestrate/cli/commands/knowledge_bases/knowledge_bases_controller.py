@@ -105,6 +105,20 @@ def get_kb_connection_id(kb: KnowledgeBase) -> str | None:
         return
     return index_config.connection_id
 
+_VECTOR_INDEX_FIELDS = ("milvus", "elastic_search", "open_search", "astradb", "custom_search")
+
+def _extract_api_error_message(e: ClientAPIException) -> str:
+    """Extract the human-readable detail from a ClientAPIException response body."""
+    try:
+        if e.response is not None and e.response.text:
+            try:
+                return json.loads(e.response.text).get('detail', "Unexpected server error")
+            except Exception:
+                return "Unexpected server error"
+    except Exception:
+        pass
+    return str(e)
+
 class KnowledgeBaseController:
     def __init__(self, safe_mode: bool = False):
         self.client = None
@@ -115,7 +129,51 @@ class KnowledgeBaseController:
         if not self.client:
             self.client = instantiate_client(KnowledgeBaseClient)
         return self.client
-    
+
+    @staticmethod
+    def get_vector_index_type(index_config: IndexConnection) -> str | None:
+        """Return the vector_index_type string matching the populated connection field."""
+        for field in _VECTOR_INDEX_FIELDS:
+            if getattr(index_config, field, None) is not None:
+                return field
+        return None
+
+    @staticmethod
+    def get_url_and_port_from_index_config(index_config: IndexConnection) -> tuple[str | None, str | None]:
+        """Extract the URL (or host) and port from whichever connection type is populated."""
+        if index_config.elastic_search:
+            return index_config.elastic_search.url, index_config.elastic_search.port
+        if index_config.open_search:
+            return index_config.open_search.url, index_config.open_search.port
+        if index_config.custom_search:
+            return index_config.custom_search.url, None
+        if index_config.milvus:
+            return index_config.milvus.grpc_host, index_config.milvus.grpc_port
+        if index_config.astradb:
+            return index_config.astradb.api_endpoint, index_config.astradb.port
+        return None, None
+
+    def _validate_connection_creds(self, index_config: IndexConnection) -> None:
+        """Validate credentials for a connection-based knowledge base.
+
+        Calls POST /knowledge-bases/validate-creds and raises an error if the
+        response is non-200, aborting the create/update operation.
+        """
+        connection_id = index_config.connection_id
+        if not connection_id:
+            return
+
+        vector_index_type = self.get_vector_index_type(index_config)
+        if not vector_index_type:
+            return
+
+        url, port = self.get_url_and_port_from_index_config(index_config)
+
+        try:
+            self.get_client().validate_creds(connection_id=connection_id, vector_index_type=vector_index_type, url=url, port=port)
+        except ClientAPIException as e:
+            raise ValueError(f"Connection credential validation failed: {_extract_api_error_message(e)}")
+
     def import_knowledge_base(self, file: str, app_id: str):
         client = self.get_client()
 
@@ -140,6 +198,15 @@ class KnowledgeBaseController:
                 else:
                     logger.error(f"No connection exists with the app-id '{app_id}'")
                     exit(1)
+
+            # Validate connection credentials before creating/updating
+            index_config = get_index_config(kb)
+            if index_config:
+                try:
+                    self._validate_connection_creds(index_config)
+                except ValueError as e:
+                    logger.error(str(e))
+                    continue
 
             # Ensure these values are None to prevent issues with datetime not being JSON serializable
             kb.updated_at = None
@@ -197,25 +264,7 @@ class KnowledgeBaseController:
                     try:
                         response = client.create_built_in(payload=data, files=files)
                     except ClientAPIException as e:
-                        error_msg = "Unknown error"
-                        try:
-                            # Don't rely on truthiness of response object - check if it's not None
-                            if e.response is not None and hasattr(e.response, 'text'):
-                                response_text = e.response.text
-                                if response_text:
-                                    try:
-                                        error_data = json.loads(response_text)
-                                        error_msg = error_data.get('detail', response_text)
-                                    except:
-                                        error_msg = response_text
-                                else:
-                                    error_msg = str(e)
-                            else:
-                                error_msg = str(e)
-                        except Exception:
-                            error_msg = str(e)
-                        
-                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
                         continue
                     
                     # Poll for import completion when documents are included
@@ -239,49 +288,13 @@ class KnowledgeBaseController:
                     try:
                         client.create(payload=data)
                     except ClientAPIException as e:
-                        error_msg = "Unknown error"
-                        try:
-                            # Don't rely on truthiness of response object - check if it's not None
-                            if e.response is not None and hasattr(e.response, 'text'):
-                                response_text = e.response.text
-                                if response_text:
-                                    try:
-                                        error_data = json.loads(response_text)
-                                        error_msg = error_data.get('detail', response_text)
-                                    except:
-                                        error_msg = response_text
-                                else:
-                                    error_msg = str(e)
-                            else:
-                                error_msg = str(e)
-                        except Exception:
-                            error_msg = str(e)
-                        
-                        logger.error(f"Failed to create knowledge base: {error_msg}")
+                        logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
                         continue
                     
                     # No polling needed when no documents are included
                     logger.info(f"Successfully imported knowledge base '{kb.name}'")
             except ClientAPIException as e:
-                # This catch block is for any other ClientAPIException not caught above
-                error_msg = "Unknown error"
-                try:
-                    if e.response is not None and hasattr(e.response, 'text'):
-                        response_text = e.response.text
-                        if response_text:
-                            try:
-                                error_data = json.loads(response_text)
-                                error_msg = error_data.get('detail', response_text)
-                            except:
-                                error_msg = response_text
-                        else:
-                            error_msg = str(e)
-                    else:
-                        error_msg = str(e)
-                except Exception:
-                    error_msg = str(e)
-                
-                logger.error(f"Failed to create knowledge base: {error_msg}")
+                logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
     
     def _poll_knowledge_base_status(
         self,
@@ -408,6 +421,16 @@ class KnowledgeBaseController:
     ) -> None:
         if isinstance(file_dir, str):
             file_dir = Path(file_dir)
+
+        # Validate connection credentials before updating
+        index_config = get_index_config(kb)
+        if index_config:
+            try:
+                self._validate_connection_creds(index_config)
+            except ValueError as e:
+                logger.error(str(e))
+                return
+
         if kb.documents:
             status = self.get_client().status(knowledge_base_id)
             existing_docs = [doc.get("metadata", {}).get("original_file_name", "") for doc in status.get("documents", [])]
