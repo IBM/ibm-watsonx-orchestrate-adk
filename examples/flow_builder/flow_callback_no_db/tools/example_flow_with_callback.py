@@ -12,7 +12,6 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     START,
     END
 )
-from ibm_watsonx_orchestrate.flow_builder.types import FlowCallback
 from ibm_watsonx_orchestrate.flow_builder.flow_callback_types import FlowCallbackEventKind
 
 
@@ -59,7 +58,7 @@ def build_example_flow_with_callbacks(aflow: Flow) -> Flow:
         cancel_button_label="Cancel"
     )
 
-     #Text: Last Name
+    #Text: Last Name
     user_node_with_form.text_input_field(name="lastName", label="Last name", required=True, placeholder_text="Enter your name here", help_text="Enter name")
     
     user_flow.edge(START, user_node_with_form)

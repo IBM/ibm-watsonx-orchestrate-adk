@@ -52,7 +52,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec, validate_callback_tool_schema
 
 from .events import StreamConsumer
 
@@ -192,7 +192,7 @@ class Flow(Node):
                 tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
                 if tool_spec_raw and isinstance(tool_spec_raw, dict):
                     tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
-            except ClientAPIException as e:
+            except ClientAPIException:
                 # let's try with name as well before throwing error
                 pass
         
@@ -1516,7 +1516,6 @@ class Flow(Node):
             
             # Validate the tool has correct callback schema
             if tool_spec:
-                from ..utils import validate_callback_tool_schema
                 validate_callback_tool_schema(tool_spec, tool)
         
         # Create and add callback

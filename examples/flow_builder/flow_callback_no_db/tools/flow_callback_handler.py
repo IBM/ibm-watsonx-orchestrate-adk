@@ -1,11 +1,10 @@
 """
 Flow Callback Handler Tool
 
-This tool handles flow events by storing them in the AstraDB flow_events table.
+This tool handles flow callback events from other flows.
 It accepts FlowCallbackEventPayload as defined in flow_callback_types.py.
 """
 
-import logging
 from typing import List
 from pydantic import BaseModel, Field
 
