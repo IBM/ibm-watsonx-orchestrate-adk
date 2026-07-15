@@ -245,3 +245,82 @@ class PersonalBankingService:
             raise ValueError("Transfer amount must be greater than zero")
 
         return {"from_account": from_account, "to_account": to_account}
+        
+
+    @staticmethod
+    def check_credit_limit_increase_eligibility(customer_id: str) -> dict:
+        """
+        Check if customer is eligible for a credit limit increase.
+        Returns eligibility status, current limit, max increase, and reason if not eligible.
+        """
+        # Mock eligibility check - in a real system, this would check:
+        # - Credit score
+        # - Payment history
+        # - Account age
+        # - Current utilization
+        # - Recent credit inquiries
+        
+        # For demo purposes, we'll make most customers eligible
+        # You could add logic to make some customers ineligible based on customer_id
+        
+        current_limit = 5000.00
+        max_increase = 10000.00
+        
+        # Example: Make customer ineligible if their ID ends with '999'
+        if customer_id.endswith('999'):
+            return {
+                "eligible": False,
+                "reason": "Recent credit inquiry detected",
+                "retry_after": "6 months",
+                "current_limit": current_limit,
+                "max_increase": 0,
+            }
+        
+        return {
+            "eligible": True,
+            "current_limit": current_limit,
+            "max_increase": max_increase,
+            "reason": None,
+            "retry_after": None,
+        }
+
+    @staticmethod
+    def process_credit_limit_increase(
+        customer_id: str,
+        increase_amount: float,
+        new_limit: float,
+    ) -> dict:
+        """
+        Process a credit limit increase request.
+        Returns the status and details of the request.
+        """
+        # Mock processing - in a real system, this would:
+        # - Submit request to credit department
+        # - Run automated approval rules
+        # - Queue for manual review if needed
+        # - Update credit limit if auto-approved
+        
+        # For demo purposes, auto-approve increases under $5000
+        if increase_amount <= 5000:
+            status = "approved"
+            processing_time = "Instant approval"
+            message = (
+                "Congratulations! Your credit limit increase has been approved and "
+                "is now active. Your new credit limit is available immediately."
+            )
+        else:
+            status = "pending_review"
+            processing_time = "1-3 business days"
+            message = (
+                "Your request has been submitted for review. Due to the amount requested, "
+                "it requires manual approval. You'll receive a notification once the review "
+                "is complete."
+            )
+        
+        return {
+            "status": status,
+            "processing_time": processing_time,
+            "message": message,
+            "approved_amount": increase_amount if status == "approved" else None,
+            "new_limit": new_limit if status == "approved" else None,
+        }
