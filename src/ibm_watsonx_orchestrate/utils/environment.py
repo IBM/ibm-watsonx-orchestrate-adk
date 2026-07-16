@@ -540,8 +540,8 @@ class EnvService:
 
             if azure_key:
                 PREFERRED_MODELS.append("azure-openai/gpt-5.4")
-                DEFAULT_LLM_MODEL = "azure-openai/gpt-5.4"
-                DEFAULT_FLOW_LLM_MODEL = "azure-openai/gpt-5.4"
+                if not groq_key and not llm_value and not aws_creds:
+                    raise RuntimeError("Please set at least one of `GROQ_API_KEY`, `WATSONX_APIKEY` or `WO_INSTANCE`,  or `BEDROCK_AWS_ACCESS_KEY_ID`+`BEDROCK_AWS_SECRET_ACCESS_KEY`. Currently ADK Dev Edition does not support running with only Azure creds.")
             
             if DEFAULT_FLOW_LLM_MODEL == "":
                 # TODO: For flows team to confirm

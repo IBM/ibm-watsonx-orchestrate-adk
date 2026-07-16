@@ -52,7 +52,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec, validate_callback_tool_schema
 
 from .events import StreamConsumer
 
@@ -164,7 +164,48 @@ class Flow(Node):
         if isinstance(node, list):
             for i, v in enumerate(node):
                 self._rewrite_local_refs(v)
-            return 
+            return
+    
+    def _resolve_tool_spec(self, tool: str, error_prefix: str = "tool") -> ToolSpec | None:
+        """
+        Resolve a tool specification by ID or name.
+        
+        This helper method encapsulates the common pattern of resolving tools
+        used by both tool() and add_callback() methods.
+        
+        Args:
+            tool: Tool identifier (can be tool_name, tool:id, or toolkit:tool:id)
+            error_prefix: Prefix for error messages (e.g., "tool" or "callback tool")
+            
+        Returns:
+            ToolSpec if found, None otherwise
+            
+        Raises:
+            ValueError: If tool not found
+        """
+        tool_name, tool_id = parse_tool_name_id(tool)
+        tool_spec = None
+        
+        # Try to retrieve the tool from server by ID first
+        if tool_id is not None:
+            try:
+                tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
+                if tool_spec_raw and isinstance(tool_spec_raw, dict):
+                    tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
+            except ClientAPIException:
+                # let's try with name as well before throwing error
+                pass
+        
+        # Fall back to name lookup
+        if tool_spec is None and tool_name is not None:
+            tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
+            if (tool_specs is None) or (len(tool_specs) == 0):
+                raise ValueError(f"{error_prefix} '{tool_name}' not found")
+            tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
+        elif tool_spec is None:
+            raise ValueError(f"{error_prefix} id '{tool_id}' not found")
+        
+        return tool_spec
     
     def _add_schema(self, schema: JsonSchemaObject, title: str = None) -> JsonSchemaObject:
         '''
@@ -772,31 +813,14 @@ class Flow(Node):
 
 
         if isinstance(error_handler_config, dict):
-            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)    
+            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)
         
-        if isinstance(tool, str):        
+        if isinstance(tool, str):
             name = name if name is not None and name != "" else tool
 
             if input_schema is None and output_schema is None:
-                tool_name, tool_id = parse_tool_name_id(tool)
-                tool_spec = None
-                # try to retrieve the schema from server
-                if tool_id is not None:
-                    try:
-                        tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
-                        if tool_spec_raw and isinstance(tool_spec_raw, dict):
-                            tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
-                    except ClientAPIException as e:
-                        # let's try with name as well before throwing error
-                        pass
-
-                if tool_spec is None and tool_name is not None:
-                    tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
-                    if (tool_specs is None) or (len(tool_specs) == 0):
-                        raise ValueError(f"tool '{tool_name}' not found")
-                    
-                elif tool_spec is None:
-                    raise ValueError(f"tool id '{tool_id}' not found")
+                # Use helper method to resolve tool spec
+                tool_spec = self._resolve_tool_spec(tool, error_prefix="tool")
 
                 input_schema_obj = None
                 output_schema_obj = None
@@ -1472,6 +1496,8 @@ class Flow(Node):
         Callbacks are part of the FlowSpec and will be invoked by the flow engine
         when the specified events occur during flow execution.
         
+        The tool must have an input schema that accepts List[FlowCallbackEventPayload].
+        
         Args:
             tool: Tool identifier (can be tool_name, toolkit:tool_name, or toolkit:tool_name:uuid)
             events: List of FlowCallbackEventKind events that should trigger this callback
@@ -1479,7 +1505,20 @@ class Flow(Node):
             
         Returns:
             Self for method chaining
+            
+        Raises:
+            ValueError: If tool not found or doesn't have correct callback input schema
         """
+        # Validate tool exists and has correct schema
+        if self._tool_client:
+            # Use helper method to resolve tool spec
+            tool_spec = self._resolve_tool_spec(tool, error_prefix="callback tool")
+            
+            # Validate the tool has correct callback schema
+            if tool_spec:
+                validate_callback_tool_schema(tool_spec, tool)
+        
+        # Create and add callback
         callback = FlowCallback(
             tool=tool,
             events=events,

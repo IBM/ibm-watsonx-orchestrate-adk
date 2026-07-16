@@ -51,7 +51,7 @@ When an account issue requires specialist assistance:
   _meta: {
     nextTool: {
       tool: "initiate_human_handoff",
-      arguments: {
+      parameters: {
         customerId: "12345",
         issueType: "account_locked",
         urgency: "high"
@@ -74,7 +74,7 @@ interface CallToolResult {
   _meta?: {
     nextTool?: {
       tool: string; // Required: Tool name to invoke
-      arguments?: Record<string, any>; // Optional: Arguments for the tool
+      parameters?: Record<string, any>; // Optional: Arguments for the tool
     };
   };
 }
@@ -117,7 +117,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         _meta: {
           nextTool: {
             tool: 'initiate_human_handoff',
-            arguments: {
+            parameters: {
               customerId: request.params.arguments.customerId,
               issueType: analysis.issueType,
               urgency: analysis.urgency,

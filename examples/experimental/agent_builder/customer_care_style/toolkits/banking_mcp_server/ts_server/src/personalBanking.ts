@@ -249,7 +249,7 @@ export const prepareTransferTool = {
         _meta: {
           nextTool: {
             tool: 'request_agent_handoff',
-            arguments: {
+            parameters: {
               reason: `Customer attempted to transfer from locked account: ${selectedFromAccount.accountName} (${selectedFromAccount.accountId})`,
             },
           },
@@ -550,6 +550,229 @@ export const availableAccountsResource = {
     };
   },
 };
+/**
+ * Request Credit Limit Increase Tool
+ * Initial tool that checks eligibility and returns a nextTool response
+ */
+export const requestCreditLimitIncreaseTool = {
+  name: 'request_credit_limit_increase',
+  config: {
+    title: 'Request Credit Limit Increase',
+    description:
+      'Request an increase to your credit card limit. This tool checks your eligibility ' +
+      'and automatically guides you through selecting the increase amount if you qualify.',
+    inputSchema: {},
+  },
+  handler: async (
+    {
+      customerId,
+    }: {
+      customerId: string;
+    },
+    extra: any,
+  ) => {
+    // Check customer eligibility for credit limit increase
+    const eligibility =
+      PersonalBankingService.checkCreditLimitIncreaseEligibility(customerId);
+
+    if (!eligibility.eligible) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text:
+              `I'm sorry, but you're not currently eligible for a credit limit increase. ` +
+              `Reason: ${eligibility.reason}\n\n` +
+              `You may become eligible after ${eligibility.retryAfter}.`,
+            annotations: { audience: ['user'] },
+          },
+        ],
+      };
+    }
+
+    // Customer is eligible - automatically chain to the selection tool
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `Great news! You're eligible for a credit limit increase.\n\n` +
+            `Current Credit Limit: $${eligibility.currentLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+            `Maximum Available Increase: $${eligibility.maxIncrease.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
+            `Let me help you select your new credit limit.`,
+          annotations: { audience: ['user'] },
+        },
+      ],
+      _meta: {
+        nextTool: {
+          tool: 'select_credit_limit_increase_amount',
+          parameters: {
+            currentLimit: eligibility.currentLimit,
+            maxIncrease: eligibility.maxIncrease,
+          },
+        },
+      },
+    };
+  },
+};
+
+/**
+ * Select Credit Limit Increase Amount Tool
+ * Called via nextTool from requestCreditLimitIncreaseTool
+ * Returns an options widget for amount selection
+ */
+export const selectCreditLimitIncreaseAmountTool = {
+  name: 'select_credit_limit_increase_amount',
+  config: {
+    title: 'Select Credit Limit Increase Amount',
+    description:
+      'Select the amount you want to increase your credit limit by. ' +
+      'This tool is automatically called after eligibility is confirmed.',
+    inputSchema: {
+      currentLimit: z
+        .number()
+        .describe('Your current credit limit'),
+      maxIncrease: z
+        .number()
+        .describe('Maximum increase amount available'),
+      selectedAmount: z
+        .string()
+        .optional()
+        .describe('The selected increase amount (provided by widget)'),
+    },
+    _meta: {
+      ui: {
+        // Reference IBM Orchestrate's built-in widget
+        resourceUri: 'ui://ibm.com/orchestrate/widget',
+        visibility: ['app'],
+      },
+    },
+  },
+  handler: async (
+    {
+      customerId,
+      currentLimit,
+      maxIncrease,
+      selectedAmount,
+    }: {
+      customerId: string;
+      currentLimit: number;
+      maxIncrease: number;
+      selectedAmount?: string;
+    },
+    extra: any,
+  ) => {
+    const threadId = extra?._meta?.['com.ibm.orchestrate/systemcontext']?.thread_id;
+
+    if (!threadId) {
+      throw new Error('Thread ID is required');
+    }
+
+    // If no amount selected yet, show options widget
+    if (!selectedAmount) {
+      // Generate increase options (e.g., $1000, $2500, $5000, or max)
+      const increaseOptions: Array<{
+        value: string;
+        label: string;
+        description: string;
+      }> = [];
+
+      for (const amount of [1000, 2500, 5000]) {
+        if (amount <= maxIncrease) {
+          const newLimit = currentLimit + amount;
+          increaseOptions.push({
+            value: amount.toString(),
+            label: `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} increase`,
+            description: `New limit: $${newLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          });
+        }
+      }
+
+      // Always add the maximum option if it's different from the last option
+      if (![1000, 2500, 5000].includes(maxIncrease)) {
+        const newLimit = currentLimit + maxIncrease;
+        increaseOptions.push({
+          value: maxIncrease.toString(),
+          label: `$${maxIncrease.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} increase (Maximum)`,
+          description: `New limit: $${newLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        });
+      }
+
+      return {
+        _meta: {
+          'com.ibm.orchestrate/widget': {
+            type: 'options',
+            title: 'Select Credit Limit Increase Amount',
+            description: `Your current credit limit is $${currentLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Choose how much you'd like to increase it by:`,
+            options: increaseOptions,
+            on_event: {
+              tool: 'select_credit_limit_increase_amount',
+              parameters: {
+                currentLimit,
+                maxIncrease,
+              },
+              map_input_to: 'selectedAmount',
+            },
+          },
+        },
+      };
+    }
+
+    // Amount has been selected, process the request
+    const increaseAmount = parseFloat(selectedAmount);
+    const newLimit = currentLimit + increaseAmount;
+
+    // Generate request ID
+    const requestId = `CLI-${Date.now()}-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+
+    // Store the request details
+    const requestDetails = {
+      customerId,
+      requestId,
+      currentLimit,
+      increaseAmount,
+      newLimit,
+      status: 'pending_approval',
+      requestedAt: new Date().toISOString(),
+    };
+
+    setLocalVariable(threadId, `credit_request_${requestId}`, requestDetails);
+
+    // Process the credit limit increase request
+    const result = PersonalBankingService.processCreditLimitIncrease(
+      customerId,
+      increaseAmount,
+      newLimit,
+    );
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `Credit Limit Increase Request Submitted!\n\n` +
+            `Request ID: ${requestId}\n` +
+            `Current Limit: $${currentLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+            `Requested Increase: $${increaseAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+            `New Limit (if approved): $${newLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
+            `Status: ${result.status}\n` +
+            `Processing Time: ${result.processingTime}\n\n` +
+            `${result.message}`,
+          annotations: { audience: ['user'] },
+        },
+      ],
+      structuredContent: {
+        requestId,
+        currentLimit,
+        increaseAmount,
+        newLimit,
+        status: result.status,
+        processingTime: result.processingTime,
+      },
+    };
+  },
+};
+
 
 /**
  * Get all personal banking tools
@@ -559,6 +782,8 @@ export const personalBankingTools = [
   getAccountStatementTool,
   prepareTransferTool,
   confirmOrCancelTransferTool,
+  requestCreditLimitIncreaseTool,
+  selectCreditLimitIncreaseAmountTool,
 ];
 
 /**
