@@ -238,6 +238,8 @@ def get_connection_ids(app_ids: list[str] | str = None, environment: str = None,
 
 def import_python_tool(file: str, requirements_file: str = None, app_id: List[str] = None, package_root: str = None) -> List[BaseTool]:
     return extract_python_tools(file=file, requirements_file=requirements_file, package_root=package_root, app_ids=app_id)
+    
+    return tools
 
 
 def load_flow_model_from_file(file: str) -> dict:
@@ -488,24 +490,8 @@ class ToolsController:
             self.client = instantiate_client(ToolClient)
         return self.client
     
-    def get_builder_client(self, prefer_local: bool = False) -> BuilderClient:
+    def get_builder_client(self) -> BuilderClient:
         if not self.builder_client:
-            if prefer_local:
-                try:
-                    health_response = requests.get("http://localhost:4025/health", timeout=2)
-                    if health_response.status_code == 200:
-                        tool_client = self.get_client()
-                        local_base_url = re.split(r"/(?:[^/]+/)?api/v1|/(?:[^/]+/)?v1", tool_client.base_url, maxsplit=1)[0]
-                        self.builder_client = BuilderClient(
-                            base_url=local_base_url,
-                            api_key=tool_client.api_key,
-                            is_local=True,
-                            authenticator=tool_client.authenticator,  # type: ignore[arg-type]
-                            verify=tool_client.verify
-                        )
-                        return self.builder_client
-                except requests.RequestException:
-                    pass
             self.builder_client = instantiate_client(BuilderClient)
         return self.builder_client
     
@@ -1192,18 +1178,6 @@ class ToolsController:
         except Exception as e:
             raise typer.BadParameter(str(e))
         
-    def _get_local_tool_client(self):
-        """Create a clean local tool client that ignores leaked environment path segments."""
-        tool_client = self.get_client()
-        local_origin = re.split(r"/(?:[^/]+/)?api/v1|/(?:[^/]+/)?v1", tool_client.base_url, maxsplit=1)[0]
-        return tool_client.__class__(
-            base_url=local_origin,
-            api_key=tool_client.api_key,
-            is_local=True,
-            authenticator=tool_client.authenticator,  # type: ignore[arg-type]
-            verify=tool_client.verify
-        )
-
     def _get_tool_id_by_name(self, name: str) -> str:
         """
         Look up a tool by name and return its ID.
@@ -1217,7 +1191,7 @@ class ToolsController:
         Raises:
             typer.BadParameter: If tool not found, multiple tools found, or tool has no ID
         """
-        existing_tools = self._get_local_tool_client().get_draft_by_name(name)
+        existing_tools = self.get_client().get_draft_by_name(name)
         
         if len(existing_tools) == 0:
             raise typer.BadParameter(f"No tool found with name '{name}'")
@@ -1234,12 +1208,7 @@ class ToolsController:
         
         return tool_id
     
-    def import_flow_translations(
-        self,
-        translation_path: str,
-        tool_id: Optional[str] = None,
-        name: Optional[str] = None
-    ) -> None:
+    def import_flow_translations(self, translation_path: str, tool_id: str = None, name: str = None) -> None:
         """
         Import translations for a flow tool from a CSV file.
         
@@ -1284,22 +1253,12 @@ class ToolsController:
             # Create array with single CSV file content
             csv_contents = [csv_content]
             
-            # Call the builder client to import translations.
-            # Some server versions reject no-op/minimal CSV payloads with a 400 while still
-            # supporting the endpoint for real translation imports. Treat that specific case
-            # as non-fatal for compatibility with integration tests that only verify the call path.
-            builder_client = self.get_builder_client(prefer_local=True)
-            if tool_id is None:
-                raise typer.BadParameter("Must provide either tool_id or name parameter")
-            try:
-                builder_client.import_translations(
-                    tool_identifier=tool_id,
-                    csv_contents=csv_contents
-                )
-            except Exception as e:
-                error_text = str(e)
-                if "status_code=400" not in error_text:
-                    raise
+            # Call the builder client to import translations
+            builder_client = self.get_builder_client()
+            result = builder_client.import_translations(
+                tool_identifier=tool_id,
+                csv_contents=csv_contents
+            )
             
             console.print(Panel(
                 f"[green]✓[/green] Translations successfully imported for tool ID: {tool_id}",
@@ -1399,13 +1358,7 @@ class ToolsController:
         tool_id = self._resolve_tool_id(flow_identifier, flow_model)
 
         # Export translations via Builder API
-        builder_client = BuilderClient(
-            base_url="http://localhost",
-            api_key=self.get_client().api_key,
-            is_local=True,
-            authenticator=self.get_client().authenticator,  # type: ignore[arg-type]
-            verify=self.get_client().verify
-        )
+        builder_client = self.get_builder_client()
         api_response = builder_client.export_translations(
             flow_model=flow_model,
             flow_identifier=tool_id

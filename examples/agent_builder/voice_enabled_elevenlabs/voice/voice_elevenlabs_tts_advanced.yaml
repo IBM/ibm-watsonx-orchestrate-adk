@@ -55,6 +55,8 @@ user_idle_handler:
   idle_max_reprompts: 2  # How many times to replay before ending the session (0 = end immediately)
   idle_timeout_message: "Are you still there? Please let me know if you need any help."  # Message to play on idle; language-specific variants may override this
   idle_hangup_message: ""  # Final message to play before disconnecting after idle reprompts are exhausted
+  use_llm_generated_idle_message: true # If true, use the LLM to generate a brief idle check-in message. If false, use the configured static idle_timeout_message.
+  repeat_previous_message: true # If true, idle_timeout_message will include the previous agent message. If false, only idle_timeout_message will play.
 
 # Agent Idle Handler (Audio Cues & Hold Music)
 agent_idle_handler:
