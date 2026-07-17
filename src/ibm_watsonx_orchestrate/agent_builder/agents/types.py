@@ -193,7 +193,7 @@ class AgentSpec(BaseAgentSpec):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     kind: AgentKind = AgentKind.NATIVE
-    llm: str = Field(default_factory=get_default_llm)
+    llm: str | None = Field(default_factory=get_default_llm)
     style: AgentStyle = AgentStyle.REACT_CORE
     hide_reasoning: bool = False
     custom_join_tool: str | PythonTool | None = None
