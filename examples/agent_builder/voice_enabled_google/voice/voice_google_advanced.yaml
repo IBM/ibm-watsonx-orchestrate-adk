@@ -8,12 +8,6 @@ speech_to_text:
     project_id: "your-gcp-project-id"  # Required: Google Cloud project ID
     credentials_json: "service-account-json"  # Required Service Account Credentials
 
-    # Audio format
-    encoding: "LINEAR16"  # Optional: AudioEncoding enum. Not required for FLAC/WAV. Options: LINEAR16, FLAC, MULAW, AMR, AMR_WB, OGG_OPUS, SPEEX_WITH_HEADER_BYTE, MP3, WEBM_OPUS, ALAW
-    sample_rate_hertz: 16000  # Optional: 8000-48000 Hz; 16000 is optimal. Not required for FLAC/WAV
-    audio_channel_count: 1  # Optional: Number of audio channels (1-8 for LINEAR16/OGG_OPUS/FLAC; only 1 for MULAW/AMR/AMR_WB/SPEEX). Defaults to 1
-    enable_separate_recognition_per_channel: false  # Optional: Transcribe each channel independently when audioChannelCount > 1. Results include a channelTag field
-
     # Language
     language_code: "en-US"  # Required: BCP-47 language tag
     alternative_language_codes:  # Optional: Up to 3 additional BCP-47 language tags. Only supported for Voice Command and Voice Search use cases
@@ -38,7 +32,7 @@ speech_to_text:
 text_to_speech:
   provider: google_tts
   google_tts_config:
-    api_key: "your-google-api-key"  # Required: Google API key
+    credentials_json: "service-account-json"  # Required Service Account Credentials
 
     # Voice selection
     # Voice type comparison:
