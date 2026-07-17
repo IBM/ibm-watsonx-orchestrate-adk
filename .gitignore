@@ -28,7 +28,6 @@ ENV/
 env/
 .venv/
 .env/
-.venv-google/
 
 # Setuptools
 *.lock
