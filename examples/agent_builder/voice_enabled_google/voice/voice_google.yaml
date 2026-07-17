@@ -11,7 +11,7 @@ speech_to_text:
     enable_automatic_punctuation: true
     enable_interim_results: true
 text_to_speech:
-  provider: google_cloud_tts
+  provider: google_tts
   google_cloud_tts_config:
     api_key: "your-google-api-key"
     voice: "en-US-Neural2-C"
