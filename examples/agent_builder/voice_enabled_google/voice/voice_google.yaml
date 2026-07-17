@@ -12,7 +12,7 @@ speech_to_text:
     enable_interim_results: true
 text_to_speech:
   provider: google_tts
-  google_cloud_tts_config:
+  google_tts_config:
     api_key: "your-google-api-key"
     voice: "en-US-Neural2-C"
     language: "en-US"

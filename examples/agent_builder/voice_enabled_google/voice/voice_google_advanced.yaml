@@ -37,7 +37,7 @@ speech_to_text:
 
 text_to_speech:
   provider: google_tts
-  google_cloud_tts_config:
+  google_tts_config:
     api_key: "your-google-api-key"  # Required: Google API key
 
     # Voice selection
