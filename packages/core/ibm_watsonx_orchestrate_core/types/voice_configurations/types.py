@@ -253,11 +253,11 @@ class TextToSpeechConfig(BaseModel):
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
-  google_cloud_tts_config: Optional[GoogleCloudTTSConfig] = None
+  google_tts_config: Optional[GoogleCloudTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_cloud_tts_config'])
+    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_tts_config'])
     return self
 
 class DTMFInput(BaseModel):

@@ -205,9 +205,9 @@ def google_stt_config():
   }
 
 @pytest.fixture
-def google_cloud_tts_config():
+def google_tts_config():
   return{
-    "name": "google_cloud_tts_test",
+    "name": "google_tts_test",
     "speech_to_text":{
       "provider": "test_stt_provider",
       "watson_stt_config":{
@@ -217,8 +217,8 @@ def google_cloud_tts_config():
       }
     },
     "text_to_speech": {
-      "provider": "google_cloud_tts",
-      "google_cloud_tts_config": {
+      "provider": "google_tts",
+      "google_tts_config": {
         "api_key": "test_google_api_key",
         "voice": "en-US-Neural2-C",
         "language": "en-US"
@@ -323,15 +323,15 @@ class TestVoiceConfigurationInit:
     assert config.speech_to_text.google_stt_config.enable_automatic_punctuation == config_data['speech_to_text']['google_stt_config']['enable_automatic_punctuation']
     assert config.speech_to_text.google_stt_config.enable_interim_results == config_data['speech_to_text']['google_stt_config']['enable_interim_results']
 
-  def test_google_cloud_tts_config(self,google_cloud_tts_config):
-    config_data = google_cloud_tts_config
+  def test_google_tts_config(self,google_tts_config):
+    config_data = google_tts_config
     config = VoiceConfiguration.model_validate(config_data)
 
     assert config.name == config_data['name']
-    assert config.text_to_speech.provider == "google_cloud_tts"
-    assert config.text_to_speech.google_cloud_tts_config.api_key == config_data['text_to_speech']['google_cloud_tts_config']['api_key']
-    assert config.text_to_speech.google_cloud_tts_config.voice == config_data['text_to_speech']['google_cloud_tts_config']['voice']
-    assert config.text_to_speech.google_cloud_tts_config.language == config_data['text_to_speech']['google_cloud_tts_config']['language']
+    assert config.text_to_speech.provider == "google_tts"
+    assert config.text_to_speech.google_tts_config.api_key == config_data['text_to_speech']['google_tts_config']['api_key']
+    assert config.text_to_speech.google_tts_config.voice == config_data['text_to_speech']['google_tts_config']['voice']
+    assert config.text_to_speech.google_tts_config.language == config_data['text_to_speech']['google_tts_config']['language']
 
   def test_deepgram_keyterm_with_supported_model_nova3(self):
     """Test that keyterm works with nova-3 model"""
