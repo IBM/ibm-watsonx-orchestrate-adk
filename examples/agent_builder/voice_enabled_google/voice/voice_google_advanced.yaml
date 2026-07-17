@@ -36,7 +36,7 @@ speech_to_text:
     enable_word_confidence: true  # Optional: Include per-word confidence scores in top result. Defaults to false
 
 text_to_speech:
-  provider: google_cloud_tts
+  provider: google_tts
   google_cloud_tts_config:
     api_key: "your-google-api-key"  # Required: Google API key
 
