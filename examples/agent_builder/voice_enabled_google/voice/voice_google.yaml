@@ -1,10 +1,10 @@
-name: google_voice_config99
+name: google_voice_config
 llm_aggregation_timeout_seconds: 0.8
 speech_to_text:
   provider: google_stt
   google_stt_config:
     project_id: "project-id"
-    api_key: "your-google-api-key"
+    credentials_json: "service-account-json"
     language_code: "en-US"
     model: "long"
     sample_rate_hertz: 16000
