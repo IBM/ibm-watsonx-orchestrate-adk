@@ -1,8 +1,0 @@
-# This configuration enables IBM detect-secrets in the configured Git hook stages.
-repos:
-  - repo: https://github.com/ibm/detect-secrets
-    rev: 0.13.1+ibm.64.dss
-    hooks:
-      - id: detect-secrets # pragma: whitelist secret
-        stages: [pre-commit]
-        args: [--baseline, .secrets.baseline, --use-all-plugins, --fail-on-unaudited]
