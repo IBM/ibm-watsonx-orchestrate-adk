@@ -186,7 +186,7 @@ def google_stt_config():
       "provider": "google_stt",
       "google_stt_config":{
         "project_id": "voice-runtime",
-        "api_key": "test_google_api_key",
+        "credentials_json": "test_service_account_json",
         "language_code": "en-US",
         "model": "long",
         "sample_rate_hertz": 16000,
@@ -219,7 +219,7 @@ def google_tts_config():
     "text_to_speech": {
       "provider": "google_tts",
       "google_tts_config": {
-        "api_key": "test_google_api_key",
+        "credentials_json": "test_service_account_json",
         "voice": "en-US-Neural2-C",
         "language": "en-US"
       }
@@ -316,7 +316,7 @@ class TestVoiceConfigurationInit:
     assert config.name == config_data['name']
     assert config.speech_to_text.provider == "google_stt"
     assert config.speech_to_text.google_stt_config.project_id == config_data['speech_to_text']['google_stt_config']['project_id']
-    assert config.speech_to_text.google_stt_config.api_key == config_data['speech_to_text']['google_stt_config']['api_key']
+    assert config.speech_to_text.google_stt_config.credentials_json == config_data['speech_to_text']['google_stt_config']['credentials_json']
     assert config.speech_to_text.google_stt_config.language_code == config_data['speech_to_text']['google_stt_config']['language_code']
     assert config.speech_to_text.google_stt_config.model == config_data['speech_to_text']['google_stt_config']['model']
     assert config.speech_to_text.google_stt_config.sample_rate_hertz == config_data['speech_to_text']['google_stt_config']['sample_rate_hertz']
@@ -329,7 +329,7 @@ class TestVoiceConfigurationInit:
 
     assert config.name == config_data['name']
     assert config.text_to_speech.provider == "google_tts"
-    assert config.text_to_speech.google_tts_config.api_key == config_data['text_to_speech']['google_tts_config']['api_key']
+    assert config.text_to_speech.google_tts_config.credentials_json == config_data['text_to_speech']['google_tts_config']['credentials_json']
     assert config.text_to_speech.google_tts_config.voice == config_data['text_to_speech']['google_tts_config']['voice']
     assert config.text_to_speech.google_tts_config.language == config_data['text_to_speech']['google_tts_config']['language']
 
