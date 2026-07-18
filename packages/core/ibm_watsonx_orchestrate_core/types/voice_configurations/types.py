@@ -156,6 +156,8 @@ class DeepgramSTTConfig(BaseModel):
 class GoogleSTTConfig(BaseModel):
   project_id: Annotated[str, Field(min_length=1, max_length=256)]
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
+
   language_code: Annotated[str, Field(min_length=2, max_length=16)]
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
@@ -237,7 +239,9 @@ class DeepgramTTSConfig(BaseModel):
   normalize_volume: Optional[bool] = None
   
 
-class GoogleCloudTTSConfig(BaseModel):
+class GoogleTTSConfig(BaseModel):
+  credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
+
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1, max_length=128)]
   language: Annotated[str, Field(min_length=2, max_length=16)]
@@ -253,7 +257,7 @@ class TextToSpeechConfig(BaseModel):
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
-  google_tts_config: Optional[GoogleCloudTTSConfig] = None
+  google_tts_config: Optional[GoogleTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
