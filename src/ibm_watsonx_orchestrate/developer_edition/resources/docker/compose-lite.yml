@@ -285,6 +285,7 @@ services:
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
+      - "3300:4025"
     healthcheck:
       test: curl -k http://localhost:4025/api/health --fail
       interval: 5s
