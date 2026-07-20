@@ -156,6 +156,8 @@ class TestFlowCallbacks:
                 FlowCallbackEventKind.ON_FLOW_START,
                 FlowCallbackEventKind.ON_FLOW_END,
                 FlowCallbackEventKind.ON_FLOW_ERROR,
+                FlowCallbackEventKind.ON_FLOW_ABORT,
+                FlowCallbackEventKind.ON_FLOW_DELETE,
                 FlowCallbackEventKind.ON_TASK_WAIT,
                 FlowCallbackEventKind.ON_TASK_ERROR,
                 FlowCallbackEventKind.ON_TASK_MESSAGE
@@ -164,12 +166,14 @@ class TestFlowCallbacks:
         
         flow_json = flow.to_json()
         callback = flow_json["spec"]["callbacks"][0]
-        assert len(callback["events"]) == 6
+        assert len(callback["events"]) == 8
         # Verify all event types are present
         expected_events = [
             "flow:on_flow_start",
             "flow:on_flow_end",
             "flow:on_flow_error",
+            "flow:on_flow_abort",
+            "flow:on_flow_delete",
             "task:on_task_wait",
             "task:on_task_error",
             "task:on_task_message"
@@ -224,16 +228,20 @@ class TestFlowCallbacks:
             events=[
                 FlowCallbackEventKind.ON_FLOW_START,
                 FlowCallbackEventKind.ON_FLOW_END,
-                FlowCallbackEventKind.ON_FLOW_ERROR
+                FlowCallbackEventKind.ON_FLOW_ERROR,
+                FlowCallbackEventKind.ON_FLOW_ABORT,
+                FlowCallbackEventKind.ON_FLOW_DELETE
             ]
         )
         
         flow_json = flow.to_json()
         callback = flow_json["spec"]["callbacks"][0]
-        assert len(callback["events"]) == 3
+        assert len(callback["events"]) == 5
         assert "flow:on_flow_start" in callback["events"]
         assert "flow:on_flow_end" in callback["events"]
         assert "flow:on_flow_error" in callback["events"]
+        assert "flow:on_flow_abort" in callback["events"]
+        assert "flow:on_flow_delete" in callback["events"]
     
     def test_callbacks_empty_by_default(self):
         """Test that a flow has no callbacks by default."""
