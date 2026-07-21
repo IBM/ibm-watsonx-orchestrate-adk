@@ -32,7 +32,7 @@ speech_to_text:
 text_to_speech:
   provider: google_tts
   google_tts_config:
-    credentials_json: "service-account-json"  # Service Account Credentials
+    credentials_json: "service-account-json"  # Service Account Credentials. Can substitute with api_key
 
     # Voice selection
     # Voice type comparison:

@@ -155,9 +155,7 @@ class DeepgramSTTConfig(BaseModel):
 
 class GoogleSTTConfig(BaseModel):
   project_id: Annotated[str, Field(min_length=1, max_length=256)]
-  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
-
   language_code: Annotated[str, Field(min_length=2, max_length=16)]
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
@@ -245,8 +243,7 @@ class DeepgramTTSConfig(BaseModel):
   
 
 class GoogleTTSConfig(BaseModel):
-  credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
-
+  credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
   api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
   voice: Annotated[str, Field(min_length=1, max_length=128)]
   language: Annotated[str, Field(min_length=2, max_length=16)]
@@ -255,6 +252,11 @@ class GoogleTTSConfig(BaseModel):
   volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
   effects_profile_id: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
   ssml_gender: Optional[Annotated[str, Field(min_length=1, max_length=32)]] = None
+
+  @model_validator(mode="after")
+  def validate_auth(self):
+    _validate_exactly_one_of_fields(self, 'GoogleTTSConfig', ['credentials_json', 'api_key'])
+    return self
 
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
