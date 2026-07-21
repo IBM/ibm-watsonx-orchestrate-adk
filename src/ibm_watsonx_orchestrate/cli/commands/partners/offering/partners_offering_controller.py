@@ -1,4 +1,6 @@
+import base64
 import json
+import re
 import yaml
 import zipfile
 import logging
@@ -81,10 +83,36 @@ def get_tool_bindings(tool_names: list[str]) -> dict[str, dict]:
 
     return results
 
+def _normalize_icon(icon: str | None) -> str | None:
+    if not icon:
+        return None
+
+    processed_icon = icon
+
+    if not icon.lstrip().startswith("<"):
+        try:
+            decoded_icon = base64.b64decode(icon, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return icon
+
+        if "<" in decoded_icon and ">" in decoded_icon:
+            processed_icon = decoded_icon
+        else:
+            return icon
+
+    svg_match = re.search(r"<svg[\s\S]*</svg>", processed_icon, re.IGNORECASE)
+    if svg_match:
+        processed_icon = svg_match.group(0)
+
+    return processed_icon.replace('"', "'")
+
+
 def _normalize_icon_quotes(data: dict):
     icon = data.get("icon")
     if isinstance(icon, str):
-        data["icon"] = icon.replace('\\"', '"')
+        normalized_icon = _normalize_icon(icon)
+        if normalized_icon is not None:
+            data["icon"] = normalized_icon
 
 
 def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_name: str):
