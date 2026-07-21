@@ -81,6 +81,12 @@ def get_tool_bindings(tool_names: list[str]) -> dict[str, dict]:
 
     return results
 
+def _normalize_icon_quotes(data: dict):
+    icon = data.get("icon")
+    if isinstance(icon, str):
+        data["icon"] = icon.replace('\\"', '"')
+
+
 def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_name: str):
     agents_dir = project_root / "agents"
     if not agents_dir.exists():
@@ -104,6 +110,7 @@ def _patch_agent_yamls(project_root: Path, publisher_name: str, parent_agent_nam
         }
 
         agent_data.update(extra_agent_fields)
+        _normalize_icon_quotes(agent_data)
 
         with safe_open(agent_yaml, "w") as f:
             yaml.safe_dump(agent_data, f, sort_keys=False)
@@ -425,6 +432,7 @@ class PartnersOfferingController:
                 else:
                     catalog_data = agent_data
 
+                _normalize_icon_quotes(catalog_data)
                 agent_json_path = f"{top_level_folder}/agents/{agent_name}/config.json"
                 zf.writestr(agent_json_path, json.dumps(catalog_data, indent=2))
             
@@ -466,6 +474,7 @@ class PartnersOfferingController:
                     if v is not None or k == "delete_by"
                 }
                 tool_data.update(extra_fields)
+                _normalize_icon_quotes(tool_data)
 
                 _validate_tool_placeholders(tool_data, tool_name)
 
