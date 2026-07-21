@@ -25,7 +25,7 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_catalog_label
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import *
 
-APPLICATIONS_FILE_VERSION = '1.16.0'
+APPLICATIONS_FILE_VERSION = '1.0.0'
 
 # Fields allowed by the catalog native agent schema (partner-native-agent.schema.json).
 # Fields present in the ADK agent spec but absent from this set are internal
