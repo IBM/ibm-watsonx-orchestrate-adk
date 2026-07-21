@@ -374,9 +374,10 @@ class PartnersOfferingController:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             top_level_folder = offering
 
-            # --- Add offering YAML as JSON ---
-            offering_json_path = f"{top_level_folder}/offerings/{offering}/config.json"
-            zf.writestr(offering_json_path, json.dumps(offering_data, indent=2))
+            # --- Keep offerings/ folder present in the zip via a placeholder ---
+            # The offerings/ directory is currently unused for partners packaging;
+            # a .donotremove file preserves the folder structure in the zip.
+            zf.writestr(f"{top_level_folder}/offerings/.donotremove", "")
 
             # --- Add & validate agents ---
             agents = offering_data.get("assets", {}).get(publisher_name, {}).get("agents", [])
