@@ -6,7 +6,7 @@ speech_to_text:
     project_id: "project-id"
     credentials_json: "service-account-json"
     language_code: "en-US"
-    model: "long"
+    model: "latest_long"
     enable_automatic_punctuation: true
     enable_interim_results: true
 text_to_speech:

@@ -5,14 +5,14 @@ llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for addit
 speech_to_text:
   provider: google_stt
   google_stt_config:
-    project_id: "your-gcp-project-id"  # Required: Google Cloud project ID
-    credentials_json: "service-account-json"  # Required Service Account Credentials
+    project_id: "your-gcp-project-id"  # Google Cloud project ID
+    credentials_json: "service-account-json"  # Service Account Credentials
 
     # Language
-    language_code: "en-US"  # Required: BCP-47 language tag
+    language_code: "en-US"  # BCP-47 language tag
     alternative_language_codes:  # Optional: Up to 3 additional BCP-47 language tags. Only supported for Voice Command and Voice Search use cases
-      - "en-GB"
-      - "en-AU"
+      - "es-US"
+      - "fr-CA"
 
     # Model selection
     model: "latest_long"  # Optional: latest_long | latest_short | command_and_search | phone_call | video | default | medical_conversation | medical_dictation
@@ -32,7 +32,7 @@ speech_to_text:
 text_to_speech:
   provider: google_tts
   google_tts_config:
-    credentials_json: "service-account-json"  # Required Service Account Credentials
+    credentials_json: "service-account-json"  # Service Account Credentials
 
     # Voice selection
     # Voice type comparison:
@@ -42,8 +42,8 @@ text_to_speech:
     #   Studio      — media narration and news reading, full SSML support (GA)
     #   WaveNet     — warm/human-like, full SSML support (GA)
     #   Standard    — cost-efficient, full SSML support (GA)
-    voice: "en-US-Neural2-F"  # Optional: Full voice name. Use Neural2/WaveNet/Studio for speaking_rate, pitch, and volume support
-    language: "en-US"  # Required: BCP-47 language tag. TTS may substitute a nearby dialect if exact match unavailable
+    voice: "en-US-Neural2-F"  # Full voice name. Use Neural2/WaveNet/Studio for speaking_rate, pitch, and volume support
+    language: "en-US"  # BCP-47 language tag. TTS may substitute a nearby dialect if exact match unavailable
     ssml_gender: "FEMALE"  # Optional: Preferred voice gender — MALE | FEMALE | NEUTRAL. Not enforced if a matching voice is unavailable
 
     # Audio output controls
@@ -56,7 +56,7 @@ text_to_speech:
     # Effects profile
     # Optimises audio for a specific playback device. Applied on top of speaking_rate/pitch/volume.
     effects_profile_id:
-      - "telephony-class-application"  # Phone/telephony output
+      - "telephony-class-application"  # Optional: Phone/telephony output
 
 language: "en-US"  # Optional: default language for the voice configuration (default: en-us)
 
