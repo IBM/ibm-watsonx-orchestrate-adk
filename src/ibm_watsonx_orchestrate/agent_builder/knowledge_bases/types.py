@@ -446,26 +446,27 @@ class KnowledgeBaseSpec(BaseModel):
     # For import/update
     documents: list[str] | list[FileUpload] = None
     
-    @model_validator(mode='after')
-    def validate_sync_job_requires_content_source(self) -> 'KnowledgeBaseSpec':
-        """Validate that sync_job is only used with content_source, not with index_config."""
-        if self.sync_job is not None:
-            # Check if using index_config (external knowledge base)
-            if self.conversational_search_tool and isinstance(self.conversational_search_tool, ConversationalSearchConfig):
-                if self.conversational_search_tool.index_config:
-                    raise ValueError(
-                        "sync_job is not supported for knowledge bases using index_config. "
-                        "sync_job can only be used with content_source."
-                    )
-
-            # Ensure content_source is provided when sync_job is specified
-            if self.content_source is None:
-                raise ValueError(
-                    "sync_job requires content_source to be specified. "
-                    "Please provide a content_source (e.g., type: 'box')."
-                )
-
-        return self
+    # DEFERRED: sync_job scheduling deferred to a future release.
+    # @model_validator(mode='after')
+    # def validate_sync_job_requires_content_source(self) -> 'KnowledgeBaseSpec':
+    #     """Validate that sync_job is only used with content_source, not with index_config."""
+    #     if self.sync_job is not None:
+    #         # Check if using index_config (external knowledge base)
+    #         if self.conversational_search_tool and isinstance(self.conversational_search_tool, ConversationalSearchConfig):
+    #             if self.conversational_search_tool.index_config:
+    #                 raise ValueError(
+    #                     "sync_job is not supported for knowledge bases using index_config. "
+    #                     "sync_job can only be used with content_source."
+    #                 )
+    #
+    #         # Ensure content_source is provided when sync_job is specified
+    #         if self.content_source is None:
+    #             raise ValueError(
+    #                 "sync_job requires content_source to be specified. "
+    #                 "Please provide a content_source (e.g., type: 'box')."
+    #             )
+    #
+    #     return self
 
 class KnowledgeBaseListEntry(BaseModel):
     name: str = Field(description="Name of the knowledge base")
