@@ -9,7 +9,8 @@ instructions: >
   You are a helpful assistant. Answer questions clearly and concisely.
 llm: groq/openai/gpt-oss-120b
 style: default
-tools: []
+tools:
+- get_catalog_demo_status
 collaborators: []
 
 # ── Catalog submission fields ─────────────────────────────────────────────────

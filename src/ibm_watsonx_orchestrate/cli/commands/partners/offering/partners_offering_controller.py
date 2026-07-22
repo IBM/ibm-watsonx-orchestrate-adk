@@ -528,6 +528,9 @@ class PartnersOfferingController:
                     with tempfile.TemporaryDirectory() as tmpdir:
                         tmp_zip = Path(tmpdir) / f"{tool_name}.zip"
                         make_archive(str(tmp_zip.with_suffix('')), 'zip', root_dir=tool_dir, base_dir='.')
+                        # Append the bundle-format marker required by the catalog runtime.
+                        with zipfile.ZipFile(tmp_zip, "a") as artifact_zf:
+                            artifact_zf.writestr("bundle-format", "2.0.0")
                         zf.write(tmp_zip, artifact_zip_path)
                 else:
                     logger.error(f"No Python files found for tool {tool_name}.")
