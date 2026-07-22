@@ -129,10 +129,27 @@ For live environment:
 bash voice_webhook_setup.sh --env live
 ```
 
+### Updating an Existing Webhook
+
+If you've already run the script once and need to change the webhook URL, auth type, or credentials, use `--update`:
+
+```bash
+bash voice_webhook_setup.sh --env live --update
+```
+
+In update mode, the script:
+
+- Updates the existing configuration (webhook URL, security scheme) using the values at the top of the script
+- Updates the runtime credentials, creating them if they don't already exist
+- Confirms the webhook is attached to the agent, attaching it only if it isn't already
+
+If `--update` is specified but no existing configuration is found for the webhook type, the script exits with an error rather than creating a new one. Use the script without `--update` for first-time setup.
+
 -----
 
 ## Notes
 
 - The bearer token expires after 1 hour. Re-generate if you get 401 errors.
 - The script is idempotent - safe to re-run. Existing configuration, runtime credentials, and webhook attachments are detected and skipped.
+- Use `--update` to modify an existing webhook's configuration or credentials rather than re-running first-time setup.
 - Ensure your webhook endpoint is reachable before running.

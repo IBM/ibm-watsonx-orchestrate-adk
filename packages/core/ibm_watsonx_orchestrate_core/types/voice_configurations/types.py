@@ -221,7 +221,8 @@ class DeepgramTTSConfig(BaseModel):
   language: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   mip_opt_out: Optional[bool] = None
-
+  normalize_volume: Optional[bool] = None
+  
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_tts_config: Optional[WatsonTTSConfig] = None
@@ -264,6 +265,14 @@ class UserIdleHandlerConfig(BaseModel):
   idle_max_reprompts: Optional[int] = Field(default=2, description="How many times to replay before ending the session")
   idle_timeout_message: Optional[str] = Field(default="", description="Message to play on idle")
   idle_hangup_message: Optional[str] = Field(default="", description="Message to play before hanging up")
+  use_llm_generated_idle_message: Optional[bool] = Field(
+    default=True,
+    description="If true, use the LLM to generate a brief idle check-in message. If false, use the configured static idle_timeout_message."
+  )
+  repeat_previous_message: Optional[bool] = Field(
+    default=True,
+    description="If true, idle_timeout_message will include the previous agent message. If false, only idle_timeout_message will play."
+  )
 
 class UserIdleHandlerLangConfig(BaseModel):
   idle_timeout_message: Optional[str] = Field(
@@ -283,7 +292,9 @@ class AudioClips(Enum):
 
 class AgentIdleHandlerMessages(BaseModel):
   pre_hold_message: Optional[str] = Field(default="We're taking a little extra time but we'll be with you shortly. Thanks for your patience!", min_length=0, max_length=250, description="The text to play for the user before playing on-hold audio")
+  pre_hold_messages_additional: Optional[List[Annotated[str, Field(min_length=0, max_length=250)]]] = Field(default=[], min_length=0, max_length=10, description="Additional text to cycle through for the user before playing on-hold audio")
   hold_message: Optional[str] = Field(default="Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait.", min_length=0, max_length=250, description="The text to play to the user periodically while on hold")
+  hold_messages_additional: Optional[List[Annotated[str, Field(min_length=0, max_length=250)]]] = Field(default=[], min_length=0, max_length=10, description="Additional text to cycle through for the user while on hold")
 
 class AgentIdleHandler(AgentIdleHandlerMessages):
   model_config = ConfigDict(use_enum_values=True)

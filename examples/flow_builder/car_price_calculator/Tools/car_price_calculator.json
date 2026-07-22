@@ -551,7 +551,7 @@
                 },
                 "prompt_905b99eb-b399-446b-b97d-de4f754c4508": {
                     "spec": {
-                        "llm": "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+                        "llm": "watsonx/openai/gpt-oss-120b",
                         "kind": "prompt",
                         "name": "prompt_905b99eb-b399-446b-b97d-de4f754c4508",
                         "metadata": {

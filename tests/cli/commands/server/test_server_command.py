@@ -618,6 +618,7 @@ def test_missing_compose_file(valid_user_env):
     with patch("ibm_watsonx_orchestrate.developer_edition.vm_host.lima._ensure_lima_installed"), \
          patch.object(EnvService, "get_compose_file", return_value=Path("/non/existent/compose.yml")), \
          patch("sys.exit", side_effect=lambda code=None: None), \
+         patch("builtins.input", return_value="y"), \
          skip_terms_and_conditions(), \
          skip_service_creds():
 

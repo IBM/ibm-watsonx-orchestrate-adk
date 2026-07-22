@@ -102,7 +102,8 @@ snapshots['test_flow_tool_support_wxo_file_input_output 1'] = {
                         'title': 'File reference',
                         'type': 'string'
                     },
-                    'schedulable': False
+                    'schedulable': False,
+                    'suppress_agent_summarization': True
                 }
             }
         }

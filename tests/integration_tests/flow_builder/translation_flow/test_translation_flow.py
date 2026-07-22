@@ -22,9 +22,18 @@ import json
 import asyncio
 import requests
 
-from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController
+from ibm_watsonx_orchestrate.cli.commands.tools.tools_controller import ToolsController, ToolKind
 from ibm_watsonx_orchestrate.client.tools.builder_client import BuilderClient
+from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.cli.commands.environment.environment_controller import activate
+from ibm_watsonx_orchestrate.cli.config import Config, CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT
+from ibm_watsonx_orchestrate.flow_builder import utils as flow_builder_utils
+from ibm_watsonx_orchestrate_clients.common.credentials import Credentials
+from ibm_watsonx_orchestrate_clients.common.service_instance.local_service_instance import (
+    DEFAULT_LOCAL_SERVICE_URL,
+    LocalServiceInstance,
+)
 from .tools.translation_test_flow import build_translation_test_flow
 
 # Check if Orchestrate Server is running before running integration tests
@@ -41,6 +50,44 @@ if not server_available:
         allow_module_level=True
     )
 
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_local_environment():
+    """Force translation integration tests to use clean local clients."""
+    cfg = Config()
+    previous_active_env = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT)
+    activate("local")
+
+    monkeypatch = pytest.MonkeyPatch()
+
+    def _instantiate_local_tool_client(client_cls, *args, **kwargs):
+        if client_cls is ToolClient:
+            class _DummyClient:
+                def __init__(self):
+                    self.credentials = Credentials(url=DEFAULT_LOCAL_SERVICE_URL)
+                    self.token = None
+
+            local_service_instance = LocalServiceInstance(_DummyClient())
+            tenant_access_token = local_service_instance.tenant_access_token
+            if tenant_access_token is None:
+                raise RuntimeError("Failed to obtain local tenant access token for translation tests")
+            return ToolClient(
+                base_url=DEFAULT_LOCAL_SERVICE_URL,
+                api_key=tenant_access_token,
+                is_local=True
+            )
+        return instantiate_client(client_cls, *args, **kwargs)
+
+    monkeypatch.setattr(flow_builder_utils, "instantiate_client", _instantiate_local_tool_client)
+    monkeypatch.setattr(
+        "tests.integration_tests.flow_builder.translation_flow.test_translation_flow.instantiate_client",
+        _instantiate_local_tool_client
+    )
+
+    yield
+
+    monkeypatch.undo()
+    cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_ENV_OPT, previous_active_env)
 
 @pytest.fixture(scope="module")
 def event_loop():
@@ -81,28 +128,40 @@ def flow_model_from_file(flow_json_file_path):
 
 
 @pytest.fixture(scope="module")
-def imported_flow_tool(event_loop):
+def imported_flow_tool(flow_json_file_path):
     """
     Import the test flow tool and return its details.
     This fixture sets up the flow tool that will be used for translation tests.
     """
-    # Run the async flow compilation
-    flow = event_loop.run_until_complete(build_translation_test_flow().compile_deploy())
-    
-    # The flow should now be imported and we can get its details
+    activate("local")
+
     controller = ToolsController()
-    existing_tools = controller.get_client().get_draft_by_name("translation_test_flow")
-    
+    local_tool_client = flow_builder_utils.instantiate_client(ToolClient)
+
+    existing_tools = local_tool_client.get_draft_by_name("translation_test_flow")
+    for existing_tool in existing_tools:
+        try:
+            local_tool_client.delete(tool_id=existing_tool["id"])
+        except Exception:
+            pass
+
+    controller.import_tool(
+        kind=ToolKind.flow,
+        file=flow_json_file_path
+    )
+
+    existing_tools = local_tool_client.get_draft_by_name("translation_test_flow")
+
     if not existing_tools:
         pytest.skip("Flow tool was not imported successfully")
-    
+
     tool_info = {"id": existing_tools[0]["id"], "name": existing_tools[0]["name"]}
-    
+
     yield tool_info
-    
+
     # Cleanup: Delete the tool after tests
     try:
-        controller.get_client().delete(tool_id=tool_info["id"])
+        local_tool_client.delete(tool_id=tool_info["id"])
     except Exception as e:
         print(f"Cleanup warning: Could not delete tool {tool_info['id']}: {e}")
 
@@ -284,12 +343,21 @@ class TestTranslationCLIIntegration:
         )
         
         # Run CLI import command
-        result = subprocess.run([
-            "orchestrate", "tools", "translation-import",
-            "-k", "flow",
-            "--name", imported_flow_tool["name"],
-            "--translation", str(export_file)
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                "python", "-m", "ibm_watsonx_orchestrate.cli.main",
+                "tools", "translation-import",
+                "-k", "flow",
+                "--name", imported_flow_tool["name"],
+                "--translation", str(export_file)
+            ],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PYTHONPATH": "src:packages/core:packages/clients:packages/agentic-sdk"
+            }
+        )
         
         assert result.returncode == 0, f"CLI import failed: {result.stderr}"
     
@@ -361,4 +429,3 @@ class TestTranslationErrorHandling:
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
 
-# Made with Bob

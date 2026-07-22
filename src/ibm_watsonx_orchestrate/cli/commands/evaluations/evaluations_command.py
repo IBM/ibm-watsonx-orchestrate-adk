@@ -42,16 +42,12 @@ def _check_import_error():
                      "Please install them using `pip install --upgrade \"ibm-watsonx-orchestrate[agentops]\"`")
         sys.exit(1)
 
-def _feature_requires_legacy_eval():
-    if not USE_LEGACY_EVAL:
-        logger.error("Feature requires legacy evaluation. Please enable it using `export USE_LEGACY_EVAL=TRUE`")
-        sys.exit(1)
 
 def _native_agent_template():
     return {
         "spec_version": "v1",
         "style": "default",
-        "llm": "watsonx/meta-llama/llama-3-3-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "name": "",
         "description": "Native agent for validating external agent",
         "instructions": "Use the tools and external agent(s) provided to answer the user's question.  If you do not have enough information to answer the question, say so.  If you need more information, ask follow up questions.",
@@ -163,8 +159,8 @@ def evaluate(
     validate_watsonx_credentials(user_env_file)
 
     if not USE_LEGACY_EVAL:
-        logger.warning("Using beta evaluation. This feature is still in beta.")
-        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`")
+        logger.warning("Using new evaluation pipeline")
+        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`. Note this will soon be deprecated")
     
     if langfuse_enabled:
         lf_sk_exists = os.environ.get("LANGFUSE_SECRET_KEY") is not None
@@ -219,14 +215,33 @@ def record(
             "--env-file", "-e", 
             help="Path to a .env file that overrides default.env. Then environment variables override both."
         ),
+    ] = None,
+    context_variables: Annotated[
+        Optional[str],
+        typer.Option(
+            "--context-variables", "-cv",
+            help="JSON string of context variables to include in recordings."
+        )
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
-    
     validate_watsonx_credentials(user_env_file)
+    
+    # Validate context variables is valid JSON and is a dict/object
+    if context_variables:
+        try:
+            parsed = json.loads(context_variables)
+            if not isinstance(parsed, dict):
+                raise typer.BadParameter(
+                    "Context variables must be a JSON object."
+                )
+        except json.JSONDecodeError as e:
+            raise typer.BadParameter(
+                f"Invalid JSON for --context-variables: {e}"
+            )
+    
     controller = EvaluationsController()
-    controller.record(output_dir=output_dir)
+    controller.record(output_dir=output_dir, context_variables=context_variables)
 
 
 @evaluation_app.command(name="generate", help="Generate test cases from user stories and tools")
@@ -360,7 +375,7 @@ def validate_external(
     ] = False
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
 
@@ -482,7 +497,7 @@ def validate_native(
     ] = None,
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     
@@ -552,7 +567,7 @@ def quick_eval(
     ] = None
 ):
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     if not config_file:
         if not test_paths or not output_dir:
@@ -581,8 +596,6 @@ evaluation_app.add_typer(red_teaming_app, name="red-teaming", help="Generate and
 @red_teaming_app.command("list", help="List available red-teaming attack plans")
 def list_plans():
     _check_import_error()
-    _feature_requires_legacy_eval()
-
     controller = EvaluationsController()
     controller.list_red_teaming_attacks()
 
@@ -639,7 +652,7 @@ def plan(
 
 ):
     _check_import_error()   
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
@@ -677,7 +690,7 @@ def run(
     ] = None,
 ):  
     _check_import_error()
-    _feature_requires_legacy_eval()
+    
 
     validate_watsonx_credentials(user_env_file)
     controller = EvaluationsController()
