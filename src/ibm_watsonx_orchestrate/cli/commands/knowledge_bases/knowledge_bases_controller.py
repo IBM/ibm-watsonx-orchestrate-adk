@@ -23,8 +23,9 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
 from ibm_watsonx_orchestrate.cli.common import ListFormats, rich_table_to_markdown, check_safe_mode_and_prompt
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion, KnowledgeBaseSyncJob
-from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import format_cron_pattern_human, format_next_occurrence_relative
+from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseKind, IndexConnection, SpecVersion, KnowledgeBaseSyncJob  # KnowledgeBaseSyncJob: DEFERRED (sync_job scheduling)
+# DEFERRED: format_cron_pattern_human, format_next_occurrence_relative unused until scheduling is re-enabled
+# from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.utils import format_cron_pattern_human, format_next_occurrence_relative
 from ibm_watsonx_orchestrate.cli.commands.connections.connections_controller import export_connection
 from ibm_watsonx_orchestrate_core.utils.workspaces import is_global_workspace_active, GLOBAL_WORKSPACE_NAME, GLOBAL_WORKSPACE_ID, WorkspaceContext
 
@@ -293,8 +294,9 @@ class KnowledgeBaseController:
                     if kb_id:
                         logger.info(f"Successfully imported knowledge base '{kb.name}'")
 
-                        if kb.sync_job:
-                            self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
+                        # DEFERRED: sync_job scheduling deferred to a future release.
+                        # if kb.sync_job:
+                        #     self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
 
                         # Trigger an initial sync so the KB is indexed immediately after creation
                         self._trigger_sync(client, kb_id, kb.name)
@@ -347,9 +349,9 @@ class KnowledgeBaseController:
                         if response and 'knowledge_base' in response:
                             kb_id = response['knowledge_base']
                             
-                            # Create schedule if sync_job is specified
-                            if kb.sync_job and kb_id:
-                                self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
+                            # DEFERRED: sync_job scheduling deferred to a future release.
+                            # if kb.sync_job and kb_id:
+                            #     self._create_schedule(client, kb_id, kb.sync_job.schedule, kb.name)
                     except ClientAPIException as e:
                         logger.error(f"Failed to create knowledge base: {_extract_api_error_message(e)}")
                         continue
@@ -626,9 +628,9 @@ class KnowledgeBaseController:
 
             logger.info(f"Successfully updated knowledge base '{kb.name}'")
 
-            # Upsert schedule if sync_job is specified
-            if kb.sync_job:
-                self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+            # DEFERRED: sync_job scheduling deferred to a future release.
+            # if kb.sync_job:
+            #     self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
 
             if sync:
                 self._trigger_sync(client, knowledge_base_id, kb.name)
@@ -674,9 +676,9 @@ class KnowledgeBaseController:
             data = { 'knowledge_base': json.dumps(payload) }
             client.update(knowledge_base_id, payload=data)
             
-            # Upsert schedule if sync_job is specified
-            if kb.sync_job:
-                self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
+            # DEFERRED: sync_job scheduling deferred to a future release.
+            # if kb.sync_job:
+            #     self._upsert_schedule(client, knowledge_base_id, kb.sync_job.schedule, kb.name)
             
             # No polling needed when no documents are included
             logger.info(f"Knowledge base '{kb.name}' updated successfully")
@@ -694,20 +696,20 @@ class KnowledgeBaseController:
             response.pop('draft_index', None)
 
         # For content_source KBs (identified by sync_state), strip irrelevant fields
-        # and show schedule info
         if 'sync_state' in response:
             response.pop('prioritize_built_in_index', None)
             response.pop('built_in_index_status_msg', None)
-            try:
-                schedule = client.get_schedule(knowledge_base_id)
-                pattern = schedule.get('repeat_opts', {}).get('pattern')
-                next_occurrence = schedule.get('next_occurrence')
-                if pattern:
-                    response['sync_schedule'] = format_cron_pattern_human(pattern)
-                if next_occurrence:
-                    response['next_sync'] = format_next_occurrence_relative(next_occurrence)
-            except ClientAPIException:
-                pass
+            # DEFERRED: sync_job scheduling deferred to a future release.
+            # try:
+            #     schedule = client.get_schedule(knowledge_base_id)
+            #     pattern = schedule.get('repeat_opts', {}).get('pattern')
+            #     next_occurrence = schedule.get('next_occurrence')
+            #     if pattern:
+            #         response['sync_schedule'] = format_cron_pattern_human(pattern)
+            #     if next_occurrence:
+            #         response['next_sync'] = format_next_occurrence_relative(next_occurrence)
+            # except ClientAPIException:
+            #     pass
 
         table = rich.table.Table(
             show_header=True,
@@ -776,22 +778,22 @@ class KnowledgeBaseController:
 
             has_content_source = any(kb.content_source for kb in knowledge_bases)
 
-            # Fetch schedules for all content_source KBs
-            # schedule_map: kb_id -> raw cron pattern
-            schedule_map: dict[str, str] = {}
-            if has_content_source:
-                for kb in knowledge_bases:
-                    if kb.content_source and kb.id:
-                        try:
-                            schedule = client.get_schedule(str(kb.id))
-                            pattern = schedule.get('repeat_opts', {}).get('pattern')
-                            if pattern:
-                                schedule_map[str(kb.id)] = pattern
-                        except ClientAPIException:
-                            pass
+            # DEFERRED: sync_job scheduling deferred to a future release.
+            # schedule_map: dict[str, str] = {}
+            # if has_content_source:
+            #     for kb in knowledge_bases:
+            #         if kb.content_source and kb.id:
+            #             try:
+            #                 schedule = client.get_schedule(str(kb.id))
+            #                 pattern = schedule.get('repeat_opts', {}).get('pattern')
+            #                 if pattern:
+            #                     schedule_map[str(kb.id)] = pattern
+            #             except ClientAPIException:
+            #                 pass
 
-            if has_content_source:
-                table.add_column("Sync Pattern", {})
+            # DEFERRED: Sync Pattern column removed until scheduling is re-enabled.
+            # if has_content_source:
+            #     table.add_column("Sync Pattern", {})
             
             for kb in knowledge_bases:
                 app_id = ""
@@ -801,13 +803,11 @@ class KnowledgeBaseController:
                     if conn:
                         app_id = conn.app_id
 
-                raw_pattern = schedule_map.get(str(kb.id))
                 entry = KnowledgeBaseListEntry(
                     name=kb.name,
                     id=str(kb.id),
                     description=kb.description,
                     app_id=app_id,
-                    sync_pattern=raw_pattern,
                 )
                 if is_private_workspace:
                     entry.is_global = kb.workspace == GLOBAL_WORKSPACE_NAME
@@ -815,13 +815,14 @@ class KnowledgeBaseController:
                     knowledge_base_details.append(entry)
                 else:
                     row = entry.get_row_details()
-                    if has_content_source:
-                        if not kb.content_source:
-                            row.append("N/A")
-                        elif raw_pattern:
-                            row.append(format_cron_pattern_human(raw_pattern))
-                        else:
-                            row.append("")
+                    # DEFERRED: sync_job scheduling deferred to a future release.
+                    # if has_content_source:
+                    #     if not kb.content_source:
+                    #         row.append("N/A")
+                    #     elif raw_pattern:
+                    #         row.append(format_cron_pattern_human(raw_pattern))
+                    #     else:
+                    #         row.append("")
                     table.add_row(*row)
 
             match format:
@@ -908,15 +909,15 @@ class KnowledgeBaseController:
         knowledge_base.spec_version = SpecVersion.V1
         knowledge_base.kind = KnowledgeBaseKind.KNOWLEDGE_BASE
 
-        # For content_source KBs, fetch the schedule and include it in the export
-        if knowledge_base.content_source:
-            try:
-                schedule = self.get_client().get_schedule(knowledge_base_id)
-                pattern = schedule.get('repeat_opts', {}).get('pattern')
-                if pattern:
-                    knowledge_base.sync_job = KnowledgeBaseSyncJob(schedule=pattern)
-            except ClientAPIException:
-                pass
+        # DEFERRED: sync_job scheduling deferred to a future release.
+        # if knowledge_base.content_source:
+        #     try:
+        #         schedule = self.get_client().get_schedule(knowledge_base_id)
+        #         pattern = schedule.get('repeat_opts', {}).get('pattern')
+        #         if pattern:
+        #             knowledge_base.sync_job = KnowledgeBaseSyncJob(schedule=pattern)
+        #     except ClientAPIException:
+        #         pass
 
         connection_id = get_kb_connection_id(knowledge_base)
         app_id = None
