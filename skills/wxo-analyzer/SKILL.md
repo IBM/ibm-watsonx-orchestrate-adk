@@ -210,12 +210,24 @@ def document_processing_flow(document: str) -> dict:
 
 #### Langflow Tool Analysis (from .json files)
 
+**IMPORTANT DISTINCTION**: Langflow and Agentic Workflow are different:
+- **Langflow**: Third-party visual workflow builder with its own JSON format (nodes, edges, components)
+- **Agentic Workflow**: watsonx Orchestrate native workflow format with `spec.kind: "flow"` in JSON
+
+**For Langflow JSON files** (if present):
 Extract from Langflow JSON files:
 - **Flow Name**: From metadata
 - **Description**: Flow purpose
 - **Nodes**: Components in the flow
 - **Edges**: Connections between nodes
 - **Input/Output**: Entry and exit points
+- **Note in report**: Clearly label as "Langflow workflows" to distinguish from native Agentic workflows
+
+**For Agentic Workflow JSON files** (watsonx Orchestrate native):
+- Look for `spec.kind: "flow"` in JSON structure
+- Extract flow name, description, input schema, initiators
+- Document as "Agentic workflow" (not Langflow)
+- These are the native watsonx Orchestrate workflow format
 
 #### Connection Analysis (from YAML files)
 
@@ -961,13 +973,16 @@ Check agents and architecture against known anti-patterns from enterprise AI dep
 #### Scale and Tooling Anti-Patterns (Part 2)
 
 7. **Tool Soup**
-   - **IMPORTANT**: In watsonx Orchestrate, collaborators are treated as tools, so count **total tools + collaborators combined**:
-     - ✅ Optimal: ≤10 total (tools + collaborators)
-     - ⚠️ Warning: 11-20 total (attention dilution begins)
-     - 🔴 Critical: >20 total (severe context exhaustion)
-   - Check for overlapping/redundant tool capabilities
-   - Calculate context consumption: flag if tool definitions exceed 60% of context window
-   - Recommend: Curate tools, use semantic naming, specialize agents, implement dynamic retrieval
+   - **CRITICAL SCOPE**: This anti-pattern applies to **individual agents only**, NOT project-wide tool counts
+   - **IMPORTANT**: In watsonx Orchestrate, collaborators are treated as tools, so count **total tools + collaborators combined per agent**:
+     - ✅ Optimal: ≤10 total per agent (tools + collaborators)
+     - ⚠️ Warning: 11-20 total per agent (attention dilution begins)
+     - 🔴 Critical: >20 total per agent (severe context exhaustion)
+   - **Project-wide tool counts are NOT tool soup**: Having 50+ tools across 10+ agents is normal and appropriate for comprehensive solutions
+   - Check for overlapping/redundant tool capabilities **within a single agent**
+   - Calculate context consumption per agent: flag if tool definitions exceed 60% of context window
+   - Recommend: Curate tools per agent, use semantic naming, specialize agents, implement dynamic retrieval
+   - **Do NOT flag high project-wide tool counts as tool soup** - only flag individual agents with excessive tools
 
 8. **Tool Data Overload**
    - Identify tools returning large datasets (>10K tokens)

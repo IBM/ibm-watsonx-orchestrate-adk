@@ -19,7 +19,7 @@ WXO_AUTH_URL_ENV_KEY = "AUTHORIZATION_URL"
 
 GATEWAY_ENABLED_ENV_KEY = "AI_GATEWAY_ENABLED"
 
-AI_GATEWAY_DEFAULT_MODEL = "watsonx/meta-llama/llama-3-3-70b-instruct"
+AI_GATEWAY_DEFAULT_MODEL = "watsonx/openai/gpt-oss-120b"
 
 LOCAL_SERVER_URL = "http://localhost:4321"
 
