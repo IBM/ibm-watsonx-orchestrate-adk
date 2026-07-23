@@ -63,7 +63,7 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRe
             if schema_obj.type == 'object':
                 # for each element in properties, we need to check the key and if it is
                 # prefixed with "header_", "path_" and "query_", we need to remove the prefix.
-                if hasattr(schema_obj, "properties"):
+                if hasattr(schema_obj, "properties") and schema_obj.properties is not None:
                     new_properties = {}
                     for key, value in schema_obj.properties.items():
                         if key.startswith('header_'):
@@ -75,10 +75,10 @@ def _get_json_schema_obj(parameter_name: str, type_def: type[BaseModel] | ToolRe
                         else:
                             new_properties[key] = value
                         
-                    schema_obj.properties = new_properties     
+                    schema_obj.properties = new_properties
 
                 # we also need to go thru required and replace it
-                if hasattr(schema_obj, "required"):
+                if hasattr(schema_obj, "required") and schema_obj.required is not None:
                     new_required = []
                     for item in schema_obj.required:
                         if item.startswith('header_'):
@@ -108,7 +108,11 @@ def _get_tool_request_body(schema_obj: JsonSchemaObject | ToolRequestBody) -> To
 
     if isinstance(schema_obj, JsonSchemaObject):
         if schema_obj.type == "object":
-            request_obj = ToolRequestBody(type='object', properties=schema_obj.properties, required=schema_obj.required)
+            request_obj = ToolRequestBody(
+                type='object',
+                properties=schema_obj.properties or {},
+                required=schema_obj.required or []
+            )
             if schema_obj.model_extra:
                 request_obj.__pydantic_extra__ = schema_obj.model_extra
         else:  
