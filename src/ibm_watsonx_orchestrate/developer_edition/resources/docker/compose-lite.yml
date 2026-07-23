@@ -155,6 +155,10 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
+      TOOL_TIMEOUT: 300
+      HTTPX_READ_TIMEOUT: 300
+      JSON_SCHEMA_VALIDATION_STRICT: false
+      TOOL_DESCRIPTION_FORBIDDEN_PATTERNS_ENABLED: false
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
