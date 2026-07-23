@@ -127,11 +127,11 @@ class DeepgramSTTConfig(BaseModel):
   @model_validator(mode="after")
   def validate_model_and_features(self):
     """Validate model and feature usage"""
-    # Warn if model doesn't start with nova-2 or nova-3
-    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+    # Warn if model doesn't start with nova-2 or nova-3 or flux
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3") or self.model.startswith("flux")):
       warnings.warn(
         f"Model '{self.model}' is not officially supported by the ADK. "
-        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Only nova-2, nova-3, and flux models (and their variations like nova-2-finance, nova-3-medical) are supported. "
         f"Proceed at your own risk.",
         UserWarning,
         stacklevel=2
