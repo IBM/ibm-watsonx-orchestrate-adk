@@ -39,6 +39,8 @@ document-processing/wo-doc-processing-infra-pg-init:${DOCPROC_DPI_TAG}
 document-processing/wo_doc_processing_rag:${DOCPROC_LLMSERVICE_TAG}
 document-processing/wo_doc_processing_cache:${DOCPROC_CACHE_TAG}
 document-processing/wo_doc_processing_cache_rds_init:${DOCPROC_CACHE_TAG}
+document-processing/wo_doc_processing_evaluation:${DOCPROC_EVALUATION_TAG}
+document-processing/wo_doc_processing_evaluation_pg_init:${DOCPROC_EVALUATION_TAG}
 wxo-server-voice:${VOICE_CONTROLLER_TAG}
 EOF
 )
