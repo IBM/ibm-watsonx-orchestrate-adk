@@ -383,7 +383,7 @@ class Tracer:
     ) -> SpanWrapper:
         """Start a general-purpose span (use as a context manager).
 
-        ::
+        Example::
 
             with tracer.start_span("step", attributes={"k": "v"}) as span:
                 ...
@@ -410,9 +410,9 @@ class Tracer:
         Args:
             name: Name of the span
             attributes: Optional attributes to attach to the span
-            user_id: Optional user ID to set on the span. If not provided, uses config.user_id
+            user_id: Optional user ID to associate with the span; falls back to config.user_id then "Unknown User".
 
-        ::
+        Example::
 
             with tracer.start_root_span("request", attributes={"k": "v"}, user_id="user-123") as span:
                 ...
