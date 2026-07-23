@@ -914,6 +914,7 @@ services:
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "7999:7999"
