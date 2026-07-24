@@ -911,6 +911,9 @@ services:
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
       FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
       FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
+      KB_MAX_BATCH_SIZE: ${KB_MAX_BATCH_SIZE:-31457280}
+      KB_MAX_FILES_PER_BATCH: ${KB_MAX_FILES_PER_BATCH:-20}
+      KB_SYNC_MAX_TOTAL_FILES: ${KB_SYNC_MAX_TOTAL_FILES:-100}
 
   opensearch:
     image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
