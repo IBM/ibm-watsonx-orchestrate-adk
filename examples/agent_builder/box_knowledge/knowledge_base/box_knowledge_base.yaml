@@ -6,5 +6,3 @@ content_source:
   type: box
 documents:
   - ask_hr_demo_health_benefits.pdf
-sync_job:
-  schedule: "*/5 * * * *"  # Every hour (default minimum interval)
