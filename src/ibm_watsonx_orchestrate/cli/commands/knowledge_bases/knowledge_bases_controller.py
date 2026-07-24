@@ -688,12 +688,15 @@ class KnowledgeBaseController:
         client = self.get_client()
         response = client.status(knowledge_base_id)
 
+        if verbose:
+            rich.print(rich.json.JSON(json.dumps(response, indent=4)))
+            return response
+
         if 'documents' in response:
             response[f"documents ({len(response['documents'])})"] = ", ".join([str(doc.get('metadata', {}).get('original_file_name', '<Unnamed File>')) for doc in response['documents']])
             response.pop('documents')
 
-        if not verbose:
-            response.pop('draft_index', None)
+        response.pop('draft_index', None)
 
         # For content_source KBs (identified by sync_state), strip irrelevant fields
         if 'sync_state' in response:
