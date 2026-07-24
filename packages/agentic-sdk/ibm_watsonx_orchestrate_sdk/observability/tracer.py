@@ -12,22 +12,30 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
     ATTR_AGENT_NAME,
+    ATTR_CONVERSATION_ID,
+    ATTR_ENVIRONMENT_NAME,
     ATTR_GEN_AI_REQUEST_MODEL,
     ATTR_GEN_AI_RESPONSE_MODEL,
+    ATTR_LANGFUSE_SESSION_ID,
     ATTR_LLM_MODEL,
     ATTR_LLM_PROVIDER,
     ATTR_SERVICE_NAME,
+    ATTR_TOOL_ID,
     ATTR_TOOL_NAME,
+    ATTR_USER_ID,
+    ATTR_WORKSPACE_ID,
     BAGGAGE_AGENT_ID,
     BAGGAGE_TENANT_ID,
     SPAN_KIND_AGENT,
     SPAN_KIND_GENERAL,
     SPAN_KIND_LLM,
+    SPAN_KIND_ROOT,
     SPAN_KIND_TOOL,
 )
 from ibm_watsonx_orchestrate_sdk.observability.config import TracerConfig
@@ -113,18 +121,46 @@ class BaggageSpanProcessor:
     the current OpenTelemetry Baggage context and sets them as span
     attributes so they are exported with each span.
 
+    If TracerConfig has configured values for tenant_id, agent_id, workspace_id,
+    or environment, those values are used as fallback when baggage is not available.
+
     Implements the full ``SpanProcessor`` protocol without inheriting
     from the SDK class so that the import stays lazy.
     """
+
+    def __init__(self, config: Optional[TracerConfig] = None) -> None:
+        """Initialize the processor with optional TracerConfig.
+        
+        Args:
+            config: TracerConfig instance with configured values for tenant_id,
+                   agent_id, workspace_id, and environment.
+        """
+        self._config = config
 
     def on_start(self, span: "ReadableSpan", parent_context: "Optional[Context]" = None) -> None:
         from opentelemetry import baggage, context
 
         ctx = parent_context or context.get_current()
+        
+        # Set tenant.id and agent.id from baggage or config
         for key in _BAGGAGE_KEYS:
             value = baggage.get_baggage(key, ctx)
             if value is not None:
                 span.set_attribute(key, value)
+            elif self._config:
+                # Use configured values as fallback
+                if key == BAGGAGE_TENANT_ID and self._config.tenant_id:
+                    span.set_attribute(key, self._config.tenant_id)
+                elif key == BAGGAGE_AGENT_ID and self._config.agent_id:
+                    span.set_attribute(key, self._config.agent_id)
+        
+        # Always set workspace_id, environment, and user_id from config if available
+        if self._config:
+            if self._config.workspace_id:
+                span.set_attribute(ATTR_WORKSPACE_ID, self._config.workspace_id)
+            if self._config.environment:
+                span.set_attribute(ATTR_ENVIRONMENT_NAME, self._config.environment)
+            span.set_attribute(ATTR_USER_ID, self._config.user_id or "Unknown User")
 
     def on_end(self, span: "ReadableSpan") -> None:
         pass
@@ -274,7 +310,8 @@ class Tracer:
         resource = Resource.create(resource_attrs)
         provider = TracerProvider(resource=resource)
 
-        provider.add_span_processor(BaggageSpanProcessor())
+        # Pass config to BaggageSpanProcessor so it can use configured values
+        provider.add_span_processor(BaggageSpanProcessor(self._config))
 
         exporter = create_exporter(self._config)
         provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -346,7 +383,7 @@ class Tracer:
     ) -> SpanWrapper:
         """Start a general-purpose span (use as a context manager).
 
-        ::
+        Example::
 
             with tracer.start_span("step", attributes={"k": "v"}) as span:
                 ...
@@ -354,6 +391,46 @@ class Tracer:
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_GENERAL}
         if attributes:
             merged.update(attributes)
+        
+        otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
+        return SpanWrapper(otel_span)
+
+    def start_root_span(
+        self,
+        name: str,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+    ) -> SpanWrapper:
+        """Start a root span (use as a context manager).
+
+        A root span is the top-level span in a trace hierarchy, typically
+        representing the entry point of a request or operation.
+
+        Args:
+            name: Name of the span
+            attributes: Optional attributes to attach to the span
+            user_id: Optional user ID to associate with the span; falls back to config.user_id then "Unknown User".
+
+        Example::
+
+            with tracer.start_root_span("request", attributes={"k": "v"}, user_id="user-123") as span:
+                ...
+        """
+        merged: Dict[str, Any] = {"span.kind": SPAN_KIND_ROOT, "is.root": True}
+        if attributes:
+            merged.update(attributes)
+        
+        # Add langfuse.session.id if not present or None
+        if not merged.get(ATTR_LANGFUSE_SESSION_ID):
+            merged[ATTR_LANGFUSE_SESSION_ID] = str(uuid.uuid4())
+        
+        # Add conversation.id if not present or None
+        if not merged.get(ATTR_CONVERSATION_ID):
+            merged[ATTR_CONVERSATION_ID] = str(uuid.uuid4())
+        
+        # Add user.id: use provided user_id, fall back to config.user_id, then "Unknown User"
+        merged[ATTR_USER_ID] = user_id if user_id is not None else (self._config.user_id or "Unknown User")
         
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
         return SpanWrapper(otel_span)
@@ -389,18 +466,25 @@ class Tracer:
         name: str = "tool_call",
         *,
         tool_name: Optional[str] = None,
+        tool_id: Optional[str] = None,
         tool_input: Any = None,
         attributes: Optional[Dict[str, Any]] = None,
     ) -> ToolSpanWrapper:
         """Start a span pre-configured for tool invocation tracking."""
+        # Generate UUID if tool_id not provided
+        if tool_id is None:
+            tool_id = str(uuid.uuid4())
+        
         merged: Dict[str, Any] = {"span.kind": SPAN_KIND_TOOL}
         if tool_name:
             merged[ATTR_TOOL_NAME] = tool_name
+        if tool_id:
+            merged[ATTR_TOOL_ID] = tool_id
         if attributes:
             merged.update(attributes)
 
         otel_span = self._tracer.start_span(name, context=self._current_context(), attributes=merged)
-        return ToolSpanWrapper(otel_span, tool_name=tool_name, tool_input=tool_input)
+        return ToolSpanWrapper(otel_span, tool_name=tool_name, tool_id=tool_id, tool_input=tool_input)
 
     def start_agent_span(
         self,

@@ -155,6 +155,10 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
+      TOOL_TIMEOUT: 300
+      HTTPX_READ_TIMEOUT: 300
+      JSON_SCHEMA_VALIDATION_STRICT: false
+      TOOL_DESCRIPTION_FORBIDDEN_PATTERNS_ENABLED: false
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -280,10 +284,12 @@ services:
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
       ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
-      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
+      AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
+      - "3300:4025"
     healthcheck:
       test: curl -k http://localhost:4025/api/health --fail
       interval: 5s
@@ -352,6 +358,7 @@ services:
       WXO_API_KEY: ${WXO_API_KEY}
       WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -575,6 +582,7 @@ services:
       - jaeger-network
     environment:
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -620,10 +628,12 @@ services:
       LANGFUSE_DEFAULT_USER_EMAIL: ${LANGFUSE_EMAIL}
       LANGFUSE_DEFAULT_USER_PASSWORD: ${LANGFUSE_PASSWORD}
       WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
+      AGENT_OPS_V3_SCHEMA_SETUP: ${AGENT_OPS_V3_SCHEMA_SETUP:-false}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD}@langfuse-clickhouse:8123}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
-      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
@@ -659,12 +669,13 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      ENABLE_DEV_LANGFUSE_DETAILS_API: ${ENABLE_DEV_LANGFUSE_DETAILS_API:-true}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -824,7 +835,7 @@ services:
       AUTHORIZATION_URL: ${AUTHORIZATION_URL}
       WO_AUTH_TYPE: ${WO_AUTH_TYPE}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       WXO_DEPLOYMENT_PLATFORM: saas
       CPD_VERIFY: ${CPD_VERIFY}
@@ -907,6 +918,7 @@ services:
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "7999:7999"
@@ -1784,6 +1796,8 @@ services:
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
+      CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
+      WXO_RUNS_URL: "http://wxo-server:4321"
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
