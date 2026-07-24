@@ -437,7 +437,8 @@ class KnowledgeBaseController:
                         # Check for terminal states
                         if status in success_states:
                             if status_msg:
-                                console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{status_msg}[/bold white]")
+                                display_msg = status_msg.removeprefix("Last sync completed. ")
+                                console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{display_msg}[/bold white]")
                             else:
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}'")
                             return
