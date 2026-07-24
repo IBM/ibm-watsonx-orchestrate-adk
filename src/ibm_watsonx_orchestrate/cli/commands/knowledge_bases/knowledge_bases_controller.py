@@ -436,7 +436,7 @@ class KnowledgeBaseController:
                         
                         # Check for terminal states
                         if status in success_states:
-                            if status_msg and not (use_sync_state and status == 'stable'):
+                            if status_msg:
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}': [bold white]{status_msg}[/bold white]")
                             else:
                                 console.print(f"[green]✓[/green] Successfully {action_str} knowledge base '{kb_name}'")
