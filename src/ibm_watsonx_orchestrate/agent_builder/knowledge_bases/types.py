@@ -415,10 +415,6 @@ class ContentSourceConfig(BaseModel):
         None,
         description="Connection ID for the external source (resolved from --app-id at import time)"
     )
-    interaction_properties: Optional[Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Source-specific interaction properties (e.g., folder_id, site_id, drive_id)"
-    )
 
 class KnowledgeBaseSyncJob(BaseModel):
     """Schedule repeat options for knowledge base ingestion"""
