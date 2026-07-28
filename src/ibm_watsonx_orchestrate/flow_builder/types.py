@@ -2919,6 +2919,7 @@ class PromptNodeSpec(NodeSpec):
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
     metadata: dict[str, Any] | None = None
     test_input_data: dict[str, Any] | None = None
+    include_agent_context: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2944,6 +2945,7 @@ class PromptNodeSpec(NodeSpec):
             model_spec["metadata"] = self.metadata
         if self.test_input_data:
             model_spec["test_input_data"] = self.test_input_data
+        model_spec["include_agent_context"] = self.include_agent_context
         return model_spec
     
 class TimerNodeSpec(NodeSpec):
