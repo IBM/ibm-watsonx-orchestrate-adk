@@ -163,7 +163,7 @@ class WorkspaceClient(BaseWXOClient):
             IAM user ID (e.g., IBMid-693000JE6S) if found, None otherwise
             
         """
-        
+
         try:
             # Determine the IBM Cloud User Management API base URL based on environment
             # Check if we're in test/preprod environment
@@ -173,6 +173,12 @@ class WorkspaceClient(BaseWXOClient):
                 user_mgmt_base_url = "https://user-management.cloud.ibm.com"
             
             endpoint = f"{user_mgmt_base_url}/v2/accounts/{account_id}/users"
+
+            if "https://cpd" in self.base_url:
+                # TODO: Update with CP4D base url?
+                user_mgmt_base_url = self.base_url
+    
+                endpoint = f"{user_mgmt_base_url}/v1/tenants/{account_id}/users"
             
             # Get the bearer token from the current session
             token = None
