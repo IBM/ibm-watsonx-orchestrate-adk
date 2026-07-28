@@ -27,6 +27,8 @@ from ibm_watsonx_orchestrate.utils.utils import sanitize_catalog_label
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import *
 
+# Version of the applications config file format expected by the catalog runtime.
+# Note: this was reset to 1.0.0 — 1.16.0 was an accidental version bump.
 APPLICATIONS_FILE_VERSION = '1.0.0'
 
 # Fields allowed by the catalog native agent schema (partner-native-agent.schema.json).
@@ -84,6 +86,14 @@ def get_tool_bindings(tool_names: list[str]) -> dict[str, dict]:
     return results
 
 def _normalize_icon(icon: str | None) -> str | None:
+    """Normalize an icon value for catalog submission.
+
+    Accepts a raw SVG string or a base64-encoded SVG. Returns the bare
+    ``<svg>…</svg>`` fragment with all double-quotes replaced by single
+    quotes (required by the catalog schema). Returns ``None`` when the
+    input is falsy and returns the original value unchanged when it
+    cannot be decoded or does not contain an SVG element.
+    """
     if not icon:
         return None
 
@@ -108,6 +118,12 @@ def _normalize_icon(icon: str | None) -> str | None:
 
 
 def _normalize_icon_quotes(data: dict):
+    """Normalize the ``icon`` field of *data* in-place using :func:`_normalize_icon`.
+
+    If the dict has a string ``icon`` key its value is replaced with the
+    normalized form.  No-ops when ``icon`` is absent or the normalized
+    result is ``None``.
+    """
     icon = data.get("icon")
     if isinstance(icon, str):
         normalized_icon = _normalize_icon(icon)
@@ -169,11 +185,23 @@ def _compare_placeholders(value, placeholder) -> bool:
     return value == placeholder
 
 def _validate_agent_placeholders(agent_data: dict, agent_name: str) -> None:
+    """Warn when any catalog field in *agent_data* still holds its scaffold placeholder value.
+
+    Partners must replace every placeholder before submitting a package to the
+    catalog.  This function surfaces each outstanding placeholder as a
+    ``WARNING`` log message so issues are visible during ``package``.
+    """
     for label, placeholder in AGENT_CATALOG_ONLY_PLACEHOLDERS.items():
         if _compare_placeholders(agent_data.get(label), placeholder):
             logger.warning(f"Placeholder '{label}' detected for agent '{agent_name}', please ensure '{label}' is correct before packaging.")
 
 def _validate_tool_placeholders(tool_data: dict, tool_name: str) -> None:
+    """Warn when any catalog field in *tool_data* still holds its scaffold placeholder value.
+
+    Partners must replace every placeholder before submitting a package to the
+    catalog.  This function surfaces each outstanding placeholder as a
+    ``WARNING`` log message so issues are visible during ``package``.
+    """
     for label, placeholder in TOOL_CATALOG_ONLY_PLACEHOLDERS.items():
         if _compare_placeholders(tool_data.get(label), placeholder):
             logger.warning(f"Placeholder '{label}' detected for tool '{tool_name}', please ensure '{label}' is correct before packaging.")
@@ -457,6 +485,11 @@ class PartnersOfferingController:
                     # agent exports that use exclude_unset=True — ensure it is present.
                     if "hidden" not in catalog_data:
                         catalog_data["hidden"] = False
+                    dropped = set(agent_data.keys()) - NATIVE_AGENT_CATALOG_FIELDS
+                    if dropped:
+                        logger.warning(
+                            f"Agent '{agent_name}': dropping fields not in catalog schema: {sorted(dropped)}"
+                        )
                 else:
                     catalog_data = agent_data
 
@@ -509,6 +542,11 @@ class PartnersOfferingController:
                 # Strip fields not in the catalog tool schema (additionalProperties:false).
                 # Also strip internal fields from binding.python (connections, type, etc.)
                 catalog_tool_data = {k: v for k, v in tool_data.items() if k in NATIVE_TOOL_CATALOG_FIELDS}
+                dropped_tool = set(tool_data.keys()) - NATIVE_TOOL_CATALOG_FIELDS
+                if dropped_tool:
+                    logger.warning(
+                        f"Tool '{tool_name}': dropping fields not in catalog schema: {sorted(dropped_tool)}"
+                    )
                 if "binding" in catalog_tool_data and "python" in catalog_tool_data["binding"]:
                     catalog_tool_data["binding"] = {
                         "python": {
