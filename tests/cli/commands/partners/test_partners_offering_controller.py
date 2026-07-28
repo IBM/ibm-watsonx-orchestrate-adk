@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.partners_offering_controller import (
+    _normalize_icon,
     _patch_agent_yamls,
     _validate_agent_placeholders,
     _validate_tool_placeholders,
@@ -71,6 +72,8 @@ CATALOG_REQUIRED_FIELDS = [
 # ---------------------------------------------------------------------------
 
 class TestPatchAgentYamls:
+    """Tests for :func:`_patch_agent_yamls` — enriches agent YAML files with catalog-required fields."""
+
     def test_adds_all_catalog_fields(self, tmp_path):
         """_patch_agent_yamls should write all required catalog fields into the YAML."""
         agents_dir = tmp_path / "agents"
@@ -184,6 +187,8 @@ class TestPatchAgentYamls:
 # ---------------------------------------------------------------------------
 
 class TestValidateAgentPlaceholders:
+    """Tests for :func:`_validate_agent_placeholders` — warns when scaffold placeholders are still present."""
+
     def test_warns_on_icon_placeholder(self, caplog):
         agent_data = {"icon": AGENT_CATALOG_ONLY_PLACEHOLDERS["icon"]}
         with caplog.at_level(logging.WARNING):
@@ -229,7 +234,7 @@ class TestValidateAgentPlaceholders:
 # ---------------------------------------------------------------------------
 
 class TestNativeAgentCatalogFields:
-    """Verify the set of allowed catalog fields is correct and complete."""
+    """Verify ``NATIVE_AGENT_CATALOG_FIELDS`` is correct, complete, and excludes internal ADK fields."""
 
     SCHEMA_REQUIRED = {
         "name", "display_name", "description", "category", "agent_role", "kind",
@@ -311,7 +316,7 @@ class TestNativeAgentCatalogFields:
 # ---------------------------------------------------------------------------
 
 class TestNativeToolCatalogFields:
-    """Verify the tool allowlist is correct and strips internal ADK fields."""
+    """Verify ``NATIVE_TOOL_CATALOG_FIELDS`` is correct, complete, and strips internal ADK fields."""
 
     SCHEMA_REQUIRED = {
         "name", "display_name", "description", "permission", "version", "is_async",
@@ -376,6 +381,8 @@ class TestNativeToolCatalogFields:
 # ---------------------------------------------------------------------------
 
 class TestToolCatalogExtras:
+    """Tests for :class:`ToolCatalogExtras` — scaffolds missing catalog fields for tools."""
+
     BASE_TOOL = {"name": "my_tool", "description": "A tool"}
 
     def test_scaffolds_category_as_tool(self):
@@ -431,6 +438,8 @@ class TestToolCatalogExtras:
 # ---------------------------------------------------------------------------
 
 class TestValidateToolPlaceholders:
+    """Tests for :func:`_validate_tool_placeholders` — warns when scaffold placeholders are still present."""
+
     def test_warns_on_icon_placeholder(self, caplog):
         tool_data = {"icon": TOOL_CATALOG_ONLY_PLACEHOLDERS["icon"]}
         with caplog.at_level(logging.WARNING):
@@ -467,6 +476,8 @@ class TestValidateToolPlaceholders:
 # ---------------------------------------------------------------------------
 
 class TestCreateApplicationsEntry:
+    """Tests for :func:`_create_applications_entry` — builds applications entries conforming to the catalog schema."""
+
     def test_includes_required_schema_fields(self):
         """Entry must include all fields required by partner-applications.schema.json."""
         connection_config = {
@@ -508,3 +519,60 @@ class TestCreateApplicationsEntry:
         }
         entry = _create_applications_entry(connection_config)
         assert entry["security_schema"] == schema
+
+
+# ---------------------------------------------------------------------------
+# Tests for _normalize_icon
+# ---------------------------------------------------------------------------
+
+class TestNormalizeIcon:
+    """Tests for :func:`_normalize_icon` — normalizes SVG icon values for catalog submission."""
+
+    def test_returns_none_for_none(self):
+        """None input must return None."""
+        assert _normalize_icon(None) is None
+
+    def test_returns_none_for_empty_string(self):
+        """Empty string must return None."""
+        assert _normalize_icon("") is None
+
+    def test_plain_svg_is_returned_unchanged_except_quotes(self):
+        """A plain SVG string should be returned with double-quotes replaced by single-quotes."""
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle/></svg>'
+        result = _normalize_icon(svg)
+        assert result is not None
+        assert '"' not in result
+        assert "'" in result
+
+    def test_svg_without_quotes_is_returned_as_is(self):
+        """An SVG with no double-quotes should be returned unchanged."""
+        svg = "<svg><circle/></svg>"
+        assert _normalize_icon(svg) == svg
+
+    def test_extracts_svg_fragment_from_svg_starting_string(self):
+        """When the input starts with ``<svg``, only the ``<svg>…</svg>`` portion is returned."""
+        raw = "<svg><path/></svg> trailing content"
+        result = _normalize_icon(raw)
+        assert result == "<svg><path/></svg>"
+
+    def test_base64_encoded_svg_is_decoded_and_normalized(self):
+        """A base64-encoded SVG must be decoded and normalized."""
+        import base64
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'
+        encoded = base64.b64encode(svg.encode()).decode()
+        result = _normalize_icon(encoded)
+        assert result is not None
+        assert '"' not in result
+        assert "<svg" in result
+
+    def test_base64_non_svg_returns_original(self):
+        """A base64 payload that decodes to non-SVG content must be returned as-is."""
+        import base64
+        non_svg = base64.b64encode(b"just some plain text").decode()
+        result = _normalize_icon(non_svg)
+        assert result == non_svg
+
+    def test_non_base64_non_svg_string_returns_original(self):
+        """A non-SVG, non-base64 string must be returned unchanged."""
+        value = "not-an-svg-or-b64"
+        assert _normalize_icon(value) == value

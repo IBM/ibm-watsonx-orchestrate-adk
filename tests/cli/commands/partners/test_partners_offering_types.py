@@ -15,6 +15,8 @@ from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import (
 
 
 class TestOfferingPartNumber:
+    """Tests for :class:`OfferingPartNumber` — verifies correct field naming (``ibmcloud`` not ``ibm_cloud``)."""
+
     def test_ibmcloud_field_name(self):
         """OfferingPartNumber must serialize with key 'ibmcloud', not 'ibm_cloud'."""
         pn = OfferingPartNumber(aws="D111", ibmcloud="D222", cp4d=None)
@@ -32,6 +34,8 @@ class TestOfferingPartNumber:
 
 
 class TestOfferingFormFactor:
+    """Tests for :class:`OfferingFormFactor` — verifies correct field naming (``ibmcloud`` not ``ibm_cloud``)."""
+
     def test_ibmcloud_field_name(self):
         """OfferingFormFactor must serialize with key 'ibmcloud', not 'ibm_cloud'."""
         ff = OfferingFormFactor(aws="free", ibmcloud="paid", cp4d="free")
@@ -49,6 +53,8 @@ class TestOfferingFormFactor:
 
 
 class TestOfferingRelatedLinkTypes:
+    """Tests for :class:`OfferingRelatedLinkTypes` — verifies enum values, including the old ``embeded`` typo fix."""
+
     def test_embedded_value(self):
         """EMBEDDED enum member must have value 'embedded' (not the old typo 'embeded')."""
         assert OfferingRelatedLinkTypes.EMBEDDED == "embedded"
@@ -63,7 +69,7 @@ class TestOfferingRelatedLinkTypes:
 
 
 class TestOfferingAgentExtrasScaffolding:
-    """Test that from_agent_details scaffolds missing required catalog fields."""
+    """Tests for :meth:`OfferingAgentExtras.from_agent_details` — scaffolds missing required catalog fields."""
 
     BASE_AGENT = {
         "name": "test_agent",
