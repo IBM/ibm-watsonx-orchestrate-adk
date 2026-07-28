@@ -918,6 +918,8 @@ class UserField(BaseModel):
     input_schema: ToolRequestBody | SchemaRef | JsonSchemaObject | None = None
     output_schema: ToolResponseBody | SchemaRef | JsonSchemaObject | None = None
     uiSchema: dict[str, Any] | None = None
+    jsonSchema: dict[str, Any] | JsonSchemaObject | SchemaRef | None = None
+    spec_version: str | None = None
     regex: str | None = None
     regex_error_msg: str | None = None
 
@@ -983,11 +985,157 @@ class UserField(BaseModel):
                 model_spec["output_schema"] = _to_json_from_output_schema(self.output_schema)
         if self.uiSchema:
             model_spec["uiSchema"] = self.uiSchema
+        if self.jsonSchema:
+            if isinstance(self.jsonSchema, dict):
+                model_spec["jsonSchema"] = self.jsonSchema
+            else:
+                model_spec["jsonSchema"] = _to_json_from_input_schema(self.jsonSchema)
+        if self.spec_version:
+            model_spec["spec_version"] = self.spec_version
         if self.regex:
             model_spec["regex"] = self.regex
         if self.regex_error_msg:
             model_spec["regex_error_msg"] = self.regex_error_msg
         return model_spec
+
+
+ACTIVITY_SPEC_VERSION = "2.0"
+
+# Widget shape recipes for spec_version 2.0 UserActivity fields.
+# Produces the per-field jsonSchema.properties[<name>] shape for a given widget
+# kind. Kept alongside FORM_SCHEMA_TEMPLATES so the widget catalog stays
+# discoverable in one place.
+#
+# `title` is only set when a label was supplied. The activity jsonSchema is a
+# plain dict that bypasses _to_json_from_json_schema (so that `description`,
+# `oneOf` and `additionalProperties` survive), which also means it bypasses the
+# None-stripping in _assign_attribute — so nulls must not be introduced here.
+def _activity_property_schema(kind: "UserFieldKind", direction: str, label: str | None,
+                              true_label: str = "True", false_label: str = "False") -> dict[str, Any]:
+    # Present-to-User-Message: no title, the text carries the content.
+    if kind == UserFieldKind.Text and direction == "output":
+        return {"type": "string"}
+
+    if kind == UserFieldKind.Text:
+        schema: dict[str, Any] = {"type": "string"}
+    elif kind == UserFieldKind.Boolean:
+        schema = {
+            "type": "boolean",
+            "oneOf": [
+                {"const": True, "title": true_label},
+                {"const": False, "title": false_label},
+            ],
+        }
+    elif kind == UserFieldKind.Number:
+        schema = {"type": "number"}
+    elif kind == UserFieldKind.Date:
+        schema = {"type": "string", "format": "date"}
+    elif kind == UserFieldKind.DateTime:
+        schema = {"type": "string", "format": "datetime"}
+    elif kind == UserFieldKind.Time:
+        schema = {"type": "string", "format": "time"}
+    elif kind == UserFieldKind.File:
+        schema = {"type": "string", "format": "wxo-file"}
+    else:
+        raise ValueError(f"UserActivity does not yet support kind={kind.value} direction={direction}")
+
+    if label is not None:
+        schema["title"] = label
+    return schema
+
+
+def _build_activity_field(
+    *,
+    name: str,
+    kind: "UserFieldKind",
+    direction: str,
+    label: str | None = None,
+    agent_message: str | None = None,
+    required: bool = False,
+    input_map: Any | None = None,
+    single_line: bool = True,
+    single_checkbox: bool = True,
+    true_label: str = "True",
+    false_label: str = "False",
+    placeholder_text: str | None = None,
+    help_text: str | None = None,
+) -> "UserField":
+    """
+    Build a UserField for a spec_version 2.0 UserActivity (single-widget user node).
+
+    General case: agent_message → jsonSchema.description; label → display_name +
+    uiSchema["ui:title"] + jsonSchema.properties[name].title.
+
+    Present-to-User-Message exception (kind=Text, direction=output): agent_message →
+    field.text; uiSchema uses DataWidget with label:false; no ui:title, no
+    jsonSchema.description, no property title.
+    """
+    # Present-to-User-Message: Text output is the special case.
+    if kind == UserFieldKind.Text and direction == "output":
+        schemas = clone_form_schema("message")
+        ui_schema = schemas["ui_schema"]
+        json_schema: dict[str, Any] = {
+            "type": "object",
+            "required": [],
+            "properties": {name: _activity_property_schema(kind, direction, label)},
+            "additionalProperties": False,
+        }
+        return UserField(
+            name=name,
+            kind=kind,
+            direction=direction,
+            text=agent_message,
+            uiSchema=ui_schema,
+            jsonSchema=json_schema,
+            output_schema=schemas["output_schema"],
+            input_schema=schemas["input_schema"],
+            spec_version=ACTIVITY_SPEC_VERSION,
+        )
+
+    # General case — build the widget-shaped input/output/ui via the form templates.
+    template_type = kind.value
+    ui_config: dict[str, Any] = {"ui:title": label if label is not None else name}
+
+    if kind == UserFieldKind.Text:
+        ui_config["ui:widget"] = "TextWidget" if single_line else "TextareaWidget"
+    elif kind == UserFieldKind.Boolean:
+        widget = "CheckboxWidget" if single_checkbox else "RadioWidget"
+        ui_config["ui:widget"] = widget
+        if widget == "CheckboxWidget":
+            ui_config["ui:options"] = {"label": False}
+    # For other kinds, clone_form_schema will supply the default ui:widget.
+
+    if help_text is not None:
+        ui_config["ui:help"] = help_text
+    if placeholder_text is not None:
+        ui_config["ui:placeholder"] = placeholder_text
+
+    schemas = clone_form_schema(template_type, {"ui": ui_config})
+
+    json_schema = {
+        "type": "object",
+        "required": [name] if required else [],
+        "properties": {name: _activity_property_schema(kind, direction, label,
+                                                       true_label=true_label,
+                                                       false_label=false_label)},
+        "additionalProperties": False,
+    }
+    if agent_message is not None:
+        json_schema["description"] = agent_message
+
+    return UserField(
+        name=name,
+        kind=kind,
+        direction=direction,
+        display_name=label,
+        input_map=input_map,
+        uiSchema=schemas["ui_schema"],
+        jsonSchema=json_schema,
+        input_schema=schemas["input_schema"],
+        output_schema=schemas["output_schema"],
+        spec_version=ACTIVITY_SPEC_VERSION,
+    )
+
 
 # Behaviour Rule Classes for Dynamic Forms
 
@@ -2810,6 +2958,7 @@ class UserNodeSpec(NodeSpec):
     owners: Sequence[str] | None = None
     fields: list[UserField] | None = None
     form: UserForm | None = None
+    is_activity: bool = False
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -3299,6 +3448,10 @@ class UserAssignmentPolicy(Enum):
 class UserFlowSpec(FlowSpec):
     owners: Sequence[str] = [ANY_USER]
     assignment_policy : UserAssignmentPolicy = Field(default=UserAssignmentPolicy.FLOW_INITIATOR, description="The initiator of this flow")
+    # Runtime-visible user activity title shown in the Chat. Distinct from
+    # display_name, which is the build-time node name. Supports variable
+    # substitutions, e.g. "Confirmation for {flow.input.myname}".
+    label: str | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3306,6 +3459,8 @@ class UserFlowSpec(FlowSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
+        if self.label:
+            model_spec["label"] = self.label
         if self.initiators:
             model_spec["owners"] = self.initiators
         if self.assignment_policy:
