@@ -1632,14 +1632,24 @@ class Flow(Node):
         while_node = self._add_node(while_loop)
         return cast(Loop, while_node)
     
-    def userflow(self, 
+    def userflow(self,
                  owners: Sequence[str] = [],
                  input_schema: type[BaseModel] |None=None,
                  output_schema: type[BaseModel] |None=None,
                  name: str | None = None,
                  display_name: str | None = None,
+                 label: str | None = None,
                  position: Position | None = None,
                  dimensions: Dimensions | None = None) -> "UserFlow": # return a UserFlow object
+        '''Create a user activity container.
+
+        Args:
+            name: Internal node name.
+            display_name: Build-time node name shown in the flow builder.
+            label: Runtime title shown to the user in the Chat. Supports
+                variable substitutions, e.g. "Confirmation for {flow.input.myname}".
+                Falls back to display_name at runtime when not set.
+        '''
 
         output_schema_obj = _get_json_schema_obj("output", output_schema)
         input_schema_obj = _get_json_schema_obj("input", input_schema)
@@ -1651,6 +1661,7 @@ class Flow(Node):
 
         spec = UserFlowSpec(name = name,
                             display_name = display_name,
+                            label = label,
                             input_schema=_get_tool_request_body(input_schema_obj),
                             output_schema=_get_tool_response_body(output_schema_obj),
                             owners = owners,
@@ -2987,7 +2998,42 @@ class UserFlow(Flow):
 
         node = self._add_node(node)
         return cast(UserNode, node)
-    
+
+    def activity(self,
+                 name: str,
+                 display_name: str | None = None,
+                 description: str | None = None) -> UserNode:
+        '''Create a UserActivity node — a single-widget user interaction (spec_version 2.0).
+
+        A UserActivity is the next-gen equivalent of a single-field UserNode.
+        After creation, attach exactly one widget by calling one of the widget
+        methods on the returned node (e.g. .boolean_input_field(...),
+        .text_input_field(...), .message_output_field(...)). Calling a second
+        widget method on the same activity raises ValueError.
+
+        Args:
+            name: The internal name of the activity.
+            display_name: Optional display name shown in the flow builder.
+            description: Optional description.
+
+        Returns:
+            UserNode: The created activity node, ready to receive one widget field.
+        '''
+        if not name:
+            raise AssertionError("name cannot be empty")
+
+        spec = UserNodeSpec(
+            name=name,
+            display_name=display_name,
+            description=description,
+            owners=[CURRENT_USER],
+            is_activity=True,
+        )
+
+        node = UserNode(spec=spec)
+        node = self._add_node(node)
+        return cast(UserNode, node)
+
     def assign_to(self, policy: UserAssignmentPolicy, assignees: Optional[str] = None) -> Self:
         '''
         Sets the assignment policy for the user flow and optionally specifies the assignees.
