@@ -1211,6 +1211,7 @@ class Flow(Node):
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
+            enable_signature_detection: bool | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
@@ -1250,6 +1251,7 @@ class Flow(Node):
             kvp_force_schema_name=kvp_force_schema_name,
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
+            enable_signature_detection=enable_signature_detection,
             output_format=output_format
         )
 
