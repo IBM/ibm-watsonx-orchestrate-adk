@@ -173,12 +173,6 @@ class WorkspaceClient(BaseWXOClient):
                 user_mgmt_base_url = "https://user-management.cloud.ibm.com"
             
             endpoint = f"{user_mgmt_base_url}/v2/accounts/{account_id}/users"
-
-            if "https://cpd" in self.base_url:
-                # TODO: Update with CP4D base url?
-                user_mgmt_base_url = self.base_url
-    
-                endpoint = f"{user_mgmt_base_url}/v1/tenants/{account_id}/users"
             
             # Get the bearer token from the current session
             token = None
@@ -195,7 +189,15 @@ class WorkspaceClient(BaseWXOClient):
                 "accept": "application/json",
                 "Authorization": f"Bearer {token}"
             }
-                        
+
+            if "https://cpd" in self.base_url:
+                endpoint = f"{self.base_url}/v1/tenants/{account_id}/users"
+                response = requests.post(endpoint, headers=headers, timeout=30)
+                if response.status_code != 200:
+                    # Return None and let controller handle the error message
+                    return None
+                return str(response.json())
+            
             response = requests.get(endpoint, headers=headers, timeout=30)
             
             if response.status_code != 200:
