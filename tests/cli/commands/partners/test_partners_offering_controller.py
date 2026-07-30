@@ -24,7 +24,11 @@ from ibm_watsonx_orchestrate.cli.commands.partners.offering.partners_offering_co
     NATIVE_AGENT_CATALOG_FIELDS,
     NATIVE_TOOL_CATALOG_FIELDS,
     NATIVE_TOOL_PYTHON_BINDING_FIELDS,
+    _AGENT_ADK_INTERNAL_FIELDS,
+    _TOOL_ADK_INTERNAL_FIELDS,
 )
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentSpec
+from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import (
     AGENT_CATALOG_ONLY_PLACEHOLDERS,
     TOOL_CATALOG_ONLY_PLACEHOLDERS,
@@ -230,17 +234,121 @@ class TestValidateAgentPlaceholders:
 
 
 # ---------------------------------------------------------------------------
+# Tests for derived allowlist construction
+# ---------------------------------------------------------------------------
+
+class TestAllowlistDerivation:
+    """Verify that NATIVE_AGENT_CATALOG_FIELDS and NATIVE_TOOL_CATALOG_FIELDS are
+    correctly derived from the live AgentSpec / ToolSpec Pydantic models at import
+    time, and that the internal-field denylists are applied accurately."""
+
+    def test_agent_allowlist_is_subset_of_agent_spec_fields(self):
+        """NATIVE_AGENT_CATALOG_FIELDS must only contain fields that exist on AgentSpec."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        extra = NATIVE_AGENT_CATALOG_FIELDS - agent_spec_fields
+        assert not extra, (
+            f"NATIVE_AGENT_CATALOG_FIELDS contains fields not present in AgentSpec: {extra}"
+        )
+
+    def test_tool_allowlist_is_subset_of_tool_spec_fields(self):
+        """NATIVE_TOOL_CATALOG_FIELDS must only contain fields that exist on ToolSpec."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        extra = NATIVE_TOOL_CATALOG_FIELDS - tool_spec_fields
+        assert not extra, (
+            f"NATIVE_TOOL_CATALOG_FIELDS contains fields not present in ToolSpec: {extra}"
+        )
+
+    def test_agent_internal_fields_excluded_from_allowlist(self):
+        """Every field in _AGENT_ADK_INTERNAL_FIELDS must be absent from NATIVE_AGENT_CATALOG_FIELDS."""
+        leaked = _AGENT_ADK_INTERNAL_FIELDS & NATIVE_AGENT_CATALOG_FIELDS
+        assert not leaked, (
+            f"Internal ADK agent fields leaked into catalog allowlist: {leaked}"
+        )
+
+    def test_tool_internal_fields_excluded_from_allowlist(self):
+        """Every field in _TOOL_ADK_INTERNAL_FIELDS must be absent from NATIVE_TOOL_CATALOG_FIELDS."""
+        leaked = _TOOL_ADK_INTERNAL_FIELDS & NATIVE_TOOL_CATALOG_FIELDS
+        assert not leaked, (
+            f"Internal ADK tool fields leaked into catalog allowlist: {leaked}"
+        )
+
+    def test_agent_allowlist_equals_spec_minus_internal(self):
+        """NATIVE_AGENT_CATALOG_FIELDS must equal AgentSpec fields minus the internal denylist exactly."""
+        expected = (
+            set(AgentSpec.model_json_schema().get('properties', {}).keys())
+            - _AGENT_ADK_INTERNAL_FIELDS
+        )
+        assert NATIVE_AGENT_CATALOG_FIELDS == expected, (
+            f"Allowlist mismatch.\n"
+            f"  Extra (in allowlist, not expected): {NATIVE_AGENT_CATALOG_FIELDS - expected}\n"
+            f"  Missing (expected, not in allowlist): {expected - NATIVE_AGENT_CATALOG_FIELDS}"
+        )
+
+    def test_tool_allowlist_equals_spec_minus_internal(self):
+        """NATIVE_TOOL_CATALOG_FIELDS must equal ToolSpec fields minus the internal denylist exactly."""
+        expected = (
+            set(ToolSpec.model_json_schema().get('properties', {}).keys())
+            - _TOOL_ADK_INTERNAL_FIELDS
+        )
+        assert NATIVE_TOOL_CATALOG_FIELDS == expected, (
+            f"Allowlist mismatch.\n"
+            f"  Extra (in allowlist, not expected): {NATIVE_TOOL_CATALOG_FIELDS - expected}\n"
+            f"  Missing (expected, not in allowlist): {expected - NATIVE_TOOL_CATALOG_FIELDS}"
+        )
+
+    def test_new_agent_spec_field_auto_included(self):
+        """Simulate a new field added to AgentSpec — it must appear in the derived allowlist
+        without any manual update, as long as it is not in the internal denylist."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        # Every field in AgentSpec that is not internal should be in the allowlist
+        expected_passthrough = agent_spec_fields - _AGENT_ADK_INTERNAL_FIELDS
+        missing = expected_passthrough - NATIVE_AGENT_CATALOG_FIELDS
+        assert not missing, (
+            f"Non-internal AgentSpec fields not in allowlist (would be silently dropped): {missing}"
+        )
+
+    def test_new_tool_spec_field_auto_included(self):
+        """Simulate a new field added to ToolSpec — it must appear in the derived allowlist
+        without any manual update, as long as it is not in the internal denylist."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        expected_passthrough = tool_spec_fields - _TOOL_ADK_INTERNAL_FIELDS
+        missing = expected_passthrough - NATIVE_TOOL_CATALOG_FIELDS
+        assert not missing, (
+            f"Non-internal ToolSpec fields not in allowlist (would be silently dropped): {missing}"
+        )
+
+    def test_agent_internal_denylist_fields_exist_on_agent_spec(self):
+        """Every field in _AGENT_ADK_INTERNAL_FIELDS must actually exist on AgentSpec.
+        If a field is removed from AgentSpec the denylist entry is dead and should be cleaned up."""
+        agent_spec_fields = set(AgentSpec.model_json_schema().get('properties', {}).keys())
+        phantom = _AGENT_ADK_INTERNAL_FIELDS - agent_spec_fields
+        assert not phantom, (
+            f"_AGENT_ADK_INTERNAL_FIELDS contains fields no longer in AgentSpec (stale): {phantom}"
+        )
+
+    def test_tool_internal_denylist_fields_exist_on_tool_spec(self):
+        """Every field in _TOOL_ADK_INTERNAL_FIELDS must actually exist on ToolSpec.
+        If a field is removed from ToolSpec the denylist entry is dead and should be cleaned up."""
+        tool_spec_fields = set(ToolSpec.model_json_schema().get('properties', {}).keys())
+        phantom = _TOOL_ADK_INTERNAL_FIELDS - tool_spec_fields
+        assert not phantom, (
+            f"_TOOL_ADK_INTERNAL_FIELDS contains fields no longer in ToolSpec (stale): {phantom}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Tests for NATIVE_AGENT_CATALOG_FIELDS field-stripping
 # ---------------------------------------------------------------------------
 
 class TestNativeAgentCatalogFields:
     """Verify ``NATIVE_AGENT_CATALOG_FIELDS`` is correct, complete, and excludes internal ADK fields."""
 
+    # Fields that live on AgentSpec itself (not injected by OfferingAgentExtras) and
+    # must pass through to the catalog package.
     SCHEMA_REQUIRED = {
-        "name", "display_name", "description", "category", "agent_role", "kind",
+        "name", "display_name", "description", "category", "kind",
         "llm", "version", "change_log", "publisher", "instructions", "hidden",
-        "style", "delete_by", "part_number", "scope", "language_support", "tags",
-        "channels", "related_links", "icon", "bundled", "restrictions",
+        "style", "delete_by", "language_support", "icon", "bundled", "restrictions",
         "collaborators", "tools",
     }
 
@@ -251,7 +359,10 @@ class TestNativeAgentCatalogFields:
     }
 
     def test_all_required_schema_fields_are_allowed(self):
-        """Every field the catalog schema requires must be in NATIVE_AGENT_CATALOG_FIELDS."""
+        """Every field the catalog schema requires (and that lives on AgentSpec) must be
+        in NATIVE_AGENT_CATALOG_FIELDS.  Catalog-only fields injected by OfferingAgentExtras
+        (agent_role, part_number, scope, channels, related_links, tags) are not on AgentSpec
+        and are therefore not expected here."""
         missing = self.SCHEMA_REQUIRED - NATIVE_AGENT_CATALOG_FIELDS
         assert not missing, f"Required schema fields missing from allowlist: {missing}"
 
