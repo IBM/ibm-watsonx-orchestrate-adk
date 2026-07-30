@@ -28,7 +28,6 @@ from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from .types import *
 
 # Version of the applications config file format expected by the catalog runtime.
-# Note: this was reset to 1.0.0 — 1.16.0 was an accidental version bump.
 APPLICATIONS_FILE_VERSION = '1.0.0'
 
 # Fields allowed by the catalog native agent schema (partner-native-agent.schema.json).
