@@ -69,7 +69,7 @@ services:
       WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1, "ENABLE_KB_MIGRATION":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       ALLOWED_SECURITY_SCHEMA: '["api_key_auth", "bearer_token", "basic_auth", "key_value_creds"]'
-      ALLOWED_AUTH_TYPE: '["oauth2_implicit", "oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
+      ALLOWED_AUTH_TYPE: '["oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
       ALLOWED_COMPONENT_LIST: '["knowledge","ootb"]'
       ALLOWED_JWT_ALGORITHMS: '["RS256","RS384","RS512"]'
       MASK_KEYS: "client_id,client_secret,private_key,private_key_password"
