@@ -11,6 +11,7 @@ import zipfile
 import shutil
 from shutil import make_archive
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
+from ibm_watsonx_orchestrate.agent_builder.agents.types import AgentSpec
 from ibm_watsonx_orchestrate.client.agents.agent_client import AgentClient
 from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 from ibm_watsonx_orchestrate.client.tools.tool_client import ToolClient
@@ -30,31 +31,37 @@ from .types import *
 # Version of the applications config file format expected by the catalog runtime.
 APPLICATIONS_FILE_VERSION = '1.0.0'
 
-# Fields allowed by the catalog native agent schema (partner-native-agent.schema.json).
-# Fields present in the ADK agent spec but absent from this set are internal
-# platform fields that the catalog validator rejects via additionalProperties:false.
-NATIVE_AGENT_CATALOG_FIELDS = {
-    'agent_role', 'billing', 'bundled', 'category', 'change_log', 'channels',
-    'chat_with_docs', 'collaborators', 'context_access_enabled', 'context_variables',
-    'delete_by', 'description', 'display_name', 'guidelines', 'hidden',
-    'hide_reasoning', 'icon', 'instructions', 'kind', 'knowledge_base',
-    'language_support', 'llm', 'llm_config', 'name', 'part_number', 'publisher',
-    'related_links', 'restrictions', 'scope', 'starter_prompts', 'style',
-    'supported_apps', 'tags', 'tools', 'version', 'welcome_content',
+# ADK-internal fields on AgentSpec that the catalog schema rejects via
+# additionalProperties:false.  Everything else in AgentSpec is passed through.
+# Update this set when ADK adds a new platform-only field that must not reach
+# the catalog -- do NOT add catalog fields here.
+_AGENT_ADK_INTERNAL_FIELDS = {
+    'id', 'spec_version', 'workspace', 'memory_enabled',
+    'voice_configuration', 'voice_configuration_id',
+    'plugins', 'skills', 'toolkits', 'structured_output',
+    'custom_join_tool', 'sync_tool_flow_interactions',
+    'compaction_settings', 'is_schedulable',
 }
 
-# Fields allowed by the catalog native tool schema (partner-native-tool.schema.json).
-# The ADK ToolSpec / PythonToolBinding carry internal fields (id, response_format,
-# workspace, connections, type, agent_run_paramater, is_async inside binding) that
-# the catalog rejects via additionalProperties:false.
-NATIVE_TOOL_CATALOG_FIELDS = {
-    'name', 'display_name', 'description', 'permission', 'version', 'is_async',
-    'category', 'delete_by', 'publisher', 'bundled', 'binding', 'language_support',
-    'tags', 'input_schema', 'output_schema', 'applications', 'icon', 'change_log',
-    'kind', 'hidden', 'toolkit_id',
+# ADK-internal fields on ToolSpec that the catalog tool schema rejects.
+_TOOL_ADK_INTERNAL_FIELDS = {
+    'id', 'response_format', 'workspace',
 }
+
+# Derived at import time from the live Pydantic models so the allowlists stay
+# in sync automatically when fields are added to AgentSpec / ToolSpec.
+NATIVE_AGENT_CATALOG_FIELDS = (
+    set(AgentSpec.model_json_schema().get('properties', {}).keys())
+    - _AGENT_ADK_INTERNAL_FIELDS
+)
+NATIVE_TOOL_CATALOG_FIELDS = (
+    set(ToolSpec.model_json_schema().get('properties', {}).keys())
+    - _TOOL_ADK_INTERNAL_FIELDS
+)
 
 # Fields allowed inside binding.python by the tool schema (additionalProperties:false).
+# Kept explicit: the PythonToolBinding has very few catalog-valid fields and the
+# internal ones (connections, type, agent_run_paramater) must always be stripped.
 NATIVE_TOOL_PYTHON_BINDING_FIELDS = {'function', 'requirements'}
 
 
