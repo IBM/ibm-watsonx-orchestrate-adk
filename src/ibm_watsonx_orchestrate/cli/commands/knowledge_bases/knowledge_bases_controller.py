@@ -18,7 +18,8 @@ from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import
 from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import KnowledgeBaseClient
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.connections import get_connections_client
-from ibm_watsonx_orchestrate.client.utils import instantiate_client
+from ibm_watsonx_orchestrate.client.utils import instantiate_client, is_local_dev
+from ibm_watsonx_orchestrate.utils.docker_utils import DockerUtils
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.utils import check_file_in_zip
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import FileUpload, KnowledgeBaseListEntry
@@ -489,6 +490,14 @@ class KnowledgeBaseController:
             kb_id: The knowledge base ID
             kb_name: The knowledge base name (for logging)
         """
+        if is_local_dev() and not DockerUtils.is_docker_container_running("wdpflight-svc"):
+            logger.error(
+                "Sync is not available because the server was not started with "
+                "--with-ingestion-from-external-sources. Restart the server with "
+                "that flag to enable syncing."
+            )
+            return
+
         try:
             client.sync(kb_id)
             self._poll_knowledge_base_status(client, kb_id, kb_name, False, use_sync_state=True)

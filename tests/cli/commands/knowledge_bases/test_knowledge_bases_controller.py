@@ -793,11 +793,82 @@ class TestContentSourceKnowledgeBase:
         mock_client = Mock()
         controller = KnowledgeBaseController()
 
-        with patch.object(controller, '_poll_knowledge_base_status') as poll_mock:
+        with patch.object(controller, '_poll_knowledge_base_status') as poll_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False):
             controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
 
         mock_client.sync.assert_called_once_with('test-kb-id')
         poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+
+    def test_trigger_sync_logs_error_and_skips_when_local_without_flag(self, caplog):
+        """Local env without --with-ingestion-from-external-sources: should error and skip sync."""
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             patch.object(controller, '_poll_knowledge_base_status') as poll_mock, \
+             caplog.at_level("ERROR"):
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_not_called()
+        poll_mock.assert_not_called()
+        assert "--with-ingestion-from-external-sources" in caplog.text
+
+    def test_trigger_sync_proceeds_when_local_with_flag(self):
+        """Local env with --with-ingestion-from-external-sources (container running): should sync normally."""
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=True), \
+             patch.object(controller, '_poll_knowledge_base_status') as poll_mock:
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_called_once_with('test-kb-id')
+        poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+
+    def test_import_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
+        """Import of content_source KB in local env without the flag: sync must not be triggered."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="12345")}), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
+
+            mock_client_instance = MockClient()
+            mock_client_instance.create_without_files = Mock(return_value={'knowledge_base': mock_client_instance.expected_id})
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            knowledge_base_controller.import_knowledge_base("test.json", None)
+
+            mock_client_instance.sync.assert_not_called()
+            assert "--with-ingestion-from-external-sources" in caplog.text
+
+    def test_update_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
+        """Update of content_source KB in local env without the flag: sync must not be triggered."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            expected_id = uuid.uuid4()
+            mock_client_instance = MockClient(expected_id=expected_id)
+            mock_client_instance.update_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            controller = KnowledgeBaseController()
+            controller.update_knowledge_base(expected_id, knowledge_base, Path('.'), sync=True)
+
+            mock_client_instance.sync.assert_not_called()
+            assert "--with-ingestion-from-external-sources" in caplog.text
         
         
 
