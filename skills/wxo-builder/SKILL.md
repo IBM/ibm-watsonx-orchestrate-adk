@@ -1,14 +1,8 @@
 ---
 name: wxo-builder
 description: >-
-  Expert guide for building, testing, and publishing IBM watsonx Orchestrate
-  solutions. Use when the user wants to: create or scaffold agents/tools/flows
-  from a prompt or SOP; import/deploy to local, SaaS, or on-prem; test
-  single-turn or multi-turn against a live environment; debug import or runtime
-  failures; publish to production; embed a deployed agent in a web app via the
-  runtime REST API; or use the `orchestrate` CLI / ADK
-  (`ibm-watsonx-orchestrate`). Also covers multi-agent collaborators, knowledge
-  bases, connections, custom models, MCP toolkits, and document processing flows.
+  Build, test, and publish IBM watsonx Orchestrate agents, tools, flows, connections,
+  knowledge bases, and custom models using the `orchestrate` CLI and ADK.
 tags:
   - watsonx-orchestrate
   - wxo
@@ -19,18 +13,10 @@ tags:
 
 # watsonx Orchestrate (wxO) — Build · Test · Debug · Publish
 
-End-to-end guide grounded in the ADK source and `orchestrate` CLI (current: `ibm-watsonx-orchestrate` 2.12.x).
-
-> **Golden rule:** the ADK moves fast. Always verify uncertain commands/flags with
-> `orchestrate <group> --help`. Upgrade: `pip install -U ibm-watsonx-orchestrate` (Python ≥3.11, <3.15).
-
-**⚠️ Pre-flight:** activate the venv (`source .venv/bin/activate`) · always import + test after code generation.
-
----
+> **Golden rule:** the ADK moves fast. Always verify uncertain flags with `orchestrate <group> --help` — never rely on memory. Upgrade: `pip install -U ibm-watsonx-orchestrate` (Python ≥3.11, <3.15).
+> **Pre-flight:** activate venv (`source venv/bin/activate`) · always import + test after code generation.
 
 ## 1. Mental Model
-
-watsonx Orchestrate runs **agents** that route user requests to **tools**, **collaborators**, and **knowledge bases**, powered by an **LLM**.
 
 | Resource | What it is | Defined as |
 |---|---|---|
@@ -42,66 +28,43 @@ watsonx Orchestrate runs **agents** that route user requests to **tools**, **col
 | **Model** | LLM available to agents | YAML `kind: model` via the AI Gateway |
 | **Knowledge base** | Documents for RAG/grounding | YAML `kind: knowledge_base` |
 
----
+## 2. Setup & Environment
 
-## 2. Setup
-
-The VS Code extension auto-creates the venv at `.venv/` and installs the ADK. Just activate it:
 ```bash
-source .venv/bin/activate && orchestrate --version
-```
-Manual setup (outside VS Code extension):
-```bash
-python3 -m venv .venv && source .venv/bin/activate && pip install -U ibm-watsonx-orchestrate
+source venv/bin/activate && orchestrate --version   # venv auto-created by VS Code extension
+# manual: python3 -m venv venv && source venv/bin/activate && pip install -U ibm-watsonx-orchestrate
 ```
 
----
+`orchestrate` targets the **active environment** (`orchestrate env list`). Confirm before importing.
 
-## 3. Environment Connection
-
-`orchestrate` targets the **active environment** (starred in `orchestrate env list`). Confirm before importing.
-
-### SaaS (IBM Cloud)
-Use the **API service URL** (containing `/instances/<id>`), not the console URL.
 ```bash
-orchestrate env add -n my-saas \
-  -u https://api.<region>.watson-orchestrate.cloud.ibm.com/instances/<INSTANCE_ID>
-orchestrate env activate my-saas --api-key "$IBM_CLOUD_API_KEY"
-orchestrate agents list          # confirm connected
-```
-Auth type auto-inferred (`ibm_iam`). Override with `--type [ibm_iam|mcsp|mcsp_v2|cpd]`.
+# SaaS — use API service URL (contains /instances/<id>), not the console URL
+orchestrate env add -n my-saas -u https://api.<region>.watson-orchestrate.cloud.ibm.com/instances/<ID>
+orchestrate env activate my-saas --api-key "$IBM_CLOUD_API_KEY"   # auth type auto-inferred (ibm_iam)
+orchestrate agents list   # confirm connected
+# Auth type override: --type [ibm_iam|mcsp|mcsp_v2|cpd]
 
-### On-prem (Cloud Pak for Data)
-```bash
+# On-prem (CPD)
 orchestrate env add -n my-onprem -u https://<cpd-host>/orchestrate --type cpd
-orchestrate env activate my-onprem --api-key "$CPD_API_KEY"
-# or: -u "$CPD_USER" -p "$CPD_PASSWORD"
+orchestrate env activate my-onprem --api-key "$CPD_API_KEY"   # or: --username/--password
+
+# Local Developer Edition (Docker, 16 GB RAM / 8 cores / 25 GB disk, entitlement key in .env)
+orchestrate server start -e .env --accept-terms-and-conditions && orchestrate env activate local
 ```
 
-### Local Developer Edition (optional — offline iteration)
-Requires Docker, 16 GB RAM / 8 cores / 25 GB disk, and an entitlement key in `.env`.
-```bash
-orchestrate server start -e .env --accept-terms-and-conditions
-orchestrate env activate local
-```
+`orchestrate env list` · `orchestrate env activate <name>` · `orchestrate env remove --name <name>`
 
-```bash
-orchestrate env list                  # ★ = active; orchestrate env activate <name>; orchestrate env remove --name <name>
-```
 > Keep secrets in a gitignored `.env`; pass via `"$VAR"` to stay out of shell history.
 
----
+## 3. Canonical Lifecycle
 
-## 4. Canonical Lifecycle
-
-Dependencies must be imported **before** the thing that references them:
 ```
 write tools + connections/models/KB → write agent YAML
   → import-all.sh (connections → models → KB → tools/toolkits → agent)
-  → test gate (§9) → debug + re-import → deploy to production (§13)
+  → test gate (§7) → debug + re-import → deploy to production (§11)
 ```
 
-### Project scaffold
+**Project scaffold:**
 ```
 my_agent/
 ├── agents/         *.yaml
@@ -114,9 +77,7 @@ my_agent/
 └── .env            secrets (gitignored)
 ```
 
----
-
-## 5. Python Tools (`@tool`)
+## 4. Python Tools (`@tool`)
 
 ```python
 from ibm_watsonx_orchestrate.agent_builder.tools import tool, ToolPermission
@@ -140,8 +101,7 @@ def get_weather(city: str) -> WeatherInfo:
 
 **Must-haves:** `@tool` on every callable · Google-style docstring (summary → `Args:` → `Returns:`, **no blank line between them**) · type hints on all params and return · self-contained file (no cross-file local imports) · Pydantic models as explicit classes · never add `ibm-watsonx-orchestrate` to `requirements.txt`.
 
-### Credentials
-Never pass credentials as function parameters — declare them in `expected_credentials` and fetch at runtime:
+**Credentials** — never pass as parameters; declare in `expected_credentials` and fetch at runtime:
 ```python
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType, ExpectedCredentials
 from ibm_watsonx_orchestrate.run import connections
@@ -168,9 +128,7 @@ orchestrate tools import -k python -f tools/api_tool.py --app-id my_api
 
 Full decorator signature, ConnectionType values, and Pydantic patterns → **[references/agents-tools-schemas.md §2](references/agents-tools-schemas.md)**.
 
----
-
-## 6. Flows (`@flow`)
+## 5. Flows (`@flow`)
 
 ```python
 from pydantic import BaseModel
@@ -193,26 +151,15 @@ def build_weather_flow(aflow: Flow) -> Flow:
     return aflow
 ```
 
-**Must-haves:** signature exactly `def build_<name>(aflow: Flow) -> Flow:` · one flow per file · `system_prompt` required on `aflow.prompt(...)` · `map_input`/`map_output` expressions are single-line Python only · wire with `aflow.sequence(START, …, END)` or `aflow.edge(a, b)`.
+**Must-haves:** signature exactly `def build_<name>(aflow: Flow) -> Flow:` · one flow per file · `system_prompt` required on `aflow.prompt(...)` · `map_input`/`map_output` single-line Python only · wire with `aflow.sequence(START, …, END)` or `aflow.edge(a, b)`.
 
-**Default LLM:** `groq/openai/gpt-oss-120b`
+**Default LLM:** `groq/openai/gpt-oss-120b` · **Node builders:** `aflow.tool` · `aflow.prompt` · `aflow.agent` · `aflow.script` · `aflow.foreach` · `aflow.conditions` · `aflow.parallel_conditions` · `aflow.docext` · `aflow.docclassifier` · `aflow.docproc` · `aflow.userflow`
 
-**Node builders:** `aflow.tool(fn)` · `aflow.prompt(...)` · `aflow.userflow(...)` · `aflow.agent(...)` · `aflow.docext(...)` · `aflow.docclassifier(...)` · `aflow.docproc(...)` · `aflow.script(...)` · `aflow.foreach(...)` · `aflow.conditions(...)` · `aflow.parallel_conditions(...)`.
+**Programmatic test:** `await build_weather_flow().compile_deploy()` then `.invoke({"city": "Paris"}, debug=True)`
 
-**Programmatic test:**
-```python
-import asyncio
-async def main():
-    fdef = await build_weather_flow().compile_deploy()
-    await fdef.invoke({"city": "Paris"}, debug=True)   # debug=True prints node I/O
-asyncio.run(main())
-```
+Full flow node API → **[references/agents-tools-schemas.md §3–4](references/agents-tools-schemas.md)**.
 
-Full flow node API (parallel, private schema, decisions, callbacks, masking, dynamic forms, docproc/KVP) → **[references/agents-tools-schemas.md §3–4](references/agents-tools-schemas.md)**.
-
----
-
-## 7. Agent YAML
+## 6. Agent YAML
 
 ```yaml
 spec_version: v1                # REQUIRED
@@ -223,278 +170,213 @@ instructions: >
   You are a helpful weather assistant. When the user asks about weather,
   call get_weather with the city name and present the result clearly.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic          # 2.12.0 default; `default` & `react` are DEPRECATED
+style: react_intrinsic          # 2.12.0 default; `default` & `react` DEPRECATED
 tools:
   - get_weather
-starter_prompts:
+starter_prompts:                # include 2–4; greatly improves UX
   is_default_prompts: false
-  prompts:
-    - id: default0
-      title: Check weather
-      prompt: What's the weather in Boston?
-      state: active
+  prompts: [{id: default0, title: Check weather, prompt: "What's the weather in Boston?", state: active}]
 welcome_content:
   is_default_message: false
   welcome_message: Welcome to the Weather Agent
   description: Ask me about the weather in any city.
+# Production extras:
+# compaction_settings: {context_compaction_enabled: true, context_compaction_threshold: 20000, compaction_sliding_window: 10}
+# llm_config: {temperature: 0, max_tokens: 2048}
+# is_schedulable: true   # ⚠ must be enabled at tenant level first
 ```
 
-Always include `starter_prompts` (2–4 prompts) and `welcome_content` — they improve UX substantially.
+**Key constraints:** `spec_version: v1` + `kind: native` mandatory · resources listed by **name** (imported first) · `toolkits` only for `experimental_customer_care` · snake_case `name`.
 
-**Key constraints:**
-- `spec_version: v1` and `kind: native` are mandatory — omitting either fails import.
-- `tools`/`collaborators`/`knowledge_base` list resources by **name** (must be imported first).
-- `toolkits` only valid for `experimental_customer_care` style.
-- Reference by `name` (snake_case), never display name. Use `orchestrate agents list -v` to find names.
-
-### Production-grade fields
+**Multi-agent (collaborators):**
 ```yaml
-compaction_settings:            # prevent context overflow
-  context_compaction_enabled: true
-  context_compaction_threshold: 20000
-  compaction_sliding_window: 10
-llm_config:                     # per-agent decoding params (2.11+)
-  temperature: 0
-  max_tokens: 2048
-is_schedulable: true            # ⚠ must be enabled at tenant level first; YAML alone silently resets
-```
-
-### Multi-agent (collaborators)
-```yaml
-name: dr_house_advise
-style: react_intrinsic          # experimental_customer_care does NOT support collaborators
-tools:
-  - differential_diagnosis
-collaborators:                  # import/deploy collaborators FIRST
+style: react_intrinsic   # experimental_customer_care does NOT support collaborators
+collaborators:           # import/deploy collaborators FIRST
   - dr_wilson
   - dr_cuddy
 ```
-wxO auto-generates `chat_with_collaborator_<name>` per collaborator. Routing is driven by the **collaborator's `description`** — make it distinct. Nesting works. An agent cannot list itself.
+wxO auto-generates `chat_with_collaborator_<name>` per collaborator. Routing driven by collaborator's **`description`** — make it distinct. Agent cannot list itself.
 
-Full schema (external/assistant kinds, `guidelines`, `structured_output`, `chat_with_docs`, `memory_enabled`, Python API) → **[references/agents-tools-schemas.md §1](references/agents-tools-schemas.md)**.
+Full schema (external/assistant kinds, `guidelines`, `structured_output`, `chat_with_docs`, `memory_enabled`) → **[references/agents-tools-schemas.md §1](references/agents-tools-schemas.md)**.
 
----
+## 7. Import (dependency-ordered)
 
-## 8. Import (dependency-ordered)
+> **Import rule — follow this priority order:**
+> 1. **`import-all.sh` exists** → execute it. Always preferred.
+>    ```bash
+>    chmod +x import-all.sh && ./import-all.sh
+>    ```
+> 2. **`import-all.sh` does not exist** → create it first (connections → models → KB → tools → agent), then execute it.
+> 3. **MCP tools** (`import_tool`, `import_agent`, etc.) → last resort only, when creating and running `import-all.sh` is not possible.
 
 ```bash
-# import-all.sh
-#!/usr/bin/env bash
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-orchestrate connections import   -f "${SCRIPT_DIR}/connections/my_api.yaml"
-orchestrate models import        -f "${SCRIPT_DIR}/models/granite.yaml" --app-id watsonx_credentials
-orchestrate knowledge-bases import -f "${SCRIPT_DIR}/knowledge_base/kb.yaml"
-orchestrate tools import -k python -f "${SCRIPT_DIR}/tools/weather.py"
-orchestrate tools import -k python -f "${SCRIPT_DIR}/tools/api_tool.py" --app-id my_api
-orchestrate tools import -k flow   -f "${SCRIPT_DIR}/tools/weather_flow.py"
-# MCP toolkit (if any):
-orchestrate toolkits add -k mcp -n my_toolkit --description "My MCP tools" \
-  --package-root ./mcp_server --language node \
-  --command '["node","dist/index.js","--transport","stdio"]' --tools "*"
-orchestrate agents import -f "${SCRIPT_DIR}/agents/weather_agent.yaml"
+# import-all.sh template
+source venv/bin/activate
+orchestrate connections import   -f connections/my_api.yaml
+orchestrate models import        -f models/granite.yaml --app-id watsonx_credentials
+orchestrate knowledge-bases import -f knowledge_base/kb.yaml
+orchestrate tools import -k python -f tools/weather.py
+orchestrate tools import -k python -f tools/api_tool.py --app-id my_api
+orchestrate tools import -k flow   -f tools/weather_flow.py
+orchestrate agents import        -f agents/weather_agent.yaml
 ```
 
-`tools import -k python|openapi|flow|langflow`. Use `--safe` to be prompted before overwriting.
+`-k` values: `python|openapi|flow|langflow`. Use `--safe` to prompt before overwriting.
+MCP toolkit: `orchestrate toolkits add -k mcp -n <name> --description "…" --package-root ./mcp_server --language node --command '["node","dist/index.js"]' --tools "*"`
 
----
-
-## 9. Test Gate (verify before handover)
+## 8. Test Gate (verify before handover)
 
 **Deployed ≠ verified.** Never declare "done" until tested — or the human explicitly declines.
 
 After `./import-all.sh`, ask:
-> "`<agent>` is deployed to `<env>`. Want me to smoke-test it? I'll run 1 single-turn + 1 multi-turn test — read-only prompts." — Yes / No
+> "`<agent>` is deployed to `<env>`. Want me to smoke-test it? I'll run 1 single-turn + 1 multi-turn — read-only prompts." — Yes / No
 
-**If the `watsonx-orchestrate-adk` MCP server is available** — use `chat_with_agent` (pass `thread_id` from turn 1 to turn 2).
+**Execute:** use `watsonx-orchestrate-adk:chat_with_agent` (MCP, `include_reasoning=True`, save `thread_id` for turn 2).
+CLI fallback: `orchestrate chat ask -n <agent> "<prompt>" -r` (⚠ can hang on SaaS — use `references/runtime-api.md` endpoint instead).
 
-**CLI fallback:**
-```bash
-orchestrate chat ask -n <agent> "<prompt>" -r
-# multi-turn: add -t <thread_id> on turn 2
-```
-> ⚠ On IBM Cloud SaaS, `chat ask` can hang in scripted use (live-verified 2.12.0). Use the runtime API (§14) as fallback.
+**Pass criteria:** no error · correct output · expected tool fired (check reasoning) · turn 2 uses context from turn 1.
 
-**Pass criteria:** no error · on-topic answer · expected tool invoked (visible via `-r`) · multi-turn uses prior context.
+Emit `TEST_REPORT.md`: `"deployed and tested (2/2)"` · `"deployed; test N failed — <reason>"` · `"deployed; not tested at your request."`
 
-Emit `TEST_REPORT.md`: "deployed and tested (2/2)", "deployed; test 2 failed — …", or "deployed; not tested at your request." State the target env. Keep tests read-only.
+Full gate procedure + report template + pre-publish checklist → **[references/testing-debugging.md](references/testing-debugging.md)**.
 
----
+## 9. Connections, Models, Knowledge Bases
 
-## 10. Connections
-
+**Connection YAML:**
 ```yaml
 spec_version: v1
-kind: connection            # singular — NOT 'connections'
+kind: connection       # singular — NOT 'connections'
 app_id: my_api
 environments:
-  draft:                    # at least 'draft'; add 'live' for production
+  draft:
     security_scheme: api_key_auth   # NOT 'kind:' — must be 'security_scheme:'
-    type: team              # team (shared) | member (per-user)
+    type: team                      # team (shared) | member (per-user)
     server_url: https://api.example.com
 ```
-
 `security_scheme` values: `basic_auth` · `bearer_token` · `api_key_auth` · `oauth2` · `key_value_creds`.
-OAuth2 `auth_type`: use `oauth2_auth_code` — **not** `authorization_code`.
-
+OAuth2: use `oauth2_auth_code` — **not** `authorization_code`. YAML defines structure only — **never hardcode secrets**.
 ```bash
 orchestrate connections import -f connections/my_api.yaml
 orchestrate connections configure -a my_api --kind api_key --type team --env draft
 orchestrate connections set-credentials -a my_api --env draft --api-key "$MY_API_KEY"
-orchestrate connections list
 ```
 
-YAML defines structure only. **Never hardcode secrets** — always set via `set-credentials`.
+**Models:** `orchestrate models list` to see available IDs. Default: `groq/openai/gpt-oss-120b`. Premier models disabled by default in 2.12+. Custom watsonx.ai model: create a `watsonx_credentials` key-value connection + `kind: model` YAML → `orchestrate models import --app-id watsonx_credentials`.
 
-Full schemas (OAuth2, key-value, configure `--kind` values) → **[references/connections-models-kb.md §1](references/connections-models-kb.md)**.
-
----
-
-## 11. Models / LLMs
-
-```bash
-orchestrate models list   # what the active env offers (use full ids)
+**Knowledge bases:**
 ```
-
-Default: `groq/openai/gpt-oss-120b` (also required for `experimental_customer_care`). Premier models disabled by default in 2.12+ — enable before referencing.
-
-To add a custom watsonx.ai model: create a `watsonx_credentials` key-value connection, a `kind: model` YAML, then `orchestrate models import --app-id watsonx_credentials`. Full schema → **[references/connections-models-kb.md §2](references/connections-models-kb.md)**.
-
----
-
-## 12. Knowledge Bases
-
+No existing vector DB → Built-in Milvus (default, no infra needed)
+Existing DB          → AstraDB / Milvus / Elasticsearch (provider blocks in KB YAML)
+Other (Pinecone etc) → custom Python @tool
 ```
-Existing vector DB?
-├─ No  → Built-in Milvus (managed, default — no external infra)
-└─ Yes → AstraDB / external Milvus / Elasticsearch  (provider blocks in KB YAML)
-         anything else (Pinecone, Weaviate, Qdrant, custom) → custom Python @tool
-```
-
 ```bash
 orchestrate knowledge-bases import -f kb.yaml
 orchestrate knowledge-bases status -n product_docs   # watch indexing
 ```
-
 Reference in agent YAML: `knowledge_base: [product_docs]`
 
-Full YAML schemas for all providers + auth matrix → **[references/connections-models-kb.md §3](references/connections-models-kb.md)**.
+Full schemas → **[references/connections-models-kb.md](references/connections-models-kb.md)**.
 
----
+## 10. Debugging Playbook
 
-## 13. Publishing to Production
+| Symptom | Cause → Fix |
+|---|---|
+| `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet |
+| Agent ignores a tool | Vague docstring; tool not named in instructions → improve both |
+| Docstring/type-hint warnings | **False positive in 2.12** — real cause: blank line between `Args:`/`Returns:`, or missing hints |
+| "name cannot contain spaces" | Use snake_case |
+| `ModuleNotFoundError` at runtime | Add to `requirements.txt`, re-import with `-r`. Never add `ibm-watsonx-orchestrate` |
+| 401/403 on tool call | Wrong `app_id` or credentials not set → `orchestrate connections list` → re-run `set-credentials` |
+| Works locally, missing in prod | Wrong active env → `orchestrate env list` → activate → re-import |
+| `No agents with the name 'X'` | Used display name — get snake_case from `orchestrate agents list -v` |
+| Flow won't compile | Check signature, `system_prompt` present, single-line expressions |
+| Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
+| Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
 
-No `publish` verb — publishing means activating the target env and re-importing.
+Iterate: edit → re-import (idempotent by name) → re-test. Export: `orchestrate agents export -n <name> --kind native -o agents/<name>.yaml --agent-only`
 
+Full failure-mode table + programmatic flow testing + observability/traces → **[references/testing-debugging.md](references/testing-debugging.md)**.
+
+## 11. Publishing to Production
+
+No `publish` verb — publishing = activate target env + re-import.
 ```bash
-orchestrate env activate prod      # registered once in §3
-./import-all.sh                    # set env credentials first
+orchestrate env activate prod
+./import-all.sh
 orchestrate agents deploy   -n weather_agent
 orchestrate agents undeploy -n weather_agent
 ```
+One set of artifacts per project; only connection credentials and model `provider_config` differ per env.
 
-One set of YAML/Python artifacts; only connection credentials and model `provider_config` differ per env. Version artifacts in Git; `import-all.sh` is the source of truth.
-
-### Embedded web chat
+**Embedded web chat:**
 ```bash
 orchestrate channels webchat embed --agent-name <agent> --env live
 ```
-Paste the `<script>` into a page with `<div id="root">`.
-
-⚠ **CRN gotcha (SaaS, live-verified 2.12.0):** auto-fetch 403s with instance-scoped API key. Extract from bearer token:
+⚠ **CRN gotcha (SaaS 2.12.0):** auto-fetch 403s — extract CRN from bearer token:
 ```bash
 CRN=$(python -c "
-import yaml, os, json, base64
-t = yaml.safe_load(open(os.path.expanduser('~/.cache/orchestrate/credentials.yaml')))['auth']['<env>']['wxo_mcsp_token']
-p = t.split('.')[1]; p += '=' * (-len(p) % 4)
+import yaml,os,json,base64
+t=yaml.safe_load(open(os.path.expanduser('~/.cache/orchestrate/credentials.yaml')))['auth']['<env>']['wxo_mcsp_token']
+p=t.split('.')[1];p+='='*(-len(p)%4)
 print(json.loads(base64.urlsafe_b64decode(p))['unique_instance_crns'][0])")
 echo "$CRN" | orchestrate channels webchat embed --agent-name <agent> --env live
 ```
 
----
+## 12. Runtime REST API
 
-## 14. Runtime REST API
+Base: `<service-url>/api/v1` · bearer-token auth (`orchestrate env get-token`). **Never expose the token to a browser — proxy through your backend.**
 
-For consuming a deployed agent from your own app (not the drop-in webchat widget).
-Base: `<service-url>/api/v1` · bearer-token auth.
+> ⚠ **SaaS path gotcha:** use `/v1/orchestrate/runs` not `/v1/runs` — bare path returns 404.
 
-| Endpoint | Use case |
+| Endpoint | Use |
 |---|---|
-| `/orchestrate/{agent_id}/chat/completions` | OpenAI-compatible. Reply at `choices[0].message.content`. |
-| `/orchestrate/runs` | Richer/async. Reply at `result.data.message.content[0].text`. |
-| `/orchestrate/runs/stream` | Streaming variant. |
+| `/orchestrate/{agent_id}/chat/completions` | OpenAI-compatible. Reply at `choices[0].message.content` |
+| `/orchestrate/runs` | Richer/async. Reply at `result.data.message.content[0].text`; `step_history` has tool outputs |
+| `/orchestrate/runs/stream` | SSE streaming variant |
+| `/completions/chat` | Raw LLM via AI Gateway — no agent/tools |
 
-Both return `thread_id` — send it back to continue a conversation. **Never expose the bearer token to a browser** — proxy through your backend. Rule of thumb: `chat/completions` for portability, `/runs` for fidelity.
+Both agent endpoints return `thread_id` — send it back to continue a conversation. Rule of thumb: `chat/completions` for portability, `/runs` for fidelity.
 
-```bash
-TOKEN=$(orchestrate env get-token)
-BASE="https://api.<region>.watson-orchestrate.cloud.ibm.com/instances/<ID>/api/v1"
-RESP=$(curl -s -X POST "$BASE/orchestrate/runs" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"agent_id":"<agent>","input":{"content":[{"type":"text","text":"Hello"}]}}')
-THREAD=$(echo "$RESP" | jq -r '.thread_id')
-# Turn 2: add "thread_id":"$THREAD" to the payload
+Full endpoint shapes, SSE event sequence, auth, multi-turn, file upload gotchas → **[references/runtime-api.md](references/runtime-api.md)**.
+
+## 13. MCP Servers
+
+`.bob/mcp.json` (Bob) / `.cursor/mcp.json` (Cursor) — replace `<VENV_PYTHON>` and `<WORKING_DIR>`:
+```json
+{
+  "mcpServers": {
+    "watsonx-orchestrate-adk-docs": {
+      "command": "uvx",
+      "args": ["mcp-proxy", "--transport", "streamablehttp", "https://developer.watson-orchestrate.ibm.com/mcp"]
+    },
+    "watsonx-orchestrate-adk": {
+      "command": "<VENV_PYTHON>",
+      "args": ["-m", "ibm_watsonx_orchestrate_mcp_server.server"],
+      "env": {"WXO_MCP_WORKING_DIRECTORY": "<WORKING_DIR>"},
+      "timeout": 300000
+    }
+  }
+}
 ```
 
----
+Use fully qualified names when calling MCP tools: `<ServerName>:<tool_name>`.
 
-## 15. Debugging Playbook
-
-| Symptom | Cause → Fix |
+| Server | Key tools |
 |---|---|
-| `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet. |
-| Agent ignores a tool | Vague tool docstring; or instructions don't mention it. Improve docstring; name the tool in `instructions`. |
-| Docstring/type-hint warnings on import | **Often a false positive in 2.12** — fires even when correct. Real cause: blank line between `Args:` and `Returns:`, or missing type hints. |
-| "name cannot contain spaces" | Use snake_case for tool/toolkit/agent `name`. |
-| `ModuleNotFoundError` at tool runtime | Add to `requirements.txt`; re-import with `-r`. Never add `ibm-watsonx-orchestrate`. |
-| 401/403 on a tool call | Connection not configured or wrong `app_id`. `orchestrate connections list` → re-run `set-credentials`. |
-| Works locally, missing in prod | Wrong active env. `orchestrate env list` → activate → re-import. |
-| `No agents with the name 'X'` | Used display name. Get snake_case `name` from `orchestrate agents list -v`. |
-| Flow won't compile | Check signature, `system_prompt`, single-line expressions. |
-| Doc flow can't get uploaded file | `docproc` prompts the user — agent just invokes the flow, doesn't pass the file. |
-| Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` = reasoning, `-l` = logs). |
-| Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state. |
+| `adk-docs` | `search_ibm_watsonx_orchestrate_adk` (broad) · `query_docs_filesystem_…` (read page by path, append `.mdx`) |
+| `adk` (live platform) | `list/create_or_update/import/export/remove_agent` · `list/import/create/remove_tool` · `list/add/import/remove_toolkit` · `import/check_status/remove_knowledge_base` · `import/configure/set_credentials_connection` · `list/import/create_or_update_model` · `chat_with_agent` (add `thread_id` for multi-turn; `include_reasoning=True` for trace) |
 
-Iterate: edit → re-import (overwrites by name) → re-test. Export: `orchestrate agents export -n <name> --kind native -o agents/<name>.yaml --agent-only`
+## 14. References (load on demand)
 
----
-
-## 16. MCP Servers
-
-Both servers are always available — configured automatically by the VS Code extension in `.bob/mcp.json`.
-Use fully qualified names when calling tools: `<ServerName>:<tool_name>`.
-
-### `watsonx-orchestrate-adk-docs` (live documentation)
-| Tool | Use |
+| File | Contents |
 |---|---|
-| `watsonx-orchestrate-adk-docs:search_ibm_watsonx_orchestrate_adk` | Broad/conceptual queries |
-| `watsonx-orchestrate-adk-docs:query_docs_filesystem_ibm_watsonx_orchestrate_adk` | Read specific pages (append `.mdx` to path) |
-
-Workflow: `search_*` for discovery → `query_docs_filesystem_*` to read full pages.
-
-### `watsonx-orchestrate-adk` (live platform — active env)
-| Domain | Key tools |
-|---|---|
-| Agents | `list_agents` · `create_or_update_agent` · `import_agent` · `export_agent` · `remove_agent` |
-| Tools | `list_tools` · `get_tool_template` · `import_tool` · `create_tool` · `remove_tool` |
-| Toolkits | `list_toolkits` · `add_toolkit` · `import_toolkit` · `remove_toolkit` |
-| Knowledge bases | `list_knowledge_bases` · `import_knowledge_bases` · `check_knowledge_base_status` · `remove_knowledge_base` |
-| Connections | `list_connections` · `import_connection` · `configure_connection` · `set_credentials_connection` |
-| Models | `list_models` · `import_model` · `create_or_update_model` · `import_model_policy` |
-| Chat/test | `chat_with_agent` (pass `thread_id` for multi-turn; `include_reasoning=True` for trace) |
-| Skills | `list_available_skills` · `fetch_skill` · `fetch_all_skills` · `check_version` |
-
----
-## 17. Resources
-
-| Source | Contents |
-|---|---|
-| **[references/agents-tools-schemas.md](references/agents-tools-schemas.md)** | Full agent YAML schema (all kinds), `@tool`/`@flow` decorator signatures, flow node API (parallel, private schema, decisions, callbacks, masking, dynamic forms), docproc/KVP |
+| **[references/agents-tools-schemas.md](references/agents-tools-schemas.md)** | Full agent YAML schema (all kinds), `@tool`/`@flow` decorator signatures, all flow nodes (parallel, foreach, decisions, callbacks, masking, dynamic forms, docproc/KVP, docext, userflow, swarms) |
 | **[references/connections-models-kb.md](references/connections-models-kb.md)** | Connection YAML + CLI lifecycle, watsonx.ai model setup, KB provider configs (AstraDB/Milvus/Elasticsearch) |
 | **[references/examples.md](references/examples.md)** | Complete worked examples: tool agent, KB agent, multi-agent chain, conditional flow, foreach, document extraction |
+| **[references/cli-reference.md](references/cli-reference.md)** | Full `orchestrate` CLI — every group, command, and flag |
+| **[references/testing-debugging.md](references/testing-debugging.md)** | Post-deploy gate + TEST_REPORT template, failure-mode table, programmatic flow testing, traces/observability, pre-publish checklist |
+| **[references/runtime-api.md](references/runtime-api.md)** | Runtime REST API: base URL/auth, endpoint families, SSE streaming, multi-turn, model-only completions, SaaS gotchas |
 | **ADK docs** | https://developer.watson-orchestrate.ibm.com |
 | **ADK examples** | https://github.com/IBM/ibm-watsonx-orchestrate-adk → `examples/` |
-| **SDK source** | Same repo → `src/ibm_watsonx_orchestrate/` |
 
 When a pattern isn't covered here, fetch a matching example from the public `examples/` directory.
-**Always prefer live `orchestrate ... --help` over memory when a flag is in doubt.**
