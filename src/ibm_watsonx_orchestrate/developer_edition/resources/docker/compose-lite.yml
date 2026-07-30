@@ -1791,7 +1791,7 @@ services:
           cpus: "0.5"
           memory: 500M
 
-wxo-server-voice:
+  wxo-server-voice:
     image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
     platform: linux/amd64
     profiles: [voice]
