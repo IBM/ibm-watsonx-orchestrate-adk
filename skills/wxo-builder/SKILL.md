@@ -240,6 +240,13 @@ After `./import-all.sh`, ask:
 
 Emit `TEST_REPORT.md`: `"deployed and tested (2/2)"` · `"deployed; test N failed — <reason>"` · `"deployed; not tested at your request."`
 
+After testing, always tell the user how to test manually:
+- **UI** — open the agent in the wxO web UI, use starter prompts or type directly.
+- **CLI** — `orchestrate chat ask -n <agent_name> "<prompt>" -r` (`-r` = reasoning trace; ⚠ can hang on SaaS — use `chat_with_agent` MCP tool instead).
+- **Bob** — *"Chat with `<agent_name>`: `<prompt>`"* — Bob calls `chat_with_agent` with `include_reasoning=True`.
+
+Provide **3–5 sample prompts** covering: happy path · edge/unknown input · multi-turn. For each, state the expected output so the user knows what a pass looks like.
+
 Full gate procedure + report template + pre-publish checklist → **[references/testing-debugging.md](references/testing-debugging.md)**.
 
 ## 9. Connections, Models, Knowledge Bases
