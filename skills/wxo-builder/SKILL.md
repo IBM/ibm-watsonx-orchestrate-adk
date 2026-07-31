@@ -231,10 +231,12 @@ MCP toolkit: `orchestrate toolkits add -k mcp -n <name> --description "…" --pa
 After `./import-all.sh`, ask:
 > "`<agent>` is deployed to `<env>`. Want me to smoke-test it? I'll run 1 single-turn + 1 multi-turn — read-only prompts." — Yes / No
 
-**Execute:** use `watsonx-orchestrate-adk:chat_with_agent` (MCP, `include_reasoning=True`, save `thread_id` for turn 2).
-CLI fallback: `orchestrate chat ask -n <agent> "<prompt>" -r` (⚠ can hang on SaaS — use `references/runtime-api.md` endpoint instead).
+**Execute (preferred):** `watsonx-orchestrate-adk:chat_with_agent` — Turn 1 with `include_reasoning=True`, save `thread_id`, Turn 2 with same `thread_id`.
+**CLI fallback:** `orchestrate chat ask -n <agent> "<prompt>" -r` (⚠ can hang on SaaS — use runtime REST API from `references/runtime-api.md` instead).
 
 **Pass criteria:** no error · correct output · expected tool fired (check reasoning) · turn 2 uses context from turn 1.
+
+**If a test fails — fix → re-import → re-test loop:** identify root cause from reasoning → fix `.py`/`.yaml` → `./import-all.sh` → re-run with `chat_with_agent`. Repeat until all pass.
 
 Emit `TEST_REPORT.md`: `"deployed and tested (2/2)"` · `"deployed; test N failed — <reason>"` · `"deployed; not tested at your request."`
 
