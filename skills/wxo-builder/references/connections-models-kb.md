@@ -1,6 +1,6 @@
 # Connections, Models & Knowledge Bases
 
-Current as of `ibm-watsonx-orchestrate` 2.12.x.
+Current as of `ibm-watsonx-orchestrate` 2.13.x.
 
 ## Contents
 - [§1 Connections — YAML schema + CLI lifecycle](#1-connections)
@@ -93,7 +93,7 @@ Example ids: `watsonx/meta-llama/llama-3-3-70b-instruct`,
 `watsonx/ibm/granite-3-3-8b-instruct`, `groq/openai/gpt-oss-120b`.
 
 - **Default model**: `groq/openai/gpt-oss-120b`.
-- **Premier models are disabled by default in 2.12+** — enable explicitly before referencing one; `models list` won't show it otherwise.
+- **Premier models are disabled by default** — enable explicitly with `orchestrate models config enable-premier-models`; check status with `orchestrate models config are-premier-models-enabled`; `models list` won't show them otherwise.
 - `experimental_customer_care` style requires `groq/openai/gpt-oss-120b`.
 
 ### Adding a custom watsonx.ai model

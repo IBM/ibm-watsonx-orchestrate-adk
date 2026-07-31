@@ -1,7 +1,7 @@
 # Agents, Tools & Flows — Schemas and Decorators
 
 Grounded in the ADK source (`agent_builder/agents/types.py`, `agent_builder/tools/python_tool.py`, `flow_builder`).
-Current as of `ibm-watsonx-orchestrate` 2.12.x.
+Current as of `ibm-watsonx-orchestrate` 2.13.x.
 
 ## Contents
 - [§1 Agent YAML — `kind: native` (full schema)](#1-agent-yaml--kind-native-full-schema)
@@ -32,14 +32,14 @@ llm_config:                      # optional (2.11+) — per-agent decoding param
   temperature: 0
   max_tokens: 2048
   # top_p / top_k / seed / response_format / reasoning_effort + provider extensions
-style: react_intrinsic           # 2.12.0 default; `default` & `react` DEPRECATED (omit to take tenant default)
+style: react_intrinsic           # 2.13 default; `default` & `react` DEPRECATED (omit to take tenant default)
                                  # other values: planner | custom | experimental_customer_care
 hide_reasoning: false
 tools:                           # by name; must be imported first
   - get_weather
 collaborators:                   # ORCHESTRATOR pattern: other agents (by name). Import/deploy FIRST.
   - billing_agent                # wxO auto-generates chat_with_collaborator_<name> tool.
-                                 # Routing driven by collaborator `description`. (live-verified 2.12.0)
+                                 # Routing driven by collaborator `description`.
                                  # Not valid for experimental_customer_care style.
 knowledge_base:
   - product_docs
@@ -58,7 +58,7 @@ context_access_enabled: true
 memory_enabled: true             # retain context/history across sessions
                                  # See examples/agent_builder/agentic_memory/ for a working example
 is_schedulable: null             # 2.11+ — true enables recurring runs
-                                 # ⚠ Must be enabled at tenant level first; YAML alone silently resets (live-verified 2.12.0)
+                                 # ⚠ Must be enabled at tenant level first; YAML alone silently resets (live-verified)
                                  # Once enabled, internal scheduling tools are visible/deletable via ADK CLI (known issue)
 restrictions: null               # 2.11+ — access restrictions
 compaction_settings:             # 2.11+ — prevents context overflow in long chats
@@ -72,7 +72,7 @@ compaction_settings:             # 2.11+ — prevents context overflow in long c
 chat_with_docs:                  # let end users upload docs in-chat (RAG over user-uploaded files)
   enabled: true
   supports_full_document: true
-  # ⚠ RUNTIME (live-verified 2.12.0 SaaS): chat_with_docs ingestion is wired for the chat UI /
+  # ⚠ RUNTIME (live-verified SaaS): chat_with_docs ingestion is wired for the chat UI /
   # embedded web-chat upload widget. Driving it through /v1/orchestrate/runs API did NOT make
   # the agent read the uploaded file. For PROGRAMMATIC document RAG, use `knowledge_base:` instead.
   # Also: RunClient.upload_file_to_s3 has a SaaS bug — must POST to /v1/orchestrate/upload-to-s3
@@ -585,7 +585,7 @@ def build_my_flow(aflow: Flow) -> Flow:
 ### Other flow-builder features
 - **Timer** — `aflow.timer(name=, delay=<seconds:int>)`
 
-⚠ **Not implemented in 2.12** (raise `ValueError` at build): `aflow.wait_for(...)`;
+⚠ **Not implemented in 2.13** (raise `ValueError` at build): `aflow.wait_for(...)`;
 `branch(evaluator=<function>)` as a callable (string evaluators work fine); Branch `MatchPolicy.ANY_MATCH`. Avoid these.
 
 ---
@@ -653,8 +653,8 @@ aflow.map_output(
 )
 ```
 
-**Docproc notes (2.12):**
-- Default extractor model is now `mistral-small` (changed in 2.12).
+**Docproc notes (2.13):**
+- Default extractor model is `mistral-small` (changed in 2.12, still current in 2.13).
 - Page-range extraction is supported (restrict to specific pages).
 - Use structured/vision extractor for forms and tables; unstructured/text for text-heavy docs.
 
@@ -667,7 +667,7 @@ Agents **cannot** pass user-uploaded files to a flow. The `docproc` node prompts
 
 ## 5. Document Extraction — `aflow.docext(...)` and `aflow.docclassifier(...)`
 
-These are the **preferred** document AI nodes (post-2.12). Use `docext`/`docclassifier` instead of `docproc` for new flows.
+These are the **preferred** document AI nodes (post-2.12, maintained in 2.13). Use `docext`/`docclassifier` instead of `docproc` for new flows.
 
 All document AI flows use `DocumentProcessingCommonInput` as input schema:
 ```python

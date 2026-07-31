@@ -50,6 +50,7 @@ orchestrate env activate my-onprem --api-key "$CPD_API_KEY"   # or: --username/-
 
 # Local Developer Edition (Docker, 16 GB RAM / 8 cores / 25 GB disk, entitlement key in .env)
 orchestrate server start -e .env --accept-terms-and-conditions && orchestrate env activate local
+# 2.13 extras: --with-voice(-v) · --with-connections-ui(-c) · --with-langflow · --with-ai-builder · --with-doc-processing(-d)
 ```
 
 `orchestrate env list` · `orchestrate env activate <name>` · `orchestrate env remove --name <name>`
@@ -170,7 +171,7 @@ instructions: >
   You are a helpful weather assistant. When the user asks about weather,
   call get_weather with the city name and present the result clearly.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic          # 2.12.0 default; `default` & `react` DEPRECATED
+style: react_intrinsic          # 2.13 default; `default` & `react` DEPRECATED
 tools:
   - get_weather
 starter_prompts:                # include 2–4; greatly improves UX
@@ -268,7 +269,7 @@ orchestrate connections configure -a my_api --kind api_key --type team --env dra
 orchestrate connections set-credentials -a my_api --env draft --api-key "$MY_API_KEY"
 ```
 
-**Models:** `orchestrate models list` to see available IDs. Default: `groq/openai/gpt-oss-120b`. Premier models disabled by default in 2.12+. Custom watsonx.ai model: create a `watsonx_credentials` key-value connection + `kind: model` YAML → `orchestrate models import --app-id watsonx_credentials`.
+**Models:** `orchestrate models list` to see available IDs. Default: `groq/openai/gpt-oss-120b`. Premier models disabled by default in 2.13+; check with `orchestrate models config are-premier-models-enabled`. Custom watsonx.ai model: create a `watsonx_credentials` key-value connection + `kind: model` YAML → `orchestrate models import --app-id watsonx_credentials`.
 
 **Knowledge bases:**
 ```
@@ -290,7 +291,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 |---|---|
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet |
 | Agent ignores a tool | Vague docstring; tool not named in instructions → improve both |
-| Docstring/type-hint warnings | **False positive in 2.12** — real cause: blank line between `Args:`/`Returns:`, or missing hints |
+| Docstring/type-hint warnings | **False positive** — real cause: blank line between `Args:`/`Returns:`, or missing hints |
 | "name cannot contain spaces" | Use snake_case |
 | `ModuleNotFoundError` at runtime | Add to `requirements.txt`, re-import with `-r`. Never add `ibm-watsonx-orchestrate` |
 | 401/403 on tool call | Wrong `app_id` or credentials not set → `orchestrate connections list` → re-run `set-credentials` |
@@ -319,7 +320,7 @@ One set of artifacts per project; only connection credentials and model `provide
 ```bash
 orchestrate channels webchat embed --agent-name <agent> --env live
 ```
-⚠ **CRN gotcha (SaaS 2.12.0):** auto-fetch 403s — extract CRN from bearer token:
+⚠ **CRN gotcha (SaaS):** auto-fetch 403s — extract CRN from bearer token:
 ```bash
 CRN=$(python -c "
 import yaml,os,json,base64
