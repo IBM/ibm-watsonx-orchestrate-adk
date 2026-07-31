@@ -56,16 +56,20 @@ If **No**: report "deployed; not tested at your request" and stop. If **Yes**:
 
 **Step 2 — run tests:**
 
-_Method A — `watsonx-orchestrate-adk` MCP available:_
-Use `watsonx-orchestrate-adk:chat_with_agent`. Pass `thread_id` from Turn 1 to Turn 2.
-
-_Method B — MCP not available (CLI):_
-```bash
-# Turn 1
-orchestrate chat ask -n <agent> "<prompt>" -r
-# Turn 2 — follow-up that requires context from Turn 1 (do NOT restate the entity)
-orchestrate chat ask -n <agent> "<follow-up>" -t <thread_id> -r
+**Preferred — use `watsonx-orchestrate-adk:chat_with_agent` (MCP):**
 ```
+Turn 1: chat_with_agent(agent_name=<agent>, message=<prompt>, include_reasoning=True)
+        → save thread_id from response
+Turn 2: chat_with_agent(agent_name=<agent>, message=<follow-up>, thread_id=<from Turn 1>, include_reasoning=True)
+```
+The follow-up must require context from Turn 1 — do NOT restate the entity.
+
+**Fallback — CLI (if MCP not available):**
+```bash
+orchestrate chat ask -n <agent> "<prompt>" -r          # Turn 1 → note thread_id
+orchestrate chat ask -n <agent> "<follow-up>" -t <thread_id> -r   # Turn 2
+```
+> ⚠ `chat ask` can hang on IBM Cloud SaaS — use the runtime REST API (`references/runtime-api.md §3`) if so.
 
 **Step 3 — pass criteria (assert on behavior, not exact text):**
 - No error · coherent on-topic answer
@@ -92,6 +96,17 @@ Result:   PASS | FAIL
 
 Report honestly: "deployed and tested (2/2)", "deployed; test N failed — …", or
 "deployed; not tested at your request."
+
+**Step 5 — fix → re-deploy → re-test loop:**
+
+If any test fails, do not stop. Follow this loop until all tests pass:
+1. Identify root cause from `reasoning` / `include_reasoning` output
+2. Fix the code (`.py`) or agent YAML (`.yaml`)
+3. Re-import: `./import-all.sh` (or the specific `orchestrate tools/agents import` command)
+4. Re-run the failing test(s) using `watsonx-orchestrate-adk:chat_with_agent`
+5. Repeat until all pass — then emit the final `TEST_REPORT.md`
+
+Only declare "done" when all tests pass — or the human explicitly asks you to stop.
 
 ---
 
