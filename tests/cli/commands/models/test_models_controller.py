@@ -1120,7 +1120,7 @@ class TestImportModelPolicy:
 
     def test_import_model_policy(self):
 
-        mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
+        mock_models_client = MockModelsClient(list_all_response=[{"id":self.mock_model_name}])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
@@ -1150,7 +1150,7 @@ class TestImportModelPolicy:
     
     def test_import_model_policy_model_not_found(self, caplog):
 
-        mock_models_client = MockModelsClient(list_response=[])
+        mock_models_client = MockModelsClient(list_all_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.safe_open", mock_open()) as mock_file, \
@@ -1179,7 +1179,7 @@ class TestCreateModelPolicy:
     mock_policy_strategy = ModelPolicyStrategyMode.FALL_BACK
 
     def test_create_model_policy(self):
-        mock_models_client = MockModelsClient(list_response=[MockModel(name=self.mock_model_name)])
+        mock_models_client = MockModelsClient(list_all_response=[{"id":self.mock_model_name}])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
@@ -1203,7 +1203,7 @@ class TestCreateModelPolicy:
             assert target.model_name == self.mock_model_name
     
     def test_create_model_policy_model_not_found(self, caplog):
-        mock_models_client = MockModelsClient(list_response=[])
+        mock_models_client = MockModelsClient(list_all_response=[])
         mock_policies_client = MockModelPoliciesClient(list_response=[])
 
         with patch("ibm_watsonx_orchestrate.cli.commands.models.models_controller.instantiate_client") as instantiate_client_mock:
