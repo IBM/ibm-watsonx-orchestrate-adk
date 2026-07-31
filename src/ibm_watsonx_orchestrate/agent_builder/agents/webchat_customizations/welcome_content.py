@@ -6,6 +6,7 @@ class WelcomeContent(BaseModel):
     welcome_message: str
     description: Optional[str] = None
     is_default_message: bool = False
+    is_user_barge_in_disabled: bool = False
 
     @model_validator(mode='before')
     def validate_fields(cls,values):
