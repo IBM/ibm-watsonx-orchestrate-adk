@@ -680,7 +680,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
