@@ -335,7 +335,8 @@ def agent_spec_with_welcome_content():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
@@ -367,7 +368,8 @@ def agent_spec_with_webchat_customizations():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
