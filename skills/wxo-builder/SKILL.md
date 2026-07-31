@@ -174,10 +174,8 @@ style: react_intrinsic          # 2.12.0 default; `default` & `react` DEPRECATED
 tools:
   - get_weather
 starter_prompts:                # include 2–4; greatly improves UX
-  is_default_prompts: false
   prompts: [{id: default0, title: Check weather, prompt: "What's the weather in Boston?", state: active}]
 welcome_content:
-  is_default_message: false
   welcome_message: Welcome to the Weather Agent
   description: Ask me about the weather in any city.
 # Production extras:

@@ -78,7 +78,6 @@ chat_with_docs:                  # let end users upload docs in-chat (RAG over u
   # Also: RunClient.upload_file_to_s3 has a SaaS bug — must POST to /v1/orchestrate/upload-to-s3
   # (no trailing slash), not /v1/upload-to-s3/.
 starter_prompts:
-  is_default_prompts: false
   prompts:
     - id: default0
       title: Short action title
@@ -86,7 +85,6 @@ starter_prompts:
       prompt: Example clickable prompt
       state: active
 welcome_content:
-  is_default_message: false
   welcome_message: Welcome to My Agent
   description: One line on what it helps with
 ```
