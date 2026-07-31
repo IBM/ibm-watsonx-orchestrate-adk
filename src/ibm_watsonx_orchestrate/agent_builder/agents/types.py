@@ -208,6 +208,10 @@ class AgentSpec(BaseAgentSpec):
     plugins: Optional[Plugins] = Field(default_factory=Plugins)
     hidden: bool = False
     sync_tool_flow_interactions: Optional[bool] = None
+    change_log: Optional[List[str]] = None
+    bundled: Optional[bool] = None
+    version: Optional[str] = None
+    delete_by: Optional[str] = None
     knowledge_base: Optional[List[str]] | Optional[List['KnowledgeBaseSpec']] = []
     chat_with_docs: Optional[ChatWithDocsConfig] = None
     starter_prompts: Optional[StarterPrompts] = None
