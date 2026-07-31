@@ -1805,14 +1805,12 @@ services:
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://wxo-server-redis:6379/1"
       EVENT_BROKER_URL: "redis://wxo-server-redis:6379/2"
-      AGENT_STEP_DETAILS: "redis://wxo-server-redis:6379/3"
       CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
       WXO_RUNS_URL: "http://wxo-server:4321"
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
       JWT_PRIVATE_CONFIGS_PATH: "/"
       CALLER_ID: 12345
 
