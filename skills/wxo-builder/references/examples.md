@@ -93,7 +93,6 @@ tools:
 collaborators:
   - service_now_agent
 starter_prompts:
-  is_default_prompts: false
   prompts:
     - id: p1
       title: Check my claims
@@ -104,7 +103,6 @@ starter_prompts:
       prompt: Find a cardiologist near Chicago, IL
       state: active
 welcome_content:
-  is_default_message: false
   welcome_message: Healthcare Assistant
   description: Ask me about your claims, benefits, or nearby providers.
 ```
@@ -177,7 +175,6 @@ knowledge_base:
 tools:
   - get_stock_price
 starter_prompts:
-  is_default_prompts: false
   prompts:
     - id: p1
       title: IBM founding
@@ -188,7 +185,6 @@ starter_prompts:
       prompt: What is IBM's current stock price?
       state: active
 welcome_content:
-  is_default_message: false
   welcome_message: IBM Knowledge Agent
   description: Ask me anything about IBM history or its stock price.
 ```
@@ -300,14 +296,12 @@ instructions: >
 tools:
   - collaborator_agents_flow
 starter_prompts:
-  is_default_prompts: false
   prompts:
     - id: p1
       title: City facts
       prompt: Tell me about New York
       state: active
 welcome_content:
-  is_default_message: false
   welcome_message: City Facts Agent
   description: Ask me about weather, population, or history of a city.
 ```
@@ -470,14 +464,12 @@ instructions: >
 tools:
   - extract_contract_fields
 starter_prompts:
-  is_default_prompts: false
   prompts:
     - id: p1
       title: Extract contract
       prompt: Extract fields from my contract
       state: active
 welcome_content:
-  is_default_message: false
   welcome_message: Contract Extractor
   description: Upload a contract PDF and I will extract the key fields.
 ```
