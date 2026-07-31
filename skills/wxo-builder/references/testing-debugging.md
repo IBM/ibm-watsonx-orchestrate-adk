@@ -23,7 +23,7 @@ Scriptable single-turn test:
 ```bash
 orchestrate chat ask -n <agent> "<prompt>" -r   # -r reasoning · -l logs · -t <thread_id>
 ```
-> ⚠ On IBM Cloud SaaS, `chat ask` can hang in scripted use (live-verified 2.12.x).
+> ⚠ On IBM Cloud SaaS, `chat ask` can hang in scripted use.
 > Use `watsonx-orchestrate-adk:chat_with_agent` (MCP) or the runtime REST API instead.
 
 **Snapshot a known-good definition to Git:**
@@ -117,7 +117,7 @@ Only declare "done" when all tests pass — or the human explicitly asks you to 
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or a dependency not imported yet. |
 | "cannot be used to create a native agent" | `kind` mismatch — set `kind: native`. |
 | Agent ignores a tool | Weak docstring or tool not mentioned in `instructions`. Improve docstring; name the tool explicitly. |
-| Docstring/type-hint warnings on import | **Often false positive in 2.12** — fires on every Python tool; descriptions still parse. Real causes: blank line between `Args:` and `Returns:`, or missing type hints. |
+| Docstring/type-hint warnings on import | **Often false positive** — fires on every Python tool; descriptions still parse. Real causes: blank line between `Args:` and `Returns:`, or missing type hints. |
 | "name cannot contain spaces" | Use snake_case for tool/toolkit/agent `name`. |
 | `ModuleNotFoundError` at tool runtime | Add dep to `requirements.txt`; re-import with `-r`. Never add `ibm-watsonx-orchestrate`. |
 | Cross-file import error | Tool files must be self-contained — no `from .utils import x`. |
@@ -161,8 +161,8 @@ orchestrate observability traces export --trace-id <trace_id>
 curl -H "Authorization: Bearer $TOKEN" \
   "<instance-url>/v1/agentops-v3/traces/<trace_id>"
 ```
-> ⚠ On IBM Cloud SaaS, `traces search --last 1h` returns 0 results even when traces exist
-> (live-verified 2.12.x). Prefer `export --trace-id`. The `trace_id` is in every
+> ⚠ On IBM Cloud SaaS, `traces search --last 1h` returns 0 results even when traces exist.
+> Prefer `export --trace-id`. The `trace_id` is in every
 > `/v1/orchestrate/runs` response.
 
 **Local Developer Edition logs:**

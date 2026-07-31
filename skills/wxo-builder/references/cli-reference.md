@@ -1,6 +1,6 @@
 # `orchestrate` CLI Reference
 
-Verified against `ibm-watsonx-orchestrate` 2.12.x. CLI evolves fast — always confirm with
+Verified against `ibm-watsonx-orchestrate` 2.13.x. CLI evolves fast — always confirm with
 `orchestrate <group> --help`. Short flags in `()`.
 
 ## Contents
@@ -14,11 +14,12 @@ Verified against `ibm-watsonx-orchestrate` 2.12.x. CLI evolves fast — always c
 - [§8 server (Developer Edition)](#8-server--developer-edition)
 - [§9 chat](#9-chat)
 - [§10 channels · evaluations · observability · voice · others](#10-channels--evaluations--observability--voice--others)
+- [§11 skills](#11-skills)
 
 Top-level groups: `env`, `agents`, `tools`, `toolkits`, `knowledge-bases`, `connections`,
 `models`, `server`, `chat`, `channels`, `settings`, `evaluations`, `observability`,
-`voice-configs`, `phone`, `partners`, `workspaces`.
-> Note plural **`toolkits`** and **`voice-configs`** group names.
+`voice-configs`, `phone`, `partners`, `skills`.
+> Note plural **`toolkits`**, **`voice-configs`**, and **`skills`** group names.
 
 ---
 
@@ -45,7 +46,7 @@ CLI config lives at `~/.config/orchestrate/config.yaml` (shows `context.active_e
 
 | Command | Key options |
 |---------|-------------|
-| `agents import` | `--file(-f)`, `--app-id(-a)` (external), `--safe` |
+| `agents import` | `--file(-f)`, `--app-id(-a)` (external), `--package-root`, `--config-file`, `--safe` |
 | `agents create` | `--name(-n)`, `--kind(-k)`, `--description`, `--llm`, `--style`, `--instructions`, `--tools`, `--collaborators`, `--knowledge-bases`, `--output(-o)`, external: `--title(-t)`, `--api(-a)`, `--auth-scheme`, `--provider(-p)`, `--auth-config`, `--nickname`, `--app-id`, `--context-access-enabled`, `--context-variable(-v)` |
 | `agents list` | `--kind(-k)`, `--verbose(-v)` |
 | `agents export` | `--name(-n)`, `--kind(-k)`, `--output(-o)`, `--agent-only` |
@@ -53,8 +54,9 @@ CLI config lives at `~/.config/orchestrate/config.yaml` (shows `context.active_e
 | `agents undeploy` | `--name(-n)` |
 | `agents remove` | `--name(-n)`, `--kind(-k)` |
 | `agents copy` | `--name(-n)`, `--destination(-d)`, `--source(-s)` |
-| `agents discover` | A2A: `--url(-u)`, `--endpoint(-e)` (default `.well-known/agent-card.json`), `--name(-n)`, `--app-id(-a)` |
-| `agents ai-builder` | AI-assisted builder |
+| `agents discover` | Discover and import an A2A agent from a well-known URI: `--url(-u)`, `--endpoint(-e)` (default `.well-known/agent-card.json`), `--name(-n)`, `--app-id(-a)` |
+| `agents connect` | Add one or more application connections to a custom agent: `--name(-n)`, `--app-id(-a)` |
+| `agents ai-builder` | AI tools to help create and refine agents. Subcommands: `create`, `prompt-tune`, `autotune` |
 
 `--kind`: `native | external | assistant`.
 
@@ -71,10 +73,13 @@ orchestrate agents deploy -n weather_agent
 
 | Command | Key options |
 |---------|-------------|
-| `tools import` | `--kind(-k) python\|openapi\|flow\|langflow`, `--file(-f)`, `--requirements-file(-r)`, `--package-root(-p)`, `--app-id(-a)` (repeatable), `--name(-n)`, `--auto-discover`, `--llm`, `--env-file`, `--save-flow-json`, `--safe` |
+| `tools import` | `--kind(-k) python\|openapi\|flow\|langflow`, `--file(-f)`, `--requirements-file(-r)`, `--package-root(-p)`, `--app-id(-a)` (repeatable), `--name(-n)`, `--auto-discover`, `--llm`, `--env-file(-e)`, `--function`, `--save-flow-json`, `--translation`, `--safe` |
 | `tools list` | `--verbose(-v)` |
 | `tools export` | `--name(-n)`, `--output(-o)` ⚠ exports ZIP (not YAML); base name must be underscore-only |
 | `tools remove` | `--name(-n)` |
+| `tools auto-discover` | Annotate and generate docstring for a python tool via LLM: `--env-file(-e)` *(required)*, `--file(-f)` *(required)*, `--output(-o)` *(required)*, `--llm`, `--function` |
+| `tools translation-export` | Retrieve translations for a flow tool: `--name(-n)` |
+| `tools translation-import` | Import translations for a flow tool from a CSV file: `--name(-n)`, `--file(-f)` |
 
 ```bash
 orchestrate tools import -k python -f tools/weather.py -r tools/requirements.txt
@@ -171,7 +176,8 @@ orchestrate connections list
 | `models add` | `--name(-n)`, `--description(-d)`, `--display-name`, `--provider-config` (JSON), `--app-id(-a)`, `--type [chat\|chat_vision\|completion\|embedding]` |
 | `models export` | `--name(-n)`, `--output(-o)` |
 | `models remove` | `--name(-n)` |
-| `models config` | subgroup: `list`, `default` (set tenant default), `denylist`, `reset`, `import`, `export` |
+| `models validate` | Validate a model configuration: `--name(-n)`, `--verbose(-v)` |
+| `models config` | subgroup: `list`, `default` (set tenant default), `denylist`, `reset`, `import`, `export`, `are-premier-models-enabled` (check status), `enable-premier-models`, `disable-premier-models` |
 | `models policy` | route pseudo-models across downstreams: `add`, `remove`, `import`, `export` |
 
 ```bash
@@ -186,11 +192,12 @@ orchestrate models config default    # set tenant default LLM
 
 | Command | Key options |
 |---------|-------------|
-| `server start` | `--env-file(-e)`, `--with-langfuse(-l)`, `--with-ibm-telemetry(-i)`, `--with-doc-processing(-d)`, `--accept-terms-and-conditions` |
+| `server start` | `--env-file(-e)`, `--with-langfuse(-l)`, `--with-ibm-telemetry(-i)`, `--with-doc-processing(-d)`, `--with-voice(-v)` (enable voice controller), `--with-connections-ui(-c)` (OAuth connections UI), `--with-langflow` (Langflow UI at http://localhost:7861), `--with-ai-builder` (AI Builder features), `--sequential-pull` (pull images individually), `--cert-bundle-path` (custom certificate bundle), `--service-username` / `--service-password` (Developer Edition service credentials), `--accept-terms-and-conditions` |
 | `server stop` | — |
 | `server reset` | wipe local tenant state |
 | `server logs` | tail service logs |
 | `server purge` | remove containers/volumes |
+| `server images prune` | trim CPD docker image layer cache |
 | `server edit/eject/ssh/attach-docker/release-docker` | advanced Docker lifecycle |
 
 ```bash
@@ -214,7 +221,7 @@ orchestrate server stop
 orchestrate chat ask -n weather_agent "What's the weather in Paris?" -r
 orchestrate chat ask -n weather_agent "And tomorrow?" -t <thread_id>
 ```
-> ⚠ On IBM Cloud SaaS, `chat ask` can hang in scripted use (live-verified 2.12.x).
+> ⚠ On IBM Cloud SaaS, `chat ask` can hang in scripted use (live-verified 2.13.x).
 > Use the runtime REST API or `watsonx-orchestrate-adk:chat_with_agent` for CI/scripted testing.
 
 ---
@@ -222,9 +229,33 @@ orchestrate chat ask -n weather_agent "And tomorrow?" -t <thread_id>
 ## 10. channels · evaluations · observability · voice · others
 
 - **channels**: `create`, `delete`, `get`, `list`, `list-channels`, `import`, `export`, `webchat` — expose deployed agent on a channel; `orchestrate channels webchat --help`.
-- **evaluations**: `evaluate`, `quick-eval`, `generate`, `analyze`, `record`, `validate-native`, `validate-external`, `red-teaming` — covered by the evaluations skill.
+- **evaluations**: `evaluate`, `quick-eval`, `generate`, `analyze`, `record`, `validate-native`, `validate-external`, `red-teaming` (subgroup: `list`, `plan`, `run` — generate and run red-teaming attacks) — covered by the evaluations skill.
 - **observability**: `traces search`, `traces export --trace-id <id>` — inspect execution traces.
   > ⚠ On SaaS, `traces search` returns 0 results even when traces exist. Prefer `traces export --trace-id`.
-- **settings**: configure active env (observability/Langfuse tracing).
-- **voice-configs** / **phone**: voice-enabled agents. 2.12+ default: Deepgram Flux General English.
-- **partners**: catalog/offering publishing. **workspaces**: multi-workspace management.
+- **settings**: configure active env (observability/Langfuse tracing); `set-encoding` / `unset-encoding` (set encoding type for file access); `docker` (configuration for docker host).
+- **voice-configs** / **phone**: voice-enabled agents. 2.13+ default: Deepgram Flux General English.
+- **partners**: catalog/offering publishing.
+
+---
+
+## 11. skills
+
+Manages IBM watsonx Orchestrate skills (distinct from Python tool functions).
+
+| Command | Key options |
+|---------|-------------|
+| `skills import` | `--file(-f)`, `--safe` |
+| `skills update` | `--file(-f)`, `--name(-n)` |
+| `skills list` | `--verbose(-v)` |
+| `skills remove` | `--name(-n)` |
+| `skills export` | `--name(-n)`, `--output(-o)` |
+| `skills get` | `--name(-n)` — retrieve skill details |
+| `skills upload-script` | upload a skill script artifact |
+| `skills upload-reference` | upload a skill reference artifact |
+
+```bash
+orchestrate skills list
+orchestrate skills import -f skills/my_skill.yaml
+orchestrate skills export -n my_skill -o my_skill_export.yaml
+orchestrate skills remove -n my_skill
+```
