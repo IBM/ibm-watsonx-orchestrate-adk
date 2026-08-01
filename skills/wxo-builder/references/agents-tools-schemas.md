@@ -266,7 +266,7 @@ aflow.sequence(START, n1, n2, END)              # chain nodes
 aflow.edge(a, b)                                # individual edge
 aflow.edge(a, b).edge(b, c)                     # fluent chaining
 
-# Map input to a node parameter (expressions must start with `flow.`)
+# Map input to a node parameter — call as a METHOD on the node, not a kwarg on aflow.tool()
 node.map_input("param", "flow.input.field")
 node.map_input("param", "flow.input.field", default_value="fallback")
 
@@ -277,6 +277,39 @@ aflow.map_output("msg", "flow.get_hello_message.output")   # scalar output
 
 `map_input`/`map_output` expressions are **single-line Python** — list comprehensions and inline
 logic only. No defining or calling functions; flow-file functions are not available at runtime.
+
+> ⚠ **`map_input`/`map_output` are node methods, NOT `aflow.tool()` kwargs.**
+> `aflow.tool(my_fn, map_input="...")` raises `TypeError: got an unexpected keyword argument 'map_input'`.
+> Always call them on the returned node object:
+> ```python
+> node = aflow.tool(my_fn)
+> node.map_input("field", "flow.input.field")   # ✅ correct
+> ```
+
+> ⚠ **Automatic inter-tool mapping produces slash-prefixed keys.**
+> When tool B follows tool A in a sequence and both share field names, the platform may
+> pass keys as `/field_name` (JSON Pointer notation) instead of `field_name`, causing
+> `TypeError: got an unexpected keyword argument '/field_name'` at runtime.
+> **Fix:** always source shared fields explicitly from `flow.input.*` using `node.map_input()`,
+> rather than relying on automatic pass-through between tool nodes:
+> ```python
+> node_b = aflow.tool(tool_b)
+> node_b.map_input("record_id",  "flow.input.record_id")   # ✅ safe
+> node_b.map_input("category",   "flow.input.category")
+> ```
+
+> ⚠ **`aflow.map_output()` does not materialise the final flow output dict at runtime.**
+> Calling `aflow.map_output("key", "flow.node.output.field")` compiles without error but the
+> `output` dict is empty `{}` when the flow completes.
+> **Fix:** use an `aflow.script()` node as the last step before `END` to assemble the output:
+> ```python
+> finish = aflow.script(
+>     name="build_output",
+>     script="self.output.status = flow.my_tool.output.status; self.output.message = flow.my_tool.output.msg",
+>     output_schema=MyOutputSchema,
+> )
+> aflow.sequence(my_tool_node, finish, END)
+> ```
 
 ### Script node — `aflow.script(...)`
 
