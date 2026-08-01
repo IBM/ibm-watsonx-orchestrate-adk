@@ -61,7 +61,7 @@ orchestrate server start -e .env --accept-terms-and-conditions && orchestrate en
 
 ```
 write tools + connections/models/KB → write agent YAML
-  → scripts/import-all.sh (connections → models → KB → tools/toolkits → agent)
+  → import-all.sh (connections → models → KB → tools/toolkits → agent)
   → test gate (§7) → debug + re-import → deploy to production (§11)
 ```
 
@@ -89,6 +89,15 @@ my_agent/
 import asyncio
 from pathlib import Path
 from tools.<flow_module> import build_<flow_name>   # adjust import to match your flow file
+from ibm_watsonx_orchestrate.flow_builder.flows import FlowRun
+
+async def run_flow(fdef, input_data: dict) -> FlowRun:
+    """Helper: construct a FlowRun and await it to full completion."""
+    # fdef.invoke() schedules _arun as a fire-and-forget task — do NOT use it for assertions.
+    # Construct FlowRun directly and await _arun() so output is populated before returning.
+    flow_run = FlowRun(flow=fdef.flow, deployed_flow_id=fdef.flow_id)
+    await flow_run._arun(input_data=input_data)
+    return flow_run
 
 async def main():
     # compile_deploy ONCE — the CompiledFlow object is reusable across invocations
@@ -97,11 +106,9 @@ async def main():
     generated_folder.mkdir(exist_ok=True)
     fdef.dump_spec(str(generated_folder / "<flow_name>.json"))   # saves compiled spec for inspection
 
-    # For run_flow() implementation and why fdef.invoke()/fdef.flow_run() don't work,
-    # see references/testing-debugging.md §4
-    result = await fdef.flow_run({"<input_field>": "<test_value>"}, debug=True)
-    print("Output:", result.output)
-    assert result.output.get("<expected_key>") == "<expected_value>", result.output
+    flow_run = await run_flow(fdef, {"<input_field>": "<test_value>"})
+    print("Output:", flow_run.output)
+    assert flow_run.output.get("<expected_key>") == "<expected_value>", flow_run.output
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -111,7 +118,7 @@ if __name__ == "__main__":
 - Only create `tests/main_flow.py` when the project contains at least one `@flow`. Skip it entirely for tool-only or agent-only projects.
 - If the project has multiple flows, test each one in the same file with separate `async` functions.
 - Call `compile_deploy()` **once** at the top of `main()` — calling it again raises `ValueError: Flow has already been compiled`.
-- Use the `run_flow()` helper from `references/testing-debugging.md §4` — `fdef.invoke()` and `fdef.flow_run()` don't work reliably (see reference for why).
+- **Never** use `fdef.invoke()` for assertions — it schedules `_arun` as a background `asyncio.create_task` and returns a `FlowRun` with `output=None` immediately. Instead, construct `FlowRun` directly and `await flow_run._arun(input_data=...)` — this blocks until `ON_FLOW_END` fires and `flow_run.output` is populated. Use the `run_flow()` helper shown in the template above.
 - ⚠ **Platform pre-processes inputs**: the wxO LLM layer silently normalises invalid inputs. Assert against **business-state outcomes** (mock data that always returns fixed status), not input-validation rejections.
 - Run with `python tests/main_flow.py` (set `PYTHONPATH=.` first).
 - The `generated/` folder is auto-created and gitignored.
@@ -204,7 +211,7 @@ def build_weather_flow(aflow: Flow) -> Flow:
 
 **Default LLM:** `groq/openai/gpt-oss-120b` · **Node builders:** `aflow.tool` · `aflow.prompt` · `aflow.agent` · `aflow.script` · `aflow.foreach` · `aflow.conditions` · `aflow.parallel_conditions` · `aflow.docext` · `aflow.docclassifier` · `aflow.docproc` · `aflow.userflow`
 
-**Programmatic test:** `await build_weather_flow().compile_deploy()` then `.invoke({"city": "Paris"}, debug=True)`
+**Programmatic test:** `fdef = await build_weather_flow().compile_deploy()` — then use the `run_flow()` helper from `tests/main_flow.py` to invoke and await the result (see §3 scaffold). Do **not** call `fdef.invoke()` for assertions — it returns `output=None` immediately.
 
 Full flow node API → **[references/agents-tools-schemas.md §3–4](references/agents-tools-schemas.md)**.
 
@@ -219,21 +226,14 @@ instructions: >
   You are a helpful weather assistant. When the user asks about weather,
   call get_weather with the city name and present the result clearly.
 llm: groq/openai/gpt-oss-120b
-style: react_core
+style: react_intrinsic          # 2.13 default; `default` & `react` DEPRECATED
 tools:
   - get_weather
-starter_prompts:                # include 2–4; set `is_default_prompts: false`, each prompt needs `subtitle` & `state: active`
-  is_default_prompts: false
-  prompts:
-    - id: default0
-      title: Check weather
-      subtitle: ''
-      prompt: "What's the weather in Boston?"
-      state: active
+starter_prompts:                # include 2–4; greatly improves UX
+  prompts: [{id: default0, title: Check weather, prompt: "What's the weather in Boston?"}]
 welcome_content:
   welcome_message: Welcome to the Weather Agent
   description: Ask me about the weather in any city.
-  is_default_message: false     # REQUIRED for custom welcome_content to render
 # Production extras:
 # compaction_settings: {context_compaction_enabled: true, context_compaction_threshold: 20000, compaction_sliding_window: 10}
 # llm_config: {temperature: 0, max_tokens: 2048}
@@ -244,7 +244,7 @@ welcome_content:
 
 **Multi-agent (collaborators):**
 ```yaml
-style: react_core        # experimental_customer_care does NOT support collaborators
+style: react_intrinsic   # experimental_customer_care does NOT support collaborators
 collaborators:           # import/deploy collaborators FIRST
   - dr_wilson
   - dr_cuddy
@@ -300,7 +300,7 @@ Run the programmatic flow test *before* any agent chat test:
 ```bash
 source venv/bin/activate && python tests/main_flow.py
 ```
-If it fails: fix flow → update scripts → `./import-all.sh` → re-run test until pass.
+A flow unit test must pass before proceeding to agent testing. If it fails, fix the flow, update `import-all.sh`/`delete-all.sh` if files changed, re-run `./import-all.sh`, then re-run `tests/main_flow.py` until it passes.
 
 **Step 2 — Agent smoke-test:**
 Ask:
@@ -366,7 +366,6 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | Symptom | Cause → Fix |
 |---|---|
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet |
-| Starter prompts not showing in UI | Missing `is_default_prompts: false` at `starter_prompts` level, or missing `subtitle: ''` / `state: active` on each prompt entry, or missing `is_default_message: false` on `welcome_content` |
 | Agent ignores a tool | Vague docstring; tool not named in instructions → improve both |
 | Docstring/type-hint warnings on `tools import` | **Known false positive** — fires on every tool with a Pydantic/dict/list return type; tool imports and runs fine. Only a real problem if: (1) blank line between `Args:` and `Returns:`, or (2) a param has no type hint. |
 | "name cannot contain spaces" | Use snake_case |

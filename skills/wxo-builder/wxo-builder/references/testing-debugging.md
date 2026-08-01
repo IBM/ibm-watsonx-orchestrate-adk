@@ -134,44 +134,19 @@ Only declare "done" when all tests pass — or the human explicitly asks you to 
 
 ## 4. Programmatic flow testing
 
-Test the compiled flow spec after importing all Python tools (the flow engine resolves tool names
-at runtime against the platform — tools must be imported first via `import-all.sh`).
-
+Test the compiled flow spec before importing:
 ```python
 import asyncio
 from pathlib import Path
-from ibm_watsonx_orchestrate.flow_builder.flows import FlowRun
 from tools.weather_flow import build_weather_flow
-
-async def run_flow(fdef, input_data: dict, debug: bool = False):
-    """Instantiate a FlowRun and await full completion. Returns output dict."""
-    def noop_end(output): pass
-    def noop_err(error): pass
-    flow_run = FlowRun(
-        flow=fdef.flow,
-        deployed_flow_id=fdef.flow_id,
-        on_flow_end_handler=noop_end,
-        on_flow_error_handler=noop_err,
-        debug=debug,
-    )
-    await flow_run._arun(input_data=input_data)
-    return flow_run.output
 
 async def main():
     fdef = await build_weather_flow().compile_deploy()
     fdef.dump_spec(f"{Path(__file__).parent}/generated/weather_flow.json")
-    output = await run_flow(fdef, {"city": "Paris"}, debug=True)  # debug prints every node I/O
-    print("Output:", output)
+    await fdef.invoke({"city": "Paris"}, debug=True)   # debug=True prints every node's I/O
 
 asyncio.run(main())
 ```
-
-**Why not `fdef.invoke()` or `fdef.flow_run()`?**
-- `fdef.flow_run()` — **does not exist** on `CompiledFlow`; raises `AttributeError`.
-- `fdef.invoke()` — is `async` but passes `None` for `on_flow_end_handler`/`on_flow_error_handler`,
-  which fails Pydantic validation on `FlowRun` (`Input should be callable`).
-- **Correct pattern**: instantiate `FlowRun` directly with `noop` callables → `await flow_run._arun(input_data=...)`.
-
 `debug=True` surfaces each node's input/output — pinpoints bad `map_input`/`map_output` expressions.
 
 ---
