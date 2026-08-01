@@ -33,9 +33,10 @@ tags:
 ## 2. Setup & Environment
 
 ```bash
-source venv/bin/activate && orchestrate --version   # venv auto-created by VS Code extension
-# manual: python3 -m venv venv && source venv/bin/activate && pip install -U ibm-watsonx-orchestrate
+source venv/bin/activate && orchestrate --version
 ```
+
+**Finding the venv (multi-project workspaces):** check `./venv/` first (project root), then `../venv/` (repo root, shared across projects). In scripts, resolve paths relative to the script's directory for portability.
 
 `orchestrate` targets the **active environment** (`orchestrate env list`). Confirm before importing.
 
@@ -364,6 +365,10 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | Works locally, missing in prod | Wrong active env → `orchestrate env list` → activate → re-import |
 | `No agents with the name 'X'` | Used display name; get snake_case from `orchestrate agents list -v` |
 | Flow won't compile | Check signature, `system_prompt` present, single-line expressions |
+| `conditions()` branch always takes the `default` path | Wrong expression path: use `flow.<node_name>.output.<field>`, **not** `flow.steps.<node_name>.output.<field>` (the `steps.` prefix is invalid at runtime) |
+| `aflow.tool(fn, map_input="...")` raises `unexpected keyword argument` | `map_input`/`map_output` are **node methods**, not `aflow.tool()` kwargs — call `node.map_input(...)` after `node = aflow.tool(fn)` |
+| Tool receives `/field_name` instead of `field_name` (slash-prefixed keys) | Automatic inter-tool mapping uses JSON Pointer notation — source all shared fields explicitly via `node.map_input("f", "flow.input.f")` instead |
+| Final flow `output` is `{}` despite `aflow.map_output()` calls | `aflow.map_output()` does not materialise the output dict at runtime — use an `aflow.script()` node before `END` to write `self.output.*` fields instead |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
 | Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
 

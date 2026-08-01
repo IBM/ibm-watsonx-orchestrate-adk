@@ -15,6 +15,7 @@ Verified against `ibm-watsonx-orchestrate` 2.13.x. CLI evolves fast — always c
 - [§9 chat](#9-chat)
 - [§10 channels · evaluations · observability · voice · others](#10-channels--evaluations--observability--voice--others)
 - [§11 skills](#11-skills)
+- [§12 venv bootstrap](#12-venv-bootstrap)
 
 Top-level groups: `env`, `agents`, `tools`, `toolkits`, `knowledge-bases`, `connections`,
 `models`, `server`, `chat`, `channels`, `settings`, `evaluations`, `observability`,
@@ -272,3 +273,37 @@ orchestrate skills import -f skills/my_skill.yaml
 orchestrate skills export -n my_skill -o my_skill_export.yaml
 orchestrate skills remove -n my_skill
 ```
+
+---
+
+## 12. venv bootstrap
+
+The ADK requires Python ≥3.11, <3.15. Use **`uv`** (fast) or the stdlib `venv` module.
+
+**Preferred — `uv` with Python 3.12:**
+```bash
+# Install uv if not present
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create the venv at the repo/workspace root (shared by all projects inside)
+cd /path/to/workspace-root
+uv venv venv --python 3.12
+
+# Activate and install the ADK
+source venv/bin/activate
+uv pip install -U ibm-watsonx-orchestrate
+orchestrate --version   # confirm
+```
+
+**Fallback — stdlib venv:**
+```bash
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -U ibm-watsonx-orchestrate
+```
+
+**Where to create the venv:**
+- If you have a single project: create `venv/` at the project root.
+- If you have multiple project sub-folders inside a workspace: create `venv/` at the **workspace root** (one level above all project folders). All `import-all.sh` scripts look `../venv/` first before falling back to `./venv/`.
+
+**Never commit the venv** — add `venv/` to `.gitignore`.
