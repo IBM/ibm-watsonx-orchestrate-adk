@@ -61,7 +61,7 @@ orchestrate server start -e .env --accept-terms-and-conditions && orchestrate en
 
 ```
 write tools + connections/models/KB → write agent YAML
-  → import-all.sh (connections → models → KB → tools/toolkits → agent)
+  → scripts/import-all.sh (connections → models → KB → tools/toolkits → agent)
   → test gate (§7) → debug + re-import → deploy to production (§11)
 ```
 
@@ -75,9 +75,11 @@ my_agent/
 ├── models/         *.yaml  (custom models only)
 ├── tests/
 │   └── main_flow.py   ← programmatic flow test (ONLY create this file when the project contains a @flow)
+│   └── TEST_REPORT.md
 ├── generated/         ← auto-created by test script; stores compiled flow JSON specs
-├── import-all.sh   dependency-ordered imports
-├── delete-all.sh
+├── scripts/
+│   └── import-all.sh   dependency-ordered imports
+│   └── delete-all.sh
 └── .env            secrets (gitignored)
 ```
 
@@ -89,11 +91,17 @@ from pathlib import Path
 from tools.<flow_module> import build_<flow_name>   # adjust import to match your flow file
 
 async def main():
+    # compile_deploy ONCE — the CompiledFlow object is reusable across invocations
     fdef = await build_<flow_name>().compile_deploy()
     generated_folder = Path(__file__).resolve().parent.parent / "generated"
     generated_folder.mkdir(exist_ok=True)
     fdef.dump_spec(str(generated_folder / "<flow_name>.json"))   # saves compiled spec for inspection
-    await fdef.invoke({"<input_field>": "<test_value>"}, debug=True)   # debug=True prints every node's I/O
+
+    # For run_flow() implementation and why fdef.invoke()/fdef.flow_run() don't work,
+    # see references/testing-debugging.md §4
+    result = await fdef.flow_run({"<input_field>": "<test_value>"}, debug=True)
+    print("Output:", result.output)
+    assert result.output.get("<expected_key>") == "<expected_value>", result.output
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -102,8 +110,11 @@ if __name__ == "__main__":
 **Rules:**
 - Only create `tests/main_flow.py` when the project contains at least one `@flow`. Skip it entirely for tool-only or agent-only projects.
 - If the project has multiple flows, test each one in the same file with separate `async` functions.
-- Run with `python tests/main_flow.py` (set `PYTHONPATH` to the project root first: `export PYTHONPATH=.`).
-- The `generated/` folder is auto-created and should be gitignored.
+- Call `compile_deploy()` **once** at the top of `main()` — calling it again raises `ValueError: Flow has already been compiled`.
+- Use the `run_flow()` helper from `references/testing-debugging.md §4` — `fdef.invoke()` and `fdef.flow_run()` don't work reliably (see reference for why).
+- ⚠ **Platform pre-processes inputs**: the wxO LLM layer silently normalises invalid inputs. Assert against **business-state outcomes** (mock data that always returns fixed status), not input-validation rejections.
+- Run with `python tests/main_flow.py` (set `PYTHONPATH=.` first).
+- The `generated/` folder is auto-created and gitignored.
 
 ## 4. Python Tools (`@tool`)
 
@@ -128,6 +139,8 @@ def get_weather(city: str) -> WeatherInfo:
 ```
 
 **Must-haves:** `@tool` on every callable · Google-style docstring (summary → `Args:` → `Returns:`, **no blank line between them**) · type hints on all params and return · self-contained file (no cross-file local imports) · Pydantic models as explicit classes · never add `ibm-watsonx-orchestrate` to `requirements.txt`.
+**`ToolPermission` valid values:** `READ_ONLY` · `WRITE_ONLY` · `READ_WRITE` · `ADMIN` — **`WRITE` does not exist**; use `WRITE_ONLY` for any tool that mutates state.
+**Docstring warning with `dict` return type:** tools that return `dict` emit `[WARNING] Unable to properly parse parameter descriptions …` on import — this is a **known ADK false positive**; the tool imports and runs correctly. Only a real problem if: (1) blank line between `Args:` and `Returns:`, or (2) a param has no type hint.
 
 **Credentials** — never pass as parameters; declare in `expected_credentials` and fetch at runtime:
 ```python
@@ -157,6 +170,14 @@ orchestrate tools import -k python -f tools/api_tool.py --app-id my_api
 Full decorator signature, ConnectionType values, and Pydantic patterns → **[references/agents-tools-schemas.md §2](references/agents-tools-schemas.md)**.
 
 ## 5. Flows (`@flow`)
+
+> **Flow vs. Agent:** use `@flow` for deterministic sequences (BPMN/SOP), agent for LLM-decided order. If you can draw a flowchart → `@flow`.
+>
+> | Signal | Use `@flow` | Use agent |
+> |---|---|---|
+> | Step sequence | Fixed, deterministic | Dynamic (LLM decides) |
+> | Source | BPMN diagram / SOP | Open-ended conversation |
+> | Data | Structured, typed (Pydantic) | Unstructured / natural language |
 
 ```python
 from pydantic import BaseModel
@@ -198,14 +219,21 @@ instructions: >
   You are a helpful weather assistant. When the user asks about weather,
   call get_weather with the city name and present the result clearly.
 llm: groq/openai/gpt-oss-120b
-style: react_intrinsic          # 2.13 default; `default` & `react` DEPRECATED
+style: react_core
 tools:
   - get_weather
-starter_prompts:                # include 2–4; greatly improves UX
-  prompts: [{id: default0, title: Check weather, prompt: "What's the weather in Boston?", state: active}]
+starter_prompts:                # include 2–4; set `is_default_prompts: false`, each prompt needs `subtitle` & `state: active`
+  is_default_prompts: false
+  prompts:
+    - id: default0
+      title: Check weather
+      subtitle: ''
+      prompt: "What's the weather in Boston?"
+      state: active
 welcome_content:
   welcome_message: Welcome to the Weather Agent
   description: Ask me about the weather in any city.
+  is_default_message: false     # REQUIRED for custom welcome_content to render
 # Production extras:
 # compaction_settings: {context_compaction_enabled: true, context_compaction_threshold: 20000, compaction_sliding_window: 10}
 # llm_config: {temperature: 0, max_tokens: 2048}
@@ -216,7 +244,7 @@ welcome_content:
 
 **Multi-agent (collaborators):**
 ```yaml
-style: react_intrinsic   # experimental_customer_care does NOT support collaborators
+style: react_core        # experimental_customer_care does NOT support collaborators
 collaborators:           # import/deploy collaborators FIRST
   - dr_wilson
   - dr_cuddy
@@ -232,8 +260,10 @@ Full schema (external/assistant kinds, `guidelines`, `structured_output`, `chat_
 >    ```bash
 >    chmod +x import-all.sh && ./import-all.sh
 >    ```
-> 2. **`import-all.sh` does not exist** → create it first (connections → models → KB → tools → agent), then execute it.
+> 2. **`import-all.sh` does not exist** → create it first (connections → models → KB → tools → agent), then execute it immediately with `execute_command`.
 > 3. **MCP tools** (`import_tool`, `import_agent`, etc.) → last resort only, when creating and running `import-all.sh` is not possible.
+> ⚠️ **"Just created it" trap:** If you wrote `import-all.sh` in the current turn, execute it with `execute_command` in the very next step. Do NOT switch to MCP import tools — the script you just created IS the right mechanism.
+> ⚠️ **Keep scripts in sync:** Whenever you add, rename, or remove a tool, flow, connection, model, KB, or agent file, you MUST update both `import-all.sh` and `delete-all.sh` in the same turn — before running them. Never re-import a single file manually outside the script; always go through `import-all.sh`.
 
 ```bash
 # import-all.sh template
@@ -250,11 +280,30 @@ orchestrate agents import        -f agents/weather_agent.yaml
 `-k` values: `python|openapi|flow|langflow`. Use `--safe` to prompt before overwriting.
 MCP toolkit: `orchestrate toolkits add -k mcp -n <name> --description "…" --package-root ./mcp_server --language node --command '["node","dist/index.js"]' --tools "*"`
 
+For cleanup: use `orchestrate <resource> remove` in **reverse import order** (agents → tools → kb → models → connections). Always append `|| true` for idempotency:
+```bash
+orchestrate agents remove -n weather_agent --kind native || true
+orchestrate tools remove -n weather_flow || true
+orchestrate knowledge-bases remove -n my_kb || true
+orchestrate models remove -n my_model || true
+orchestrate connections remove -a my_api || true
+```
+
 ## 8. Test Gate (verify before handover)
 
 **Deployed ≠ verified.** Never declare "done" until tested — or the human explicitly declines.
 
-After `./import-all.sh`, ask:
+After `./import-all.sh`:
+
+**Step 1 — Unit-test flows (if `tests/main_flow.py` exists):**
+Run the programmatic flow test *before* any agent chat test:
+```bash
+source venv/bin/activate && python tests/main_flow.py
+```
+If it fails: fix flow → update scripts → `./import-all.sh` → re-run test until pass.
+
+**Step 2 — Agent smoke-test:**
+Ask:
 > "`<agent>` is deployed to `<env>`. Want me to smoke-test it? I'll run 1 single-turn + 1 multi-turn — read-only prompts." — Yes / No
 
 **Execute (preferred):** `watsonx-orchestrate-adk:chat_with_agent` — Turn 1 with `include_reasoning=True`, save `thread_id`, Turn 2 with same `thread_id`.
@@ -317,6 +366,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | Symptom | Cause → Fix |
 |---|---|
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet |
+| Starter prompts not showing in UI | Missing `is_default_prompts: false` at `starter_prompts` level, or missing `subtitle: ''` / `state: active` on each prompt entry, or missing `is_default_message: false` on `welcome_content` |
 | Agent ignores a tool | Vague docstring; tool not named in instructions → improve both |
 | Docstring/type-hint warnings on `tools import` | **Known false positive** — fires on every tool with a Pydantic/dict/list return type; tool imports and runs fine. Only a real problem if: (1) blank line between `Args:` and `Returns:`, or (2) a param has no type hint. |
 | "name cannot contain spaces" | Use snake_case |

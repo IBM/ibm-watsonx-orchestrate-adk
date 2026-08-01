@@ -97,11 +97,9 @@ starter_prompts:
     - id: p1
       title: Check my claims
       prompt: What are my open medical claims?
-      state: active
     - id: p2
       title: Find a cardiologist
       prompt: Find a cardiologist near Chicago, IL
-      state: active
 welcome_content:
   welcome_message: Healthcare Assistant
   description: Ask me about your claims, benefits, or nearby providers.
@@ -179,11 +177,9 @@ starter_prompts:
     - id: p1
       title: IBM founding
       prompt: When was IBM founded and what was its original name?
-      state: active
     - id: p2
       title: Stock price
       prompt: What is IBM's current stock price?
-      state: active
 welcome_content:
   welcome_message: IBM Knowledge Agent
   description: Ask me anything about IBM history or its stock price.
@@ -300,7 +296,6 @@ starter_prompts:
     - id: p1
       title: City facts
       prompt: Tell me about New York
-      state: active
 welcome_content:
   welcome_message: City Facts Agent
   description: Ask me about weather, population, or history of a city.
@@ -468,7 +463,6 @@ starter_prompts:
     - id: p1
       title: Extract contract
       prompt: Extract fields from my contract
-      state: active
 welcome_content:
   welcome_message: Contract Extractor
   description: Upload a contract PDF and I will extract the key fields.
