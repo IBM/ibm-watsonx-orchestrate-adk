@@ -73,10 +73,37 @@ my_agent/
 ├── connections/    *.yaml
 ├── knowledge_base/ *.yaml + source docs
 ├── models/         *.yaml  (custom models only)
+├── tests/
+│   └── main_flow.py   ← programmatic flow test (ONLY create this file when the project contains a @flow)
+├── generated/         ← auto-created by test script; stores compiled flow JSON specs
 ├── import-all.sh   dependency-ordered imports
 ├── delete-all.sh
 └── .env            secrets (gitignored)
 ```
+
+**`tests/main_flow.py` — create this file whenever the project contains a `@flow`:**
+```python
+# tests/main_flow.py
+import asyncio
+from pathlib import Path
+from tools.<flow_module> import build_<flow_name>   # adjust import to match your flow file
+
+async def main():
+    fdef = await build_<flow_name>().compile_deploy()
+    generated_folder = Path(__file__).resolve().parent.parent / "generated"
+    generated_folder.mkdir(exist_ok=True)
+    fdef.dump_spec(str(generated_folder / "<flow_name>.json"))   # saves compiled spec for inspection
+    await fdef.invoke({"<input_field>": "<test_value>"}, debug=True)   # debug=True prints every node's I/O
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Rules:**
+- Only create `tests/main_flow.py` when the project contains at least one `@flow`. Skip it entirely for tool-only or agent-only projects.
+- If the project has multiple flows, test each one in the same file with separate `async` functions.
+- Run with `python tests/main_flow.py` (set `PYTHONPATH` to the project root first: `export PYTHONPATH=.`).
+- The `generated/` folder is auto-created and should be gitignored.
 
 ## 4. Python Tools (`@tool`)
 
@@ -291,7 +318,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 |---|---|
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or dependency not imported yet |
 | Agent ignores a tool | Vague docstring; tool not named in instructions → improve both |
-| Docstring/type-hint warnings | **False positive** — real cause: blank line between `Args:`/`Returns:`, or missing hints |
+| Docstring/type-hint warnings on `tools import` | **Known false positive** — fires on every tool with a Pydantic/dict/list return type; tool imports and runs fine. Only a real problem if: (1) blank line between `Args:` and `Returns:`, or (2) a param has no type hint. |
 | "name cannot contain spaces" | Use snake_case |
 | `ModuleNotFoundError` at runtime | Add to `requirements.txt`, re-import with `-r`. Never add `ibm-watsonx-orchestrate` |
 | 401/403 on tool call | Wrong `app_id` or credentials not set → `orchestrate connections list` → re-run `set-credentials` |

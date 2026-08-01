@@ -161,6 +161,11 @@ Rules:
 - Every param and return value: type hint matching docstring type.
 - Missing type hints → parser warns and defaults to `str`.
 
+> ⚠️ **`ToolPermission` valid values:** `READ_ONLY` · `WRITE_ONLY` · `READ_WRITE` · `ADMIN`.
+> `ToolPermission.WRITE` **does not exist** — it raises `AttributeError` at import time. Use `READ_WRITE`.
+
+> ℹ️ **Type-hint import warning** (`Unable to properly parse parameter descriptions due to missing or incorrect type hints`) is a **known false positive**. It fires on every tool with a Pydantic model, `dict`, or `list` return type. The tool imports successfully and descriptions are parsed correctly. It is only a real error when: a blank line exists between `Args:` and `Returns:`, or a parameter has no type annotation at all.
+
 ### Credentials at runtime (never as function parameters)
 
 ```python
