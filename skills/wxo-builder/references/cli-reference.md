@@ -37,6 +37,10 @@ orchestrate env list
 orchestrate env add -n prod -u https://api.us-south.watson-orchestrate.cloud.ibm.com/instances/XXXX
 orchestrate env activate prod --api-key "$IBM_CLOUD_API_KEY"
 orchestrate env remove --name prod
+
+# On-prem (CPD)
+orchestrate env add -n my-onprem -u https://<cpd-host>/orchestrate --type cpd
+orchestrate env activate my-onprem --api-key "$CPD_API_KEY"   # or: --username/--password
 ```
 CLI config lives at `~/.config/orchestrate/config.yaml` (shows `context.active_environment`).
 
@@ -229,6 +233,15 @@ orchestrate chat ask -n weather_agent "And tomorrow?" -t <thread_id>
 ## 10. channels · evaluations · observability · voice · others
 
 - **channels**: `create`, `delete`, `get`, `list`, `list-channels`, `import`, `export`, `webchat` — expose deployed agent on a channel; `orchestrate channels webchat --help`.
+  > ⚠ **Webchat embed CRN gotcha (SaaS):** `channels webchat embed` auto-fetch of the CRN 403s. Extract the CRN from the cached bearer token and pipe it in:
+  > ```bash
+  > CRN=$(python -c "
+  > import yaml,os,json,base64
+  > t=yaml.safe_load(open(os.path.expanduser('~/.cache/orchestrate/credentials.yaml')))['auth']['<env>']['wxo_mcsp_token']
+  > p=t.split('.')[1];p+='='*(-len(p)%4)
+  > print(json.loads(base64.urlsafe_b64decode(p))['unique_instance_crns'][0])")
+  > echo "$CRN" | orchestrate channels webchat embed --agent-name <agent> --env live
+  > ```
 - **evaluations**: `evaluate`, `quick-eval`, `generate`, `analyze`, `record`, `validate-native`, `validate-external`, `red-teaming` (subgroup: `list`, `plan`, `run` — generate and run red-teaming attacks) — covered by the evaluations skill.
 - **observability**: `traces search`, `traces export --trace-id <id>` — inspect execution traces.
   > ⚠ On SaaS, `traces search` returns 0 results even when traces exist. Prefer `traces export --trace-id`.
