@@ -326,6 +326,8 @@ script = "self.output.message = flow.private.greeting"
 script = "flow.private.user = system.user.search_by_email('user@example.com')[0]"
 ```
 
+**Constructor:** `aflow.script(name="...", script="...", output_schema=MySchema)` — **not** `set_code()` method (which does not exist). Built-in functions like `hasattr`, `len`, etc. are **not** available; use only flow state and simple operators.
+
 `output_schema` on the node makes `self.output.*` typed:
 ```python
 class Greeting(BaseModel):
@@ -398,6 +400,20 @@ b = aflow.conditions(name="route")
 b.condition(expression="flow.input.severity == 'high'", to_node=urgent_node)
 b.condition(default=True, to_node=routine_node)
 ```
+
+**⚠️ Conditional + Output Mapping Pattern:** If both branches must contribute output to `flow.map_output()`, wire both to a **consolidation node** before `END`:
+```python
+consolidate = aflow.script(
+    name="consolidate",
+    script="self.output.result = flow.urgent.output.result or flow.routine.output.result",
+    output_schema=Result
+)
+aflow.edge(urgent_node, consolidate)
+aflow.edge(routine_node, consolidate)
+aflow.edge(consolidate, END)
+aflow.map_output("result", "flow.consolidate.output.result")  # ✅ Both paths reach it
+```
+Mapping directly from a conditional branch (without consolidation) imports successfully but produces `{}` output at runtime.
 
 ### Callbacks
 ```python
