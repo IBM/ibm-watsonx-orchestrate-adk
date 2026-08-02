@@ -141,8 +141,7 @@ def get_weather(city: str) -> WeatherInfo:
 
 **Must-haves:** `@tool` on every callable · Google-style docstring (summary → `Args:` → `Returns:`, **no blank line between them**) · type hints on all params and return · self-contained file (no cross-file local imports) · Pydantic models as explicit classes · never add `ibm-watsonx-orchestrate` to `requirements.txt`.
 **`ToolPermission` valid values:** `READ_ONLY` · `WRITE_ONLY` · `READ_WRITE` · `ADMIN`. **`WRITE` does not exist**; use `WRITE_ONLY` for any tool that mutates state.
-**Docstring warning with `dict` return type:** tools that return `dict` emit `[WARNING] Unable to properly parse parameter descriptions …` on import; this is a **known ADK false positive** and the tool imports and runs correctly. Only a real problem if: (1) blank line between `Args:` and `Returns:`, or (2) a param has no type hint.
-
+**Docstring/type-hint import warning** (Pydantic/`dict`/`list` returns): known ADK false positive; imports and runs fine. A real problem only if (1) a blank line sits between `Args:` and `Returns:`, or (2) a param lacks a type hint. Full note → **references/agents-tools-schemas.md**.
 **Credentials** — never pass as parameters; declare in `expected_credentials` and fetch at runtime:
 ```python
 from ibm_watsonx_orchestrate.agent_builder.connections import ConnectionType, ExpectedCredentials
@@ -203,7 +202,7 @@ def build_weather_flow(aflow: Flow) -> Flow:
 
 **Must-haves:** signature exactly `def build_<name>(aflow: Flow) -> Flow:` · one flow per file · `system_prompt` required on `aflow.prompt(...)` · `map_input`/`map_output` single-line Python only · wire with `aflow.sequence(START, …, END)` or `aflow.edge(a, b)`.
 
-**`@flow` decorator options:** `name`, `display_name`, `description`, `input_schema`, `output_schema`, `schedulable` · `suppress_agent_summarization=True` — prevents the agent from re-interpreting/reformatting the flow's final output; the last node's result is surfaced verbatim to the user.
+**`@flow` decorator options:** `name`, `display_name`, `description`, `input_schema`, `output_schema`, `schedulable`, `suppress_agent_summarization` (surface the last node's output verbatim; full note in §10 and references/agents-tools-schemas.md §3).
 
 **Default LLM:** `groq/openai/gpt-oss-120b` · **Node builders:** `aflow.tool` · `aflow.prompt` · `aflow.agent` · `aflow.script` · `aflow.foreach` · `aflow.conditions` · `aflow.parallel_conditions` · `aflow.docext` · `aflow.docclassifier` · `aflow.docproc` · `aflow.userflow`
 
@@ -372,7 +371,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | `conditions()` branch always takes the `default` path | Wrong expression path: use `flow.<node_name>.output.<field>`, **not** `flow.steps.<node_name>.output.<field>` (the `steps.` prefix is invalid at runtime) |
 | `aflow.tool(fn, map_input="...")` raises `unexpected keyword argument` | `map_input`/`map_output` are **node methods**, not `aflow.tool()` kwargs — call `node.map_input(...)` after `node = aflow.tool(fn)` |
 | Tool receives `/field_name` instead of `field_name` (slash-prefixed keys) | Automatic inter-tool mapping uses JSON Pointer notation — source all shared fields explicitly via `node.map_input("f", "flow.input.f")` instead |
-| Final flow `output` is `{}` despite `aflow.map_output()` calls | `aflow.map_output()` does not materialise the output dict at runtime — use an `aflow.script()` node before `END` to write `self.output.*` fields instead |
+| Final flow `output` is `{}` despite `aflow.map_output()` calls | Likely cause: output mapped from a conditional branch without a consolidation node. **Both paths must wire to a common node before `END`** — create a script consolidation node, wire both branches to it, then map from consolidation node. See conditional + output mapping pattern below. |
 | Agent returns hallucinated content instead of flow output | Agent `instructions` say to "reformat" or "summarise" output — agent ignores the flow result and generates its own. Fix: move formatting into the flow's final `prompt` node; instruct the agent to present the result as-is. Use `suppress_agent_summarization=True` on the `@flow` decorator. |
 | `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
