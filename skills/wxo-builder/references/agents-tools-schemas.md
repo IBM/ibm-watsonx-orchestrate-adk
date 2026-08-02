@@ -612,7 +612,7 @@ Source: [`examples/flow_builder/triage_workflow_agent_swarm`](../../examples/flo
     input_schema=MyInput,
     output_schema=MyOutput,
     private_schema=MyPrivate,
-    suppress_agent_summarization=True,  # suppress LLM summary between nodes (useful for simple flows)
+    suppress_agent_summarization=True,  # prevents the agent from re-interpreting/reformatting the flow's final output; the last node's result is surfaced verbatim to the user
 )
 def build_my_flow(aflow: Flow) -> Flow:
     ...

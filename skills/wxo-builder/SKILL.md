@@ -49,6 +49,8 @@ orchestrate agents list   # confirm connected
 
 # Local Developer Edition (Docker, 16 GB RAM / 8 cores / 25 GB disk, entitlement key in .env)
 orchestrate server start -e .env --accept-terms-and-conditions && orchestrate env activate local
+# ⚠ Document processing nodes (docproc/docext/docclassifier) require the WDU service — add -d:
+# orchestrate server start -d -e .env --accept-terms-and-conditions
 # On-prem CPD setup + all env/server flags (--with-voice/-langflow/-ai-builder, extras) → references/cli-reference.md §1, §8
 ```
 
@@ -107,7 +109,7 @@ if __name__ == "__main__":
 ```
 
 **Rules:**
-- Only create `tests/main_flow.py` when the project contains at least one `@flow`. Skip it entirely for tool-only or agent-only projects.
+- **Always create `tests/main_flow.py`** when the project contains at least one `@flow` — required deliverable, not optional. Skip only for tool-only or agent-only projects (no `@flow` present). ⚠ Exception: flows that use `docproc`/`docext`/`docclassifier` nodes require a live WDU service and a real uploaded file — they cannot be unit-tested programmatically; skip `tests/main_flow.py` for those flows only.
 - If the project has multiple flows, test each one in the same file with separate `async` functions.
 - Call `compile_deploy()` **once** at the top of `main()`; calling it again raises `ValueError: Flow has already been compiled`.
 - Use the `run_flow()` helper from `references/testing-debugging.md §4`; `fdef.invoke()` and `fdef.flow_run()` don't work reliably (see reference for why).
@@ -200,6 +202,8 @@ def build_weather_flow(aflow: Flow) -> Flow:
 ```
 
 **Must-haves:** signature exactly `def build_<name>(aflow: Flow) -> Flow:` · one flow per file · `system_prompt` required on `aflow.prompt(...)` · `map_input`/`map_output` single-line Python only · wire with `aflow.sequence(START, …, END)` or `aflow.edge(a, b)`.
+
+**`@flow` decorator options:** `name`, `display_name`, `description`, `input_schema`, `output_schema`, `schedulable` · `suppress_agent_summarization=True` — prevents the agent from re-interpreting/reformatting the flow's final output; the last node's result is surfaced verbatim to the user.
 
 **Default LLM:** `groq/openai/gpt-oss-120b` · **Node builders:** `aflow.tool` · `aflow.prompt` · `aflow.agent` · `aflow.script` · `aflow.foreach` · `aflow.conditions` · `aflow.parallel_conditions` · `aflow.docext` · `aflow.docclassifier` · `aflow.docproc` · `aflow.userflow`
 
@@ -369,6 +373,8 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | `aflow.tool(fn, map_input="...")` raises `unexpected keyword argument` | `map_input`/`map_output` are **node methods**, not `aflow.tool()` kwargs — call `node.map_input(...)` after `node = aflow.tool(fn)` |
 | Tool receives `/field_name` instead of `field_name` (slash-prefixed keys) | Automatic inter-tool mapping uses JSON Pointer notation — source all shared fields explicitly via `node.map_input("f", "flow.input.f")` instead |
 | Final flow `output` is `{}` despite `aflow.map_output()` calls | `aflow.map_output()` does not materialise the output dict at runtime — use an `aflow.script()` node before `END` to write `self.output.*` fields instead |
+| Agent returns hallucinated content instead of flow output | Agent `instructions` say to "reformat" or "summarise" output — agent ignores the flow result and generates its own. Fix: move formatting into the flow's final `prompt` node; instruct the agent to present the result as-is. Use `suppress_agent_summarization=True` on the `@flow` decorator. |
+| `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
 | Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
 
