@@ -125,6 +125,8 @@ Only declare "done" when all tests pass — or the human explicitly asks you to 
 | Model not found / no default | `orchestrate models list`; set `llm:` to a listed id or run `orchestrate models config default`. |
 | Flow won't compile | Signature must be `def build_<name>(aflow: Flow) -> Flow:`; `prompt` nodes need `system_prompt`; `map_*` expressions single-line. |
 | Doc flow can't get uploaded file | Don't ask the agent to upload — the `docproc`/`docext` node prompts the user. Agent just invokes the flow. |
+| Agent returns hallucinated content instead of flow output | Agent `instructions` say to "reformat" or "summarise" output — agent ignores the flow result and generates its own. Fix: move formatting into the flow's final `prompt` node; instruct the agent to present the result as-is. Use `suppress_agent_summarization=True` on the `@flow` decorator. |
+| `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart server with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Works locally, absent in prod | Wrong active env. `orchestrate env list` → activate → re-import. |
 | `No agents with the name 'X'` | Used display name. Get snake_case `name` from `orchestrate agents list -v`. |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` = reasoning, `-l` = logs). |
