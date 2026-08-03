@@ -562,6 +562,17 @@ weather_node = aflow.agent(
 ```
 Output accessible at `flow.<name>.output.<field>`. Agents run sequentially by default; chain with `aflow.sequence(...)`.
 
+> ⚠ **Agent nodes do NOT auto-receive output from a preceding script node.**
+> There is no automatic pass-through from `aflow.script()` to `aflow.agent()`. You must
+> explicitly call `map_input` on the agent node, pointing at the script node's output field:
+> ```python
+> collect = aflow.script(name="collect_context", script="self.output.message = ...", output_schema=ContextSchema)
+> summary = aflow.agent(name="generate_summary", agent="summary_agent", output_schema=SummarySchema)
+> summary.map_input("message", "flow.collect_context.output.message")   # ✅ required
+> aflow.sequence(collect, summary, END)
+> ```
+> Without `map_input`, the agent receives an empty prompt and produces a fallback/hallucinated response.
+
 > ⚠ **`output_schema` is required for field-level output mapping from agent nodes.**
 > Without it, the agent's entire response is wrapped in a single `message` string and
 > `flow.<name>.output.category` (or any other field) will be `None` at runtime, causing
