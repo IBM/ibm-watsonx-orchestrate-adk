@@ -246,7 +246,7 @@ def build_weather_flow(aflow: Flow) -> Flow:      # signature is mandatory
 | `aflow.prompt(name, system_prompt, user_prompt, llm, ...)` | LLM prompt node — `system_prompt` REQUIRED |
 | `aflow.script(name, script, output_schema)` | Inline Python code block |
 | `aflow.userflow(name, display_name)` | User interaction subflow |
-| `aflow.agent(name, agent, message, input_schema, output_schema)` | Call another agent as a node |
+| `aflow.agent(name, agent, message, input_schema, output_schema)` | Call another agent as a node — **`output_schema` required for field-level mapping** |
 | `aflow.docproc(name, task, ...)` | Legacy KVP document extraction |
 | `aflow.docext(name, fields, llm, ...)` | Structured document extraction — returns `(node, OutputSchema)` |
 | `aflow.docclassifier(name, classes, llm, ...)` | Document classification |
@@ -561,6 +561,25 @@ weather_node = aflow.agent(
 )
 ```
 Output accessible at `flow.<name>.output.<field>`. Agents run sequentially by default; chain with `aflow.sequence(...)`.
+
+> ⚠ **`output_schema` is required for field-level output mapping from agent nodes.**
+> Without it, the agent's entire response is wrapped in a single `message` string and
+> `flow.<name>.output.category` (or any other field) will be `None` at runtime, causing
+> downstream tool calls to fail with `missing required positional arguments`.
+> Always define a Pydantic model matching the agent's JSON response and pass it as `output_schema`:
+> ```python
+> class ClassificationOutput(BaseModel):
+>     category: str
+>     severity: str
+>
+> classify = aflow.agent(
+>     name="classify_incident",
+>     agent="classification_specialist",
+>     output_schema=ClassificationOutput,   # ✅ fields now accessible downstream
+> )
+> classify.map_input("incident_description", "flow.input.incident_description")
+> # now works: create_ticket.map_input("category", "flow.classify_incident.output.category")
+> ```
 
 Source: [`examples/flow_builder/collaborator_agents`](../../examples/flow_builder/collaborator_agents/tools/collaborator_agents_flow.py)
 
