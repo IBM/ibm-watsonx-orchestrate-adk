@@ -354,6 +354,14 @@ class WorkspacesController:
                 account_id = token.get('account', {}).get('bss') if isinstance(token.get('account'), dict) else None
 
                 if not account_id:
+                    # Try direct account field
+                    account_id = token.get('account')
+
+                if not account_id:
+                    # Try direct tenant field
+                    account_id = token.get('tenant')
+
+                if not account_id:
                     logger.error("Could not extract account ID from token")
                     sys.exit(1)
                 
