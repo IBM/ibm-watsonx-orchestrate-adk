@@ -162,12 +162,14 @@ kind: knowledge_base
 name: product_docs
 description: Product documentation for grounding answers.
 documents:
-  - path: doc1.pdf
-  - path: doc2.docx
+  - doc1.pdf
+  - doc2.docx
 vector_index:
   embeddings_model_name: ibm/slate-125m-english-rtrvr-v2
 ```
-- No external infra required. Supports PDF/DOCX/PPTX/XLSX/CSV/HTML/TXT.
+- No external infra required. Supports **PDF/DOCX/PPTX/XLSX/CSV/HTML/TXT** — `.md` is **not** supported and will error at import time.
+- `documents:` entries are **flat strings** (not `- path: …` objects).
+- **Path resolution**: document paths are resolved **relative to the KB YAML file's directory**, not the shell CWD. Either place docs alongside the YAML, or run `import` with `cd` into the YAML's directory: `(cd knowledge-bases && orchestrate knowledge-bases import -f kb.yaml)`.
 - `orchestrate knowledge-bases import -f kb.yaml`
 - `orchestrate knowledge-bases status -n product_docs`  — watch indexing progress.
 - Reference in agent YAML: `knowledge_base: [product_docs]`
