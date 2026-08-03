@@ -320,7 +320,7 @@ class UserIdleHandlerLangConfig(BaseModel):
     description="Localized final hangup message for this language."
   )
 
-class AudioClips(Enum):
+class AudioClips(str, Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
   silence = "silence"
@@ -339,6 +339,7 @@ class AgentIdleHandler(AgentIdleHandlerMessages):
   typing_duration_seconds: int = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
   audio_clip_id: AudioClips = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
   hold_audio_seconds: int = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
+  long_running_task_seconds: Optional[int] = Field(default=2, ge=0, le=120, description="Seconds of agent processing time before the pre-hold message is triggered")
 
 class LanguageVoiceConfig(BaseModel):
   """Voice configuration for a specific language"""
