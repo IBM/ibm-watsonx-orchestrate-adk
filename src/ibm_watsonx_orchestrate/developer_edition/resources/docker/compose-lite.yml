@@ -228,7 +228,8 @@ services:
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_AGENT_DEBUG: "true"
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -282,7 +283,8 @@ services:
       ENABLE_LANGGRAPH_AGENT: "true"
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
       ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
@@ -675,7 +677,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
