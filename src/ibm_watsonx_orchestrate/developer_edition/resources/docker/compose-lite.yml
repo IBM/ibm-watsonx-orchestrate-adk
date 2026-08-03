@@ -56,12 +56,17 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
+      POSTGRES_HOST_ARCHER: wxo-server-db
+      POSTGRES_PORT_ARCHER: ${DB_PORT:-5432}
+      POSTGRES_USER_ARCHER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD_ARCHER: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_ARCHER: postgres
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
-      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
+      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1, "ENABLE_KB_MIGRATION":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
     ports:
       - 3001:3001
