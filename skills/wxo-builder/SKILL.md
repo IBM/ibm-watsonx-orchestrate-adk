@@ -217,7 +217,7 @@ spec_version: v1                # REQUIRED
 kind: native                    # REQUIRED
 name: weather_agent             # snake_case, no spaces
 description: Returns weather information for a location.   # REQUIRED — drives routing
-instructions: >
+instructions: |
   You are a helpful weather assistant. When the user asks about weather,
   call get_weather with the city name and present the result clearly.
 llm: groq/openai/gpt-oss-120b
@@ -373,6 +373,7 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | Tool receives `/field_name` instead of `field_name` (slash-prefixed keys) | Automatic inter-tool mapping uses JSON Pointer notation — source all shared fields explicitly via `node.map_input("f", "flow.input.f")` instead |
 | Final flow `output` is `{}` despite `aflow.map_output()` calls | Likely cause: output mapped from a conditional branch without a consolidation node. **Both paths must wire to a common node before `END`** — create a script consolidation node, wire both branches to it, then map from consolidation node. See conditional + output mapping pattern below. |
 | Agent returns hallucinated content instead of flow output | Agent `instructions` say to "reformat" or "summarise" output — agent ignores the flow result and generates its own. Fix: move formatting into the flow's final `prompt` node; instruct the agent to present the result as-is. Use `suppress_agent_summarization=True` on the `@flow` decorator. |
+| Flow output renders as flat unformatted prose in the UI | The agent LLM re-narrates the structured flow result instead of formatting it. The flow should return structured fields (multi-field Pydantic) — formatting is the agent's responsibility. Fix: in the agent `instructions`, explicitly specify the **exact markdown format** to use for each field returned by the flow (e.g. a table, headings, bold labels). Do not tell the agent to "reformat" or "summarise" — tell it precisely what to render and where. Alternatively, set `suppress_agent_summarization=True` on the `@flow` decorator to bypass the agent layer entirely and surface the last node's raw output verbatim. |
 | `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
 | Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
