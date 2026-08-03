@@ -117,6 +117,7 @@ Only declare "done" when all tests pass — or the human explicitly asks you to 
 | `agents import` required field error | Missing `spec_version`/`kind`/`name`/`description`, or a dependency not imported yet. |
 | "cannot be used to create a native agent" | `kind` mismatch — set `kind: native`. |
 | Agent ignores a tool | Weak docstring or tool not mentioned in `instructions`. Improve docstring; name the tool explicitly. |
+| Agent responds plausibly but never calls the flow/tool | Agent `tools:` list is empty (`tools: []`) — it has nothing to call. Check the live spec with `orchestrate agents list -v` and verify `tools` is populated. |
 | Docstring/type-hint warnings on import | **Often false positive** — fires on every Python tool; descriptions still parse. Real causes: blank line between `Args:` and `Returns:`, or missing type hints. |
 | "name cannot contain spaces" | Use snake_case for tool/toolkit/agent `name`. |
 | `ModuleNotFoundError` at tool runtime | Add dep to `requirements.txt`; re-import with `-r`. Never add `ibm-watsonx-orchestrate`. |
@@ -138,6 +139,10 @@ Only declare "done" when all tests pass — or the human explicitly asks you to 
 
 Test the compiled flow spec after importing all Python tools (the flow engine resolves tool names
 at runtime against the platform — tools must be imported first via `import-all.sh`).
+
+> ⚠ **`@flow`-decorated functions are compiled singletons.**
+> Calling `build_my_flow().compile_deploy()` a second time raises `ValueError: Flow has already been compiled`.
+> Compile once in `main()` and pass the `CompiledFlow` instance into each test scenario.
 
 ```python
 import asyncio
@@ -171,7 +176,9 @@ asyncio.run(main())
 **Why not `fdef.invoke()` or `fdef.flow_run()`?**
 - `fdef.flow_run()` — **does not exist** on `CompiledFlow`; raises `AttributeError`.
 - `fdef.invoke()` — is `async` but passes `None` for `on_flow_end_handler`/`on_flow_error_handler`,
-  which fails Pydantic validation on `FlowRun` (`Input should be callable`).
+  which fails Pydantic validation on `FlowRun` (`Input should be callable`). When handlers are
+  provided, `result.output` is `None` because output is delivered asynchronously after `await`
+  returns; the handler receives the output **`dict`** directly, not a `FlowRun` object.
 - **Correct pattern**: instantiate `FlowRun` directly with `noop` callables → `await flow_run._arun(input_data=...)`.
 
 `debug=True` surfaces each node's input/output — pinpoints bad `map_input`/`map_output` expressions.
