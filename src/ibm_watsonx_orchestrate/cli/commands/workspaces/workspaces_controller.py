@@ -346,42 +346,20 @@ class WorkspacesController:
                 sys.exit(1)
             
             # Decode token to extract account information
-            if is_cpd_env():
-                # Only for CP4D environments
-                token = jwt.decode(existing_token, options={"verify_signature": False})
-                
-                # Get account ID from token
-                account_id = token.get('account', {}).get('bss') if isinstance(token.get('account'), dict) else None
-
-                if not account_id:
-                    # Try direct account field
-                    account_id = token.get('account')
-
-                if not account_id:
-                    # Try direct tenant field
-                    account_id = token.get('tenant')
-
-                if not account_id:
-                    logger.error("Could not extract account ID from token")
-                    sys.exit(1)
-                
-                return account_id
-            else:
-                # Only for IBM Cloud environments
-                token = jwt.decode(existing_token, options={"verify_signature": False})
-                
-                # Get account ID from token
-                account_id = token.get('account', {}).get('bss') if isinstance(token.get('account'), dict) else None
-                
-                if not account_id:
-                    # Try direct account field
-                    account_id = token.get('account')
-                
-                if not account_id:
-                    logger.error("Could not extract account ID from token")
-                    sys.exit(1)
-                
-                return account_id
+            token = jwt.decode(existing_token, options={"verify_signature": False})
+            
+            # Get account ID from token
+            account_id = token.get('account', {}).get('bss') if isinstance(token.get('account'), dict) else None
+            
+            if not account_id:
+                # Try direct account field
+                account_id = token.get('account')
+            
+            if not account_id:
+                logger.error("Could not extract account ID from token")
+                sys.exit(1)
+            
+            return account_id
             
         except Exception as e:
             logger.error(f"Failed to extract account ID: {str(e)}")
