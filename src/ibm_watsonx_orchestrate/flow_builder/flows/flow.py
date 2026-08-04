@@ -1046,7 +1046,8 @@ class Flow(Node):
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
-            error_handler_config: NodeErrorHandlerConfig | None = None,) -> PromptNode:
+            error_handler_config: NodeErrorHandlerConfig | None = None,
+            include_agent_context: bool = False,) -> PromptNode:
 
         if name is None:
             raise ValueError("name must be provided.")
@@ -1066,6 +1067,7 @@ class Flow(Node):
             llm=llm,
             llm_parameters=llm_parameters,
             error_handler_config=error_handler_config,
+            include_agent_context=include_agent_context,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
