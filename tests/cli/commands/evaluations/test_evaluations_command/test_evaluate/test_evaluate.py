@@ -125,7 +125,7 @@ class TestLegacyEvalFlag:
                 )
 
     def test_warning_message_shown_with_beta_eval(self, config_file, user_env_file, monkeypatch, caplog):
-        """Test that warning message is shown when using beta evaluation (USE_LEGACY_EVAL=FALSE)"""
+        """Test that a deprecation warning is shown when USE_LEGACY_EVAL is set (flag is now ignored)"""
         import logging
         monkeypatch.setenv("USE_LEGACY_EVAL", "FALSE")
         with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.Config"), \
@@ -134,11 +134,10 @@ class TestLegacyEvalFlag:
             with patch.object(evaluations_controller.EvaluationsController, "evaluate"):
                 with caplog.at_level(logging.WARNING):
                     eval_cmd.evaluate(config_file=config_file, user_env_file=user_env_file)
-                    assert "Using new evaluation pipeline" in caplog.text
-                    assert "To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`" in caplog.text
+                    assert "USE_LEGACY_EVAL is deprecated" in caplog.text
 
-    def test_no_warning_message_with_legacy_eval(self, config_file, user_env_file, monkeypatch, caplog):
-        """Test that no warning message is shown when using legacy evaluation (USE_LEGACY_EVAL=TRUE)"""
+    def test_warning_message_shown_with_legacy_eval(self, config_file, user_env_file, monkeypatch, caplog):
+        """Test that a deprecation warning is shown when USE_LEGACY_EVAL=TRUE (flag is now ignored regardless of value)"""
         import logging
         monkeypatch.setenv("USE_LEGACY_EVAL", "TRUE")
         with patch("ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller.Config"), \
@@ -147,7 +146,7 @@ class TestLegacyEvalFlag:
             with patch.object(evaluations_controller.EvaluationsController, "evaluate"):
                 with caplog.at_level(logging.WARNING):
                     eval_cmd.evaluate(config_file=config_file, user_env_file=user_env_file)
-                    assert "Using new evaluation pipeline" not in caplog.text
+                    assert "USE_LEGACY_EVAL is deprecated" in caplog.text
 
 
 class TestEvaluateCommandOptions:

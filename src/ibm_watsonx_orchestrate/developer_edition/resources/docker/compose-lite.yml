@@ -63,6 +63,11 @@ services:
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      ALLOWED_SECURITY_SCHEMA: '["api_key_auth", "bearer_token", "basic_auth", "key_value_creds"]'
+      ALLOWED_AUTH_TYPE: '["oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
+      ALLOWED_COMPONENT_LIST: '["knowledge","ootb"]'
+      ALLOWED_JWT_ALGORITHMS: '["RS256","RS384","RS512"]'
+      MASK_KEYS: "client_id,client_secret,private_key,private_key_password"
     ports:
       - 3001:3001
   
@@ -80,7 +85,7 @@ services:
       TENANT_ID: ${REACT_APP_TENANT_ID}
       WXO_CHAT_URL: http://localhost:3000
       WXCO_C_FEATURES: '{"feature-41110":1,"feature-38924":0,"feature-45580":1,"enableCustomCredentials":1}'
-      CONNECTION_PILLS: "custom"
+      CONNECTION_PILLS: "custom,knowledge"
     ports:
      - "3412:3412"
     networks:
@@ -155,6 +160,10 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
+      TOOL_TIMEOUT: 300
+      HTTPX_READ_TIMEOUT: 300
+      JSON_SCHEMA_VALIDATION_STRICT: false
+      TOOL_DESCRIPTION_FORBIDDEN_PATTERNS_ENABLED: false
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -354,6 +363,7 @@ services:
       WXO_API_KEY: ${WXO_API_KEY}
       WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -577,6 +587,7 @@ services:
       - jaeger-network
     environment:
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -669,7 +680,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -912,6 +923,7 @@ services:
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "7999:7999"
@@ -1782,15 +1794,25 @@ services:
     platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
-    ports: 
+    ports:
       - 9876:8765
     environment:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://wxo-server-redis:6379/1"
+      EVENT_BROKER_URL: "redis://wxo-server-redis:6379/2"
+      AGENT_STEP_DETAILS: "redis://wxo-server-redis:6379/3"
       CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
       WXO_RUNS_URL: "http://wxo-server:4321"
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      CALLER_ID: 12345
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
