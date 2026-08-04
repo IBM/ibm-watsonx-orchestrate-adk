@@ -2,7 +2,7 @@
 
 ## Overview
 
-This pattern demonstrates how to use the `_meta.nextTool` field to create deterministic tool chains without relying on LLM reasoning. When a tool determines that another tool must be called next, it can explicitly instruct the client to invoke that tool with specific arguments, ensuring reliable multi-step workflows.
+This pattern demonstrates how to use the `_meta.nextTool` field to create deterministic tool chains without relying on LLM reasoning. When a tool determines that another tool must be called next, it can explicitly instruct the client to invoke that tool with specific parameters, ensuring reliable multi-step workflows.
 
 This pattern implements the [Tool Chaining Metadata Specification](./specChanges/ToolChainingMetadata.md) proposal for MCP.
 
@@ -149,7 +149,7 @@ export const prepareTransferTool = {
         _meta: {
           nextTool: {
             tool: 'request_agent_handoff',
-            arguments: {
+            parameters: {
               reason: `Customer attempted to transfer from locked account: ${fromAccount.accountName} (${fromAccount.accountId})`,
             },
           },
@@ -181,7 +181,7 @@ The complete flow when a locked account is detected:
 _meta: {
   nextTool: {
     tool: 'request_agent_handoff',           // Tool to call next
-    arguments: {                              // Structured arguments
+    parameters: {                              // Structured arguments
       reason: `Customer attempted to transfer from locked account: ${fromAccount.accountName} (${fromAccount.accountId})`
     }
   }
@@ -193,7 +193,7 @@ _meta: {
 The `nextTool` metadata field has two components:
 
 - **`tool`** (required): The exact name of the tool to invoke next
-- **`arguments`** (optional): A structured object containing the arguments to pass to that tool
+- **`parameters`** (optional): A structured object containing the arguments to pass to that tool
 
 **Benefits over natural language instructions:**
 

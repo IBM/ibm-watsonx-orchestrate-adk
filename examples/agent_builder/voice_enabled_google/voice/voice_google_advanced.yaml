@@ -1,0 +1,97 @@
+# Advanced example with all advanced optional fields
+
+name: google_voice_config_advanced
+llm_aggregation_timeout_seconds: 0.8  # Optional: Maximum time to wait for additional transcription content
+speech_to_text:
+  provider: google_stt
+  google_stt_config:
+    project_id: "your-gcp-project-id"  # Google Cloud project ID
+    credentials_json: "service-account-json"  # Service Account Credentials
+
+    # Language
+    language_code: "en-US"  # BCP-47 language tag
+    alternative_language_codes:  # Optional: Up to 3 additional BCP-47 language tags. Only supported for Voice Command and Voice Search use cases
+      - "es-US"
+      - "fr-CA"
+
+    # Model selection
+    model: "latest_long"  # Optional: latest_long | latest_short | command_and_search | phone_call | video | default | medical_conversation | medical_dictation
+    use_enhanced: true  # Optional: Use enhanced model variant when available. If enhanced variant does not exist, falls back to standard
+
+    # Result quality
+    max_alternatives: 3  # Optional: Maximum recognition hypotheses returned (0-30). Defaults to 1
+    profanity_filter: true  # Optional: Replace profanities with *** style masking. Defaults to false
+    enable_automatic_punctuation: true  # Optional: Add punctuation to recognition results. Defaults to false
+    enable_spoken_punctuation: true  # Optional: Replace spoken punctuation with symbols e.g. "question mark" → "?". Defaults to model-specific behavior
+    enable_interim_results: true  # Optional: Enable streaming partial results
+
+    # Word-level metadata
+    enable_word_time_offsets: true  # Optional: Include start/end timestamps per word in top result. Defaults to false
+    enable_word_confidence: true  # Optional: Include per-word confidence scores in top result. Defaults to false
+
+text_to_speech:
+  provider: google_tts
+  google_tts_config:
+    credentials_json: "service-account-json"  # Service Account Credentials. Can substitute with api_key
+
+    # Voice selection
+    # Voice type comparison:
+    #   Chirp 3 HD  — highest quality, conversational agents, supports streaming (GA)
+    #                 Does NOT support SSML, speaking_rate, pitch, volume, or effects_profile_id
+    #   Neural2     — general purpose, full SSML support (GA)
+    #   Studio      — media narration and news reading, full SSML support (GA)
+    #   WaveNet     — warm/human-like, full SSML support (GA)
+    #   Standard    — cost-efficient, full SSML support (GA)
+    voice: "en-US-Neural2-F"  # Full voice name. Use Neural2/WaveNet/Studio for speaking_rate, pitch, and volume support
+    language: "en-US"  # BCP-47 language tag. TTS may substitute a nearby dialect if exact match unavailable
+    ssml_gender: "FEMALE"  # Optional: Preferred voice gender — MALE | FEMALE | NEUTRAL. Not enforced if a matching voice is unavailable
+
+    # Audio output controls
+    # Note: speaking_rate, pitch, and volume_gain_db require a Neural2, Studio, WaveNet, or Standard voice.
+    # These are NOT supported for Chirp 3 HD voices.
+    speaking_rate: 1.0  # Optional: Speech speed (0.25-4.0). 1.0 = normal speed
+    pitch: 0.0  # Optional: Pitch adjustment in semitones (-20.0 to 20.0). 0.0 = default pitch
+    volume_gain_db: 0.0  # Optional: Volume gain in dB (-96.0 to 16.0). 0.0 = no change. Recommended not to exceed +10 to avoid clipping
+
+    # Effects profile
+    # Optimises audio for a specific playback device. Applied on top of speaking_rate/pitch/volume.
+    effects_profile_id:
+      - "telephony-class-application"  # Optional: Phone/telephony output
+
+language: "en-US"  # Optional: default language for the voice configuration (default: en-us)
+
+
+# Optional top-level voice configuration advanced settings
+# Voice Activity Detection (VAD)
+vad:
+  enabled: true  # Enable Voice Activity Detection, default is true
+  provider: "silero_vad"
+  silero_vad_config:
+    confidence: 0.7  # The confidence threshold for speech detection (between 0.0 and 1.0), default is 0.7
+    start_seconds: 0.2  # The time in seconds speech must be detected before transitioning to SPEAKING state, default is 0.2
+    stop_seconds: 0.8  # The time in seconds silence must be detected before transitioning to QUIET state, default is 0.8
+    min_volume: 0.6  # The minimum audio volume threshold for speech detection (between 0.0 and 1.0), default is 0.6
+
+# Dual-Tone Multi-Frequency (DTMF)
+dtmf_input:
+  inter_digit_timeout_ms: 2500  # The amount of time (ms) to wait for a new DTMF digit, default is 2500 ms
+  termination_key: "#"  # The DTMF termination key that signals the end of DTMF input
+  maximum_count: 10  # Maximum number of digits a user can enter
+  ignore_speech: true  # Disable speech recognition during collection of DTMF digits, default is true
+
+# User Idle Handler
+user_idle_handler:
+  enabled: true  # Enable idle handling. If false, we disconnect on timeout without playing a prompt
+  idle_timeout: 7  # Idle timeout in seconds before triggering the handler (default 7s)
+  idle_max_reprompts: 2  # How many times to replay before ending the session (0 = end immediately)
+  idle_timeout_message: "Are you still there? Please let me know if you need any help."  # Message to play on idle; language-specific variants may override this
+  idle_hangup_message: ""  # Final message to play before disconnecting after idle reprompts are exhausted
+
+# Agent Idle Handler (Audio Cues & Hold Music)
+agent_idle_handler:
+  typing_enabled: true  # Enable typing indicator
+  typing_duration_seconds: 5  # Duration of typing indicator in seconds (0-30)
+  audio_clip_id: "guitar_1"  # Audio clip to play during hold
+  hold_audio_seconds: 15  # Duration of hold audio in seconds (0-120)
+  pre_hold_message: "We're taking a little extra time but we'll be with you shortly. Thanks for your patience!"  # The text to play for the user before playing on-hold audio
+  hold_message: "Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait."  # The text to play to the user periodically while on hold

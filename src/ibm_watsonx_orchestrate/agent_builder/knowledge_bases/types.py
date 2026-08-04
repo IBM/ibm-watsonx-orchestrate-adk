@@ -209,7 +209,7 @@ class ElasticSearchConnection(BaseModel):
                     }
     }
     """
-    url: Optional[str] = None
+    url: Optional[str] = None  # URL can be provided in connection
     index: Optional[str] = None
     port: Optional[str] = None
     query_body: Optional[dict] = None
@@ -225,7 +225,7 @@ class CustomSearchConnection(BaseModel):
         "metadata": {...}
     }
     """
-    url: str
+    url: Optional[str] = None  # URL can be provided in connection
     filter: Optional[str] = None
     metadata: Optional[dict] = None
     field_mapping: Optional[FieldMapping] = None
@@ -248,7 +248,7 @@ class AstraDBConnection(BaseModel):
                     }
     }
     """
-    api_endpoint: str
+    api_endpoint: Optional[str] = None  # URL can be provided in connection
     port: Optional[str] = None
     server_cert: Optional[str] = None
     keyspace: Optional[str] = None
@@ -296,7 +296,7 @@ class OpenSearchConnection(BaseModel):
                     }
     }
     """
-    url: str
+    url: Optional[str] = None  # URL can be provided in connection
     index: str
     port: Optional[str] = None
     text_field: Optional[str] = None
