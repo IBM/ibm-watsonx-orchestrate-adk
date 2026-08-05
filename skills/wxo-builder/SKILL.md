@@ -790,6 +790,7 @@ Always include `starter_prompts` and `welcome_content` to improve user experienc
   - `welcome_message`: A friendly greeting that includes the agent's name/purpose
   - `description`: A brief explanation of what the agent can help with
   - Set `is_default_message: false` to use custom content
+  - Set `is_user_barge_in_disabled: true` to disable user barge-in during the welcome message
 
 **Example from St. Mary's Hospital Agent:**
 ```yaml

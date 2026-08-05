@@ -127,11 +127,11 @@ class DeepgramSTTConfig(BaseModel):
   @model_validator(mode="after")
   def validate_model_and_features(self):
     """Validate model and feature usage"""
-    # Warn if model doesn't start with nova-2 or nova-3
-    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+    # Warn if model doesn't start with nova-2 or nova-3 or flux
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3") or self.model.startswith("flux")):
       warnings.warn(
         f"Model '{self.model}' is not officially supported by the ADK. "
-        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Only nova-2, nova-3, and flux models (and their variations like nova-2-finance, nova-3-medical) are supported. "
         f"Proceed at your own risk.",
         UserWarning,
         stacklevel=2
@@ -320,7 +320,7 @@ class UserIdleHandlerLangConfig(BaseModel):
     description="Localized final hangup message for this language."
   )
 
-class AudioClips(Enum):
+class AudioClips(str, Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
   silence = "silence"
@@ -339,6 +339,7 @@ class AgentIdleHandler(AgentIdleHandlerMessages):
   typing_duration_seconds: int = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
   audio_clip_id: AudioClips = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
   hold_audio_seconds: int = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
+  long_running_task_seconds: Optional[int] = Field(default=2, ge=0, le=120, description="Seconds of agent processing time before the pre-hold message is triggered")
 
 class LanguageVoiceConfig(BaseModel):
   """Voice configuration for a specific language"""
