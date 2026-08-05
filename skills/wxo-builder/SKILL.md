@@ -75,7 +75,7 @@ my_agent/
 ├── knowledge_base/ *.yaml + source docs
 ├── models/         *.yaml  (custom models only)
 ├── tests/
-│   └── main_flow.py   ← programmatic flow test (ONLY create this file when the project contains a @flow)
+│   └── test_<flow_name>.py   ← one test file per @flow (ONLY create when the project contains a @flow)
 │   └── TEST_REPORT.md
 ├── generated/         ← auto-created by test script; stores compiled flow JSON specs
 ├── scripts/
@@ -84,9 +84,9 @@ my_agent/
 └── .env            secrets (gitignored)
 ```
 
-**`tests/main_flow.py`:**
+**`tests/test_<flow_name>.py`** (one per flow):
 ```python
-# tests/main_flow.py
+# tests/test_<flow_name>.py
 import asyncio
 from pathlib import Path
 from tools.<flow_module> import build_<flow_name>   # adjust import to match your flow file
@@ -109,12 +109,11 @@ if __name__ == "__main__":
 ```
 
 **Rules:**
-- **Always create `tests/main_flow.py`** when the project contains at least one `@flow` — required deliverable, not optional. Skip only for tool-only or agent-only projects (no `@flow` present). ⚠ Exception: flows that use `docproc`/`docext`/`docclassifier` nodes require a live WDU service and a real uploaded file — they cannot be unit-tested programmatically; skip `tests/main_flow.py` for those flows only.
-- If the project has multiple flows, test each one in the same file with separate `async` functions.
+- **Always create one `tests/test_<flow_name>.py` per `@flow`** — required deliverable, not optional. Skip only for tool-only or agent-only projects (no `@flow` present). ⚠ Exception: flows that use `docproc`/`docext`/`docclassifier` nodes require a live WDU service — skip those flows only.
 - Call `compile_deploy()` **once** at the top of `main()`; calling it again raises `ValueError: Flow has already been compiled`.
 - Use the `run_flow()` helper from `references/testing-debugging.md §4`; `fdef.invoke()` and `fdef.flow_run()` don't work reliably (see reference for why).
 - ⚠ **Platform pre-processes inputs**: the wxO LLM layer silently normalises invalid inputs. Assert against **business-state outcomes** (mock data that always returns fixed status), not input-validation rejections.
-- Run with `python tests/main_flow.py` (set `PYTHONPATH=.` first).
+- Run with `python -m pytest tests/ -v` (set `PYTHONPATH=.` first).
 - The `generated/` folder is gitignored.
 
 ## 4. Python Tools (`@tool`)
@@ -206,7 +205,7 @@ def build_weather_flow(aflow: Flow) -> Flow:
 
 **Default LLM:** `groq/openai/gpt-oss-120b` · **Node builders:** `aflow.tool` · `aflow.prompt` · `aflow.agent` · `aflow.script` · `aflow.foreach` · `aflow.conditions` · `aflow.parallel_conditions` · `aflow.docext` · `aflow.docclassifier` · `aflow.docproc` · `aflow.userflow`
 
-**Programmatic test:** `await build_weather_flow().compile_deploy()` then `.invoke({"city": "Paris"}, debug=True)`
+**Programmatic test (run after every flow change):** `await build_<flow_name>().compile_deploy()` then `.invoke(<input_dict>, debug=True)`. Verify the response is not `{}`, check every mapped output field, and confirm no `An error has occurred` in the agent chat response.
 
 Full flow node API → **[references/agents-tools-schemas.md §3–4](references/agents-tools-schemas.md)**.
 
@@ -294,11 +293,11 @@ orchestrate connections remove -a my_api || true
 
 After `./import-all.sh`:
 
-**Step 1 — Unit-test flows (if `tests/main_flow.py` exists):** run the programmatic flow test *before* any agent chat test:
+**Step 1 — Unit-test flows:** create one `tests/test_<flow_name>.py` per flow (stub the SDK, test tool logic, Pydantic schemas, and flow wiring). Run all before any agent chat test:
 ```bash
-source venv/bin/activate && python tests/main_flow.py
+source venv/bin/activate && python -m pytest tests/ -v
 ```
-If it fails: fix flow → update scripts → `./import-all.sh` → re-run test until pass.
+If it fails: fix flow → `./import-all.sh` → re-run until pass.
 
 **Step 2 — Agent smoke-test:**
 Ask:
@@ -372,8 +371,8 @@ Full schemas → **[references/connections-models-kb.md](references/connections-
 | `aflow.tool(fn, map_input="...")` raises `unexpected keyword argument` | `map_input`/`map_output` are **node methods**, not `aflow.tool()` kwargs — call `node.map_input(...)` after `node = aflow.tool(fn)` |
 | Tool receives `/field_name` instead of `field_name` (slash-prefixed keys) | Automatic inter-tool mapping uses JSON Pointer notation — source all shared fields explicitly via `node.map_input("f", "flow.input.f")` instead |
 | Final flow `output` is `{}` despite `aflow.map_output()` calls | Likely cause: output mapped from a conditional branch without a consolidation node. **Both paths must wire to a common node before `END`** — create a script consolidation node, wire both branches to it, then map from consolidation node. See conditional + output mapping pattern below. |
-| Agent returns hallucinated content instead of flow output | Agent `instructions` say to "reformat" or "summarise" output — agent ignores the flow result and generates its own. Fix: move formatting into the flow's final `prompt` node; instruct the agent to present the result as-is. Use `suppress_agent_summarization=True` on the `@flow` decorator. |
-| Flow output renders as flat unformatted prose in the UI | The agent LLM re-narrates the structured flow result instead of formatting it. The flow should return structured fields (multi-field Pydantic) — formatting is the agent's responsibility. Fix: in the agent `instructions`, explicitly specify the **exact markdown format** to use for each field returned by the flow (e.g. a table, headings, bold labels). Do not tell the agent to "reformat" or "summarise" — tell it precisely what to render and where. Alternatively, set `suppress_agent_summarization=True` on the `@flow` decorator to bypass the agent layer entirely and surface the last node's raw output verbatim. |
+| Raw flow output dict shown to user; agent formatting instructions ignored | Flow contains **agent steps** → platform auto-sets `suppress_agent_summarization=True`, bypassing the calling agent's LLM. Fix: set `suppress_agent_summarization=False` so the flow result passes through the agent LLM for formatting. |
+| Agent hallucinating / re-narrating instead of presenting the flow result | Agent LLM is active but told to "reformat/summarise". Fix: set `suppress_agent_summarization=True` to stream the last node's output verbatim and skip the agent LLM entirely. |
 | `docproc`/`docext`/`docclassifier` node fails at runtime (Developer Edition) | WDU service not started — restart with `-d`: `orchestrate server start -d -e .env --accept-terms-and-conditions` |
 | Need reasoning trace | `orchestrate chat ask -n <agent> "…" -r` (`-r` reasoning, `-l` logs) |
 | Server issues | `orchestrate server logs`; `orchestrate server reset` to wipe state |
