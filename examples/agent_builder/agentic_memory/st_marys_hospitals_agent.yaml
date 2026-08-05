@@ -51,4 +51,5 @@ welcome_content:
   welcome_message: Welcome to St. Mary's Group of Hospitals Support
   description: I'm here to help you report concerns and create support tickets. How can I assist you today?
   is_default_message: false
+  is_user_barge_in_disabled: false
 spec_version: v1

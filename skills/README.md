@@ -24,7 +24,9 @@ This skill set covers the complete journey of building enterprise AI agent solut
 
 4. **wxo-analyzer** - Reverse-engineers existing wxO projects to produce comprehensive documentation, relationship diagrams, and anti-pattern analysis across enterprise AI failure modes for auditing and onboarding.
 
-Together, these skills create a **closed-loop system** for designing, building, documenting, and maintaining enterprise-grade watsonx Orchestrate solutions.
+5. **telemetry-analyzer** - Exports and analyzes agent telemetry traces from watsonx Orchestrate (OTel or Langfuse JSON) to produce structured bug reports with root-cause analysis, fix recommendations, and conversational flow reports.
+
+Together, these skills create a **closed-loop system** for designing, building, documenting, maintaining, and debugging enterprise-grade watsonx Orchestrate solutions.
 
 ---
 
@@ -147,7 +149,28 @@ Evaluates agent instructions and definitions for **operational achievability in 
 
 ---
 
-### 6. customercare-mcp-builder
+### 6. telemetry-analyzer
+**Location:** `telemetry-analyzer/SKILL.md`
+
+Exports and analyzes **agent telemetry traces** from watsonx Orchestrate to identify bugs, failures, and inefficiencies. It:
+
+- Supports OTel JSON (ADK `TracesController` / local IBM telemetry) and Langfuse JSON (agentops-v3 REST API)
+- Detects trace format automatically, normalizes spans, and scans for errors
+- Produces structured HTML bug reports and thread-scoped conversational flow reports
+
+**Best for:** Debugging misbehaving agents and understanding production failures from telemetry data
+
+**Key Capabilities:**
+- Identifying trace source (remote wxO API, agentops-v3 REST API, local IBM telemetry, or files already on disk)
+- Exporting traces by agent name or ID via ADK `TracesController` or `export_traces_agentops_v3.py`
+- Format detection and normalization across OTel and Langfuse JSON schemas
+- Detecting hard errors, LLM failures, tool call failures, agent logic bugs, flow/widget issues, token anomalies, and cache inefficiency
+- Structured HTML bug reports with executive summary, trace summary table, issues, warnings, and fix recommendations
+- Conversational flow reports reconstructing multi-turn threads from thread-scoped traces
+
+---
+
+### 7. customercare-mcp-builder
 **Location:** `customercare-mcp-builder/SKILL.md`
 
 Expert guide for building production-ready MCP (Model Context Protocol) servers for customer care agents. Covers:
@@ -180,6 +203,8 @@ Business Problem
 [wxo-builder] → watsonx Orchestrate Implementation
       ↓
 [wxo-analyzer] → Documentation & Anti-Pattern Analysis
+      ↓
+[telemetry-analyzer] → Bug Reports & Fix Recommendations
 ```
 
 This creates a **closed-loop system** where:
@@ -187,6 +212,7 @@ This creates a **closed-loop system** where:
 2. **sop-builder** creates detailed, business-readable procedures
 3. **wxo-builder** implements the technical solution
 4. **wxo-analyzer** validates, documents, and identifies improvements
+5. **telemetry-analyzer** debugs production issues from live telemetry traces
 
 ---
 
@@ -202,6 +228,7 @@ This creates a **closed-loop system** where:
    - `wxo-analyzer/SKILL.md` - For analyzing existing wxO projects
    - `agent-instructions-evaluator/SKILL.md` - For evaluating agent instructions
    - `customercare-mcp-builder/SKILL.md` - For customer care MCP servers
+   - `telemetry-analyzer/SKILL.md` - For analyzing agent telemetry traces
 3. The skill will be available in your conversations
 
 ### With the MCP Server
@@ -219,6 +246,7 @@ fetch_skill("wxo-builder", "./my_skills")
 fetch_skill("wxo-analyzer", "./my_skills")
 fetch_skill("agent-instructions-evaluator", "./my_skills")
 fetch_skill("customercare-mcp-builder", "./my_skills")
+fetch_skill("telemetry-analyzer", "./my_skills")
 
 # Fetch all skills at once
 fetch_all_skills("./my_skills")
@@ -244,6 +272,7 @@ Each skill follows the Skills format:
 - **wxo-analyzer**: `wxo-analyzer/SKILL.md`
 - **agent-instructions-evaluator**: `agent-instructions-evaluator/SKILL.md`
 - **customercare-mcp-builder**: `customercare-mcp-builder/SKILL.md`
+- **telemetry-analyzer**: `telemetry-analyzer/SKILL.md`
 - **Reference Examples**: `customercare-mcp-builder/references/examples.md`
 - **IBM watsonx Orchestrate ADK**: https://github.com/IBM/ibm-watsonx-orchestrate-adk
 - **MCP Server**: `packages/mcp-server/ibm_watsonx_orchestrate_mcp_server/`
