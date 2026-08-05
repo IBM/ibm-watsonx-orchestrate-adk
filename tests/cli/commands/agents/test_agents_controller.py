@@ -610,6 +610,44 @@ class TestParseCreateNativeArgs:
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
 
+    def test_parse_create_native_args_forwards_hidden(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            hidden=True
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is True
+
+    def test_parse_create_native_args_hidden_defaults_to_false(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is False
+
+    def test_parse_create_native_args_forwards_restrictions(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            restrictions="non_editable"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "non_editable"
+
+    def test_parse_create_native_args_restrictions_defaults_to_editable(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "editable"
+
 
 class TestParseCreateExternalArgs:
     def test_parse_create_external_args(self):
