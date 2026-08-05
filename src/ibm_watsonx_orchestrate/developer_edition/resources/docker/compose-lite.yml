@@ -63,6 +63,11 @@ services:
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      ALLOWED_SECURITY_SCHEMA: '["api_key_auth", "bearer_token", "basic_auth", "key_value_creds"]'
+      ALLOWED_AUTH_TYPE: '["oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
+      ALLOWED_COMPONENT_LIST: '["knowledge","ootb"]'
+      ALLOWED_JWT_ALGORITHMS: '["RS256","RS384","RS512"]'
+      MASK_KEYS: "client_id,client_secret,private_key,private_key_password"
     ports:
       - 3001:3001
   
@@ -80,7 +85,7 @@ services:
       TENANT_ID: ${REACT_APP_TENANT_ID}
       WXO_CHAT_URL: http://localhost:3000
       WXCO_C_FEATURES: '{"feature-41110":1,"feature-38924":0,"feature-45580":1,"enableCustomCredentials":1}'
-      CONNECTION_PILLS: "custom"
+      CONNECTION_PILLS: "custom,knowledge"
     ports:
      - "3412:3412"
     networks:
@@ -228,7 +233,8 @@ services:
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_AGENT_DEBUG: "true"
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -282,7 +288,8 @@ services:
       ENABLE_LANGGRAPH_AGENT: "true"
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
       ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
@@ -675,7 +682,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -734,6 +741,7 @@ services:
       EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      CONTROLS_ENABLED: true
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -1789,15 +1797,25 @@ services:
     platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
-    ports: 
+    ports:
       - 9876:8765
     environment:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://wxo-server-redis:6379/1"
+      EVENT_BROKER_URL: "redis://wxo-server-redis:6379/2"
+      AGENT_STEP_DETAILS: "redis://wxo-server-redis:6379/3"
       CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
       WXO_RUNS_URL: "http://wxo-server:4321"
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      CALLER_ID: 12345
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
