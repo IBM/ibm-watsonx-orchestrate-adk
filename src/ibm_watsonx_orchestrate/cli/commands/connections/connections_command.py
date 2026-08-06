@@ -277,7 +277,7 @@ def set_credentials_connection_command(
         typer.Option(
             '--token-url',
             # help='For oauth_auth_on_behalf_of_flow, oauth_auth_code_flow, oauth_auth_password_flow and oauth_auth_client_credentials_flow, the url of the application token server'
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the url of the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow, oauth_auth_client_credentials_flow, and oauth_auth_jwt_bearer_flow, the url of the application token server'
         )
     ] = None,
     auth_url: Annotated[
@@ -291,7 +291,7 @@ def set_credentials_connection_command(
         str,
         typer.Option(
             '--grant-type',
-            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow and oauth_auth_client_credentials_flow, the grant type used by the application token server'
+            help='For oauth_auth_on_behalf_of_flow, oauth_auth_password_flow, oauth_auth_token_exchange_flow, oauth_auth_client_credentials_flow, and oauth_auth_jwt_bearer_flow, the grant type used by the application token server'
         )
     ] = None,
     scope: Annotated[
@@ -324,6 +324,69 @@ def set_credentials_connection_command(
             help="Custom field options for oauth_auth_code_flow auth server request, a key value location option in the form 'location:<key>=<value>' or '<key>=<value>' with location defaulting to 'query'. Note only 'query' is a valid location. Multiple values can be passed using `--auth-entries key1=value1 --auth-entries location:key2=value2`"
         )
     ] = None,
+    alg: Annotated[
+        str,
+        typer.Option(
+            '--alg',
+            help='For oauth_auth_jwt_bearer_flow, the signing algorithm used for the JWT assertion. Supported values: RS256, RS384, RS512'
+        )
+    ] = None,
+    private_key: Annotated[
+        str,
+        typer.Option(
+            '--private-key',
+            help='For oauth_auth_jwt_bearer_flow, the PEM-encoded private key used to sign the JWT assertion'
+        )
+    ] = None,
+    kid: Annotated[
+        str,
+        typer.Option(
+            '--kid',
+            help='For oauth_auth_jwt_bearer_flow, optional key ID included in the JWT header to identify the signing key'
+        )
+    ] = None,
+    private_key_password: Annotated[
+        str,
+        typer.Option(
+            '--private-key-password',
+            help='For oauth_auth_jwt_bearer_flow, optional password used to decrypt an encrypted private key'
+        )
+    ] = None,
+    iss: Annotated[
+        str,
+        typer.Option(
+            '--iss',
+            help='For oauth_auth_jwt_bearer_flow, the issuer claim for the JWT assertion. Defaults to client_id if not provided'
+        )
+    ] = None,
+    aud: Annotated[
+        str,
+        typer.Option(
+            '--aud',
+            help='For oauth_auth_jwt_bearer_flow, the audience claim for the JWT assertion. Defaults to token_url if not provided'
+        )
+    ] = None,
+    exp: Annotated[
+        str,
+        typer.Option(
+            '--exp',
+            help='For oauth_auth_jwt_bearer_flow, the JWT assertion expiry time in seconds. Defaults to 3600'
+        )
+    ] = None,
+    include_jti: Annotated[
+        bool,
+        typer.Option(
+            '--include-jti/--no-include-jti',
+            help='For oauth_auth_jwt_bearer_flow, whether to include a unique JTI claim in the JWT assertion'
+        )
+    ] = None,
+    claims: Annotated[
+        List[str],
+        typer.Option(
+            '--claims',
+            help="For oauth_auth_jwt_bearer_flow, a custom JWT payload claim in the form '<key>=<value>'. Multiple values can be passed using `--claims key1=value1 --claims key2=value2`"
+        )
+    ] = None,
 ):
     set_credentials_connection(
         app_id=app_id,
@@ -342,7 +405,16 @@ def set_credentials_connection_command(
         scope=scope,
         entries=entries,
         token_entries=token_entries,
-        auth_entries=auth_entries
+        auth_entries=auth_entries,
+        alg=alg,
+        private_key=private_key,
+        kid=kid,
+        private_key_password=private_key_password,
+        iss=iss,
+        aud=aud,
+        exp=exp,
+        include_jti=include_jti,
+        claims=claims,
     )
 
 @connections_app.command(name="set-identity-provider")
