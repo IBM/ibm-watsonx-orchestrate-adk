@@ -43,7 +43,7 @@ class ClientAPIException(requests.HTTPError):
 
 
 class BaseAPIClient:
-    def __init__(self, base_url: str, api_key: str = None, is_local: bool = False, verify: str = None, authenticator: Authenticator = None):
+    def __init__(self, base_url: str, api_key: str | None = None, is_local: bool = False, verify: str | None = None, authenticator: Authenticator = None):
         self.base_url = base_url.rstrip("/")  # remove trailing slash
         self.api_key = api_key
         self.authenticator = authenticator
