@@ -128,6 +128,45 @@ class OAuth2TokenExchangeCredentials(BaseOAuthCredentials):
     access_token_url: str
     grant_type: str
 
+class OAuth2JwtBearerCredentials(BaseOAuthCredentials):
+    token_url: str
+    grant_type: str = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    iss: Optional[str] = None
+    aud: Optional[str] = None
+    exp: Optional[str] = None
+    include_jti: Optional[bool] = None
+    custom_claims: Optional[dict] = None
+    alg: str = "RS256"
+    private_key: str
+    kid: Optional[str] = None
+    private_key_password: Optional[str] = None
+
+    def model_dump(self, *args, **kwargs):
+        data = super().model_dump(*args, **kwargs)
+
+        jwt_payload = {}
+        for key in ["iss", "aud", "exp", "include_jti"]:
+            value = data.pop(key, None)
+            if value is not None:
+                jwt_payload[key] = value
+        custom_claims = data.pop("custom_claims", None)
+        if custom_claims:
+            jwt_payload["custom_claims"] = custom_claims
+        if jwt_payload:
+            data["jwt_payload"] = jwt_payload
+
+        jwt_signature = {}
+        for key in ["alg", "kid", "private_key", "private_key_password"]:
+            value = data.pop(key, None)
+            if value is not None:
+                jwt_signature[key] = value
+        if jwt_signature:
+            data["jwt_signature"] = jwt_signature
+
+        return data
+
 # KeyValue is just an alias of dictionary
 class KeyValueConnectionCredentials(dict):
     def __init__(self, *args, **kwargs):
@@ -153,6 +192,7 @@ CREDENTIALS_SET = Union[
     OAuth2PasswordCredentials,
     OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
+    OAuth2JwtBearerCredentials,
     KeyValueConnectionCredentials
 ]
 
