@@ -3,9 +3,9 @@
 from typing import Optional
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
-
 import requests
 import logging
+
 logger = logging.getLogger(__name__)
 
 class WorkspaceClient(BaseWXOClient):
@@ -190,15 +190,16 @@ class WorkspaceClient(BaseWXOClient):
                 "Authorization": f"Bearer {token}"
             }
 
+
+            response = None
             if "https://cpd" in self.base_url:
                 endpoint = f"{self.base_url}/v1/tenants/{account_id}/users"
                 response = requests.post(endpoint, headers=headers, timeout=30)
                 if response.status_code != 200:
                     # Return None and let controller handle the error message
                     return None
-                return str(response.json())
-            
-            response = requests.get(endpoint, headers=headers, timeout=30)
+            else:
+                response = requests.get(endpoint, headers=headers, timeout=30)
             
             if response.status_code != 200:
                 # Return None and let controller handle the error message
