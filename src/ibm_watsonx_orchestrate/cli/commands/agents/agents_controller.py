@@ -275,6 +275,7 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.skills_controller = None
         self.safe_mode = safe_mode
 
     def get_native_client(self):
@@ -311,6 +312,12 @@ class AgentsController:
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
+
+    def get_skills_controller(self):
+        if not self.skills_controller:
+            from ibm_watsonx_orchestrate.cli.commands.skills.skills_controller import SkillsController
+            self.skills_controller = SkillsController()
+        return self.skills_controller
     
     @staticmethod
     def import_agent(
@@ -1111,6 +1118,67 @@ class AgentsController:
         ref_agent.knowledge_base = ref_knowledge_bases
 
         return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        sc = self.get_skills_controller()
+
+        deref_agent = deepcopy(agent)
+
+        # Fetch all skills once and build a name→id lookup
+        response = requests.get(
+            sc.base_url,
+            headers=sc.client._get_headers(),
+            verify=sc.client.verify,
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to list skills: {response.text}")
+            sys.exit(1)
+
+        all_skills = response.json()
+        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
+
+        deref_skills = []
+        for name in agent.skills:
+            skill_id = name_id_lookup.get(name)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{name}'")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+
+        deref_agent.skills = deref_skills
+        return deref_agent
+
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        sc = self.get_skills_controller()
+
+        ref_agent = deepcopy(agent)
+
+        # Fetch all skills once and build an id→name lookup
+        params = {"workspace_id": workspace_id} if workspace_id else {}
+        response = requests.get(
+            sc.base_url,
+            params=params,
+            headers=sc.client._get_headers(),
+            verify=sc.client.verify,
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to list skills: {response.text}")
+            sys.exit(1)
+
+        all_skills = response.json()
+        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
+
+        ref_skills = []
+        for skill_id in agent.skills:
+            name = id_name_lookup.get(skill_id)
+            if not name:
+                logger.warning(f"Failed to find skill. No skill found with the id '{skill_id}'")
+                continue
+            ref_skills.append(name)
+
+        ref_agent.skills = ref_skills
+        return ref_agent
+
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1301,6 +1369,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1315,6 +1385,8 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
+        if agent.skills and len(agent.skills):
+            agent = self.reference_skills(agent, workspace_id=workspace_id)
 
         return agent
     
