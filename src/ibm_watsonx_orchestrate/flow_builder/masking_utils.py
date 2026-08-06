@@ -45,9 +45,8 @@ class ChannelOverride(str, Enum):
     Enum for channel-level visibility overrides for sensitive properties.
 
     Attributes:
-        VISIBLE_TO_INITIATOR: The masked value is shown as plain text in the channel
-            to the flow initiator, while remaining masked in
-            logs, traces, and the inspector.
+        VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in the channel when
+            outputted to the flow initiator in the channel.
     """
     VISIBLE_TO_INITIATOR = "visible-to-initiator"
 
@@ -389,7 +388,9 @@ class PropertyMaskingHelper:
             masking_policy: The masking policy to apply
             regex_config: Regex configuration for mask-via-regex policy (optional)
             input_policy: Input masking behavior (optional)
-            channel_override: Channel-level visibility override (optional)
+            channel_override: Channel-level visibility override (optional).
+                Use ChannelOverride.VISIBLE_TO_INITIATOR to unmask sensitive info in the
+                channel when outputted to the flow initiator in the channel.
         
         Raises:
             ValueError: If property is not a string type

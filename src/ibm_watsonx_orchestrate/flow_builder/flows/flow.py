@@ -1919,9 +1919,8 @@ class Flow(Node):
                 - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
                 If omitted, data is only masked on output, not during input
             channel_override: Channel-level visibility override (ChannelOverride enum, optional)
-                - ChannelOverride.VISIBLE_TO_INITIATOR: Show the masked value as plain text
-                  to the flow initiator in the channel while keeping it masked
-                  in logs, traces, and the inspector.
+                - ChannelOverride.VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in
+                  the channel when outputted to the flow initiator in the channel.
                 If omitted, the value remains masked in all channels.
         
         Returns:
