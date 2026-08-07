@@ -100,6 +100,38 @@ class SetCredentialsConnectionOptions(BaseConnectionOptions):
         default=None,
         description="A list of optional custom fields to be passed with OAuth authorization requests. Supported when connection kind is 'oauth_auth_code_flow'. Location must be 'query'."
     )
+    alg: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, the signing algorithm used for the JWT assertion. Supported values: RS256, RS384, RS512"
+    )
+    private_key: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, the PEM-encoded private key used to sign the JWT assertion"
+    )
+    kid: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, optional key ID included in the JWT header to identify the signing key"
+    )
+    private_key_password: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, optional password used to decrypt an encrypted private key"
+    )
+    iss: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, the issuer claim for the JWT assertion. Defaults to client_id if not provided"
+    )
+    aud: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, the audience claim for the JWT assertion. Defaults to token_url if not provided"
+    )
+    exp: Optional[str] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, the JWT assertion expiry time in seconds. Defaults to 3600"
+    )
+    include_jti: Optional[bool] = Field(
+        default=None,
+        description="For oauth_auth_jwt_bearer_flow, whether to include a unique JTI claim in the JWT assertion"
+    )
 
 class SetIdentityProviderOptions(BaseConnectionOptions):
     url: str = Field(description="The URL of the identity provider service")
