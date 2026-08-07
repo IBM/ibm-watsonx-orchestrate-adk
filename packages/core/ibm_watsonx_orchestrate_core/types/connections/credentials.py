@@ -77,6 +77,7 @@ class BaseRuntimeCredentials(BaseModel):
 class BasicAuthCredentials(BaseRuntimeCredentials):
     username: str
     password: str
+    server_cert: Optional[str] = None
 
 class BearerTokenAuthCredentials(BaseRuntimeCredentials):
     token: str
