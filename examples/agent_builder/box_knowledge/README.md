@@ -1,6 +1,6 @@
 # Box Knowledge Base Example
 
-This example demonstrates how to create a knowledge base backed by a Box content source and wire it to an HR benefits agent. The knowledge base syncs automatically every 30 minutes using a `sync_job`.
+This example demonstrates how to create a knowledge base backed by a Box content source and wire it to an HR benefits agent.
 
 ## Prerequisites
 
@@ -46,7 +46,6 @@ Edit `config-box.json` and replace the placeholder values with your Box JWT cred
 ### Step 2 — Run import_all.sh
 
 ```bash
-chmod +x import_all.sh remove_all.sh
 ./import_all.sh
 ```
 
@@ -59,15 +58,6 @@ A custom credentials file path can be passed as an argument:
 
 ```bash
 ./import_all.sh /path/to/my-box-creds.json
-```
-
-## Sync schedule
-
-The knowledge base is configured with a `sync_job` that re-ingests the document from Box every 30 minutes:
-
-```yaml
-sync_job:
-  schedule: "*/30 * * * *"
 ```
 
 ## Cleanup
