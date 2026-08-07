@@ -63,6 +63,11 @@ services:
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
       WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      ALLOWED_SECURITY_SCHEMA: '["api_key_auth", "bearer_token", "basic_auth", "key_value_creds"]'
+      ALLOWED_AUTH_TYPE: '["oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
+      ALLOWED_COMPONENT_LIST: '["knowledge","ootb"]'
+      ALLOWED_JWT_ALGORITHMS: '["RS256","RS384","RS512"]'
+      MASK_KEYS: "client_id,client_secret,private_key,private_key_password"
     ports:
       - 3001:3001
   
@@ -80,7 +85,7 @@ services:
       TENANT_ID: ${REACT_APP_TENANT_ID}
       WXO_CHAT_URL: http://localhost:3000
       WXCO_C_FEATURES: '{"feature-41110":1,"feature-38924":0,"feature-45580":1,"enableCustomCredentials":1}'
-      CONNECTION_PILLS: "custom"
+      CONNECTION_PILLS: "custom,knowledge"
     ports:
      - "3412:3412"
     networks:
@@ -1792,7 +1797,7 @@ services:
     platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
-    ports: 
+    ports:
       - 9876:8765
     environment:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
