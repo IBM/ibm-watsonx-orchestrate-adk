@@ -50,7 +50,7 @@ Edit `config-box.json` and replace the placeholder values with your Box JWT cred
 ```
 
 This will:
-1. Create and configure the `box` connection (draft + live)
+1. Create and configure the `box` connection
 2. Import the knowledge base, resolving the Box connection via `-a box`
 3. Import the `hr_benefits_agent`
 
