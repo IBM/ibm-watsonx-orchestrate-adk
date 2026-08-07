@@ -2,7 +2,7 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     FlowFactory
 )
 from pydantic import BaseModel, Field
-from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField
+from ibm_watsonx_orchestrate.flow_builder.types import DocExtConfigField, NodeErrorHandlerConfig
 import os
 import json
 class UserInput(BaseModel):
@@ -41,4 +41,35 @@ class TestDocExtNode():
         assert aflow_json_spec["spec"]["name"] == expected_extraction_spec["spec"]["name"]
         for k,v in aflow_json_spec["schemas"]["DocExtFieldValue"]["properties"].items():
             assert aflow_json_spec["schemas"]["DocExtFieldValue"]["properties"][k]["title"] == expected_extraction_spec["schemas"]["DocExtFieldValue"]["properties"][k]["title"]
-        
+
+        assert "error_handler_config" not in actual_extraction_spec
+
+    def test_doc_ext_node_with_error_handler_config(self):
+        aflow = FlowFactory.create_flow(name="custom_flow_docext_retry")
+        doc_ext_node, _ = aflow.docext(
+            name="contract_extractor",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+            fields=UserInput(),
+            error_handler_config=NodeErrorHandlerConfig(
+                error_message="Extraction failed",
+                max_retries=3,
+                retry_interval=2000,
+            ),
+        )
+        spec = doc_ext_node.get_spec().to_json()
+
+        assert "error_handler_config" in spec
+        assert spec["error_handler_config"]["max_retries"] == 3
+        assert spec["error_handler_config"]["retry_interval"] == 2000
+        assert spec["error_handler_config"]["error_message"] == "Extraction failed"
+
+    def test_doc_ext_node_without_error_handler_config(self):
+        aflow = FlowFactory.create_flow(name="custom_flow_docext_no_retry")
+        doc_ext_node, _ = aflow.docext(
+            name="contract_extractor",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+            fields=UserInput(),
+        )
+        spec = doc_ext_node.get_spec().to_json()
+
+        assert "error_handler_config" not in spec

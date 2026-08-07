@@ -91,6 +91,9 @@ def build_docext_flow(aflow: Flow) -> Flow:
     line-items table from documents using the document extractor node. The node
     is configured with retry logic so that failures (e.g. service timeouts) are
     retried automatically before the error is surfaced.
+
+    Note: This is a standalone reference example which can be run independently
+    like the other document extractor tools.
     """
     doc_ext_node, ExtractedValues = aflow.docext(
         name="invoice_document_extractor",
