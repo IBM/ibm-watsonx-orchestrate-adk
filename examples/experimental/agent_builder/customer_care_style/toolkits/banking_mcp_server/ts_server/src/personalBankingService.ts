@@ -283,4 +283,90 @@ export class PersonalBankingService {
       scheduledDate: new Date().toISOString().split('T')[0],
     };
   }
+
+  /**
+   * Check if customer is eligible for a credit limit increase
+   * Returns eligibility status, current limit, max increase, and reason if not eligible
+   */
+  static checkCreditLimitIncreaseEligibility(customerId: string): {
+    eligible: boolean;
+    currentLimit: number;
+    maxIncrease: number;
+    reason?: string;
+    retryAfter?: string;
+  } {
+    // Mock eligibility check - in a real system, this would check:
+    // - Credit score
+    // - Payment history
+    // - Account age
+    // - Current utilization
+    // - Recent credit inquiries
+
+    // For demo purposes, we'll make most customers eligible
+    // You could add logic to make some customers ineligible based on customerId
+
+    const currentLimit = 5000.0;
+    const maxIncrease = 10000.0;
+
+    // Example: Make customer ineligible if their ID ends with '999'
+    if (customerId.endsWith('999')) {
+      return {
+        eligible: false,
+        reason: 'Recent credit inquiry detected',
+        retryAfter: '6 months',
+        currentLimit,
+        maxIncrease: 0,
+      };
+    }
+
+    return {
+      eligible: true,
+      currentLimit,
+      maxIncrease,
+    };
+  }
+
+  /**
+   * Process a credit limit increase request
+   * Returns the status and details of the request
+   */
+  static processCreditLimitIncrease(
+    customerId: string,
+    increaseAmount: number,
+    newLimit: number,
+  ): {
+    status: string;
+    processingTime: string;
+    message: string;
+    approvedAmount?: number;
+    newLimit?: number;
+  } {
+    // Mock processing - in a real system, this would:
+    // - Submit request to credit department
+    // - Run automated approval rules
+    // - Queue for manual review if needed
+    // - Update credit limit if auto-approved
+
+    // For demo purposes, auto-approve increases under $5000
+    if (increaseAmount <= 5000) {
+      return {
+        status: 'approved',
+        processingTime: 'Instant approval',
+        message:
+          'Congratulations! Your credit limit increase has been approved and ' +
+          'is now active. Your new credit limit is available immediately.',
+        approvedAmount: increaseAmount,
+        newLimit,
+      };
+    } else {
+      return {
+        status: 'pending_review',
+        processingTime: '1-3 business days',
+        message:
+          'Your request has been submitted for review. Due to the amount requested, ' +
+          "it requires manual approval. You'll receive a notification once the review " +
+          'is complete.',
+      };
+    }
+  }
 }

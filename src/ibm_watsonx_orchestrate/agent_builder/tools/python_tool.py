@@ -15,6 +15,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections import ExpectedCredential
 from .base_tool import BaseTool
 from .types import JsonSchemaTokens, PythonToolKind, ToolSpec, ToolPermission, ToolRequestBody, ToolResponseBody, JsonSchemaObject, ToolBinding, \
     PythonToolBinding, ToolResponseFormat
+from .utils import dereference_refs, create_schema_from_function
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest, ToolContextException
 from ibm_watsonx_orchestrate.agent_builder.tools._internal.tool_response import ToolResponse
 from ibm_watsonx_orchestrate.agent_builder.tools.types import MultiFileConstraints, WXOFile
@@ -221,8 +222,6 @@ class PythonTool(BaseTool):
             return self._spec
         
         import docstring_parser
-        from langchain_core.tools.base import create_schema_from_function
-        from langchain_core.utils.json_schema import dereference_refs
 
         if self.fn.__doc__ is not None:
             doc = docstring_parser.parse(self.fn.__doc__)
