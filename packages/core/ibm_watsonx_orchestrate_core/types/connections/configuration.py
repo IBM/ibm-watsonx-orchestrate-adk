@@ -27,6 +27,7 @@ class ConnectionKind(str, Enum):
     oauth_auth_on_behalf_of_flow = 'oauth_auth_on_behalf_of_flow'
     oauth_auth_token_exchange_flow = 'oauth_auth_token_exchange_flow'
     oauth_auth_direct_access_flow = 'oauth_auth_direct_access_flow'
+    oauth_auth_jwt_bearer_flow = 'oauth_auth_jwt_bearer_flow'
     key_value = 'key_value'
     kv = 'kv'
 
@@ -74,6 +75,7 @@ class ConnectionAuthType(str, Enum):
     OAUTH_ON_BEHALF_OF_FLOW = 'oauth_on_behalf_of_flow'
     OAUTH2_TOKEN_EXCHANGE = 'oauth2_token_exchange'
     OAUTH2_DIRECT_ACCESS = 'oauth2_direct_accesstoken'
+    OAUTH2_JWT_BEARER = 'oauth2_jwt_bearer'
 
     def __str__(self):
         return self.value 
@@ -94,6 +96,7 @@ class ConnectionType(str, Enum):
     OAUTH_ON_BEHALF_OF_FLOW = ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW.value
     OAUTH2_TOKEN_EXCHANGE = ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE.value
     OAUTH2_DIRECT_ACCESS = ConnectionAuthType.OAUTH2_DIRECT_ACCESS.value
+    OAUTH2_JWT_BEARER = ConnectionAuthType.OAUTH2_JWT_BEARER.value
 
     KEY_VALUE = ConnectionSecurityScheme.KEY_VALUE.value
 
@@ -139,6 +142,7 @@ CONNECTION_KIND_SCHEME_MAPPING = {
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_token_exchange_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.oauth_auth_direct_access_flow: ConnectionSecurityScheme.OAUTH2,
+    ConnectionKind.oauth_auth_jwt_bearer_flow: ConnectionSecurityScheme.OAUTH2,
     ConnectionKind.key_value: ConnectionSecurityScheme.KEY_VALUE,
     ConnectionKind.kv: ConnectionSecurityScheme.KEY_VALUE,
 }
@@ -150,7 +154,8 @@ CONNECTION_KIND_OAUTH_TYPE_MAPPING = {
     ConnectionKind.oauth_auth_client_credentials_flow: ConnectionAuthType.OAUTH2_CLIENT_CREDS,
     ConnectionKind.oauth_auth_on_behalf_of_flow: ConnectionAuthType.OAUTH_ON_BEHALF_OF_FLOW,
     ConnectionKind.oauth_auth_token_exchange_flow: ConnectionAuthType.OAUTH2_TOKEN_EXCHANGE,
-    ConnectionKind.oauth_auth_direct_access_flow: ConnectionAuthType.OAUTH2_DIRECT_ACCESS
+    ConnectionKind.oauth_auth_direct_access_flow: ConnectionAuthType.OAUTH2_DIRECT_ACCESS,
+    ConnectionKind.oauth_auth_jwt_bearer_flow: ConnectionAuthType.OAUTH2_JWT_BEARER,
 }
 
 SSO_CONNECTION_TYPES = {
@@ -167,6 +172,7 @@ OAUTH_CONNECTION_TYPES = {
     ConnectionType.OAUTH_ON_BEHALF_OF_FLOW,
     ConnectionType.OAUTH2_TOKEN_EXCHANGE,
     ConnectionType.OAUTH2_DIRECT_ACCESS,
+    ConnectionType.OAUTH2_JWT_BEARER,
 }
 
 

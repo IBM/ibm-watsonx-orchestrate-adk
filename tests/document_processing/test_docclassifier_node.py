@@ -2,11 +2,9 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     FlowFactory
 )
 from pydantic import BaseModel, Field
-from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass
+from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass, DocumentClassificationResponse, NodeErrorHandlerConfig
 import os
 import json
-
-from ibm_watsonx_orchestrate.flow_builder.types import DocClassifierClass, DocumentClassificationResponse
 
 
 class CustomClasses(BaseModel):
@@ -45,4 +43,34 @@ class TestDocClassifierNode():
         assert aflow_json_spec["spec"]["name"] == expected_spec["spec"]["name"]
         assert aflow_json_spec["schemas"]["document_classifier_node_input"]["title"] == expected_spec["schemas"]["document_classifier_node_input"]["title"]
 
-        
+        assert "error_handler_config" not in actual_spec
+
+    def test_doc_classifier_node_with_error_handler_config(self):
+        aflow = FlowFactory.create_flow(name="custom_flow_docclassifier_retry")
+        doc_classifier_node = aflow.docclassifier(
+            name="document_classifier_node",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+            classes=CustomClasses(),
+            error_handler_config=NodeErrorHandlerConfig(
+                error_message="Classification failed",
+                max_retries=3,
+                retry_interval=2000,
+            ),
+        )
+        spec = doc_classifier_node.get_spec().to_json()
+
+        assert "error_handler_config" in spec
+        assert spec["error_handler_config"]["max_retries"] == 3
+        assert spec["error_handler_config"]["retry_interval"] == 2000
+        assert spec["error_handler_config"]["error_message"] == "Classification failed"
+
+    def test_doc_classifier_node_without_error_handler_config(self):
+        aflow = FlowFactory.create_flow(name="custom_flow_docclassifier_no_retry")
+        doc_classifier_node = aflow.docclassifier(
+            name="document_classifier_node",
+            llm="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+            classes=CustomClasses(),
+        )
+        spec = doc_classifier_node.get_spec().to_json()
+
+        assert "error_handler_config" not in spec
