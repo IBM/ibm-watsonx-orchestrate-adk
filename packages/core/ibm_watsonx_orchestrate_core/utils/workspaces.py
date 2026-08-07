@@ -28,6 +28,11 @@ def is_ibm_cloud_platform(url: str) -> bool:
 
     return "test.cloud.ibm.com" in url or "cloud.ibm.com" in url
 
+def is_cpd_env(url: str) -> bool:
+    """Check if the given URL is a CP4D environment."""
+
+    return url.lower().startswith("https://cpd") # or env_auth_type == EnvironmentAuthType.CPD
+
 
 class WorkspaceContext:
     """
@@ -35,7 +40,7 @@ class WorkspaceContext:
     
     This class provides methods to:
     - Get the active workspace ID
-    - Check if workspaces are supported in the current environment (Only IBM Cloud for now)
+    - Check if workspaces are supported in the current environment (Only IBM Cloud OR CP4D for now)
     - Resolve workspace names to IDs
     - Validate workspace context
     """
@@ -55,7 +60,7 @@ class WorkspaceContext:
             if not url or not isinstance(url, str):
                 return False
 
-            return is_ibm_cloud_platform(url)
+            return is_ibm_cloud_platform(url) or is_cpd_env(url)
         except Exception as e:
             logger.debug(f"Error checking workspace support: {e}")
             return False
