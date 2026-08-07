@@ -33,6 +33,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAuth2PasswordCredentials,
     OAuthOnBehalfOfCredentials,
     OAuth2TokenExchangeCredentials,
+    OAuth2JwtBearerCredentials,
     KeyValueConnectionCredentials,
     CREDENTIALS,
     IdentityProviderCredentials,
@@ -193,6 +194,21 @@ def _validate_connection_params(type: ConnectionType, **args) -> None:
         raise typer.BadParameter(
             f"Missing flags --grant-type is required for type {type}"
         )
+
+    if type == ConnectionType.OAUTH2_JWT_BEARER and args.get('token_url') is None:
+        raise typer.BadParameter(
+            f"Missing flags --token-url is required for type {type}"
+        )
+
+    if type == ConnectionType.OAUTH2_JWT_BEARER and args.get('private_key') is None:
+        raise typer.BadParameter(
+            f"Missing flags --private-key is required for type {type}"
+        )
+
+    if type == ConnectionType.OAUTH2_JWT_BEARER and args.get('alg') is None:
+        raise typer.BadParameter(
+            f"Missing flags --alg is required for type {type}"
+        )
     
     if type != ConnectionType.OAUTH2_AUTH_CODE and (
         args.get('auth_entries')
@@ -284,6 +300,17 @@ def _get_credentials(type: ConnectionType, **kwargs):
             filtered_args["access_token_url"] = kwargs.get("token_url")
             custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
             return OAuth2TokenExchangeCredentials(**filtered_args, **custom_fields)
+
+        case ConnectionType.OAUTH2_JWT_BEARER:
+            keys = ["token_url", "grant_type", "client_id", "client_secret",
+                    "iss", "aud", "exp", "include_jti", "alg", "private_key",
+                    "kid", "private_key_password"]
+            filtered_args = {k: kwargs[k] for k in keys if kwargs.get(k) is not None}
+            raw_claims = kwargs.get("claims")
+            if raw_claims:
+                filtered_args["custom_claims"] = {k: v for entry in raw_claims for k, v in _parse_entry(entry).items()}
+            custom_fields = _get_oauth_custom_fields(kwargs.get("token_entries"), kwargs.get("auth_entries"))
+            return OAuth2JwtBearerCredentials(**filtered_args, **custom_fields)
 
         case ConnectionType.KEY_VALUE:
             env = {}
@@ -443,10 +470,35 @@ def _list_connections_formatted(connections: list, environment: ConnectionEnviro
             if environment == None and not len(draft_table.rows) and not len(live_table.rows) and not len(non_configured_table.rows):
                 logger.info("No connections found. You can create connections using `orchestrate connections add`")
 
+_JWT_BEARER_UNSUPPORTED_MSG = (
+    "The 'oauth2_jwt_bearer' connection type is not supported by the current server image. "
+    "Please ensure CM_TAG in default.env points to an image that includes OAuth2 JWT Bearer support."
+)
+
+_JWT_BEARER_ENUM_FINGERPRINT = "invalid input value for enum enum_application_connection_configs_auth_type"
+
+def _raise_if_jwt_bearer_unsupported(conn_type, e: requests.HTTPError) -> None:
+    """Emit a clear unsupported-feature message when an old server image rejects oauth2_jwt_bearer."""
+    if conn_type != ConnectionType.OAUTH2_JWT_BEARER:
+        return
+    try:
+        body = e.response.json()
+        details = body.get("details", "")
+    except Exception:
+        details = e.response.text
+    if _JWT_BEARER_ENUM_FINGERPRINT in details:
+        logger.error(_JWT_BEARER_UNSUPPORTED_MSG)
+        sys.exit(1)
+
 def add_configuration(config: ConnectionConfiguration) -> None:
     client = get_connections_client()
     app_id = config.app_id
     environment = config.environment
+
+    try:
+        conn_type = get_connection_type(security_scheme=config.security_scheme, auth_type=config.auth_type)
+    except Exception:
+        conn_type = config.auth_type
 
     try:
         existing_configuration = client.get_config(app_id=app_id, env=environment)
@@ -487,6 +539,7 @@ def add_configuration(config: ConnectionConfiguration) -> None:
             logger.info(f"Configuration successfully created for '{environment}' environment of connection '{app_id}'.")
 
     except requests.HTTPError as e:
+        _raise_if_jwt_bearer_unsupported(conn_type, e)
         response = e.response
         response_text = response.text
         logger.error(response_text)
@@ -494,6 +547,7 @@ def add_configuration(config: ConnectionConfiguration) -> None:
 
 def add_credentials(app_id: str, environment: ConnectionEnvironment, use_app_credentials: bool, credentials: CREDENTIALS, payload: dict = None) -> None:
     client = get_connections_client()
+    conn_type = type(credentials)
     try:
         existing_credentials = client.get_credentials(app_id=app_id, env=environment, use_app_credentials=use_app_credentials)
         if not payload:
@@ -511,6 +565,10 @@ def add_credentials(app_id: str, environment: ConnectionEnvironment, use_app_cre
         else:
             client.create_credentials(app_id=app_id,env=environment, use_app_credentials=use_app_credentials, payload=payload)
     except requests.HTTPError as e:
+        _raise_if_jwt_bearer_unsupported(
+            ConnectionType.OAUTH2_JWT_BEARER if isinstance(credentials, OAuth2JwtBearerCredentials) else conn_type,
+            e
+        )
         response = e.response
         response_text = response.text
         logger.error(response_text)
@@ -699,6 +757,13 @@ def configure_connection(**kwargs) -> None:
         type_value = kwargs.get("type") or kwargs.get("preference")
         if type_value == ConnectionPreference.TEAM or str(type_value) == str(ConnectionPreference.TEAM):
             logger.error(f"Connection kind 'oauth_auth_direct_access_flow' can only be used with '--type member'. Team-level credentials are not supported for this auth type.")
+            sys.exit(1)
+
+    # Check if oauth_auth_jwt_bearer_flow is being used with member type
+    if kwargs.get("kind") == ConnectionKind.oauth_auth_jwt_bearer_flow or str(kwargs.get("kind")) == str(ConnectionKind.oauth_auth_jwt_bearer_flow):
+        type_value = kwargs.get("type") or kwargs.get("preference")
+        if type_value == ConnectionPreference.MEMBER or str(type_value) == str(ConnectionPreference.MEMBER):
+            logger.error(f"Connection kind 'oauth_auth_jwt_bearer_flow' can only be used with '--type team'. Member-level credentials are not supported for this auth type.")
             sys.exit(1)
     
     idp_config_body = None
