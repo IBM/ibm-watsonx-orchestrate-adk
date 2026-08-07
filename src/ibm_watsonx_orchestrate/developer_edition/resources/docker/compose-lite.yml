@@ -155,6 +155,10 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
+      TOOL_TIMEOUT: 300
+      HTTPX_READ_TIMEOUT: 300
+      JSON_SCHEMA_VALIDATION_STRICT: false
+      TOOL_DESCRIPTION_FORBIDDEN_PATTERNS_ENABLED: false
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -224,7 +228,8 @@ services:
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_AGENT_DEBUG: "true"
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -278,7 +283,8 @@ services:
       ENABLE_LANGGRAPH_AGENT: "true"
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
       ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
@@ -354,6 +360,7 @@ services:
       WXO_API_KEY: ${WXO_API_KEY}
       WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -577,6 +584,7 @@ services:
       - jaeger-network
     environment:
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -669,7 +677,7 @@ services:
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
       AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
-      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/api/v1/trace
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -728,6 +736,7 @@ services:
       EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      CONTROLS_ENABLED: true
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -912,6 +921,7 @@ services:
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "7999:7999"
@@ -1789,8 +1799,18 @@ services:
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://wxo-server-redis:6379/1"
+      EVENT_BROKER_URL: "redis://wxo-server-redis:6379/2"
+      AGENT_STEP_DETAILS: "redis://wxo-server-redis:6379/3"
       CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
       WXO_RUNS_URL: "http://wxo-server:4321"
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      CALLER_ID: 12345
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}

@@ -38,7 +38,7 @@ from ..types import (
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
-    UserFormButton
+    UserFormButton, LanguageCode
 )
 from ..masking_utils import MaskingPolicy, InputPolicy
 from .constants import CURRENT_USER, START, END, ANY_USER
@@ -52,7 +52,7 @@ from ..types import (
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec, validate_callback_tool_schema
 
 from .events import StreamConsumer
 
@@ -164,7 +164,48 @@ class Flow(Node):
         if isinstance(node, list):
             for i, v in enumerate(node):
                 self._rewrite_local_refs(v)
-            return 
+            return
+    
+    def _resolve_tool_spec(self, tool: str, error_prefix: str = "tool") -> ToolSpec | None:
+        """
+        Resolve a tool specification by ID or name.
+        
+        This helper method encapsulates the common pattern of resolving tools
+        used by both tool() and add_callback() methods.
+        
+        Args:
+            tool: Tool identifier (can be tool_name, tool:id, or toolkit:tool:id)
+            error_prefix: Prefix for error messages (e.g., "tool" or "callback tool")
+            
+        Returns:
+            ToolSpec if found, None otherwise
+            
+        Raises:
+            ValueError: If tool not found
+        """
+        tool_name, tool_id = parse_tool_name_id(tool)
+        tool_spec = None
+        
+        # Try to retrieve the tool from server by ID first
+        if tool_id is not None:
+            try:
+                tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
+                if tool_spec_raw and isinstance(tool_spec_raw, dict):
+                    tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
+            except ClientAPIException:
+                # let's try with name as well before throwing error
+                pass
+        
+        # Fall back to name lookup
+        if tool_spec is None and tool_name is not None:
+            tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
+            if (tool_specs is None) or (len(tool_specs) == 0):
+                raise ValueError(f"{error_prefix} '{tool_name}' not found")
+            tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
+        elif tool_spec is None:
+            raise ValueError(f"{error_prefix} id '{tool_id}' not found")
+        
+        return tool_spec
     
     def _add_schema(self, schema: JsonSchemaObject, title: str = None) -> JsonSchemaObject:
         '''
@@ -772,31 +813,14 @@ class Flow(Node):
 
 
         if isinstance(error_handler_config, dict):
-            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)    
+            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)
         
-        if isinstance(tool, str):        
+        if isinstance(tool, str):
             name = name if name is not None and name != "" else tool
 
             if input_schema is None and output_schema is None:
-                tool_name, tool_id = parse_tool_name_id(tool)
-                tool_spec = None
-                # try to retrieve the schema from server
-                if tool_id is not None:
-                    try:
-                        tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
-                        if tool_spec_raw and isinstance(tool_spec_raw, dict):
-                            tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
-                    except ClientAPIException as e:
-                        # let's try with name as well before throwing error
-                        pass
-
-                if tool_spec is None and tool_name is not None:
-                    tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
-                    if (tool_specs is None) or (len(tool_specs) == 0):
-                        raise ValueError(f"tool '{tool_name}' not found")
-                    
-                elif tool_spec is None:
-                    raise ValueError(f"tool id '{tool_id}' not found")
+                # Use helper method to resolve tool spec
+                tool_spec = self._resolve_tool_spec(tool, error_prefix="tool")
 
                 input_schema_obj = None
                 output_schema_obj = None
@@ -1022,7 +1046,8 @@ class Flow(Node):
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
-            error_handler_config: NodeErrorHandlerConfig | None = None,) -> PromptNode:
+            error_handler_config: NodeErrorHandlerConfig | None = None,
+            include_agent_context: bool = False,) -> PromptNode:
 
         if name is None:
             raise ValueError("name must be provided.")
@@ -1042,6 +1067,7 @@ class Flow(Node):
             llm=llm,
             llm_parameters=llm_parameters,
             error_handler_config=error_handler_config,
+            include_agent_context=include_agent_context,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
@@ -1061,12 +1087,14 @@ class Flow(Node):
             classes: type[BaseModel]| None = None, 
             description: str | None = None,
             min_confidence: float = 0.0,
-            enable_review: bool = False) -> DocClassifierNode:
+            enable_hw: bool = False,
+            enable_review: bool = False,
+            language: LanguageCode | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
         
-        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence,input_classes=classes)
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes)
 
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
@@ -1083,7 +1111,9 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             config=doc_classifier_config,
             version=version,
-            enable_review=enable_review
+            enable_hw=enable_hw,
+            enable_review=enable_review,
+            language=language
         )
         node = DocClassifierNode(spec=task_spec)
         
@@ -1128,7 +1158,8 @@ class Flow(Node):
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
             enable_review: bool = False,
-            page_range: PageRange | None = None) -> tuple[DocExtNode, type[BaseModel]]:
+            page_range: PageRange | None = None,
+            language: LanguageCode | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1157,7 +1188,8 @@ class Flow(Node):
             min_confidence=min_confidence,
             review_fields=review_fields,
             field_extraction_method=field_extraction_method,
-            enable_review=enable_review
+            enable_review=enable_review,
+            language=language
         )
         node = DocExtNode(spec=task_spec)
         
@@ -1212,6 +1244,7 @@ class Flow(Node):
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
             detect_signatures: bool | None = None,
+            language: LanguageCode | None = None,
             output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
 
         if name is None :
@@ -1252,6 +1285,7 @@ class Flow(Node):
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
             detect_signatures=detect_signatures,
+            language=language,
             output_format=output_format
         )
 
@@ -1466,6 +1500,8 @@ class Flow(Node):
         Callbacks are part of the FlowSpec and will be invoked by the flow engine
         when the specified events occur during flow execution.
         
+        The tool must have an input schema that accepts List[FlowCallbackEventPayload].
+        
         Args:
             tool: Tool identifier (can be tool_name, toolkit:tool_name, or toolkit:tool_name:uuid)
             events: List of FlowCallbackEventKind events that should trigger this callback
@@ -1473,7 +1509,20 @@ class Flow(Node):
             
         Returns:
             Self for method chaining
+            
+        Raises:
+            ValueError: If tool not found or doesn't have correct callback input schema
         """
+        # Validate tool exists and has correct schema
+        if self._tool_client:
+            # Use helper method to resolve tool spec
+            tool_spec = self._resolve_tool_spec(tool, error_prefix="callback tool")
+            
+            # Validate the tool has correct callback schema
+            if tool_spec:
+                validate_callback_tool_schema(tool_spec, tool)
+        
+        # Create and add callback
         callback = FlowCallback(
             tool=tool,
             events=events,

@@ -4,12 +4,29 @@ import inspect
 import logging
 import requests
 import importlib
+import textwrap
+import typing
+import warnings
+from copy import deepcopy
 from os import path
 from pathlib import Path
 from types import ModuleType
-from typing import Optional, List, Tuple
+from typing import Any, Annotated, Optional, List, Tuple, TypeVar, cast, get_args, get_origin, get_type_hints
 
+import typing_extensions
 import typer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PydanticDeprecationWarning,
+)
+from pydantic import create_model as _create_model_base
+from pydantic.fields import FieldInfo, FieldInfo as FieldInfoV2
+from pydantic.v1 import BaseModel as BaseModelV1
+from pydantic.v1 import create_model as _create_model_v1
+from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments as validate_arguments_v1
 
 from ibm_watsonx_orchestrate import __version__
 from ibm_watsonx_orchestrate.client.utils import is_local_dev
@@ -407,3 +424,457 @@ def get_formated_requirements_lines(requirement_file: Optional[str] = None) -> L
 
     requirements = list(dict.fromkeys(requirements))
     return requirements
+
+
+def _retrieve_ref(path: str, schema: dict[str, Any]) -> list[Any] | dict[Any, Any]:
+    components = path.split("/")
+    if components[0] != "#":
+        raise ValueError(
+            "ref paths are expected to be URI fragments, meaning they should start with #."
+        )
+    out: list[Any] | dict[Any, Any] = schema
+    for component in components[1:]:
+        if component in out:
+            if isinstance(out, list):
+                raise KeyError(f"Reference '{path}' not found.")
+            out = out[component]
+        elif component.isdigit():
+            index = int(component)
+            if (isinstance(out, list) and 0 <= index < len(out)) or (
+                isinstance(out, dict) and index in out
+            ):
+                out = out[index]
+            else:
+                raise KeyError(f"Reference '{path}' not found.")
+        else:
+            raise KeyError(f"Reference '{path}' not found.")
+    return deepcopy(out)
+
+
+def _process_dict_properties(
+    properties: dict[str, Any],
+    full_schema: dict[str, Any],
+    processed_refs: set[str],
+    skip_keys: list[str],
+    *,
+    shallow_refs: bool,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in properties.items():
+        if key in skip_keys:
+            result[key] = deepcopy(value)
+        elif isinstance(value, (dict, list)):
+            result[key] = _dereference_refs_helper(
+                value, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs
+            )
+        else:
+            result[key] = value
+    return result
+
+
+def _dereference_refs_helper(
+    obj: Any,
+    full_schema: dict[str, Any],
+    processed_refs: set[str] | None,
+    skip_keys: list[str],
+    *,
+    shallow_refs: bool,
+) -> Any:
+    if processed_refs is None:
+        processed_refs = set()
+
+    if isinstance(obj, dict) and "$ref" in obj:
+        ref_path = obj["$ref"]
+        additional_properties = {k: v for k, v in obj.items() if k != "$ref"}
+
+        if ref_path in processed_refs:
+            return _process_dict_properties(
+                additional_properties, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs
+            )
+
+        processed_refs.add(ref_path)
+        referenced_object = deepcopy(_retrieve_ref(ref_path, full_schema))
+        resolved_reference = _dereference_refs_helper(
+            referenced_object, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs
+        )
+        processed_refs.remove(ref_path)
+
+        if not additional_properties:
+            return resolved_reference
+
+        merged_result: dict[str, Any] = {}
+        if isinstance(resolved_reference, dict):
+            merged_result.update(resolved_reference)
+        processed_additional = _process_dict_properties(
+            additional_properties, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs
+        )
+        merged_result.update(processed_additional)
+        return merged_result
+
+    if isinstance(obj, dict):
+        return _process_dict_properties(
+            obj, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs
+        )
+
+    if isinstance(obj, list):
+        return [
+            _dereference_refs_helper(item, full_schema, processed_refs, skip_keys, shallow_refs=shallow_refs)
+            for item in obj
+        ]
+
+    return obj
+
+
+def dereference_refs(
+    schema_obj: dict[str, Any],
+    *,
+    full_schema: dict[str, Any] | None = None,
+    skip_keys: list[str] | None = None,
+) -> dict[str, Any]:
+    """Resolve and inline JSON Schema ``$ref`` references in a schema object."""
+    full = full_schema or schema_obj
+    keys_to_skip = list(skip_keys) if skip_keys is not None else ["$defs"]
+    shallow = skip_keys is None
+    return cast(
+        "dict[str, Any]",
+        _dereference_refs_helper(schema_obj, full, None, keys_to_skip, shallow_refs=shallow),
+    )
+
+
+_FILTERED_ARGS = ("run_manager", "callbacks")
+_MIN_DOCSTRING_BLOCKS = 2
+
+_TypeBaseModel = type[BaseModel] | type[BaseModelV1]
+
+
+class _SchemaConfig:
+    """Configuration for Pydantic models generated from function signatures."""
+    extra: str = "forbid"
+    arbitrary_types_allowed: bool = True
+
+
+def _is_annotated_type(typ: type[Any]) -> bool:
+    return get_origin(typ) in {typing.Annotated, typing_extensions.Annotated}
+
+
+def _get_annotation_description(arg_type: type) -> str | None:
+    if _is_annotated_type(arg_type):
+        annotated_args = get_args(arg_type)
+        for annotation in annotated_args[1:]:
+            if isinstance(annotation, str):
+                return annotation
+            if isinstance(annotation, FieldInfo) and annotation.description:
+                return annotation.description
+    return None
+
+
+def _parse_google_docstring(
+    docstring: str | None,
+    args: list[str],
+    *,
+    error_on_invalid_docstring: bool = False,
+) -> tuple[str, dict[str, str]]:
+    if docstring:
+        docstring_blocks = docstring.split("\n\n")
+        if error_on_invalid_docstring:
+            filtered_annotations = {
+                arg for arg in args
+                if arg not in {"run_manager", "callbacks", "runtime", "return"}
+            }
+            if filtered_annotations and (
+                len(docstring_blocks) < _MIN_DOCSTRING_BLOCKS
+                or not any(block.startswith("Args:") for block in docstring_blocks[1:])
+            ):
+                raise ValueError("Found invalid Google-Style docstring.")
+        descriptors = []
+        args_block = None
+        past_descriptors = False
+        for block in docstring_blocks:
+            if block.startswith("Args:"):
+                args_block = block
+                break
+            if block.startswith(("Returns:", "Example:")):
+                past_descriptors = True
+            elif not past_descriptors:
+                descriptors.append(block)
+        description = " ".join(descriptors).strip()
+    else:
+        if error_on_invalid_docstring:
+            raise ValueError("Found invalid Google-Style docstring.")
+        description = ""
+        args_block = None
+
+    arg_descriptions: dict[str, str] = {}
+    if args_block:
+        arg = None
+        for line in args_block.split("\n")[1:]:
+            if ":" in line:
+                arg, desc = line.split(":", maxsplit=1)
+                arg = arg.strip()
+                arg_name, _, annotations_ = arg.partition(" ")
+                if annotations_.startswith("(") and annotations_.endswith(")"):
+                    arg = arg_name
+                arg_descriptions[arg] = desc.strip()
+            elif arg:
+                arg_descriptions[arg] += " " + line.strip()
+    return description, arg_descriptions
+
+
+def _parse_python_function_docstring(
+    function: Any,
+    annotations: dict[str, Any],
+    *,
+    error_on_invalid_docstring: bool = False,
+) -> tuple[str, dict[str, str]]:
+    docstring = inspect.getdoc(function)
+    return _parse_google_docstring(
+        docstring,
+        list(annotations),
+        error_on_invalid_docstring=error_on_invalid_docstring,
+    )
+
+
+def _validate_docstring_args_against_annotations(
+    arg_descriptions: dict[str, str], annotations: dict[str, Any]
+) -> None:
+    for docstring_arg in arg_descriptions:
+        if docstring_arg not in annotations:
+            raise ValueError(f"Arg {docstring_arg} in docstring not found in function signature.")
+
+
+def _infer_arg_descriptions(
+    fn: Any,
+    *,
+    parse_docstring: bool = False,
+    error_on_invalid_docstring: bool = False,
+) -> tuple[str, dict[str, str]]:
+    annotations = get_type_hints(fn, include_extras=True)
+    if parse_docstring:
+        description, arg_descriptions = _parse_python_function_docstring(
+            fn, annotations, error_on_invalid_docstring=error_on_invalid_docstring
+        )
+    else:
+        description = inspect.getdoc(fn) or ""
+        arg_descriptions = {}
+    if parse_docstring:
+        _validate_docstring_args_against_annotations(arg_descriptions, annotations)
+    for arg, arg_type in annotations.items():
+        if arg in arg_descriptions:
+            continue
+        if desc := _get_annotation_description(arg_type):
+            arg_descriptions[arg] = desc
+    return description, arg_descriptions
+
+
+def _is_pydantic_v1_annotation(annotation: Any) -> bool:
+    try:
+        return issubclass(annotation, BaseModelV1)
+    except TypeError:
+        return False
+
+
+def _is_pydantic_v2_annotation(annotation: Any) -> bool:
+    try:
+        return issubclass(annotation, BaseModel)
+    except TypeError:
+        return False
+
+
+def _function_annotations_are_pydantic_v1(sig: inspect.Signature, func: Any) -> bool:
+    any_v1 = any(
+        _is_pydantic_v1_annotation(p.annotation) for p in sig.parameters.values()
+    )
+    any_v2 = any(
+        _is_pydantic_v2_annotation(p.annotation) for p in sig.parameters.values()
+    )
+    if any_v1 and any_v2:
+        raise NotImplementedError(
+            f"Function {func} contains a mix of Pydantic v1 and v2 annotations. "
+            "Only one version of Pydantic annotations per function is supported."
+        )
+    return any_v1 and not any_v2
+
+
+def _create_subset_model_v1(
+    name: str,
+    model: type[BaseModelV1],
+    field_names: list[str],
+    *,
+    descriptions: dict[str, str] | None = None,
+    fn_description: str | None = None,
+) -> type[BaseModelV1]:
+    fields = {}
+    for field_name in field_names:
+        field = model.__fields__[field_name]
+        t = (
+            field.outer_type_
+            if field.required and not field.allow_none
+            else field.outer_type_ | None
+        )
+        if descriptions and field_name in descriptions:
+            field.field_info.description = descriptions[field_name]
+        fields[field_name] = (t, field.field_info)
+    rtn = cast("type[BaseModelV1]", _create_model_v1(name, **fields))
+    rtn.__doc__ = textwrap.dedent(fn_description or model.__doc__ or "")
+    return rtn
+
+
+def _create_subset_model_v2(
+    name: str,
+    model: type[BaseModel],
+    field_names: list[str],
+    *,
+    descriptions: dict[str, str] | None = None,
+    fn_description: str | None = None,
+) -> type[BaseModel]:
+    descriptions_ = descriptions or {}
+    fields = {}
+    for field_name in field_names:
+        field = model.model_fields[field_name]
+        description = descriptions_.get(field_name, field.description)
+        field_kwargs: dict[str, Any] = {"description": description}
+        if field.default_factory is not None:
+            field_kwargs["default_factory"] = field.default_factory
+        else:
+            field_kwargs["default"] = field.default
+        field_info = FieldInfoV2(**field_kwargs)
+        if field.metadata:
+            field_info.metadata = field.metadata
+        fields[field_name] = (field.annotation, field_info)
+    rtn = cast(
+        "type[BaseModel]",
+        _create_model_base(name, **fields, __config__=ConfigDict(arbitrary_types_allowed=True)),
+    )
+    selected_annotations = [
+        (n, annotation)
+        for n, annotation in model.__annotations__.items()
+        if n in field_names
+    ]
+    rtn.__annotations__ = dict(selected_annotations)
+    rtn.__doc__ = textwrap.dedent(fn_description or model.__doc__ or "")
+    return rtn
+
+
+def _create_subset_model(
+    name: str,
+    model: _TypeBaseModel,
+    field_names: list[str],
+    *,
+    descriptions: dict[str, str] | None = None,
+    fn_description: str | None = None,
+) -> _TypeBaseModel:
+    if issubclass(model, BaseModelV1):
+        return _create_subset_model_v1(
+            name, model, field_names, descriptions=descriptions, fn_description=fn_description
+        )
+    return _create_subset_model_v2(
+        name, model, field_names, descriptions=descriptions, fn_description=fn_description
+    )
+
+
+def _get_fields(model: type[BaseModel] | type[BaseModelV1]) -> dict[str, Any]:
+    if not isinstance(model, type):
+        model = type(model)
+    if issubclass(model, BaseModel):
+        return model.model_fields
+    if issubclass(model, BaseModelV1):
+        return model.__fields__
+    raise TypeError(f"Expected a Pydantic model. Got {model}")
+
+
+class _InjectedToolArg:
+    """Marker for tool arguments that are injected at runtime and excluded from schema."""
+
+
+def _is_directly_injected_arg_type(type_: Any) -> bool:
+    return (
+        isinstance(type_, type) and issubclass(type_, _InjectedToolArg)
+    ) or (
+        (origin := get_origin(type_)) is not None
+        and isinstance(origin, type)
+        and issubclass(origin, _InjectedToolArg)
+    )
+
+
+def _is_injected_arg_type(type_: Any, injected_type: type | None = None) -> bool:
+    if injected_type is None:
+        if _is_directly_injected_arg_type(type_):
+            return True
+        injected_type = _InjectedToolArg
+    return any(
+        isinstance(arg, injected_type)
+        or (isinstance(arg, type) and issubclass(arg, injected_type))
+        for arg in get_args(type_)[1:]
+    )
+
+
+def create_schema_from_function(
+    model_name: str,
+    func: Any,
+    *,
+    filter_args: list[str] | None = None,
+    parse_docstring: bool = False,
+    error_on_invalid_docstring: bool = False,
+    include_injected: bool = True,
+) -> _TypeBaseModel:
+    """Create a Pydantic schema from a function's signature."""
+    sig = inspect.signature(func)
+
+    if _function_annotations_are_pydantic_v1(sig, func):
+        validated = validate_arguments_v1(func, config=_SchemaConfig)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=PydanticDeprecationWarning)
+            validated = validate_arguments(func, config=_SchemaConfig)
+
+    in_class = bool(func.__qualname__ and "." in func.__qualname__)
+
+    has_args = False
+    has_kwargs = False
+    for param in sig.parameters.values():
+        if param.kind == param.VAR_POSITIONAL:
+            has_args = True
+        elif param.kind == param.VAR_KEYWORD:
+            has_kwargs = True
+
+    inferred_model = validated.model
+
+    if filter_args:
+        filter_args_ = filter_args
+    else:
+        existing_params: list[str] = list(sig.parameters.keys())
+        if existing_params and existing_params[0] in {"self", "cls"} and in_class:
+            filter_args_ = [existing_params[0], *list(_FILTERED_ARGS)]
+        else:
+            filter_args_ = list(_FILTERED_ARGS)
+
+        for existing_param in existing_params:
+            if not include_injected and _is_injected_arg_type(
+                sig.parameters[existing_param].annotation
+            ):
+                filter_args_.append(existing_param)
+
+    description, arg_descriptions = _infer_arg_descriptions(
+        func,
+        parse_docstring=parse_docstring,
+        error_on_invalid_docstring=error_on_invalid_docstring,
+    )
+
+    valid_properties = []
+    for field in _get_fields(inferred_model):
+        if not has_args and field == "args":
+            continue
+        if not has_kwargs and field == "kwargs":
+            continue
+        if field == "v__duplicate_kwargs":
+            continue
+        if field not in filter_args_:
+            valid_properties.append(field)
+
+    return _create_subset_model(
+        model_name,
+        inferred_model,
+        list(valid_properties),
+        descriptions=arg_descriptions,
+        fn_description=description,
+    )

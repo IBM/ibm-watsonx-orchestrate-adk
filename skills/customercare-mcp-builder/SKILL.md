@@ -202,7 +202,7 @@ return {
   _meta: {
     nextTool: {
       tool: 'request_agent_handoff',
-      arguments: { reason: 'Locked account' },
+      parameters: { reason: 'Locked account' },
     },
   },
 };

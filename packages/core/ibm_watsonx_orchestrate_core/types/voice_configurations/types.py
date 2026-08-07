@@ -127,11 +127,11 @@ class DeepgramSTTConfig(BaseModel):
   @model_validator(mode="after")
   def validate_model_and_features(self):
     """Validate model and feature usage"""
-    # Warn if model doesn't start with nova-2 or nova-3
-    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+    # Warn if model doesn't start with nova-2 or nova-3 or flux
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3") or self.model.startswith("flux")):
       warnings.warn(
         f"Model '{self.model}' is not officially supported by the ADK. "
-        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Only nova-2, nova-3, and flux models (and their variations like nova-2-finance, nova-3-medical) are supported. "
         f"Proceed at your own risk.",
         UserWarning,
         stacklevel=2
@@ -153,15 +153,33 @@ class DeepgramSTTConfig(BaseModel):
     
     return self
 
+class GoogleSTTConfig(BaseModel):
+  project_id: Annotated[str, Field(min_length=1, max_length=256)]
+  credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
+  language_code: Annotated[str, Field(min_length=2, max_length=16)]
+  model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
+  sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
+  enable_automatic_punctuation: Optional[bool] = None
+  enable_interim_results: Optional[bool] = None
+  enable_word_time_offsets: Optional[bool] = None
+  enable_word_confidence: Optional[bool] = None
+  profanity_filter: Optional[bool] = None
+  alternative_language_codes: Optional[List[Annotated[str, Field(min_length=2, max_length=16)]]] = None
+  use_enhanced: Optional[bool] = None
+  max_alternatives: Optional[Annotated[int, Field(ge=0, le=30)]] = None
+  enable_spoken_punctuation: Optional[bool] = None
+
+
 class SpeechToTextConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_stt_config: Optional[WatsonSTTConfig] = None
   emotech_stt_config: Optional[EmotechSTTConfig] = None
   deepgram_stt_config: Optional[DeepgramSTTConfig] = None
+  google_stt_config: Optional[GoogleSTTConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config'])
+    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config','google_stt_config'])
     return self
 
 class WatsonTTSConfig(BaseModel):
@@ -223,16 +241,34 @@ class DeepgramTTSConfig(BaseModel):
   mip_opt_out: Optional[bool] = None
   normalize_volume: Optional[bool] = None
   
+
+class GoogleTTSConfig(BaseModel):
+  credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
+  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  voice: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Annotated[str, Field(min_length=2, max_length=16)]
+  speaking_rate: Optional[Annotated[float, Field(ge=0.25, le=4.0)]] = None
+  pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = None
+  volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
+  effects_profile_id: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
+  ssml_gender: Optional[Annotated[str, Field(min_length=1, max_length=32)]] = None
+
+  @model_validator(mode="after")
+  def validate_auth(self):
+    _validate_exactly_one_of_fields(self, 'GoogleTTSConfig', ['credentials_json', 'api_key'])
+    return self
+
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_tts_config: Optional[WatsonTTSConfig] = None
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
+  google_tts_config: Optional[GoogleTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config'])
+    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_tts_config'])
     return self
 
 class DTMFInput(BaseModel):
@@ -284,7 +320,7 @@ class UserIdleHandlerLangConfig(BaseModel):
     description="Localized final hangup message for this language."
   )
 
-class AudioClips(Enum):
+class AudioClips(str, Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
   silence = "silence"
@@ -303,6 +339,7 @@ class AgentIdleHandler(AgentIdleHandlerMessages):
   typing_duration_seconds: int = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
   audio_clip_id: AudioClips = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
   hold_audio_seconds: int = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
+  long_running_task_seconds: Optional[int] = Field(default=2, ge=0, le=120, description="Seconds of agent processing time before the pre-hold message is triggered")
 
 class LanguageVoiceConfig(BaseModel):
   """Voice configuration for a specific language"""

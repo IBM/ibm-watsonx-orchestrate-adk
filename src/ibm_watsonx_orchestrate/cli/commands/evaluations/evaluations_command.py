@@ -18,7 +18,7 @@ from typing_extensions import Annotated
 
 try:
     from ibm_watsonx_orchestrate import __version__
-    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode, USE_LEGACY_EVAL
+    from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_controller import EvaluationsController, EvaluateMode
     from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_environment_manager import run_environment_manager
     from ibm_watsonx_orchestrate.cli.commands.agents.agents_controller import AgentsController
     _import_error = False
@@ -158,10 +158,9 @@ def evaluate(
     _check_import_error()
     validate_watsonx_credentials(user_env_file)
 
-    if not USE_LEGACY_EVAL:
-        logger.warning("Using new evaluation pipeline")
-        logger.warning("To use legacy evaluation, please enable it using `export USE_LEGACY_EVAL=TRUE`. Note this will soon be deprecated")
-    
+    if os.environ.get("USE_LEGACY_EVAL") is not None:
+        logger.warning("USE_LEGACY_EVAL is deprecated and will be ignored. All evaluations now use the new pipeline.")
+
     if langfuse_enabled:
         lf_sk_exists = os.environ.get("LANGFUSE_SECRET_KEY") is not None
         lf_pk_exists = os.environ.get("LANGFUSE_PUBLIC_KEY") is not None

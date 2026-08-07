@@ -34,6 +34,7 @@ from __future__ import annotations
 import functools
 import inspect
 import json
+import uuid
 from typing import Any, Callable, Dict, Optional
 
 from ibm_watsonx_orchestrate_sdk.observability.attributes import (
@@ -239,6 +240,7 @@ def trace_tool_call(
     capture_input: bool = False,
     capture_output: bool = False,
     tool_name: Optional[str] = None,
+    tool_id: Optional[str] = None,
     attributes: Optional[Dict[str, Any]] = None,
 ) -> Callable:
     """Decorator that wraps a function in a tool span.
@@ -248,12 +250,14 @@ def trace_tool_call(
         capture_input: Record function arguments as ``input.value``.
         capture_output: Record the return value as ``output.value``.
         tool_name: Logical tool name.  Defaults to ``fn.__name__``.
+        tool_id: Unique tool identifier. If not provided, a UUID will be generated.
         attributes: Optional extra span attributes.
     """
 
     def decorator(fn: Callable) -> Callable:
         span_name = name or fn.__qualname__
         resolved_tool_name = tool_name or fn.__name__
+        resolved_tool_id = tool_id if tool_id is not None else str(uuid.uuid4())
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -263,6 +267,7 @@ def trace_tool_call(
             with tracer.start_tool_span(
                 span_name,
                 tool_name=resolved_tool_name,
+                tool_id=resolved_tool_id,
                 attributes=attributes,
             ) as span:
                 if capture_input:
@@ -280,6 +285,7 @@ def trace_tool_call(
             with tracer.start_tool_span(
                 span_name,
                 tool_name=resolved_tool_name,
+                tool_id=resolved_tool_id,
                 attributes=attributes,
             ) as span:
                 if capture_input:
