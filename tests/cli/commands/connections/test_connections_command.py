@@ -178,6 +178,7 @@ class TestConnectionsSetCredentials:
         "app_id": "Testing_App_ID",
         "environment": "draft",
         "username": "test_username",
+        "server_cert": None,
         "password": "test_password",
         "token": "test_token",
         "api_key": "test_api_key",
@@ -202,6 +203,7 @@ class TestConnectionsSetCredentials:
         ("missing_param", "default_value"),
         [
             ("username", None),
+            ("server_cert", None),
             ("password", None),
             ("token", None),
             ("api_key", None),
