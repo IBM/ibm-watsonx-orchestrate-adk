@@ -153,6 +153,11 @@ class OAuth2JwtBearerCredentials(BaseOAuthCredentials):
                 jwt_payload[key] = value
         custom_claims = data.pop("custom_claims", None)
         if custom_claims:
+            # custom_claims is intentionally kept nested under jwt_payload as a single key.
+            # The connections manager service reads jwt_payload.custom_claims as an object,
+            # validates it, and then spreads its key/value pairs into the signed JWT
+            # assertion at runtime (see generateJWTAssertion.js:buildJWTPayload).
+            # Do NOT flatten these claims directly into jwt_payload here.
             jwt_payload["custom_claims"] = custom_claims
         if jwt_payload:
             data["jwt_payload"] = jwt_payload

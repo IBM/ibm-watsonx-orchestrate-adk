@@ -472,7 +472,7 @@ def _list_connections_formatted(connections: list, environment: ConnectionEnviro
 
 _JWT_BEARER_UNSUPPORTED_MSG = (
     "The 'oauth2_jwt_bearer' connection type is not supported by the current server image. "
-    "Please update CM_TAG in default.env to an image built from the add_oauth_jwt_bearer_grant branch."
+    "Please ensure CM_TAG in default.env points to an image that includes OAuth2 JWT Bearer support."
 )
 
 _JWT_BEARER_ENUM_FINGERPRINT = "invalid input value for enum enum_application_connection_configs_auth_type"

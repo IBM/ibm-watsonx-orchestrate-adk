@@ -516,6 +516,8 @@ class TestGetCredentials:
         assert dumped["jwt_payload"]["aud"] == "https://auth.example.com/token"
         assert dumped["jwt_payload"]["exp"] == "7200"
         assert dumped["jwt_payload"]["include_jti"] is True
+        # custom_claims must remain nested under jwt_payload (not flattened).
+        # The connections manager service spreads them into the signed JWT assertion at runtime.
         assert dumped["jwt_payload"]["custom_claims"] == {"fake_claim_1": "claim1", "fake_claim_2": "claim2"}
         assert dumped["jwt_signature"]["alg"] == "RS512"
         assert dumped["jwt_signature"]["kid"] == "key-1"
