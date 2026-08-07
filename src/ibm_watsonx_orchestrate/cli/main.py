@@ -24,6 +24,7 @@ from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_command import w
 from ibm_watsonx_orchestrate.cli.commands.controls.controls_command import controls_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 from ibm_watsonx_orchestrate.client.utils import is_ibm_cloud_platform
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env
 
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -56,9 +57,9 @@ app.add_typer(partners_app, name="partners", help='Generate a well-structured, s
 app.add_typer(observability_app, name="observability", help='Search and export trace data from the observability platform for analysis in third-party tools')
 app.add_typer(controls_app, name="controls", help='Configure controls to protect and manage your AI assets')
 
-# Conditionally add workspaces command only for IBM Cloud environments
+# Conditionally add workspaces command only for IBM Cloud environments OR CP4D environments
 try:
-    if is_ibm_cloud_platform():
+    if is_ibm_cloud_platform() or is_cpd_env():
         app.add_typer(workspaces_app, name="workspaces", help='Manage workspaces and workspace members for organizing agents and resources')
 except Exception:
     # If we can't determine the platform (e.g., no active env), don't add the command
