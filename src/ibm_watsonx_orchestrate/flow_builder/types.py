@@ -283,7 +283,6 @@ class LanguageCode(StrEnum):
     kg = auto()
     kj = auto()
     la = auto()
-    latn = auto()
     mg = auto()
     gv = auto()
     ng = auto()
