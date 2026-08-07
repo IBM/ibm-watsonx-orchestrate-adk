@@ -710,8 +710,8 @@ class ToolNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()  
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.tool:
             if isinstance(self.tool, ToolSpec):
                 model_spec["tool"] = self.tool.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
@@ -2936,8 +2936,8 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm"] = self.llm
         if self.llm_parameters:
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()            
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.prompt_examples:
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
