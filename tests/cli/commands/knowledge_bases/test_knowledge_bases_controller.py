@@ -730,7 +730,7 @@ class TestPollKnowledgeBaseStatus:
             
             assert mock_client.status.call_count == 2
             assert sleep_mock.call_count >= 1
-            console_mock.print.assert_called_once_with("[green]✓[/green] Successfully imported knowledge base 'test-kb'")
+            console_mock.print.assert_called_once_with("[green]✓[/green] Successfully synced knowledge base 'test-kb': [bold white]No sync in progress.[/bold white]")
 
     def test_poll_sync_state_failed(self, caplog):
         """Test polling connector sync_state failure."""
@@ -753,6 +753,7 @@ class TestContentSourceKnowledgeBase:
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
              patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="12345")}), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
 
             knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
@@ -773,6 +774,7 @@ class TestContentSourceKnowledgeBase:
 
     def test_update_content_source_knowledge_base_with_sync_polls_sync_state(self, content_source_knowledge_base_content):
         with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
              patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
             knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
             expected_id = uuid.uuid4()
