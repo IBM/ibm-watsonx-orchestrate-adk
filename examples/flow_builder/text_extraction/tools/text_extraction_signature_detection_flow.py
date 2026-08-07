@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
     display_name="Text Extraction with Signature Detection",
     description=(
         "Extracts text from input documents and detects the presence of signatures. "
-        "When enable_signature_detection is True, the output includes a signatures array "
+        "When detect_signatures is True, the output includes a signatures array "
         "with presence, location, page number, and confidence for each detected signature."
     ),
     input_schema=DocProcInput,
@@ -53,7 +53,7 @@ def build_docproc_signature_detection_flow(aflow: Flow) -> Flow:
             display_name="Extract Text and Detect Signatures",
             description="Extracts raw text from an input document and detects signatures",
             task="text_extraction",
-            enable_signature_detection=True,
+            detect_signatures=True,
         )
 
         # Connect nodes in sequence: START → docproc → END

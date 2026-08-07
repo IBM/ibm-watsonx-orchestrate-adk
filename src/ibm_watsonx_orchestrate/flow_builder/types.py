@@ -475,7 +475,7 @@ class DocProcSpec(DocProcCommonNodeSpec):
             Example: PageRange(start=1, end=5) extracts pages 1 through 5
             Default: None (extracts all pages)
 
-        enable_signature_detection (bool | None): Optional flag to enable signature detection.
+        detect_signatures (bool | None): Optional flag to enable signature detection.
             When True, the pipeline returns a signatures array in the output.
             Default: None (signature detection disabled)
 
@@ -561,8 +561,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
-    enable_signature_detection: bool | None = Field(
-        title="Enable Signature Detection",
+    detect_signatures: bool | None = Field(
+        title="Detect Signatures",
         default=None,
         description="Optional flag to enable signature detection for text extraction. "
                    "When True, the pipeline returns a signatures array in the output. "
@@ -589,8 +589,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
             model_spec["kvp_enable_text_hints"] = self.kvp_enable_text_hints
         if self.page_range is not None:
             model_spec["page_range"] = self.page_range
-        if self.enable_signature_detection is not None:
-            model_spec["enable_signature_detection"] = self.enable_signature_detection
+        if self.detect_signatures is not None:
+            model_spec["detect_signatures"] = self.detect_signatures
         if self.output_format != DocProcOutputFormat.docref:
             model_spec["output_format"] = self.output_format
         return model_spec
@@ -3654,8 +3654,8 @@ class DocProcInput(DocumentProcessingCommonInput):
         description='Determines whether to use text hints such as the text and layout information extracted from the document when extracting values in addition to the page image (True), or just rely on the page image itself (False)',
         default=True
     )
-    enable_signature_detection: bool | None = Field(
-        title='Enable Signature Detection',
+    detect_signatures: bool | None = Field(
+        title='Detect Signatures',
         description='Optional flag to enable signature detection for text extraction. When True, the pipeline returns a signatures array in the output.',
         default=None
     )
