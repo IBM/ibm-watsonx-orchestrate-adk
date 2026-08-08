@@ -23,7 +23,7 @@ __all__ = [
 
     "DocProcNode",
     "DocExtNode",
-    "DocClassifierNode"
+    "DocClassifierNode",
     "UserNode",
     "AgentNode",
     "StartNode",
