@@ -225,9 +225,14 @@ def _get_oauth_custom_fields(token_entries: List[ConnectionCredentialsEntry] | N
 def _get_credentials(type: ConnectionType, **kwargs):
     match type:
         case ConnectionType.BASIC_AUTH:
+            server_cert = kwargs.get("server_cert")
+            if server_cert is not None:
+                server_cert = server_cert.replace("\\n", "\n")
+                
             return BasicAuthCredentials(
                 username=kwargs.get("username"),
-                password=kwargs.get("password")
+                password=kwargs.get("password"),
+                server_cert=server_cert
             )
         case ConnectionType.BEARER_TOKEN:
             return BearerTokenAuthCredentials(
@@ -722,6 +727,10 @@ def configure_connection(**kwargs) -> None:
 
     if kwargs.get("custom_config_entries_list"):
         kwargs["custom_config_entries"] = {e.key: e.value for e in kwargs.get("custom_config_entries_list", [])}
+
+    if kwargs.get("name") and (kwargs.get("kind") != ConnectionKind.api_key or str(kwargs.get("kind")) != str(ConnectionKind.api_key)):
+        logger.error(f"Connection option 'name' is for custom API key header name and can only be used with connection kind 'api_key'.")
+        sys.exit(1)
 
     config = ConnectionConfiguration.model_validate(kwargs)
 
