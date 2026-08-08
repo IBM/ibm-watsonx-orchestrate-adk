@@ -1827,9 +1827,7 @@ services:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
-      LANGFLOW_AUTO_LOGIN: ${LANGFLOW_AUTO_LOGIN:-true}
-      LANGFLOW_SUPERUSER: ${LANGFLOW_SUPERUSER:-}
-      LANGFLOW_SUPERUSER_PASSWORD: ${LANGFLOW_SUPERUSER_PASSWORD:-}
+      LANGFLOW_AUTO_LOGIN: "true"
     volumes:
       - langflow-data:/app/langflow
 
