@@ -28,6 +28,24 @@ from .forms import (
     TableHeader,
 )
 
+from .multiturn import (
+    # Multi-turn widget
+    MultiTurnWidget,
+    
+    # State management
+    StateManager,
+    SessionStateManager,
+    ContextStateManager,
+    HybridStateManager,
+    WidgetState,
+    StateManagerError,
+    
+    # Context tracking
+    ConversationContext,
+    TurnRecord,
+    TurnStatus,
+)
+
 __all__ = [
     # Base classes
     "FormInput",
@@ -56,5 +74,21 @@ __all__ = [
     # Table widget
     "Table",
     "TableHeader",
+    
+    # Multi-turn widget
+    "MultiTurnWidget",
+    
+    # State management
+    "StateManager",
+    "SessionStateManager",
+    "ContextStateManager",
+    "HybridStateManager",
+    "WidgetState",
+    "StateManagerError",
+    
+    # Context tracking
+    "ConversationContext",
+    "TurnRecord",
+    "TurnStatus",
 ]
 
