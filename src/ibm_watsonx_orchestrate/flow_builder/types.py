@@ -652,7 +652,8 @@ class DocProcSpec(DocProcCommonNodeSpec):
         default=None,
         description="Optional flag to enable signature detection for text extraction. "
                    "When True, the pipeline returns a signatures array in the output. "
-                   "None or False disables signature detection."
+                   "None omits the field from the serialised spec entirely; "
+                   "False explicitly disables signature detection downstream."
     )
 
     def __init__(self, **data):
@@ -3702,14 +3703,15 @@ class DocumentProcessingCommonInput(BaseModel):
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''
-    This class represents the input of a Document processing task. 
+    This class represents the input of a Document processing task.
 
     Attributes:
         kvp_schemas (List[DocProcKVPSchema]): Optional list of key-value pair schemas to use for extraction. If not provided or None, no KVPs will be extracted. If an empty list is provided, we will use the internal schemas to extract KVPs.
         kvp_model_name (str | None): The LLM model to be used for key-value pair extraction
         kvp_force_schema_name (str | None): The name of the schema to use for KVP extraction. If not provided or None, the default schema will be used.
         kvp_enable_text_hints (bool): Whether to enable text hints for KVP extraction
-    
+        detect_signatures (bool | None): Optional runtime override for signature detection. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec.
+
     Inherited Attributes:
         document_ref (bytes|str): Document reference
         page_range (PageRange | None): Optional page range for text extractor and layout document extractor
@@ -3737,7 +3739,7 @@ class DocProcInput(DocumentProcessingCommonInput):
     )
     detect_signatures: bool | None = Field(
         title='Detect Signatures',
-        description='Optional flag to enable signature detection for text extraction. When True, the pipeline returns a signatures array in the output.',
+        description='Optional flag to enable signature detection for text extraction. When True, the pipeline returns a signatures array in the output. Overrides the value set in the node spec when provided at runtime.',
         default=None
     )
 
