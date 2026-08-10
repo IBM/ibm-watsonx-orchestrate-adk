@@ -369,7 +369,7 @@ class PropertyMaskingHelper:
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
         input_policy: Optional[InputPolicy] = None,
-        channel_override: Optional["ChannelOverride"] = None
+        channel_override: Optional[ChannelOverride] = None
     ) -> None:
         """
         Apply IBM masking extensions to a property schema.
