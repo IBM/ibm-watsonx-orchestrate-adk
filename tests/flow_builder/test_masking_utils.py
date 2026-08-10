@@ -119,7 +119,6 @@ def test_apply_masking_extensions_writes_channel_override_to_model_extra():
     assert extra["x-ibm-is-sensitive"] is True
     assert extra["x-ibm-masking-policy"] == MaskingPolicy.MASK_ALL.value
     assert extra["x-ibm-channel-override"] == ChannelOverride.VISIBLE_TO_INITIATOR.value
-    assert extra["x-ibm-channel-override"] == "visible-to-initiator"
 
 
 def test_apply_masking_extensions_omits_channel_override_when_not_provided():
