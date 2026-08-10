@@ -2028,13 +2028,6 @@ class TestDereferenceSkills:
             skills=skill_names,
         )
 
-    def _mock_skills_response(self, skills: list[dict]):
-        """Return a mock requests.Response that yields `skills` as JSON."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = skills
-        return mock_resp
-
     def test_dereference_skills_replaces_names_with_ids(self):
         skill_records = [
             {"id": "id-skill-1", "name": "skill-one"},
@@ -2044,30 +2037,23 @@ class TestDereferenceSkills:
 
         ac = AgentsController()
         mock_sc = MagicMock()
-        mock_sc.base_url = "http://localhost/skills"
-        mock_sc.client._get_headers.return_value = {}
-        mock_sc.client.verify = True
+        mock_sc.get_all_skills.return_value = skill_records
         ac.skills_controller = mock_sc
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get") as mock_get:
-            mock_get.return_value = self._mock_skills_response(skill_records)
-            result = ac.dereference_skills(agent)
+        result = ac.dereference_skills(agent)
 
         assert result.skills == ["id-skill-1", "id-skill-2"]
+        mock_sc.get_all_skills.assert_called_once_with(None)
 
     def test_dereference_skills_missing_skill_exits(self, caplog):
         agent = self._make_agent(["skill-missing"])
 
         ac = AgentsController()
         mock_sc = MagicMock()
-        mock_sc.base_url = "http://localhost/skills"
-        mock_sc.client._get_headers.return_value = {}
-        mock_sc.client.verify = True
+        mock_sc.get_all_skills.return_value = []
         ac.skills_controller = mock_sc
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get") as mock_get, \
-             pytest.raises(SystemExit):
-            mock_get.return_value = self._mock_skills_response([])
+        with pytest.raises(SystemExit):
             ac.dereference_skills(agent)
 
         assert "No skill found with the name 'skill-missing'" in caplog.text
@@ -2077,21 +2063,24 @@ class TestDereferenceSkills:
 
         ac = AgentsController()
         mock_sc = MagicMock()
-        mock_sc.base_url = "http://localhost/skills"
-        mock_sc.client._get_headers.return_value = {}
-        mock_sc.client.verify = True
+        mock_sc.get_all_skills.side_effect = SystemExit(1)
         ac.skills_controller = mock_sc
 
-        mock_resp = MagicMock()
-        mock_resp.status_code = 500
-        mock_resp.text = "internal server error"
-
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get") as mock_get, \
-             pytest.raises(SystemExit):
-            mock_get.return_value = mock_resp
+        with pytest.raises(SystemExit):
             ac.dereference_skills(agent)
 
-        assert "Failed to list skills" in caplog.text
+    def test_dereference_skills_passes_workspace_id(self):
+        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
+        agent = self._make_agent(["skill-one"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        ac.dereference_skills(agent, workspace_id="ws-123")
+
+        mock_sc.get_all_skills.assert_called_once_with("ws-123")
 
 
 class TestReferenceSkills:
@@ -2107,12 +2096,6 @@ class TestReferenceSkills:
             skills=skill_ids,
         )
 
-    def _mock_skills_response(self, skills: list[dict]):
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = skills
-        return mock_resp
-
     def test_reference_skills_replaces_ids_with_names(self):
         skill_records = [
             {"id": "id-skill-1", "name": "skill-one"},
@@ -2122,33 +2105,39 @@ class TestReferenceSkills:
 
         ac = AgentsController()
         mock_sc = MagicMock()
-        mock_sc.base_url = "http://localhost/skills"
-        mock_sc.client._get_headers.return_value = {}
-        mock_sc.client.verify = True
+        mock_sc.get_all_skills.return_value = skill_records
         ac.skills_controller = mock_sc
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get") as mock_get:
-            mock_get.return_value = self._mock_skills_response(skill_records)
-            result = ac.reference_skills(agent)
+        result = ac.reference_skills(agent)
 
         assert result.skills == ["skill-one", "skill-two"]
+        mock_sc.get_all_skills.assert_called_once_with(None)
 
-    def test_reference_skills_unknown_id_is_skipped(self, caplog):
+    def test_reference_skills_unknown_id_exits(self, caplog):
         agent = self._make_agent(["id-skill-unknown"])
 
         ac = AgentsController()
         mock_sc = MagicMock()
-        mock_sc.base_url = "http://localhost/skills"
-        mock_sc.client._get_headers.return_value = {}
-        mock_sc.client.verify = True
+        mock_sc.get_all_skills.return_value = []
         ac.skills_controller = mock_sc
 
-        with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get") as mock_get:
-            mock_get.return_value = self._mock_skills_response([])
-            result = ac.reference_skills(agent)
+        with pytest.raises(SystemExit):
+            ac.reference_skills(agent)
 
-        assert result.skills == []
         assert "No skill found with the id 'id-skill-unknown'" in caplog.text
+
+    def test_reference_skills_passes_workspace_id(self):
+        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
+        agent = self._make_agent(["id-skill-1"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        ac.reference_skills(agent, workspace_id="ws-456")
+
+        mock_sc.get_all_skills.assert_called_once_with("ws-456")
 
 
 class TestDereferenceNativeAgentDependenciesSkills:
@@ -2169,20 +2158,12 @@ class TestDereferenceNativeAgentDependenciesSkills:
         with patch.object(ac, "dereference_skills", wraps=ac.dereference_skills) as deref_skills_spy, \
              patch.object(ac, "get_skills_controller") as mock_get_sc:
             mock_sc = MagicMock()
-            mock_sc.base_url = "http://localhost/skills"
-            mock_sc.client._get_headers.return_value = {}
-            mock_sc.client.verify = True
+            mock_sc.get_all_skills.return_value = [{"id": "id-skill-1", "name": "skill-one"}]
             mock_get_sc.return_value = mock_sc
 
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = [{"id": "id-skill-1", "name": "skill-one"}]
+            result = ac.dereference_native_agent_dependencies(agent)
 
-            with patch("ibm_watsonx_orchestrate.cli.commands.agents.agents_controller.requests.get",
-                       return_value=mock_resp):
-                result = ac.dereference_native_agent_dependencies(agent)
-
-        deref_skills_spy.assert_called_once_with(agent)
+        deref_skills_spy.assert_called_once_with(agent, workspace_id=None)
         assert result.skills == ["id-skill-1"]
 
     def test_skills_not_called_when_empty(self):

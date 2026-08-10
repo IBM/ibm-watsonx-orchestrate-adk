@@ -1119,22 +1119,13 @@ class AgentsController:
 
         return ref_agent
 
-    def dereference_skills(self, agent: Agent) -> Agent:
-        sc = self.get_skills_controller()
+    def dereference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Resolve skill names to IDs for agent import/binding."""
+        skills_controller = self.get_skills_controller()
 
         deref_agent = deepcopy(agent)
 
-        # Fetch all skills once and build a name→id lookup
-        response = requests.get(
-            sc.base_url,
-            headers=sc.client._get_headers(),
-            verify=sc.client.verify,
-        )
-        if response.status_code != 200:
-            logger.error(f"Failed to list skills: {response.text}")
-            sys.exit(1)
-
-        all_skills = response.json()
+        all_skills = skills_controller.get_all_skills(workspace_id)
         name_id_lookup = {s["name"]: s["id"] for s in all_skills}
 
         deref_skills = []
@@ -1149,31 +1140,20 @@ class AgentsController:
         return deref_agent
 
     def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
-        sc = self.get_skills_controller()
+        """Resolve skill IDs back to names for agent export."""
+        skills_controller = self.get_skills_controller()
 
         ref_agent = deepcopy(agent)
 
-        # Fetch all skills once and build an id→name lookup
-        params = {"workspace_id": workspace_id} if workspace_id else {}
-        response = requests.get(
-            sc.base_url,
-            params=params,
-            headers=sc.client._get_headers(),
-            verify=sc.client.verify,
-        )
-        if response.status_code != 200:
-            logger.error(f"Failed to list skills: {response.text}")
-            sys.exit(1)
-
-        all_skills = response.json()
+        all_skills = skills_controller.get_all_skills(workspace_id)
         id_name_lookup = {s["id"]: s["name"] for s in all_skills}
 
         ref_skills = []
         for skill_id in agent.skills:
             name = id_name_lookup.get(skill_id)
             if not name:
-                logger.warning(f"Failed to find skill. No skill found with the id '{skill_id}'")
-                continue
+                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'")
+                sys.exit(1)
             ref_skills.append(name)
 
         ref_agent.skills = ref_skills
@@ -1349,7 +1329,7 @@ class AgentsController:
 
         return agent
 
-    def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
+    def dereference_native_agent_dependencies(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.dereference_collaborators(agent)
 
@@ -1370,7 +1350,7 @@ class AgentsController:
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
         if agent.skills and len(agent.skills) > 0:
-            agent = self.dereference_skills(agent)
+            agent = self.dereference_skills(agent, workspace_id=workspace_id)
 
         return agent
     
