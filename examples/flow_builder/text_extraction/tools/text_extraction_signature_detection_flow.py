@@ -1,7 +1,5 @@
 """Text Extraction with Signature Detection Example."""
 
-import logging
-
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     END,
     START,
@@ -9,9 +7,6 @@ from ibm_watsonx_orchestrate.flow_builder.flows import (
     flow,
 )
 from ibm_watsonx_orchestrate.flow_builder.types import DocProcInput
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 
 @flow(
@@ -25,43 +20,15 @@ logger = logging.getLogger(__name__)
     input_schema=DocProcInput,
 )
 def build_docproc_signature_detection_flow(aflow: Flow) -> Flow:
-    """
-    Build a text extraction flow that also performs signature detection.
+    """Build a text extraction flow that also performs signature detection."""
+    doc_proc_node = aflow.docproc(
+        name="text_extraction_with_signature_detection_node",
+        display_name="Extract Text and Detect Signatures",
+        description="Extracts raw text from an input document and detects signatures",
+        task="text_extraction",
+        detect_signatures=True,
+    )
 
-    This flow creates a document processing pipeline that extracts raw text
-    content from an input document and detects signatures within the document.
-    Useful when:
-    - Verifying whether a contract or form has been signed
-    - Auditing documents for signature presence and location
-    - Automating signature validation workflows
+    aflow.sequence(START, doc_proc_node, END)
 
-    Args:
-        aflow: Flow builder instance provided by the @flow decorator.
-
-    Returns:
-        Flow: Configured text extraction flow with signature detection enabled
-            (START → docproc → END)
-    """
-    assert aflow is not None, "Flow instance must be provided"
-
-    try:
-        # Create document processing node configured for text extraction
-        # with signature detection enabled.
-        # The output will include a signatures array alongside the extracted text.
-        doc_proc_node = aflow.docproc(
-            name="text_extraction_with_signature_detection_node",
-            display_name="Extract Text and Detect Signatures",
-            description="Extracts raw text from an input document and detects signatures",
-            task="text_extraction",
-            detect_signatures=True,
-        )
-
-        # Connect nodes in sequence: START → docproc → END
-        aflow.sequence(START, doc_proc_node, END)
-
-        logger.info("Text extraction with signature detection flow built successfully")
-        return aflow
-
-    except Exception as e:
-        logger.error(f"Failed to build text extraction signature detection flow: {e}", exc_info=True)
-        raise
+    return aflow
