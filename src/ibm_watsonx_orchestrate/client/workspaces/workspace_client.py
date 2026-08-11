@@ -3,9 +3,9 @@
 from typing import Optional
 from ibm_watsonx_orchestrate.client.base_api_client import BaseWXOClient
 
+
 import requests
 import logging
-
 logger = logging.getLogger(__name__)
 
 class WorkspaceClient(BaseWXOClient):
@@ -163,7 +163,7 @@ class WorkspaceClient(BaseWXOClient):
             IAM user ID (e.g., IBMid-693000JE6S) if found, None otherwise
             
         """
-
+        
         try:
             # Determine the IBM Cloud User Management API base URL based on environment
             # Check if we're in test/preprod environment
@@ -189,17 +189,8 @@ class WorkspaceClient(BaseWXOClient):
                 "accept": "application/json",
                 "Authorization": f"Bearer {token}"
             }
-
-
-            response = None
-            if "https://cpd" in self.base_url:
-                endpoint = f"{self.base_url}/v1/tenants/{account_id}/users"
-                response = requests.post(endpoint, headers=headers, timeout=30)
-                if response.status_code != 200:
-                    # Return None and let controller handle the error message
-                    return None
-            else:
-                response = requests.get(endpoint, headers=headers, timeout=30)
+                        
+            response = requests.get(endpoint, headers=headers, timeout=30)
             
             if response.status_code != 200:
                 # Return None and let controller handle the error message
