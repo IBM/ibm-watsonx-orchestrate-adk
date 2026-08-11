@@ -1152,7 +1152,7 @@ class AgentsController:
         for skill_id in agent.skills:
             name = id_name_lookup.get(skill_id)
             if not name:
-                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'")
+                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
                 sys.exit(1)
             ref_skills.append(name)
 
