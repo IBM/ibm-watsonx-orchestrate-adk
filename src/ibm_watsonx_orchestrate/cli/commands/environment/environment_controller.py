@@ -169,8 +169,8 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
         # When just refreshing token for same environment, preserve the active workspace
         if is_switching_env:
             # Reset active workspace when switching environments since workspaces are environment-specific
-            # For IBM Cloud or CP4D environments, set to global workspace, for local set to None
-            if is_ibm_cloud_platform(url) or is_cpd_env(url):
+            # For IBM Cloud environments, set to global workspace, for local set to None
+            if is_ibm_cloud_platform(url):
                 cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, GLOBAL_WORKSPACE_NAME)
             else:
                 cfg.write(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT, None)
@@ -185,8 +185,8 @@ def activate(name: str, apikey: str=None, username: str=None, password: str=None
 
     logger.info(f"Environment '{name}' is now active")
     
-    # Display active workspace for IBM Cloud or CP4D environments
-    if is_ibm_cloud_platform(url) or is_cpd_env(url):
+    # Display active workspace for IBM Cloud environments
+    if is_ibm_cloud_platform(url):
         active_workspace = cfg.read(CONTEXT_SECTION_HEADER, CONTEXT_ACTIVE_WORKSPACE_OPT)
         if active_workspace:
             logger.info(f"Active workspace: {active_workspace}")

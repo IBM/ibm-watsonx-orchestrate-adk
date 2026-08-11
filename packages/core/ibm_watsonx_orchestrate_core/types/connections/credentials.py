@@ -84,7 +84,6 @@ class BearerTokenAuthCredentials(BaseRuntimeCredentials):
 
 class APIKeyAuthCredentials(BaseRuntimeCredentials):
     api_key: str
-    name: Optional[str] = None  # Custom API key header
 
 class OAuth2TokenCredentials(BaseRuntimeCredentials):
     access_token: str
