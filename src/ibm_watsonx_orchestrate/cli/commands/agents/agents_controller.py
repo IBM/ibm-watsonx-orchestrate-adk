@@ -279,41 +279,49 @@ class AgentsController:
         self.safe_mode = safe_mode
 
     def get_native_client(self):
+        """Lazily initialise and return the shared AgentClient instance."""
         if not self.native_client:
             self.native_client = instantiate_client(AgentClient)
         return self.native_client
 
     def get_external_client(self):
+        """Lazily initialise and return the shared ExternalAgentClient instance."""
         if not self.external_client:
             self.external_client = instantiate_client(ExternalAgentClient)
         return self.external_client
     
     def get_assistant_client(self):
+        """Lazily initialise and return the shared AssistantAgentClient instance."""
         if not self.assistant_client:
             self.assistant_client = instantiate_client(AssistantAgentClient)
         return self.assistant_client
     
     def get_tool_client(self):
+        """Lazily initialise and return the shared ToolClient instance."""
         if not self.tool_client:
             self.tool_client = instantiate_client(ToolClient)
         return self.tool_client
     
     def get_knowledge_base_client(self):
+        """Lazily initialise and return the shared KnowledgeBaseClient instance."""
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
 
     def get_toolkit_client(self):
+        """Lazily initialise and return the shared ToolKitClient instance."""
         if not self.toolkit_client:
             self.toolkit_client = instantiate_client(ToolKitClient)
         return self.toolkit_client
 
     def get_voice_configuration_client(self):
+        """Lazily initialise and return the shared VoiceConfigurationsClient instance."""
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
 
     def get_skills_controller(self):
+        """Lazily initialise and return the shared SkillsController instance."""
         if not self.skills_controller:
             from ibm_watsonx_orchestrate.cli.commands.skills.skills_controller import SkillsController
             self.skills_controller = SkillsController()
