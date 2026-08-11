@@ -2509,8 +2509,6 @@ class AgentsController:
         llm_config = llm_config.model_dump(exclude_unset=True, exclude_defaults=True, exclude_none=True)
         if "llm_config" in agent_spec_file_content and not llm_config:
             agent_spec_file_content.pop("llm_config", None)
-        else:
-            agent_spec_file_content.update({"llm_config": llm_config})
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")

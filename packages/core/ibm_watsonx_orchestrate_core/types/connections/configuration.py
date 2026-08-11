@@ -183,7 +183,6 @@ class ConnectionConfiguration(BaseModel):
     config_id: Optional[str] = None
     tenant_id: Optional[str] = None
     custom_runtime_creds: Optional[dict] = Field(default=None, validation_alias=AliasChoices('custom_runtime_creds', 'custom_config_entries'), serialization_alias='custom_runtime_creds')
-    name: Optional[str] = None
     
     def __get_import_aliases_mapping(self) -> dict:
         return {
