@@ -1395,11 +1395,11 @@ class AgentsController:
         return agent
     
     # Convert all names used in an agent to the corresponding ids
-    def dereference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
+    def dereference_agent_dependencies(self, agent: AnyAgentT, workspace_id: Optional[str] = None) -> AnyAgentT:
 
         agent = self.dereference_common_agent_dependencies(agent)
         if isinstance(agent, Agent):
-            return self.dereference_native_agent_dependencies(agent)
+            return self.dereference_native_agent_dependencies(agent, workspace_id=workspace_id)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.dereference_external_or_assistant_agent_dependencies(agent)
 
