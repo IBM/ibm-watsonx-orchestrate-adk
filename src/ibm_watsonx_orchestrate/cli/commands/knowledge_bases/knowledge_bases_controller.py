@@ -98,7 +98,7 @@ def get_index_config(kb: KnowledgeBase, index: int = 0) -> IndexConnection | Non
 
 def get_kb_app_id(kb: KnowledgeBase) -> str | None:
     if kb.content_source is not None:
-        return kb.content_source.connection_id  # app_id stored on spec before resolution
+        return kb.content_source.app_id
     index_config = get_index_config(kb)
     if not index_config:
         return
@@ -187,17 +187,20 @@ class KnowledgeBaseController:
         knowledge_bases = parse_file(file=file)
 
         file_path: Path = Path(file)
-        
+
+        # Keep the CLI-supplied app_id immutable so it is not overwritten by
+        # per-KB values across loop iterations.
+        cli_app_id = app_id
         connections_map = None
-        
+
         existing_knowledge_bases = client.get_by_names([kb.name for kb in knowledge_bases])
-        
+
         for kb in knowledge_bases:
-            app_id = app_id if app_id else get_kb_app_id(kb)
-            if app_id:
+            resolved_app_id = cli_app_id if cli_app_id else get_kb_app_id(kb)
+            if resolved_app_id:
                 if not connections_map:
                     connections_map = build_connections_map("app_id")
-                conn = connections_map.get(app_id)
+                conn = connections_map.get(resolved_app_id)
                 if conn:
                     if kb.content_source is not None:
                         kb.content_source.connection_id = conn.connection_id
@@ -206,7 +209,7 @@ class KnowledgeBaseController:
                         if index_config:
                             index_config.connection_id = conn.connection_id
                 else:
-                    logger.error(f"No connection exists with the app-id '{app_id}'")
+                    logger.error(f"No connection exists with the app-id '{resolved_app_id}'")
                     exit(1)
 
             # Validate connection credentials before creating/updating
@@ -493,7 +496,7 @@ class KnowledgeBaseController:
         if is_local_dev() and not DockerUtils.is_docker_container_running("wdpflight-svc"):
             logger.error(
                 "Sync is not available because the server was not started with "
-                "--with-ingestion-from-external-sources. Restart the server with "
+                "--with-ingestion-from-external-source. Restart the server with "
                 "that flag to enable syncing."
             )
             return
@@ -940,9 +943,11 @@ class KnowledgeBaseController:
             if conn:
                 app_id = conn.app_id
                 if knowledge_base.content_source:
-                    # content_source KBs store app_id in connection_id on the spec
-                    # (it is resolved to the real connection_id at import time)
-                    knowledge_base.content_source.connection_id = app_id
+                    # Store the unresolved app_id in the dedicated field so the
+                    # spec is re-importable.  Clear connection_id so it is not
+                    # serialised as a resolved runtime value.
+                    knowledge_base.content_source.app_id = app_id
+                    knowledge_base.content_source.connection_id = None
                 else:
                     index_config = get_index_config(knowledge_base)
                     index_config.app_id = app_id
