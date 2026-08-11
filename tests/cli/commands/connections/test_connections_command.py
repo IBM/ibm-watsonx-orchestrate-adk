@@ -123,7 +123,8 @@ class TestConnectionsConfigure:
         "idp_token_type": "token_type",
         "idp_token_header": "token_header",
         "app_token_header": "token_header",
-        "custom_config_entries_list": []
+        "custom_config_entries_list": [],
+        "name": None
     }
 
     def test_configure_connection_command(self):
@@ -140,7 +141,8 @@ class TestConnectionsConfigure:
             ("idp_token_type", None),
             ("idp_token_header", None),
             ("app_token_header", None),
-            ("custom_config_entries_list", None)
+            ("custom_config_entries_list", None),
+            ("name", None)
         ]
     )
     def test_configure_connection_command_missing_optional_parms(self, missing_param, default_value):
