@@ -7,5 +7,7 @@
 
 set -e
 
-orchestrate agents remove -n hr_benefits_agent
+orchestrate agents remove -n hr_benefits_agent -k native
 orchestrate knowledge-bases remove -n box_hr_knowledge_base
+
+orchestrate connections remove -a box
