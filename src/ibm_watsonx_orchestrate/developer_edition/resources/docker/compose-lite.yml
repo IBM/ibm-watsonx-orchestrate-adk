@@ -1398,8 +1398,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
-      # runtime features are not ready for this release; leave unset to disable.
-      # DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
+      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
