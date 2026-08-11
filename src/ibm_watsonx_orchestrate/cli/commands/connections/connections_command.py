@@ -174,12 +174,6 @@ def configure_connection_command(
             help="Custom configuration options for the connection. Should be set in the form '<key>=<value>'. Multiple values can be passed using `-e key1=value1 -e key2=value2`"
         )
     ] = None,
-    name: Annotated[
-        str, typer.Option(
-            '--name', '-n',
-            help='The custom API key header name. Only applicable when kind is api_key.'
-        )
-    ] = None,
     
 ):
     configure_connection(
@@ -193,8 +187,7 @@ def configure_connection_command(
         idp_token_type=idp_token_type,
         idp_token_header=idp_token_header,
         app_token_header=app_token_header,
-        custom_config_entries_list=custom_config_entries_list,
-        name=name
+        custom_config_entries_list=custom_config_entries_list
     )
 
 @connections_app.command(name="set-credentials")

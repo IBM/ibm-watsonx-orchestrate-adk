@@ -18,10 +18,15 @@ from ibm_watsonx_orchestrate.cli.config import (
     ENVIRONMENTS_SECTION_HEADER,
     ENV_WXO_URL_OPT,
 )
-from ibm_watsonx_orchestrate.client.utils import is_ibm_cloud_platform, is_cpd_env
 from ibm_watsonx_orchestrate_core.utils.workspaces import GLOBAL_WORKSPACE_ID, GLOBAL_WORKSPACE_NAME
 
 logger = logging.getLogger(__name__)
+
+
+def is_ibm_cloud_platform(url: str) -> bool:
+    """Check if the given URL is an IBM Cloud platform URL."""
+
+    return "test.cloud.ibm.com" in url or "cloud.ibm.com" in url
 
 
 class WorkspaceContext:
@@ -30,7 +35,7 @@ class WorkspaceContext:
     
     This class provides methods to:
     - Get the active workspace ID
-    - Check if workspaces are supported in the current environment (Only IBM Cloud OR CP4D for now)
+    - Check if workspaces are supported in the current environment (Only IBM Cloud for now)
     - Resolve workspace names to IDs
     - Validate workspace context
     """
@@ -50,7 +55,7 @@ class WorkspaceContext:
             if not url or not isinstance(url, str):
                 return False
             
-            return is_ibm_cloud_platform(url) or is_cpd_env(url)
+            return is_ibm_cloud_platform(url)
         except Exception as e:
             logger.debug(f"Error checking workspace support: {e}")
             return False
