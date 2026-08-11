@@ -267,6 +267,10 @@ class KnowledgeBaseController:
                     kb.prioritize_built_in_index = True
                     payload = kb.model_dump(exclude_none=True)
                     payload.pop('sync_job', None)
+                    # app_id is a client-side resolution hint only; the server
+                    # schema does not know this field and will reject it.
+                    if 'content_source' in payload:
+                        payload['content_source'].pop('app_id', None)
 
                     try:
                         response = client.create_without_files(payload=payload)
@@ -636,6 +640,10 @@ class KnowledgeBaseController:
             kb.prioritize_built_in_index = True
             payload = kb.model_dump(exclude_none=True)
             payload.pop('sync_job', None)
+            # app_id is a client-side resolution hint only; strip it before
+            # sending to the server.
+            if 'content_source' in payload:
+                payload['content_source'].pop('app_id', None)
 
             client.update_without_files(knowledge_base_id, payload=payload)
 

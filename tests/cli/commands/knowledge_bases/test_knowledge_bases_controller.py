@@ -762,9 +762,11 @@ class TestContentSourceKnowledgeBase:
             from_spec_mock.return_value = knowledge_base
 
             # Expected payload reflects the post-resolution state: connection_id is
-            # populated by the controller from the connections map.
+            # populated by the controller from the connections map, and app_id is
+            # stripped (it is a client-side hint not known to the server).
             knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
             knowledge_base_json["content_source"]["connection_id"] = "12345"
+            knowledge_base_json["content_source"].pop("app_id", None)
             knowledge_base_json["prioritize_built_in_index"] = True
 
             mock_client_instance = MockClient(expected_payload=knowledge_base_json)
@@ -784,6 +786,8 @@ class TestContentSourceKnowledgeBase:
             knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
             expected_id = uuid.uuid4()
             expected_payload = knowledge_base.model_dump(exclude_none=True)
+            # app_id is stripped from the payload before the server call.
+            expected_payload.get("content_source", {}).pop("app_id", None)
             expected_payload["prioritize_built_in_index"] = True
             mock_client_instance = MockClient(expected_payload=expected_payload, expected_id=expected_id)
             mock_client_instance.update_without_files = Mock()
