@@ -184,7 +184,7 @@ class EnvService:
 
                 wo_auth_type = EnvService.resolve_auth_type(user_env)
 
-                if wo_auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.EKS.value}:
+                if wo_auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value}:
                     registry_url = "cpd/cp/wxo-lite"
 
                 else:
