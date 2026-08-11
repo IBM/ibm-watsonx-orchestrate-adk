@@ -96,7 +96,7 @@ def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None
     except:
         pass
 
-    if env_auth_type == EnvironmentAuthType.CPD:
+    if env_auth_type is not None and env_auth_type.canonical == EnvironmentAuthType.CPD:
         return True
 
     if url is None:
