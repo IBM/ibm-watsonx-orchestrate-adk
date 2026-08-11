@@ -14,7 +14,7 @@ class EnvironmentAuthType(str, Enum):
     def canonical(self) -> "EnvironmentAuthType":
         """Returns the auth type to use for logic dispatch.
         K8S reuses CPD authentication internally."""
-        if self == EnvironmentAuthType.K8S:
+        if self is EnvironmentAuthType.K8S:
             return EnvironmentAuthType.CPD
         return self
 
