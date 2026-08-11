@@ -68,7 +68,7 @@ class ServiceInstance(BaseServiceInstance):
                 )
             case EnvironmentAuthType.IBM_CLOUD_IAM:
                 return IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
-            case EnvironmentAuthType.CPD | EnvironmentAuthType.EKS:
+            case EnvironmentAuthType.CPD | EnvironmentAuthType.K8S:
                 url = ""
                 if self._credentials.iam_url is not None: 
                     url = self._credentials.iam_url

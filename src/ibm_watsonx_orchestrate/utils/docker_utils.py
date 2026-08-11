@@ -1335,7 +1335,7 @@ class DockerLoginService:
                 self.__docker_login(wo_entitlement_key, registry_url, "cp")
             elif source == DeveloperEditionSources.ORCHESTRATE:
                 wo_auth_type = self.__env_service.resolve_auth_type(env_dict)
-                if wo_auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.EKS.value} and not self.__env_service.did_user_provide_registry_url(env_dict):
+                if wo_auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value} and not self.__env_service.did_user_provide_registry_url(env_dict):
                     # docker login is not required when auth type is cpd and user has not provided a custom registry
                     # URL. when in this mode, the system sets REGISTRY_URL to "cpd/cp/wxo-lite" and the system does
                     # custom docker registry image pulls. when a REGISTRY_URL is provided by user and in cpd mode (i.e.,
@@ -1407,7 +1407,7 @@ class DockerLoginService:
                     f"Invalid WO_INSTANCE URL: '{instance_url}'. It should contain the instance (tenant) id.")
             tenant_id = path.split('/')[-1]
             return wo_api_key, f"wxouser-{tenant_id}"
-        elif auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.EKS.value}:
+        elif auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value}:
             wo_api_key = env_dict.get("WO_API_KEY")
             wo_password = env_dict.get("WO_PASSWORD")
             if not wo_api_key and not wo_password:
@@ -1677,7 +1677,7 @@ class DockerComposeCore:
     def trim_cpd_image_layer_cache (self, final_env_file: Path) -> int:
         env_settings = EnvSettingsService(final_env_file)
 
-        if self.__env_service.resolve_auth_type(env_settings.get_env()) not in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.EKS.value}:
+        if self.__env_service.resolve_auth_type(env_settings.get_env()) not in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value}:
             logger.error("Encountered a non-CPD environment. This operation can only be run for CPD.")
             sys.exit(1)
 
@@ -1834,7 +1834,7 @@ class DockerComposeCore:
         provided_registry = self.__env_service.did_user_provide_registry_url(env_settings.get_env())
 
         if (
-                self.__env_service.resolve_auth_type(env_settings.get_env()) not in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.EKS.value} or
+                self.__env_service.resolve_auth_type(env_settings.get_env()) not in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value} or
                 self.__env_service.did_user_provide_registry_url(env_settings.get_env())
         ):
             # no need to do custom docker image pulls when auth mode is cpd or when we're in an air-gapped cpd

@@ -7,14 +7,14 @@ class EnvironmentAuthType(str, Enum):
     MCSP_V1 = 'mcsp_v1'
     MCSP_V2 = 'mcsp_v2'
     CPD = 'cpd'
-    EKS = 'eks'
+    K8S = 'k8s'
     CNCF = 'cncf'
 
     @property
     def canonical(self) -> "EnvironmentAuthType":
         """Returns the auth type to use for logic dispatch.
-        EKS reuses CPD authentication internally."""
-        if self == EnvironmentAuthType.EKS:
+        K8S reuses CPD authentication internally."""
+        if self == EnvironmentAuthType.K8S:
             return EnvironmentAuthType.CPD
         return self
 
