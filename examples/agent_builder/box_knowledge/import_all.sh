@@ -70,19 +70,6 @@ orchestrate connections set-credentials -a box \
   --entries "private_key_password=${PRIVATE_KEY_PASSWORD}" \
   --env draft || echo -e "${YELLOW}⚠ 'connections set-credentials' failed — continuing${NC}"
 
-# echo -e "\n${YELLOW}Configuring connection (live)...${NC}"
-# orchestrate connections configure -a box --kind key_value --type team --env live
-
-# echo -e "\n${YELLOW}Setting credentials (live)...${NC}"
-# orchestrate connections set-credentials -a box \
-#   --entries "client_id=${CLIENT_ID}" \
-#   --entries "client_secret=${CLIENT_SECRET}" \
-#   --entries "enterprise_id=${ENTERPRISE_ID}" \
-#   --entries "public_key=${PUBLIC_KEY}" \
-#   --entries "private_key=${PRIVATE_KEY}" \
-#   --entries "private_key_password=${PRIVATE_KEY_PASSWORD}" \
-#   --env live
-
 echo -e "\n${GREEN}✓ Box connection created${NC}\n"
 
 # ---------------------------------------------------------------------------

@@ -51,11 +51,11 @@ def remove_knowledge_base(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the knowledge base you wish to remove"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="ID of the knowledge base you wish to remove"),
-    ]=None
+    ] = None
 ):  
     controller = KnowledgeBaseController()
     controller.remove_knowledge_base(id=id, name=name)
@@ -65,11 +65,11 @@ def knowledge_base_status(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the knowledge base you wish to get the status of"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="ID of the knowledge base you wish to get the status of"),
-    ]=None,
+    ] = None,
     verbose: Annotated[
         bool,
         typer.Option("--verbose", "-v", help="Show full status details including draft_index"),
@@ -84,11 +84,11 @@ def knowledge_base_sync(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the knowledge base you wish to sync"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="ID of the knowledge base you wish to sync"),
-    ]=None,
+    ] = None,
 ):
     controller = KnowledgeBaseController()
     controller.sync_knowledge_base(id=id, name=name)
@@ -106,11 +106,11 @@ def knowledge_base_export(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="The name of the knowledge base you want to export"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="The ID of the knowledge base you wish export"),
-    ]=None,
+    ] = None,
 ):
     controller = KnowledgeBaseController()
     controller.knowledge_base_export(
