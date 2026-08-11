@@ -411,9 +411,13 @@ class ContentSourceConfig(BaseModel):
         ...,
         description="Type of external source (box, sharepoint, google_drive, etc.)"
     )
+    app_id: Optional[str] = Field(
+        None,
+        description="App ID of the connector application (specified in the spec; resolved to connection_id at import time)"
+    )
     connection_id: Optional[str] = Field(
         None,
-        description="Connection ID for the external source (resolved from --app-id at import time)"
+        description="Resolved connection ID for the external source (populated at import time from app_id)"
     )
 
 class KnowledgeBaseSyncJob(BaseModel):
