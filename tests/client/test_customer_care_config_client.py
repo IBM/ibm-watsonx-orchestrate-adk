@@ -36,6 +36,13 @@ class TestGet:
         result = client.get()
         assert result is None
 
+    def test_reraises_non_404_error(self, client):
+        resp = Mock()
+        resp.status_code = 500
+        client._get.side_effect = ClientAPIException(response=resp, request=Mock())
+        with pytest.raises(ClientAPIException):
+            client.get()
+
 
 class TestSet:
     def test_patches_when_row_exists(self, client):
@@ -111,3 +118,10 @@ class TestReset:
     def test_ignores_404(self, client):
         client._delete.side_effect = _make_404()
         client.reset()  # must not raise
+
+    def test_reraises_non_404_error(self, client):
+        resp = Mock()
+        resp.status_code = 500
+        client._delete.side_effect = ClientAPIException(response=resp, request=Mock())
+        with pytest.raises(ClientAPIException):
+            client.reset()
