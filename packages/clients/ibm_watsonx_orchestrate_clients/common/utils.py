@@ -106,6 +106,12 @@ def is_cpd_env(url: str | None = None, env_auth_type: EnvironmentAuthType | None
         return True
     return False
 
+def is_cpd_like(auth_type: str | EnvironmentAuthType) -> bool:
+    if isinstance(auth_type, EnvironmentAuthType):
+        return auth_type in {EnvironmentAuthType.CPD, EnvironmentAuthType.K8S}
+    else:
+        return auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value}
+
 def get_cpd_instance_id_from_url(url: str | None = None) -> str:
     if url is None:
         url = get_current_env_url()

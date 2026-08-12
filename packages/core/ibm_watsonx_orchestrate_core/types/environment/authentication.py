@@ -8,7 +8,6 @@ class EnvironmentAuthType(str, Enum):
     MCSP_V2 = 'mcsp_v2'
     CPD = 'cpd'
     K8S = 'k8s'
-    CNCF = 'cncf'
 
     @property
     def canonical(self) -> "EnvironmentAuthType":
@@ -20,3 +19,4 @@ class EnvironmentAuthType(str, Enum):
 
     def __str__(self):
         return self.value
+
