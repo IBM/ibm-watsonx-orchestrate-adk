@@ -2043,7 +2043,7 @@ class TestDereferenceSkills:
         result = ac.dereference_skills(agent)
 
         assert result.skills == ["id-skill-1", "id-skill-2"]
-        mock_sc.get_all_skills.assert_called_once_with(None)
+        mock_sc.get_all_skills.assert_called_once_with()
 
     def test_dereference_skills_missing_skill_exits(self, caplog):
         agent = self._make_agent(["skill-missing"])
@@ -2068,20 +2068,6 @@ class TestDereferenceSkills:
 
         with pytest.raises(SystemExit):
             ac.dereference_skills(agent)
-
-    def test_dereference_skills_passes_workspace_id(self):
-        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
-        agent = self._make_agent(["skill-one"])
-
-        ac = AgentsController()
-        mock_sc = MagicMock()
-        mock_sc.get_all_skills.return_value = skill_records
-        ac.skills_controller = mock_sc
-
-        ac.dereference_skills(agent, workspace_id="ws-123")
-
-        mock_sc.get_all_skills.assert_called_once_with("ws-123")
-
 
 class TestReferenceSkills:
     """reference_skills converts skill IDs → skill names."""
@@ -2163,7 +2149,7 @@ class TestDereferenceNativeAgentDependenciesSkills:
 
             result = ac.dereference_native_agent_dependencies(agent)
 
-        deref_skills_spy.assert_called_once_with(agent, workspace_id=None)
+        deref_skills_spy.assert_called_once_with(agent)
         assert result.skills == ["id-skill-1"]
 
     def test_skills_not_called_when_empty(self):

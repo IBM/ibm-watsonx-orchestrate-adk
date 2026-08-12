@@ -1127,13 +1127,13 @@ class AgentsController:
 
         return ref_agent
 
-    def dereference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+    def dereference_skills(self, agent: Agent) -> Agent:
         """Resolve skill names to IDs for agent import/binding."""
         skills_controller = self.get_skills_controller()
 
         deref_agent = deepcopy(agent)
 
-        all_skills = skills_controller.get_all_skills(workspace_id)
+        all_skills = skills_controller.get_all_skills()
         name_id_lookup = {s["name"]: s["id"] for s in all_skills}
 
         deref_skills = []
@@ -1337,7 +1337,7 @@ class AgentsController:
 
         return agent
 
-    def dereference_native_agent_dependencies(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+    def dereference_native_agent_dependencies(self, agent: Agent) -> Agent:
         if agent.collaborators and len(agent.collaborators):
             agent = self.dereference_collaborators(agent)
 
@@ -1358,7 +1358,7 @@ class AgentsController:
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
         if agent.skills and len(agent.skills) > 0:
-            agent = self.dereference_skills(agent, workspace_id=workspace_id)
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1395,11 +1395,11 @@ class AgentsController:
         return agent
     
     # Convert all names used in an agent to the corresponding ids
-    def dereference_agent_dependencies(self, agent: AnyAgentT, workspace_id: Optional[str] = None) -> AnyAgentT:
+    def dereference_agent_dependencies(self, agent: AnyAgentT) -> AnyAgentT:
 
         agent = self.dereference_common_agent_dependencies(agent)
         if isinstance(agent, Agent):
-            return self.dereference_native_agent_dependencies(agent, workspace_id=workspace_id)
+            return self.dereference_native_agent_dependencies(agent)
         if isinstance(agent, ExternalAgent) or isinstance(agent, AssistantAgent):
             return self.dereference_external_or_assistant_agent_dependencies(agent)
 
