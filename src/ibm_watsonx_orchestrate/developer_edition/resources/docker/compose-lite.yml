@@ -1382,6 +1382,7 @@ services:
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
       SERVER_STANDALONE_TASK_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
       SERVER_FLOW_CALLBACK_URL: http://wxo-tempus-runtime:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
+      SERVER_FLOW_UNAUTH_CALLBACK_BASE_URL: http://wxo-server:4321
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
