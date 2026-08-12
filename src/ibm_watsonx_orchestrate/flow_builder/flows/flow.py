@@ -40,7 +40,7 @@ from ..types import (
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
     UserFormButton, LanguageCode
 )
-from ..masking_utils import MaskingPolicy, InputPolicy
+from ..masking_utils import MaskingPolicy, InputPolicy, ChannelOverride
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
     EndNode, Node, PromptNode, ScriptNode, StartNode, TimerNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
@@ -1862,7 +1862,8 @@ class Flow(Node):
         property_schema: Union[JsonSchemaObject, ToolResponseBody, ToolRequestBody],
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> None:
         """
         Validate a resolved property schema and apply masking extensions.
@@ -1879,7 +1880,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
 
     def mask_property(
@@ -1887,7 +1889,8 @@ class Flow(Node):
         property_path: str,
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> Self:
         """
         Mark a property as sensitive/confidential by adding IBM masking extensions.
@@ -1921,6 +1924,10 @@ class Flow(Node):
             input_policy: Input masking behavior (InputPolicy enum, optional)
                 - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
                 If omitted, data is only masked on output, not during input
+            channel_override: Channel-level visibility override (ChannelOverride enum, optional)
+                - ChannelOverride.VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in
+                  the channel when outputted to the flow initiator in the channel.
+                If omitted, the value remains masked in all channels.
         
         Returns:
             Self for method chaining
@@ -1952,6 +1959,13 @@ class Flow(Node):
                 "flow.input.password",
                 MaskingPolicy.MASK_ALL,
                 input_policy=InputPolicy.MASK_WHILE_TYPING
+            )
+
+            # Unmask for flow initiator in channel
+            flow.mask_property(
+                "flow.input.result",
+                MaskingPolicy.MASK_ALL,
+                channel_override=ChannelOverride.VISIBLE_TO_INITIATOR
             )
         """
         from ..masking_utils import PropertyMaskingHelper
@@ -2042,7 +2056,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
         
         return self
