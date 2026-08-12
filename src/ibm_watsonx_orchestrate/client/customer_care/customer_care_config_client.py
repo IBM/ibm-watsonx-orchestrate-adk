@@ -1,0 +1,1 @@
+from ibm_watsonx_orchestrate_clients.customer_care.customer_care_config_client import *
