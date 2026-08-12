@@ -1,7 +1,7 @@
 import json
 from ibm_watsonx_orchestrate.utils.utils import yaml_safe_load
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
-from .types import KnowledgeBaseSpec, KnowledgeBaseKind
+from .types import KnowledgeBaseSpec, KnowledgeBaseKind, ConversationalSearchConfig
 from pydantic import model_validator
 
 class KnowledgeBase(KnowledgeBaseSpec):
@@ -29,9 +29,19 @@ class KnowledgeBase(KnowledgeBaseSpec):
     
     # Not a model validator since we only want to validate this on import
     def validate_documents_or_index_exists(self):
-        if self.documents and self.conversational_search_tool and self.conversational_search_tool.index_config or \
-            (not self.documents and (not self.conversational_search_tool or not self.conversational_search_tool.index_config)):
+        has_documents = bool(self.documents)
+        has_index_config = bool(
+            isinstance(self.conversational_search_tool, ConversationalSearchConfig)
+            and self.conversational_search_tool.index_config
+        )
+        has_content_source = bool(self.content_source)
+
+        if has_documents and has_index_config:
             raise ValueError("Must provide either \"documents\" or \"conversational_search_tool.index_config\", but not both")
+        if not has_documents and not has_index_config and not has_content_source:
+            raise ValueError("Must provide either \"documents\", \"conversational_search_tool.index_config\", or \"content_source\"")
+        if has_content_source and not has_documents:
+            raise ValueError("\"documents\" is required when \"content_source\" is specified")
         return self
     
     @model_validator(mode="after")
