@@ -51,6 +51,23 @@ class TestCoerceValue:
         assert result == raw
         assert isinstance(result, str)
 
+    def test_negative_int(self):
+        # "-5" round-trips through str(int("-5")) == "-5" → int
+        assert coerce_value("-5") == -5
+        assert isinstance(coerce_value("-5"), int)
+
+    def test_float_not_coerced_to_int(self):
+        # "1.0" has a dot so it must be float, not int
+        result = coerce_value("1.0")
+        assert result == 1.0
+        assert isinstance(result, float)
+
+    def test_scientific_notation_stays_string(self):
+        # "1e5" has no dot and fails int round-trip → str
+        result = coerce_value("1e5")
+        assert result == "1e5"
+        assert isinstance(result, str)
+
 
 # ── list_assist_config ───────────────────────────────────────────────────────
 

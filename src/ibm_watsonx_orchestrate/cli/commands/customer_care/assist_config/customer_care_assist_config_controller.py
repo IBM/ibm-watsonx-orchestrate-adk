@@ -1,18 +1,18 @@
 import logging
-from typing import Any
+from typing import Union
 
 from ibm_watsonx_orchestrate.client.customer_care.utils import get_customer_care_config_client
 
 logger = logging.getLogger(__name__)
 
 
-def coerce_value(raw: str) -> Any:
+def coerce_value(raw: str) -> Union[bool, int, float, str]:
     """Coerce a CLI string value to the appropriate Python type.
 
     Rules (evaluated in order):
     1. "true" / "false" (case-insensitive) → bool
-    2. All digits with optional leading '-'  → int
-    3. Numeric with exactly one '.'          → float
+    2. All digits with optional leading '-'  → int  (round-trip check; rejects "1e5", "1.0")
+    3. Parseable by float() and contains '.' → float (e.g. "0.7", "1.0", "-0.5")
     4. Anything else                         → str
     """
     if raw.lower() == "true":
@@ -21,8 +21,9 @@ def coerce_value(raw: str) -> Any:
         return False
     try:
         int_val = int(raw)
-        # Only accept if the string round-trips (rejects "1e5", "1.0" etc.)
-        if str(int_val) == raw or (raw.startswith("-") and str(int_val) == raw):
+        # Round-trip check rejects scientific notation ("1e5") and
+        # decimal strings ("1.0") that Python's int() silently truncates.
+        if str(int_val) == raw:
             return int_val
     except ValueError:
         pass
