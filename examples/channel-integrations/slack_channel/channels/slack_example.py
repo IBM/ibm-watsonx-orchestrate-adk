@@ -15,5 +15,10 @@ channel = SlackChannel(
             id=os.getenv("SLACK_TEAM_ID"),  # Slack team/workspace ID
             bot_access_token=os.getenv("SLACK_BOT_TOKEN")  # Bot User OAuth Token (xoxb-...)
         )
-    ]
+    ],
+    sso_enabled=os.getenv("SLACK_SSO_ENABLED"),
+    sso_url=os.getenv("SLACK_SSO_URL"),
+    sso_user_prompt_text=os.getenv("SLACK_SSO_USER_PROMPT_TEXT"),
+    sso_user_prompt_label=os.getenv("SLACK_SSO_USER_PROMPT_LABEL"),
+    sso_cert=os.getenv("SLACK_SSO_CERT"),
 )
