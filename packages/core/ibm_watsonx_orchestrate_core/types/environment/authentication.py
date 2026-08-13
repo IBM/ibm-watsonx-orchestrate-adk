@@ -21,7 +21,7 @@ class EnvironmentAuthType(str, Enum):
     def is_cpd_like(cls, auth_type: "str | EnvironmentAuthType") -> bool:
         """Returns True if auth_type is CPD or K8S (which reuses CPD auth)."""
         try:
-            return cls(auth_type) in {cls.CPD, cls.K8S}
+            return cls(auth_type).canonical is cls.CPD
         except ValueError:
             return False
 
