@@ -47,7 +47,7 @@ class ServiceInstance(BaseServiceInstance):
         if is_ibm_cloud_platform(self._credentials.url):
             return EnvironmentAuthType.IBM_CLOUD_IAM
         elif is_cpd_env(self._credentials.url, env_auth_type=self._credentials.auth_type):
-            return EnvironmentAuthType.CPD
+            return self._credentials.auth_type.canonical if self._credentials.auth_type else EnvironmentAuthType.CPD
         else:
             return EnvironmentAuthType.MCSP
     
@@ -68,7 +68,7 @@ class ServiceInstance(BaseServiceInstance):
                 )
             case EnvironmentAuthType.IBM_CLOUD_IAM:
                 return IAMAuthenticator(apikey=self._credentials.api_key, url=self._credentials.iam_url)
-            case EnvironmentAuthType.CPD:
+            case EnvironmentAuthType.CPD | EnvironmentAuthType.K8S:
                 url = ""
                 if self._credentials.iam_url is not None: 
                     url = self._credentials.iam_url
@@ -96,7 +96,7 @@ class ServiceInstance(BaseServiceInstance):
         if self._credentials.auth_type:
             if self._credentials.auth_type != inferred_auth_type:
                 logger.warning(f"Overriding the default authentication type '{inferred_auth_type}' for url '{self._credentials.url}' with '{self._credentials.auth_type.lower()}'")
-            auth_type = self._credentials.auth_type.lower()
+            auth_type = self._credentials.auth_type.canonical.lower()
         else:
             inferred_type_options = [t for t in EnvironmentAuthType if t != inferred_auth_type]
             logger.warning(f"Using '{inferred_auth_type}' Auth Type. If this is incorrect please use the '--type' flag to explicitly choose one of {', '.join(inferred_type_options[:-1])} or {inferred_type_options[-1]}")
