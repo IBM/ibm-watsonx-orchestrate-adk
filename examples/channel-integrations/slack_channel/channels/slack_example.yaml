@@ -47,3 +47,10 @@ signing_secret: ${SLACK_SIGNING_SECRET}
 teams:
   - id: ${SLACK_TEAM_ID}  # Slack team/workspace ID (e.g., T012345UJBG)
     bot_access_token: ${SLACK_BOT_TOKEN}  # Bot User OAuth Token (starts with xoxb-)
+
+# Optional: SSO configuration
+sso_enabled: ${SLACK_SSO_ENABLED}
+sso_url: ${SLACK_SSO_URL}
+sso_user_prompt_text: ${SLACK_SSO_USER_PROMPT_TEXT}
+sso_user_prompt_label: ${SLACK_SSO_USER_PROMPT_LABEL}
+sso_cert: ${SLACK_SSO_CERT}
