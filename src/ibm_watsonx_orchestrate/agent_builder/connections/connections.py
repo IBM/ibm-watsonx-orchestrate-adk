@@ -49,7 +49,8 @@ connection_type_security_schema_map = {
     # ConnectionType.OAUTH2_IMPLICIT: ConnectionSecurityScheme.OAUTH2,
     ConnectionType.OAUTH2_PASSWORD: ConnectionSecurityScheme.OAUTH2,
     ConnectionType.OAUTH2_TOKEN_EXCHANGE: ConnectionSecurityScheme.OAUTH2,
-    ConnectionType.OAUTH2_DIRECT_ACCESS: ConnectionSecurityScheme.OAUTH2
+    ConnectionType.OAUTH2_DIRECT_ACCESS: ConnectionSecurityScheme.OAUTH2,
+    ConnectionType.OAUTH2_JWT_BEARER: ConnectionSecurityScheme.OAUTH2,
 }
 
 def _clean_env_vars(vars: dict[str:str], requirements: List[str], app_id: str, optional_fields: Optional[List[str]] = None) -> dict[str,str]:

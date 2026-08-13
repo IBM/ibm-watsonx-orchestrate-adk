@@ -83,3 +83,5 @@ examples/*/local/
 
 # IBM Bob
 .bob
+# Test command output artifacts
+test_output/

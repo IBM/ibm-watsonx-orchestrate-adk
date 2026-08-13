@@ -56,12 +56,17 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
+      POSTGRES_HOST_ARCHER: wxo-server-db
+      POSTGRES_PORT_ARCHER: ${DB_PORT:-5432}
+      POSTGRES_USER_ARCHER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD_ARCHER: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_ARCHER: postgres
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
-      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
+      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1, "ENABLE_KB_MIGRATION":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
     ports:
       - 3001:3001
@@ -1393,8 +1398,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
-      # runtime features are not ready for this release; leave unset to disable.
-      # DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
+      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
@@ -1822,7 +1826,7 @@ services:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
-      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
+      LANGFLOW_AUTO_LOGIN: "true"
     volumes:
       - langflow-data:/app/langflow
 
