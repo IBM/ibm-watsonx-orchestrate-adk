@@ -1335,7 +1335,7 @@ class DockerLoginService:
                 self.__docker_login(wo_entitlement_key, registry_url, "cp")
             elif source == DeveloperEditionSources.ORCHESTRATE:
                 wo_auth_type = self.__env_service.resolve_auth_type(env_dict)
-                if wo_auth_type in {EnvironmentAuthType.CPD.value, EnvironmentAuthType.K8S.value} and not self.__env_service.did_user_provide_registry_url(env_dict):
+                if EnvironmentAuthType.is_cpd_like(wo_auth_type) and not self.__env_service.did_user_provide_registry_url(env_dict):
                     # docker login is not required when auth type is cpd and user has not provided a custom registry
                     # URL. when in this mode, the system sets REGISTRY_URL to "cpd/cp/wxo-lite" and the system does
                     # custom docker registry image pulls. when a REGISTRY_URL is provided by user and in cpd mode (i.e.,
