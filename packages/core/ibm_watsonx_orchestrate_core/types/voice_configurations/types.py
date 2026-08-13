@@ -153,6 +153,33 @@ class DeepgramSTTConfig(BaseModel):
     
     return self
 
+class AzureProfanityFilter(str, Enum):
+  """How Azure STT handles profanity in returned transcripts.
+
+  masked: replace profane words with asterisks. removed: drop them entirely.
+  raw: return the transcript unaltered.
+  """
+  MASKED = "masked"
+  REMOVED = "removed"
+  RAW = "raw"
+
+  def __str__(self):
+    """Return the bare enum value so the filter renders as a plain string"""
+    return self.value
+
+  def __repr__(self):
+    """Return the quoted enum value for debugging output"""
+    return repr(self.value)
+
+class AzureSTTConfig(BaseModel):
+  """Speech to text settings for the Azure AI Speech service"""
+  subscription_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(...)
+  region: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = Field(default=None, description="BCP-47 language code, e.g. 'en-US'")
+  endpoint_id: Optional[Annotated[str, Field(min_length=1, max_length=256)]] = Field(default=None, description="Custom Speech model endpoint ID")
+  profanity_filter: Optional[AzureProfanityFilter] = Field(default=None, description="Profanity handling, default 'masked'")
+  phrase_list: Optional[Annotated[List[str], Field(max_length=500)]] = Field(default=None, description="Custom vocabulary phrases to boost recognition")
+
 class GoogleSTTConfig(BaseModel):
   project_id: Annotated[str, Field(min_length=1, max_length=256)]
   credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
@@ -169,17 +196,17 @@ class GoogleSTTConfig(BaseModel):
   max_alternatives: Optional[Annotated[int, Field(ge=0, le=30)]] = None
   enable_spoken_punctuation: Optional[bool] = None
 
-
 class SpeechToTextConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_stt_config: Optional[WatsonSTTConfig] = None
   emotech_stt_config: Optional[EmotechSTTConfig] = None
   deepgram_stt_config: Optional[DeepgramSTTConfig] = None
+  azure_stt_config: Optional[AzureSTTConfig] = None
   google_stt_config: Optional[GoogleSTTConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config','google_stt_config'])
+    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config','google_stt_config', 'azure_stt_config'])
     return self
 
 class WatsonTTSConfig(BaseModel):
@@ -240,7 +267,24 @@ class DeepgramTTSConfig(BaseModel):
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   mip_opt_out: Optional[bool] = None
   normalize_volume: Optional[bool] = None
-  
+
+class AzureTTSConfig(BaseModel):
+  """Text to speech settings for the Azure AI Speech service.
+
+  style, style_degree, and role are only honored by the neural voices that
+  support them. Azure silently falls back to the voice default for any voice
+  that does not, so these fields are safe to leave set.
+  """
+  subscription_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(...)
+  region: Annotated[str, Field(min_length=1, max_length=128)]
+  voice: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
+  rate: Optional[Annotated[float, Field(ge=0.5, le=2.0)]] = Field(default=None, description="Speed multiplier, 1.0 is normal")
+  pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = Field(default=None, description="Pitch adjustment in percent, 0.0 is normal")
+  volume: Optional[Annotated[int, Field(ge=0, le=100)]] = Field(default=None, description="Output loudness, 100 is the default, 0 is silent")
+  style: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default=None, description="Speaking style, e.g. 'cheerful', 'newscast'")
+  style_degree: Optional[Annotated[float, Field(ge=0.01, le=2.0)]] = Field(default=None, description="Style intensity, 1.0 is normal")
+  role: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default=None, description="Speaking persona, e.g. 'YoungAdultFemale'")
 
 class GoogleTTSConfig(BaseModel):
   credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
@@ -264,11 +308,12 @@ class TextToSpeechConfig(BaseModel):
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
+  azure_tts_config: Optional[AzureTTSConfig] = None
   google_tts_config: Optional[GoogleTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_tts_config'])
+    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_tts_config','azure_tts_config'])
     return self
 
 class DTMFInput(BaseModel):
