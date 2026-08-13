@@ -98,6 +98,7 @@ def run_compose_lite(
         with_connections_ui=False,
         with_langflow=False,
         with_ai_builder=False,
+        with_ingestion_from_external_source=False,
     ) -> None:
     env_service.prepare_clean_env(final_env_file)
     db_tag = env_service.read_env_file(final_env_file).get('DBTAG', None)
@@ -135,6 +136,8 @@ def run_compose_lite(
         profiles.append("langflow")
     if with_ai_builder:
         profiles.append("agent-builder")
+    if with_ingestion_from_external_source:
+        profiles.append("ingestion-from-external-source")
 
     result = compose_core.services_up(profiles, final_env_file, ["--scale", "ui=0"])
 
@@ -534,6 +537,11 @@ def server_start(
         '--with-ai-builder',
         help='Enable AI Builder features that allow for AI assisted agent creation and refinement'
     ),
+    with_ingestion_from_external_source: bool = typer.Option(
+        False,
+        '--with-ingestion-from-external-source', '-g',
+        help='Enable Apache Arrow Flight service for ingestion from external sources'
+    ),
     sequential_image_pull: bool = typer.Option(
         False,
         '--sequential-pull',
@@ -635,6 +643,9 @@ def server_start(
     if with_ai_builder:
         merged_env_dict['AI_BUILDER_ENABLED'] = 'true'
 
+    if with_ingestion_from_external_source:
+        merged_env_dict['INGESTION_FROM_EXTERNAL_SOURCE_ENABLED'] = 'true'
+
     if cert_bundle_path:
         cert_path: Path = Path(cert_bundle_path)
         if not cert_path.exists() or not cert_path.is_file():
@@ -683,6 +694,7 @@ def server_start(
                      with_connections_ui=with_connections_ui,
                      with_langflow=with_langflow,
                      with_ai_builder=with_ai_builder,
+                     with_ingestion_from_external_source=with_ingestion_from_external_source,
                      env_service=env_service)
     
     run_db_migration(with_ai_builder, merged_env_dict)
