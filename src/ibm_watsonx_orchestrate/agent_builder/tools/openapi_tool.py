@@ -314,9 +314,9 @@ def create_openapi_json_tool(
     # ADR rfc-0626: read x-ibm-orchestrate-inject-context and write the two paths
     # into the binding so TRM knows where to inject context and extract context_updates.
     inject_ctx = route_spec.get('x-ibm-orchestrate-inject-context') or {}
-    if inject_ctx.get('request_body_path'):
+    if inject_ctx.get('request_body_path') is not None:
         openapi_binding.context_request_body_path = inject_ctx['request_body_path']
-    if inject_ctx.get('response_body_path'):
+    if inject_ctx.get('response_body_path') is not None:
         openapi_binding.context_response_body_path = inject_ctx['response_body_path']
 
     if callback_binding is not None:
