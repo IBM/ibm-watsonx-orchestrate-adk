@@ -30,7 +30,7 @@ from ibm_watsonx_orchestrate.client.knowledge_bases.knowledge_base_client import
 from ibm_watsonx_orchestrate_clients.common.base_client import ClientAPIException
 from ibm_watsonx_orchestrate.client.credentials import Credentials
 from threading import Lock
-from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env, is_ibm_cloud_platform, is_cpd_like
+from ibm_watsonx_orchestrate.client.utils import is_local_dev, check_token_validity, is_cpd_env, is_ibm_cloud_platform
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ def _login(name: str, apikey: str = None, username: str = None, password: str = 
             sys.exit(1)
     
 
-    if not apikey and not password and not is_local and not is_cpd_like(auth_type):
+    if not apikey and not password and not is_local and not EnvironmentAuthType.is_cpd_like(auth_type):
         apikey = getpass.getpass("Please enter WXO API key: ")
 
     try:

@@ -18,7 +18,7 @@ from dotenv import dotenv_values
 from ibm_watsonx_orchestrate.cli.commands.environment.types import EnvironmentAuthType
 from ibm_watsonx_orchestrate.cli.commands.server.types import DirectAIEnvConfig, ModelGatewayEnvConfig
 from ibm_watsonx_orchestrate.cli.config import USER_ENV_CACHE_HEADER, Config, DOCKER_CONTEXT, DOCKER_SERVICE_CREDS_OPT
-from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm, is_cpd_like
+from ibm_watsonx_orchestrate.client.utils import is_arm_architecture, path_for_vm
 from ibm_watsonx_orchestrate.utils.utils import parse_bool_safe, parse_int_safe, parse_string_safe, parse_bool_safe_and_get_raw_val
 from ibm_watsonx_orchestrate.utils.file_manager import safe_open
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
@@ -184,7 +184,7 @@ class EnvService:
 
                 wo_auth_type = EnvService.resolve_auth_type(user_env)
 
-                if is_cpd_like(wo_auth_type):
+                if EnvironmentAuthType.is_cpd_like(wo_auth_type):
                     registry_url = "cpd/cp/wxo-lite"
 
                 else:
