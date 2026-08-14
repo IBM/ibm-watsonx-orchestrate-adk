@@ -112,7 +112,7 @@ def _login(name: str, apikey: str = None, username: str = None, password: str = 
             sys.exit(1)
     
 
-    if not apikey and not password and not is_local and auth_type != "cpd":
+    if not apikey and not password and not is_local and not EnvironmentAuthType.is_cpd_like(auth_type):
         apikey = getpass.getpass("Please enter WXO API key: ")
 
     try:
