@@ -2848,11 +2848,60 @@ class UserNodeSpec(NodeSpec):
         return self.form
 
 
+ThreadControlPolicy = Literal[
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+]
+
+
+class _Unset:
+    def __repr__(self):
+        return "UNSET"
+
+
+_UNSET = _Unset()
+
+_DEFAULT_THREAD_CONTROL_POLICY: ThreadControlPolicy = "REUSE_AND_CORRELATE"
+
+_VALID_THREAD_CONTROL_POLICIES = {
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+}
+
+
+
+
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
     title: str | None = Field(default=None, description="The title of the message.")
     guidelines: str | None = Field(default=None, description="The guidelines for the task.")
     agent: str
+    thread_control_policy: ThreadControlPolicy = Field(
+        default=_DEFAULT_THREAD_CONTROL_POLICY,
+        description=(
+            "Controls how the agent node manages conversation thread lifecycle. "
+            "'REUSE_AND_CORRELATE' (default): reuse correlated thread or create new. "
+            "'CREATE_ALWAYS': always create a new isolated thread."
+        ),
+    )
+
+    @field_validator("thread_control_policy", mode="before")
+    @classmethod
+    def normalize_thread_control_policy(cls, value):
+        if isinstance(value, _Unset):
+            logger.warning(
+                f"No valid thread_control_policy specified for agent node. "
+                f"Defaulting to '{_DEFAULT_THREAD_CONTROL_POLICY}'."
+            )
+            return _DEFAULT_THREAD_CONTROL_POLICY
+
+        if value in _VALID_THREAD_CONTROL_POLICIES:
+            return value
+
+        raise ValueError(
+            f"Invalid thread_control_policy={value!r}. "
+            f"Expected one of {_VALID_THREAD_CONTROL_POLICIES}."
+        )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -2868,6 +2917,7 @@ class AgentNodeSpec(ToolNodeSpec):
             model_spec["agent"] = self.agent
         if self.title:
             model_spec["title"] = self.title
+        model_spec["thread_control_policy"] = self.thread_control_policy
         return model_spec
 
 class PromptLLMParameters(BaseModel):
