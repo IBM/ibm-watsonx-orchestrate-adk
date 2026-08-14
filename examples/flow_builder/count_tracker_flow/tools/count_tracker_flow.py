@@ -3,10 +3,14 @@ from ibm_watsonx_orchestrate.flow_builder.flows import END, Flow, flow, START, A
 
 
 class AgentNodeOutput(BaseModel):
+    """Output schema for the count tracker agent node."""
+
     value: str = Field(description="Agent response")
 
 
 class FlowOutput(BaseModel):
+    """Output schema for the count tracker flow."""
+
     out: str = Field(description="")
 
 
