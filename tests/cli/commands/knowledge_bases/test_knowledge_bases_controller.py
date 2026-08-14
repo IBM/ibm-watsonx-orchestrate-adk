@@ -6,6 +6,8 @@ from ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_contro
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import (
+    ContentSourceConfig,
+    ContentSourceType,
     IndexConnection,
     MilvusConnection,
     ElasticSearchConnection,
@@ -117,6 +119,19 @@ def existing_external_knowledge_base_content() -> dict:
         }
     }
 
+@pytest.fixture
+def content_source_knowledge_base_content() -> dict:
+    return {
+        "spec_version": SpecVersion.V1,
+        "name": "test_content_source_knowledge_base",
+        "description": "Connector-backed knowledge base",
+        "documents": ["document_1.pdf"],
+        "content_source": {
+            "type": "box",
+            "app_id": "12345"
+        }
+    }
+
 class MockListConnectionResponse(BaseModel):
     connection_id: str
     app_id: str
@@ -148,6 +163,9 @@ class MockClient:
         assert payload == self.expected_payload
         assert files == self.expected_files
 
+    def create_without_files(self, payload):
+        assert payload == self.expected_payload
+
     def update(self, knowledge_base_id, payload):
         assert knowledge_base_id == self.expected_id
         assert payload == self.expected_payload
@@ -156,6 +174,10 @@ class MockClient:
         assert knowledge_base_id == self.expected_id
         assert payload == self.expected_payload
         assert files == self.expected_files
+
+    def update_without_files(self, knowledge_base_id, payload):
+        assert knowledge_base_id == self.expected_id
+        assert payload == self.expected_payload
     
     def get(self):
         return [self.fake_knowledge_base]
@@ -163,6 +185,9 @@ class MockClient:
     def status(self, knowledge_base_id):
         assert knowledge_base_id == self.expected_id
         return self.fake_status
+
+    def sync(self, knowledge_base_id):
+        assert knowledge_base_id == self.expected_id
 
     def get_by_name(self, name, workspace_id=None):
         if self.already_existing:
@@ -690,8 +715,340 @@ class TestPollKnowledgeBaseStatus:
             
             # Should call status multiple times
             assert mock_client.status.call_count == 4
+
+    def test_poll_sync_state_stable(self, caplog):
+        """Test polling connector sync_state until stable."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.side_effect = [
+                {'sync_state': 'in_progress', 'sync_state_msg': 'Syncing'},
+                {'sync_state': 'stable', 'sync_state_msg': 'No sync in progress.'}
+            ]
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, poll_interval=1, use_sync_state=True)
+            
+            assert mock_client.status.call_count == 2
+            assert sleep_mock.call_count >= 1
+            console_mock.print.assert_called_once_with("[green]✓[/green] Successfully synced knowledge base 'test-kb': [bold white]No sync in progress.[/bold white]")
+
+    def test_poll_sync_state_failed(self, caplog):
+        """Test polling connector sync_state failure."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.time.sleep") as sleep_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.console") as console_mock:
+            
+            mock_client = Mock()
+            mock_client.status.return_value = {
+                'sync_state': 'failed',
+                'sync_state_msg': 'Indexing failed'
+            }
+            
+            controller = KnowledgeBaseController()
+            controller._poll_knowledge_base_status(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+            
+            assert mock_client.status.call_count >= 1
+
+class TestContentSourceKnowledgeBase:
+    def test_import_content_source_knowledge_base_polls_sync_state(self, content_source_knowledge_base_content):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="12345")}), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
+
+            # Expected payload reflects the post-resolution state: connection_id is
+            # populated by the controller from the connections map, and app_id is
+            # stripped (it is a client-side hint not known to the server).
+            knowledge_base_json = knowledge_base.model_dump(exclude_none=True)
+            knowledge_base_json["content_source"]["connection_id"] = "12345"
+            knowledge_base_json["content_source"].pop("app_id", None)
+            knowledge_base_json["prioritize_built_in_index"] = True
+
+            mock_client_instance = MockClient(expected_payload=knowledge_base_json)
+            mock_client_instance.create_without_files = Mock(return_value={'knowledge_base': mock_client_instance.expected_id})
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            knowledge_base_controller.import_knowledge_base("test.json", None)
+
+            mock_client_instance.sync.assert_called_once_with(mock_client_instance.expected_id)
+            poll_mock.assert_called_once_with(mock_client_instance, mock_client_instance.expected_id, 'test_content_source_knowledge_base', False, use_sync_state=True)
+
+    def test_update_content_source_knowledge_base_with_sync_polls_sync_state(self, content_source_knowledge_base_content):
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status") as poll_mock:
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            expected_id = uuid.uuid4()
+            expected_payload = knowledge_base.model_dump(exclude_none=True)
+            # app_id is stripped from the payload before the server call.
+            expected_payload.get("content_source", {}).pop("app_id", None)
+            expected_payload["prioritize_built_in_index"] = True
+            mock_client_instance = MockClient(expected_payload=expected_payload, expected_id=expected_id)
+            mock_client_instance.update_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            controller = KnowledgeBaseController()
+            controller.update_knowledge_base(expected_id, knowledge_base, Path('.'), sync=True)
+
+            mock_client_instance.sync.assert_called_once_with(expected_id)
+            poll_mock.assert_called_once_with(mock_client_instance, expected_id, 'test_content_source_knowledge_base', False, use_sync_state=True)
+
+    def test_trigger_sync_polls_sync_state(self):
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch.object(controller, '_poll_knowledge_base_status') as poll_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False):
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_called_once_with('test-kb-id')
+        poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+
+    def test_trigger_sync_logs_error_and_skips_when_local_without_flag(self, caplog):
+        """Local env without --with-ingestion-from-external-source: should error and skip sync."""
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             patch.object(controller, '_poll_knowledge_base_status') as poll_mock, \
+             caplog.at_level("ERROR"):
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_not_called()
+        poll_mock.assert_not_called()
+        assert "--with-ingestion-from-external-source" in caplog.text
+
+    def test_trigger_sync_proceeds_when_local_with_flag(self):
+        """Local env with --with-ingestion-from-external-source (container running): should sync normally."""
+        mock_client = Mock()
+        controller = KnowledgeBaseController()
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=True), \
+             patch.object(controller, '_poll_knowledge_base_status') as poll_mock:
+            controller._trigger_sync(mock_client, 'test-kb-id', 'test-kb')
+
+        mock_client.sync.assert_called_once_with('test-kb-id')
+        poll_mock.assert_called_once_with(mock_client, 'test-kb-id', 'test-kb', False, use_sync_state=True)
+
+    def test_import_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
+        """Import of content_source KB in local env without the flag: sync must not be triggered."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"12345": Mock(connection_id="conn-12345")}), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            from_spec_mock.return_value = knowledge_base
+
+            mock_client_instance = MockClient()
+            mock_client_instance.create_without_files = Mock(return_value={'knowledge_base': mock_client_instance.expected_id})
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            knowledge_base_controller.import_knowledge_base("test.json", None)
+
+            mock_client_instance.sync.assert_not_called()
+            assert "--with-ingestion-from-external-source" in caplog.text
+
+    def test_update_content_source_skips_sync_when_local_without_flag(self, caplog, content_source_knowledge_base_content):
+        """Update of content_source KB in local env without the flag: sync must not be triggered."""
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=True), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.DockerUtils.is_docker_container_running", return_value=False), \
+             caplog.at_level("ERROR"):
+
+            knowledge_base = KnowledgeBase(**content_source_knowledge_base_content)
+            expected_id = uuid.uuid4()
+            mock_client_instance = MockClient(expected_id=expected_id)
+            mock_client_instance.update_without_files = Mock()
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            controller = KnowledgeBaseController()
+            controller.update_knowledge_base(expected_id, knowledge_base, Path('.'), sync=True)
+
+            mock_client_instance.sync.assert_not_called()
+            assert "--with-ingestion-from-external-source" in caplog.text
         
         
+
+    def test_multi_kb_import_cli_app_id_not_mutated_across_iterations(self, content_source_knowledge_base_content):
+        """cli_app_id must stay None across iterations so KB-2 falls back to its own app_id."""
+        kb1_content = {
+            "spec_version": SpecVersion.V1,
+            "name": "kb-one",
+            "description": "first",
+            "documents": ["doc.pdf"],
+            "content_source": {"type": "box", "app_id": "app-kb1"},
+        }
+        kb2_content = {
+            "spec_version": SpecVersion.V1,
+            "name": "kb-two",
+            "description": "second",
+            "documents": ["doc.pdf"],
+            "content_source": {"type": "box", "app_id": "app-kb2"},
+        }
+
+        conn_map = {
+            "app-kb1": Mock(connection_id="conn-kb1"),
+            "app-kb2": Mock(connection_id="conn-kb2"),
+        }
+
+        resolved_connection_ids = []
+
+        def _create_without_files(payload):
+            resolved_connection_ids.append(
+                payload.get("content_source", {}).get("connection_id")
+            )
+            return {"knowledge_base": str(uuid.uuid4())}
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value=conn_map), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status"), \
+             patch("ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base.KnowledgeBase.from_spec") as from_spec_mock:
+
+            kb1 = KnowledgeBase(**kb1_content)
+            kb2 = KnowledgeBase(**kb2_content)
+            from_spec_mock.side_effect = [kb1, kb2]
+
+            mock_client_instance = MockClient()
+            mock_client_instance.create_without_files = Mock(side_effect=_create_without_files)
+            mock_client_instance.sync = Mock()
+            client_mock.return_value = mock_client_instance
+
+            # parse_file returns both KBs; mock it directly
+            with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.parse_file", return_value=[kb1, kb2]):
+                knowledge_base_controller.import_knowledge_base("test.json", app_id=None)
+
+        # Each KB must resolve to its own connection, not the first KB's app_id
+        assert resolved_connection_ids == ["conn-kb1", "conn-kb2"]
+
+
+class TestConnectorKBExport:
+    """Tests for knowledge_base_export() with connector (content_source) KBs."""
+
+    def _make_kb(self, connection_id: str) -> KnowledgeBase:
+        """Return a minimal connector KB whose content_source has a resolved connection_id."""
+        kb = KnowledgeBase(
+            name="my-connector-kb",
+            description="box connector",
+            content_source=ContentSourceConfig(
+                type=ContentSourceType.box,
+                connection_id=connection_id,
+            ),
+            documents=["doc.pdf"],
+        )
+        kb.spec_version = None
+        return kb
+
+    def test_export_writes_app_id_not_connection_id(self, tmp_path):
+        """Exported content_source spec must carry app_id and no connection_id."""
+        kb = self._make_kb("conn-abc")
+
+        conn = Mock()
+        conn.app_id = "my-app-id"
+
+        output_yaml = tmp_path / "kb.yaml"
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_knowledge_base", return_value=kb), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_id", return_value="some-id"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"conn-abc": conn}):
+
+            client_mock.return_value = Mock()
+            controller = KnowledgeBaseController()
+            controller.knowledge_base_export(output_path=str(output_yaml))
+
+        import yaml as _yaml
+        spec = _yaml.safe_load(output_yaml.read_text())
+        cs = spec.get("content_source", {})
+        assert cs.get("app_id") == "my-app-id", "app_id must be written to the spec"
+        assert "connection_id" not in cs, "connection_id must not appear in the exported spec"
+
+    def test_export_then_import_roundtrip(self, tmp_path):
+        """A spec exported by knowledge_base_export() must be importable without errors."""
+        kb = self._make_kb("conn-abc")
+
+        conn = Mock()
+        conn.app_id = "my-app-id"
+        conn.connection_id = "conn-abc"
+
+        output_yaml = tmp_path / "kb.yaml"
+
+        # --- Export ---
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_knowledge_base", return_value=kb), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_id", return_value="some-id"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={"conn-abc": conn}):
+
+            controller = KnowledgeBaseController()
+            controller.knowledge_base_export(output_path=str(output_yaml))
+
+        import yaml as _yaml
+        spec = _yaml.safe_load(output_yaml.read_text())
+        # Confirm the exported spec has app_id (not connection_id) in content_source
+        assert spec["content_source"].get("app_id") == "my-app-id"
+        assert "connection_id" not in spec["content_source"]
+
+        # --- Import from the exported YAML ---
+        # build_connections_map keyed by app_id (as used during import)
+        import_conn_map = {"my-app-id": Mock(connection_id="conn-abc")}
+        created_payloads = []
+
+        def _create_without_files(payload):
+            created_payloads.append(payload)
+            return {"knowledge_base": str(uuid.uuid4())}
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client") as client_mock, \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value=import_conn_map), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.is_local_dev", return_value=False), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController._poll_knowledge_base_status"):
+
+            mock_client = MockClient()
+            mock_client.create_without_files = Mock(side_effect=_create_without_files)
+            mock_client.sync = Mock()
+            client_mock.return_value = mock_client
+
+            controller2 = KnowledgeBaseController()
+            controller2.import_knowledge_base(str(output_yaml), app_id=None)
+
+        # Exactly one KB should have been created
+        assert len(created_payloads) == 1
+        # The resolved connection_id must appear in the posted payload
+        cs_payload = created_payloads[0].get("content_source", {})
+        assert cs_payload.get("connection_id") == "conn-abc", \
+            "import must resolve app_id → connection_id and include it in the payload"
+
+    def test_export_unknown_connection_warns_and_preserves_connection_id(self, tmp_path, caplog):
+        """When the connection cannot be resolved, a warning is logged and the
+        runtime connection_id is left as-is (best-effort export)."""
+        kb = self._make_kb("conn-unknown")
+
+        output_yaml = tmp_path / "kb.yaml"
+
+        with patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_client"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_knowledge_base", return_value=kb), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.KnowledgeBaseController.get_id", return_value="some-id"), \
+             patch("ibm_watsonx_orchestrate.cli.commands.knowledge_bases.knowledge_bases_controller.build_connections_map", return_value={}), \
+             caplog.at_level("WARNING"):
+
+            controller = KnowledgeBaseController()
+            controller.knowledge_base_export(output_path=str(output_yaml))
+
+        assert "not found" in caplog.text or "unable to resolve" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # Helpers shared by the validation tests
