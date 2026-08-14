@@ -54,18 +54,22 @@ class TestAgentNodeSpecThreadControlPolicy:
     """Direct AgentNodeSpec validation tests."""
 
     def test_reuse_and_correlate_is_accepted(self):
+        """REUSE_AND_CORRELATE is a valid policy and is stored as-is."""
         spec = _make_spec("REUSE_AND_CORRELATE")
         assert spec.thread_control_policy == "REUSE_AND_CORRELATE"
 
     def test_create_always_is_accepted(self):
+        """CREATE_ALWAYS is a valid policy and is stored as-is."""
         spec = _make_spec("CREATE_ALWAYS")
         assert spec.thread_control_policy == "CREATE_ALWAYS"
 
     def test_none_raises_validation_error(self):
+        """Passing None must be rejected with a ValueError or ValidationError."""
         with pytest.raises((ValueError, ValidationError)):
             _make_spec(None)
 
     def test_unset_defaults_to_reuse_and_correlate(self):
+        """The _UNSET sentinel triggers the default fallback to REUSE_AND_CORRELATE."""
         spec = _make_spec(_UNSET)
         assert spec.thread_control_policy == _DEFAULT_THREAD_CONTROL_POLICY
 
@@ -80,6 +84,7 @@ class TestAgentNodeSpecThreadControlPolicy:
         "null",
     ])
     def test_invalid_value_raises_validation_error(self, bad_value):
+        """Any string that is not a recognised policy must raise."""
         with pytest.raises((ValueError, ValidationError)):
             _make_spec(bad_value)
 
@@ -103,16 +108,19 @@ class TestAgentNodeSpecToJson:
     """Verify that to_json() surfaces thread_control_policy correctly."""
 
     def test_reuse_and_correlate_serialises(self):
+        """REUSE_AND_CORRELATE is preserved under to_json() serialisation."""
         spec = _make_spec("REUSE_AND_CORRELATE")
         result = spec.to_json()
         assert result["thread_control_policy"] == "REUSE_AND_CORRELATE"
 
     def test_create_always_serialises(self):
+        """CREATE_ALWAYS is preserved under to_json() serialisation."""
         spec = _make_spec("CREATE_ALWAYS")
         result = spec.to_json()
         assert result["thread_control_policy"] == "CREATE_ALWAYS"
 
     def test_agent_appears_in_json(self):
+        """The agent reference string must appear in the serialised output."""
         spec = _make_spec("REUSE_AND_CORRELATE")
         result = spec.to_json()
         assert result["agent"] == _AGENT_REF
@@ -127,16 +135,19 @@ class TestFlowAgentNode:
     """Test Flow.agent() with each thread_control_policy variant."""
 
     def test_reuse_and_correlate_via_flow(self):
+        """Flow.agent() accepts REUSE_AND_CORRELATE and stores it on the node spec."""
         flow = FlowFactory.create_flow(name="test_flow")
         node = _make_node(flow, "REUSE_AND_CORRELATE")
         assert node.get_spec().thread_control_policy == "REUSE_AND_CORRELATE"
 
     def test_create_always_via_flow(self):
+        """Flow.agent() accepts CREATE_ALWAYS and stores it on the node spec."""
         flow = FlowFactory.create_flow(name="test_flow")
         node = _make_node(flow, "CREATE_ALWAYS")
         assert node.get_spec().thread_control_policy == "CREATE_ALWAYS"
 
     def test_none_via_flow_raises_validation_error(self):
+        """Flow.agent() must reject None as a thread_control_policy value."""
         flow = FlowFactory.create_flow(name="test_flow")
         with pytest.raises((ValueError, ValidationError)):
             _make_node(flow, None)
@@ -155,11 +166,13 @@ class TestFlowAgentNode:
         "",
     ])
     def test_invalid_policy_via_flow_raises(self, bad_value):
+        """Flow.agent() must reject any unrecognised policy string."""
         flow = FlowFactory.create_flow(name="test_flow")
         with pytest.raises((ValueError, ValidationError)):
             _make_node(flow, bad_value)
 
     def test_node_appears_in_flow_json(self):
+        """The agent node and its policy are present in the serialised flow JSON."""
         flow = FlowFactory.create_flow(name="test_flow")
         _make_node(flow, "CREATE_ALWAYS")
         flow_json = flow.to_json()
@@ -179,12 +192,14 @@ class TestThreadControlPolicyWarnings:
     """Ensure a warning is emitted for _UNSET."""
 
     def test_unset_emits_log_warning(self, caplog):
+        """Using _UNSET must produce a WARNING log mentioning thread_control_policy."""
         import logging
         with caplog.at_level(logging.WARNING):
             _make_spec(_UNSET)
         assert any("thread_control_policy" in record.message for record in caplog.records)
 
     def test_valid_policy_no_log_warning(self, caplog):
+        """A valid explicit policy must not produce any thread_control_policy warning."""
         import logging
         with caplog.at_level(logging.WARNING):
             _make_spec("CREATE_ALWAYS")

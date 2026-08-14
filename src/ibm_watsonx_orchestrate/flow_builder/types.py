@@ -2855,6 +2855,8 @@ ThreadControlPolicy = Literal[
 
 
 class _Unset:
+    """Sentinel value used to detect when thread_control_policy has not been explicitly set."""
+
     def __repr__(self):
         return "UNSET"
 
@@ -2888,6 +2890,7 @@ class AgentNodeSpec(ToolNodeSpec):
     @field_validator("thread_control_policy", mode="before")
     @classmethod
     def normalize_thread_control_policy(cls, value):
+        """Validate and normalise thread_control_policy, falling back to the default when the sentinel is received."""
         if isinstance(value, _Unset):
             logger.warning(
                 f"No valid thread_control_policy specified for agent node. "
