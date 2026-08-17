@@ -26,8 +26,8 @@ def build_docproc_signature_detection_flow(aflow: Flow) -> Flow:
         display_name="Extract Text and Detect Signatures",
         description="Extracts raw text from an input document and detects signatures",
         task="text_extraction",
-        detect_signatures=True,
-        document_structure=True
+        document_structure=True,
+        detect_signatures=True
     )
 
     aflow.sequence(START, doc_proc_node, END)
