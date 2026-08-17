@@ -40,6 +40,17 @@ class InputPolicy(str, Enum):
     MASK_WHILE_TYPING = "mask-while-typing"
 
 
+class ChannelOverride(str, Enum):
+    """
+    Enum for channel-level visibility overrides for sensitive properties.
+
+    Attributes:
+        VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in the channel when
+            outputted to the flow initiator in the channel.
+    """
+    VISIBLE_TO_INITIATOR = "visible-to-initiator"
+
+
 class PropertyMaskingHelper:
     """
     Helper class for parsing property paths and applying masking to schemas.
@@ -357,7 +368,8 @@ class PropertyMaskingHelper:
         property_schema: Union[JsonSchemaObject, ToolResponseBody, ToolRequestBody],
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> None:
         """
         Apply IBM masking extensions to a property schema.
@@ -369,12 +381,16 @@ class PropertyMaskingHelper:
         - x-ibm-masking-policy: <masking_policy>
         - x-ibm-masking-regex-config: <regex_config> (if policy is mask-via-regex)
         - x-ibm-masking-input-policy: <input_policy> (optional)
+        - x-ibm-channel-override: <channel_override> (optional)
         
         Args:
             property_schema: The schema to modify (JsonSchemaObject, ToolResponseBody, or ToolRequestBody)
             masking_policy: The masking policy to apply
             regex_config: Regex configuration for mask-via-regex policy (optional)
             input_policy: Input masking behavior (optional)
+            channel_override: Channel-level visibility override (optional).
+                Use ChannelOverride.VISIBLE_TO_INITIATOR to unmask sensitive info in the
+                channel when outputted to the flow initiator in the channel.
         
         Raises:
             ValueError: If property is not a string type
@@ -398,6 +414,9 @@ class PropertyMaskingHelper:
 
         if input_policy:
             extra_fields["x-ibm-masking-input-policy"] = input_policy.value
+
+        if channel_override:
+            extra_fields["x-ibm-channel-override"] = channel_override.value
         
         # Assign the complete dictionary at once
         property_schema.__pydantic_extra__ = extra_fields
