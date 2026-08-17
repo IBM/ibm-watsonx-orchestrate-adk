@@ -14,7 +14,7 @@ tags:
 
 # watsonx Orchestrate (wxO): Build · Test · Debug · Publish
 
-> **Last verified:** ADK v2.14.x (Aug 2026). Version-specific items below (server extras, premier-model default, default LLM, UI render flags) are point-in-time; re-verify if `orchestrate --version` differs.
+> **Last verified:** ADK v2.15.x (Aug 2026). Version-specific items below (server extras, premier-model default, default LLM, UI render flags) are point-in-time; re-verify if `orchestrate --version` differs.
 > **Golden rule:** the ADK moves fast. Always verify uncertain flags with `orchestrate <group> --help`; never rely on memory. Upgrade: `pip install -U ibm-watsonx-orchestrate` (Python ≥3.11, <3.15).
 > **Pre-flight:** activate venv (`source venv/bin/activate`) · always import + test after code generation.
 
@@ -277,7 +277,7 @@ orchestrate agents import        -f agents/weather_agent.yaml
 
 `-k` values: `python|openapi|flow|langflow`. Use `--safe` to prompt before overwriting.
 MCP toolkit: `orchestrate toolkits add -k mcp -n <name> --description "…" --package-root ./mcp_server --language node --command '["node","dist/index.js"]' --tools "*"`
-**Skills (2.14):** `orchestrate skills import -f SKILL.md --upsert` · `orchestrate skills import -d skills/ --recursive --upsert` · `orchestrate skills remove --skill-name <name>` (uses `--skill-name`, not `--name`)
+**Skills:** `orchestrate skills import -f SKILL.md --upsert` · `orchestrate skills import -d skills/ --recursive --upsert` · `orchestrate skills remove --skill-name <name>` (uses `--skill-name`, not `--name`)
 
 For cleanup: use `orchestrate <resource> remove` in **reverse import order** (agents → tools → kb → models → connections). Always append `|| true` for idempotency:
 ```bash
