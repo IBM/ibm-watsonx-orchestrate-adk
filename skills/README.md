@@ -1,6 +1,6 @@
 # watsonx Orchestrate Skills
 
-This directory contains Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for the **end-to-end lifecycle of enterprise automation and agent solutions**—from business requirements, solution architecture, and SOPs, to watsonx Orchestrate (wxO) implementation, post-build analysis and documentation, evaluation of agent instructions for production readiness, and customer care MCP server development.
+This directory contains Skills for working with the IBM watsonx Orchestrate Agent Development Kit (ADK). These skills provide expert guidance and assistance for the **end-to-end lifecycle of enterprise automation and agent solutions**—from business requirements, solution architecture, and SOPs, to watsonx Orchestrate (wxO) implementation, post-build analysis and documentation, telemetry-based debugging, evaluation of agent instructions for production readiness, and customer care MCP server development.
 
 ---
 
@@ -26,7 +26,11 @@ This skill set covers the complete journey of building enterprise AI agent solut
 
 5. **telemetry-analyzer** - Exports and analyzes agent telemetry traces from watsonx Orchestrate (OTel or Langfuse JSON) to produce structured bug reports with root-cause analysis, fix recommendations, and conversational flow reports.
 
-Together, these skills create a **closed-loop system** for designing, building, documenting, maintaining, and debugging enterprise-grade watsonx Orchestrate solutions.
+6. **agent-instructions-evaluator** - Evaluates agent instructions for operational achievability in production settings, scoring across five dimensions and surfacing hidden state, conflicting rules, and brittle phrasing before deployment.
+
+7. **customercare-mcp-builder** - Expert guide for building production-ready MCP servers for customer care agents, covering transaction patterns, widget types, context management, agent handoff, and complete reference implementations.
+
+Together, these skills create a **closed-loop system** for designing, building, documenting, debugging, evaluating, and maintaining enterprise-grade watsonx Orchestrate solutions.
 
 ---
 
