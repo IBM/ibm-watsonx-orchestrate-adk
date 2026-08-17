@@ -1,6 +1,6 @@
 # `orchestrate` CLI Reference
 
-Verified against `ibm-watsonx-orchestrate` 2.14.x. CLI evolves fast — always confirm with
+Verified against `ibm-watsonx-orchestrate` 2.15.x. CLI evolves fast — always confirm with
 `orchestrate <group> --help`. Short flags in `()`.
 
 ## Contents
@@ -15,11 +15,12 @@ Verified against `ibm-watsonx-orchestrate` 2.14.x. CLI evolves fast — always c
 - [§9 chat](#9-chat)
 - [§10 channels · evaluations · observability · voice · others](#10-channels--evaluations--observability--voice--others)
 - [§11 skills](#11-skills)
-- [§12 venv bootstrap](#12-venv-bootstrap)
+- [§12 controls](#12-controls)
+- [§13 venv bootstrap](#13-venv-bootstrap)
 
 Top-level groups: `env`, `agents`, `tools`, `skills`, `toolkits`, `knowledge-bases`, `connections`,
 `voice-configs`, `models`, `server`, `chat`, `channels`, `phone`, `evaluations`, `settings`,
-`partners`, `observability`.
+`partners`, `observability`, `controls`.
 > Note plural **`toolkits`**, **`voice-configs`**, **`knowledge-bases`**, and **`skills`** group names.
 
 ---
@@ -157,8 +158,8 @@ orchestrate knowledge-bases export -n my_kb -o my_kb_export.yaml
 | Command | Key options |
 |---------|-------------|
 | `connections add` | `--app-id(-a)` *(required)*, `--component`, `--category` |
-| `connections configure` | `--app-id(-a)`, `--environment/--env [draft\|live]`, `--type(-t) [member\|team]`, `--kind(-k)` (see below), `--server-url/--url(-u)`, `--sso(-s)`, `--idp-token-use`, `--idp-token-type`, `--idp-token-header`, `--app-token-header`, `--config-entries(-e)` |
-| `connections set-credentials` | `--app-id(-a)`, `--environment/--env`; creds: `--username(-u)`, `--password(-p)`, `--token`, `--api-key(-k)`, `--entries(-e) k=v`, `--token-entries(-t)`, `--auth-entries`; OAuth: `--client-id`, `--client-secret`, `--token-url`, `--auth-url`, `--scope`, `--grant-type`, `--send-via [header\|body]` |
+| `connections configure` | `--app-id(-a)`, `--environment/--env [draft\|live]`, `--type(-t) [member\|team]`, `--kind(-k)` (see below), `--server-url/--url(-u)`, `--sso(-s)`, `--idp-token-use`, `--idp-token-type`, `--idp-token-header`, `--app-token-header`, `--config-entries(-e)`, `--name(-n)` (custom API key header name, api_key kind only) |
+| `connections set-credentials` | `--app-id(-a)`, `--environment/--env`; creds: `--username(-u)`, `--password(-p)`, `--server-cert` (basic/OAuth password), `--token`, `--api-key(-k)`, `--entries(-e) k=v`, `--token-entries(-t)`, `--auth-entries`; OAuth: `--client-id`, `--client-secret`, `--token-url`, `--auth-url`, `--scope`, `--grant-type`, `--send-via [header\|body]` |
 | `connections set-identity-provider` | `--app-id(-a)`, `--environment/--env`, `--url(-u)`, `--client-id`, `--client-secret`, `--scope`, `--grant-type`, `--token-entries(-t)` |
 | `connections import` | `--file(-f)` |
 | `connections export` | `--app-id(-a)` *(required)*, `--output(-o)` *(required)* |
@@ -288,7 +289,7 @@ Channel types: `webchat` · `twilio_whatsapp` · `twilio_sms` · `byo_slack` · 
 
 | Command | Options |
 |---------|---------|
-| `observability traces search` | `--start-time`, `--end-time` OR `--last` (e.g. `30m`, `3h`, `10d`); `--session-id` (multi); `--user-id(-u)` (multi); `--sort-field start_time\|end_time`, `--sort-direction asc\|desc`, `--limit(-l)` [1–1000, default 100] |
+| `observability traces search` | `--start-time`, `--end-time` OR `--last` (e.g. `30m`, `3h`, `10d`); `--session-id` (multi); `--user-id(-u)` (multi); `--sort-field start_time\|end_time`, `--sort-direction asc\|desc`, `--limit(-l)` [1–1000, default 100]. ⚠ `--service-name`, `--agent-id`, `--agent-name`, `--min-spans`, `--max-spans` are **deprecated** (no-op) |
 | `observability traces export` | `--trace-id(-t)` *(required)*, `--output(-o)`, `--pretty/--no-pretty` |
 
 > ⚠ On SaaS, `traces search` returns 0 results even when traces exist. Prefer `traces export --trace-id`.
@@ -371,7 +372,37 @@ orchestrate skills remove --skill-name my_skill
 
 ---
 
-## 12. venv bootstrap
+## 12. controls
+
+Bind policy artifacts to agents, tools, or models to protect and govern AI assets.
+
+| Command | Key options |
+|---------|-------------|
+| `controls create` | `--artifact(-a)` *(required)*, `--name(-n)` *(required)*, `--display-name`, `--description(-d)`, `--hooks/--hook` (repeatable; values: `agent_pre_invoke`, `agent_post_invoke`, `tool_pre_invoke`, `tool_post_invoke`, `prompt_pre_fetch`, `prompt_post_fetch`), `--priority(-p)` (default 100, lower = first), `--config` (JSON), `--agent`, `--tool`, `--model` (repeatable) |
+| `controls list` | `--agent`, `--tool`, `--model`, `--artifact` (filters), `--sort [recent\|asc\|desc]`, `--verbose(-v)` |
+| `controls count` | — |
+| `controls get-details` | `--name(-n)` *(required)*, `--verbose(-v)` |
+| `controls update` | `--name(-n)` *(required)*, `--artifact`, `--new-name`, `--display-name`, `--description(-d)`, `--hooks/--hook`, `--priority(-p)`, `--config`, `--agent`, `--tool`, `--model` |
+| `controls remove` | `--name(-n)` *(required)* |
+| `controls import` | `--file(-f)` *(required)* |
+| `controls export` | `--name(-n)` *(required)*, `--output(-o)` *(required)* |
+| `controls list-types` | `--verbose(-v)` |
+| `controls get-type` | `--name(-n)` *(required)*, `--verbose(-v)` |
+
+```bash
+orchestrate controls list-types                        # discover available policy artifact types
+orchestrate controls create --artifact "PII Filter" --name pii_on_weather_agent \
+  --hooks agent_post_invoke --agent weather_agent
+orchestrate controls list --agent weather_agent
+orchestrate controls get-details -n pii_on_weather_agent
+orchestrate controls remove -n pii_on_weather_agent
+orchestrate controls export -n pii_on_weather_agent -o pii_control.yaml
+orchestrate controls import -f pii_control.yaml
+```
+
+---
+
+## 13. venv bootstrap
 
 The ADK requires Python ≥3.11, <3.15. Use **`uv`** (fast) or the stdlib `venv` module.
 
