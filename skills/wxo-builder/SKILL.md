@@ -294,11 +294,11 @@ orchestrate connections remove -a my_api || true
 
 After `./import-all.sh`:
 
-**Step 1 — Unit-test flows:** create one `tests/test_<flow_name>.py` per flow (stub the SDK, test tool logic, Pydantic schemas, and flow wiring). Run all before any agent chat test:
+**Step 1 — Unit-test flows:** create one `tests/test_<flow_name>.py` per flow (stub the SDK, test tool logic, Pydantic schemas, and flow wiring). **Execute `pytest` now — do not proceed to Step 2 until all tests pass:**
 ```bash
-source venv/bin/activate && python -m pytest tests/ -v
+source venv/bin/activate && PYTHONPATH=. python -m pytest tests/ -v
 ```
-If it fails: fix flow → `./import-all.sh` → re-run until pass.
+If it fails: fix flow → `./import-all.sh` → re-run until all pass. **Step 2 is blocked until this is green.**
 
 **Step 2 — Agent smoke-test:**
 Ask:
