@@ -77,12 +77,14 @@ class BaseRuntimeCredentials(BaseModel):
 class BasicAuthCredentials(BaseRuntimeCredentials):
     username: str
     password: str
+    server_cert: Optional[str] = None
 
 class BearerTokenAuthCredentials(BaseRuntimeCredentials):
     token: str
 
 class APIKeyAuthCredentials(BaseRuntimeCredentials):
     api_key: str
+    name: Optional[str] = None  # Custom API key header
 
 class OAuth2TokenCredentials(BaseRuntimeCredentials):
     access_token: str

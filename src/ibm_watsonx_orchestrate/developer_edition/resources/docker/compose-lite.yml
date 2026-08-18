@@ -233,7 +233,8 @@ services:
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_AGENT_DEBUG: "true"
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -287,7 +288,8 @@ services:
       ENABLE_LANGGRAPH_AGENT: "true"
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
       ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
@@ -739,6 +741,7 @@ services:
       EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      CONTROLS_ENABLED: true
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -1824,7 +1827,7 @@ services:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
-      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
+      LANGFLOW_AUTO_LOGIN: "true"
     volumes:
       - langflow-data:/app/langflow
 
