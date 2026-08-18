@@ -64,6 +64,10 @@ orchestrate server start -e .env --accept-terms-and-conditions && orchestrate en
 write tools + connections/models/KB → write agent YAML
   → scripts/import-all.sh (connections → models → KB → tools/toolkits → agent)
   → test gate (§7) → debug + re-import → deploy to production (§11)
+
+**Default build assumptions (unless the user says otherwise):**
+- If the request says to use a knowledge base, create an actual wxO knowledge base spec plus source documents, import it, wait/check until it is ready, and reference it from the agent YAML with `knowledge_base:`. Do **not** substitute a plain `.txt` file plus custom file-reading tool for a requested knowledge base.
+- If the user names a specific model/LLM, use that exact model. If the user does **not** specify one, first inspect the workspace for an existing model convention in nearby agent YAML files or project docs; if none exists, use the skill's documented default LLM. Never pick an arbitrary alternative model when the request is silent.
 ```
 
 **Project scaffold:**
@@ -345,7 +349,9 @@ orchestrate connections set-credentials -a my_api --env draft --api-key "$MY_API
 
 **Models:** `orchestrate models list` to see available IDs. `orchestrate models list --all` to show all including disabled. Premier models disabled by default in 2.13+; check with `orchestrate models config are-premier-models-enabled`. Custom watsonx.ai model: create a `watsonx_credentials` key-value connection + `kind: model` YAML → `orchestrate models import --app-id watsonx_credentials`.
 
-**Knowledge bases:** built-in Milvus is the default (no infra); external AstraDB / Milvus / Elasticsearch use provider blocks, anything else (Pinecone etc.) a custom `@tool`. Decision tree + provider schemas → **[references/connections-models-kb.md §3](references/connections-models-kb.md)**.
+**LLM selection rule:** if the user specifies a model, use it. If not, inspect existing project agent YAML files / docs for the established model first; only fall back to the skill default when no project convention exists.
+
+**Knowledge bases:** built-in Milvus is the default (no infra); external AstraDB / Milvus / Elasticsearch use provider blocks, anything else (Pinecone etc.) a custom `@tool`. If the request says to use a knowledge base, create the KB resource itself (`kind: knowledge_base`) and attach source documents to it; a local `.txt` file read by a tool is **not** an acceptable substitute for a requested KB. Decision tree + provider schemas → **[references/connections-models-kb.md §3](references/connections-models-kb.md)**.
 ```bash
 orchestrate knowledge-bases import -f kb.yaml
 orchestrate knowledge-bases status -n product_docs   # watch indexing
