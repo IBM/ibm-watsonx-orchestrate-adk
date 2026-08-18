@@ -7,7 +7,7 @@ source "${WORKSPACE}/${PIPELINE_CONFIG_REPO_PATH}/scripts/_docker.sh"
 warn "ENTER ${BASH_SOURCE[0]}"
 
 BUILD_IMAGE=$(get_env "wai-build-env-image")
-login_docker_registry "$(get_env "wai-registry-development")"
+login_docker_registry "$(get_secret "wai-registry-development")"
 BASE_DIR=$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")
 
 echo $BASE_DIR

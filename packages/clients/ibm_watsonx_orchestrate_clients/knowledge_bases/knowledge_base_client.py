@@ -28,6 +28,16 @@ class KnowledgeBaseClient(BaseWXOClient):
             # Re-serialize back to JSON
             payload['knowledge_base'] = json.dumps(kb_data)
         return self._post_form_data(f"{self.base_endpoint}/documents", data=payload)
+
+    def create_without_files(self, payload: dict) -> dict:
+        """Create a knowledge base without file uploads via POST /knowledge-bases."""
+        payload = resolve_and_inject_workspace(payload)
+        return self._post(self.base_endpoint, data=payload)
+
+    def update_without_files(self, knowledge_base_id: str, payload: dict) -> dict:
+        """Update a knowledge base without file uploads via PATCH /knowledge-bases/<id>."""
+        payload = resolve_and_inject_workspace(payload)
+        return self._patch(f"{self.base_endpoint}/{knowledge_base_id}", data=payload)
     
     def create_built_in(self, payload: dict, files: list) -> dict:
         # Parse the JSON-serialized knowledge_base data
@@ -139,3 +149,53 @@ class KnowledgeBaseClient(BaseWXOClient):
 
     def delete(self, knowledge_base_id: str,) -> dict:
         return self._delete(f"{self.base_endpoint}/{knowledge_base_id}")
+
+    def sync(self, knowledge_base_id: str) -> dict:
+        """
+        Trigger an on-demand sync for a connector-backed knowledge base.
+
+        Args:
+            knowledge_base_id: The knowledge base ID
+
+        Returns:
+            dict: Response from the API
+        """
+        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/sync", data={})
+    
+    def get_schedule(self, knowledge_base_id: str) -> dict:
+        """
+        Get the schedule for a knowledge base.
+
+        Args:
+            knowledge_base_id: The knowledge base ID
+
+        Returns:
+            dict: Response from the API, or None if no schedule exists
+        """
+        return self._get(f"{self.base_endpoint}/{knowledge_base_id}/schedule")
+
+    def create_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
+        """
+        Create a schedule for a knowledge base.
+        
+        Args:
+            knowledge_base_id: The knowledge base ID
+            payload: Dictionary containing the schedule pattern, e.g., {"pattern": "0 0 * * *"}
+        
+        Returns:
+            dict: Response from the API
+        """
+        return self._post(f"{self.base_endpoint}/{knowledge_base_id}/schedule", data=payload)
+    
+    def update_schedule(self, knowledge_base_id: str, payload: dict) -> dict:
+        """
+        Update a schedule for a knowledge base.
+        
+        Args:
+            knowledge_base_id: The knowledge base ID
+            payload: Dictionary containing the schedule pattern, e.g., {"pattern": "0 0 * * *"}
+        
+        Returns:
+            dict: Response from the API
+        """
+        return self._patch(f"{self.base_endpoint}/{knowledge_base_id}/schedule", data=payload)

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from ibm_watsonx_orchestrate.flow_builder.flows import (
     Flow, flow, START, END
 )
-from ibm_watsonx_orchestrate.flow_builder.masking_utils import InputPolicy, MaskingPolicy
+from ibm_watsonx_orchestrate.flow_builder.masking_utils import ChannelOverride, InputPolicy, MaskingPolicy
 from ibm_watsonx_orchestrate.flow_builder.types import ForeachPolicy, UserFieldKind
 from ibm_watsonx_orchestrate.flow_builder.data_map import DataMap, Assignment
 
@@ -289,4 +289,11 @@ self.output.processing_notes = [
     aflow.mask_property(f"flow.{validate_creds_node.spec.name}.output.token", masking_policy=MaskingPolicy.MASK_LAST4)
 
     aflow.mask_property(f"flow.{process_tool_node.spec.name}.output.middle_name", MaskingPolicy.MASK_FIRST4)
+
+    # Unmask for flow initiator — value is masked in logs/traces but visible to initiator in chat
+    aflow.mask_property(
+        "flow.input.ssn",
+        MaskingPolicy.MASK_ALL,
+        channel_override=ChannelOverride.VISIBLE_TO_INITIATOR,
+    )
     return aflow
