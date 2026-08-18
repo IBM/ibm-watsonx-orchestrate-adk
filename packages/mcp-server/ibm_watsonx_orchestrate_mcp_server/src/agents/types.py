@@ -93,7 +93,7 @@ class CreateAgentOptions(BaseModel):
         description="The LLM model to use for this agent. The value provided must be a model in the watsonx Orchestrate platform"
     )
     style: AgentStyle = Field(
-        default=AgentStyle.DEFAULT,
+        default=AgentStyle.REACT_CORE,
         description="The style of the agent. This is used to control the behavior of the agent. Only used for native agents"
     )
     custom_join_tool: Optional[str] = Field(

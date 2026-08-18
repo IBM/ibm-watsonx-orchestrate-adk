@@ -127,11 +127,11 @@ class DeepgramSTTConfig(BaseModel):
   @model_validator(mode="after")
   def validate_model_and_features(self):
     """Validate model and feature usage"""
-    # Warn if model doesn't start with nova-2 or nova-3
-    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3")):
+    # Warn if model doesn't start with nova-2 or nova-3 or flux
+    if not (self.model.startswith("nova-2") or self.model.startswith("nova-3") or self.model.startswith("flux")):
       warnings.warn(
         f"Model '{self.model}' is not officially supported by the ADK. "
-        f"Only nova-2 and nova-3 models (and their variations like nova-2-finance, nova-3-medical) are supported. "
+        f"Only nova-2, nova-3, and flux models (and their variations like nova-2-finance, nova-3-medical) are supported. "
         f"Proceed at your own risk.",
         UserWarning,
         stacklevel=2
@@ -153,15 +153,60 @@ class DeepgramSTTConfig(BaseModel):
     
     return self
 
+class AzureProfanityFilter(str, Enum):
+  """How Azure STT handles profanity in returned transcripts.
+
+  masked: replace profane words with asterisks. removed: drop them entirely.
+  raw: return the transcript unaltered.
+  """
+  MASKED = "masked"
+  REMOVED = "removed"
+  RAW = "raw"
+
+  def __str__(self):
+    """Return the bare enum value so the filter renders as a plain string"""
+    return self.value
+
+  def __repr__(self):
+    """Return the quoted enum value for debugging output"""
+    return repr(self.value)
+
+class AzureSTTConfig(BaseModel):
+  """Speech to text settings for the Azure AI Speech service"""
+  subscription_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(...)
+  region: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = Field(default=None, description="BCP-47 language code, e.g. 'en-US'")
+  endpoint_id: Optional[Annotated[str, Field(min_length=1, max_length=256)]] = Field(default=None, description="Custom Speech model endpoint ID")
+  profanity_filter: Optional[AzureProfanityFilter] = Field(default=None, description="Profanity handling, default 'masked'")
+  phrase_list: Optional[Annotated[List[str], Field(max_length=500)]] = Field(default=None, description="Custom vocabulary phrases to boost recognition")
+
+class GoogleSTTConfig(BaseModel):
+  project_id: Annotated[str, Field(min_length=1, max_length=256)]
+  credentials_json: Annotated[str, Field(min_length=1, max_length=65536)]
+  language_code: Annotated[str, Field(min_length=2, max_length=16)]
+  model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
+  sample_rate_hertz: Optional[Annotated[int, Field(gt=0)]] = None
+  enable_automatic_punctuation: Optional[bool] = None
+  enable_interim_results: Optional[bool] = None
+  enable_word_time_offsets: Optional[bool] = None
+  enable_word_confidence: Optional[bool] = None
+  profanity_filter: Optional[bool] = None
+  alternative_language_codes: Optional[List[Annotated[str, Field(min_length=2, max_length=16)]]] = None
+  use_enhanced: Optional[bool] = None
+  max_alternatives: Optional[Annotated[int, Field(ge=0, le=30)]] = None
+  enable_spoken_punctuation: Optional[bool] = None
+
 class SpeechToTextConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
   watson_stt_config: Optional[WatsonSTTConfig] = None
   emotech_stt_config: Optional[EmotechSTTConfig] = None
   deepgram_stt_config: Optional[DeepgramSTTConfig] = None
+  azure_stt_config: Optional[AzureSTTConfig] = None
+  google_stt_config: Optional[GoogleSTTConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config'])
+    _validate_exactly_one_of_fields(self,'SpeechToTextConfig',['watson_stt_config','emotech_stt_config','deepgram_stt_config','google_stt_config', 'azure_stt_config'])
     return self
 
 class WatsonTTSConfig(BaseModel):
@@ -221,6 +266,41 @@ class DeepgramTTSConfig(BaseModel):
   language: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   model: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = None
   mip_opt_out: Optional[bool] = None
+  normalize_volume: Optional[bool] = None
+
+class AzureTTSConfig(BaseModel):
+  """Text to speech settings for the Azure AI Speech service.
+
+  style, style_degree, and role are only honored by the neural voices that
+  support them. Azure silently falls back to the voice default for any voice
+  that does not, so these fields are safe to leave set.
+  """
+  subscription_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(...)
+  region: Annotated[str, Field(min_length=1, max_length=128)]
+  voice: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Optional[Annotated[str, Field(min_length=2, max_length=16)]] = None
+  rate: Optional[Annotated[float, Field(ge=0.5, le=2.0)]] = Field(default=None, description="Speed multiplier, 1.0 is normal")
+  pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = Field(default=None, description="Pitch adjustment in percent, 0.0 is normal")
+  volume: Optional[Annotated[int, Field(ge=0, le=100)]] = Field(default=None, description="Output loudness, 100 is the default, 0 is silent")
+  style: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default=None, description="Speaking style, e.g. 'cheerful', 'newscast'")
+  style_degree: Optional[Annotated[float, Field(ge=0.01, le=2.0)]] = Field(default=None, description="Style intensity, 1.0 is normal")
+  role: Optional[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default=None, description="Speaking persona, e.g. 'YoungAdultFemale'")
+
+class GoogleTTSConfig(BaseModel):
+  credentials_json: Optional[Annotated[str, Field(min_length=1, max_length=65536)]] = None
+  api_key: Optional[Annotated[str, Field(min_length=1, max_length=2048)]] = None
+  voice: Annotated[str, Field(min_length=1, max_length=128)]
+  language: Annotated[str, Field(min_length=2, max_length=16)]
+  speaking_rate: Optional[Annotated[float, Field(ge=0.25, le=4.0)]] = None
+  pitch: Optional[Annotated[float, Field(ge=-20.0, le=20.0)]] = None
+  volume_gain_db: Optional[Annotated[float, Field(ge=-96.0, le=16.0)]] = None
+  effects_profile_id: Optional[List[Annotated[str, Field(min_length=1, max_length=128)]]] = None
+  ssml_gender: Optional[Annotated[str, Field(min_length=1, max_length=32)]] = None
+
+  @model_validator(mode="after")
+  def validate_auth(self):
+    _validate_exactly_one_of_fields(self, 'GoogleTTSConfig', ['credentials_json', 'api_key'])
+    return self
 
 class TextToSpeechConfig(BaseModel):
   provider: Annotated[str, Field(min_length=1,max_length=128)]
@@ -228,10 +308,12 @@ class TextToSpeechConfig(BaseModel):
   emotech_tts_config: Optional[EmotechTTSConfig] = None
   elevenlabs_tts_config: Optional[ElevenLabsTTSConfig] = None
   deepgram_tts_config: Optional[DeepgramTTSConfig] = None
+  azure_tts_config: Optional[AzureTTSConfig] = None
+  google_tts_config: Optional[GoogleTTSConfig] = None
 
   @model_validator(mode='after')
   def validate_providers(self):
-    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config'])
+    _validate_exactly_one_of_fields(self,'TextToSpeechConfig',['watson_tts_config','emotech_tts_config','elevenlabs_tts_config','deepgram_tts_config','google_tts_config','azure_tts_config'])
     return self
 
 class DTMFInput(BaseModel):
@@ -264,6 +346,14 @@ class UserIdleHandlerConfig(BaseModel):
   idle_max_reprompts: Optional[int] = Field(default=2, description="How many times to replay before ending the session")
   idle_timeout_message: Optional[str] = Field(default="", description="Message to play on idle")
   idle_hangup_message: Optional[str] = Field(default="", description="Message to play before hanging up")
+  use_llm_generated_idle_message: Optional[bool] = Field(
+    default=True,
+    description="If true, use the LLM to generate a brief idle check-in message. If false, use the configured static idle_timeout_message."
+  )
+  repeat_previous_message: Optional[bool] = Field(
+    default=True,
+    description="If true, idle_timeout_message will include the previous agent message. If false, only idle_timeout_message will play."
+  )
 
 class UserIdleHandlerLangConfig(BaseModel):
   idle_timeout_message: Optional[str] = Field(
@@ -275,7 +365,7 @@ class UserIdleHandlerLangConfig(BaseModel):
     description="Localized final hangup message for this language."
   )
 
-class AudioClips(Enum):
+class AudioClips(str, Enum):
   guitar_1 = "guitar_1"
   listen_1 = "listen_1"
   silence = "silence"
@@ -283,7 +373,9 @@ class AudioClips(Enum):
 
 class AgentIdleHandlerMessages(BaseModel):
   pre_hold_message: Optional[str] = Field(default="We're taking a little extra time but we'll be with you shortly. Thanks for your patience!", min_length=0, max_length=250, description="The text to play for the user before playing on-hold audio")
+  pre_hold_messages_additional: Optional[List[Annotated[str, Field(min_length=0, max_length=250)]]] = Field(default=[], min_length=0, max_length=10, description="Additional text to cycle through for the user before playing on-hold audio")
   hold_message: Optional[str] = Field(default="Your request is in progress. It might take a little time, but we assure you that the result will be worth the wait.", min_length=0, max_length=250, description="The text to play to the user periodically while on hold")
+  hold_messages_additional: Optional[List[Annotated[str, Field(min_length=0, max_length=250)]]] = Field(default=[], min_length=0, max_length=10, description="Additional text to cycle through for the user while on hold")
 
 class AgentIdleHandler(AgentIdleHandlerMessages):
   model_config = ConfigDict(use_enum_values=True)
@@ -292,6 +384,7 @@ class AgentIdleHandler(AgentIdleHandlerMessages):
   typing_duration_seconds: int = Field(default=5, ge=0, le=30, description="Typing indicator duration in seconds")
   audio_clip_id: AudioClips = Field(default=AudioClips.guitar_1, description="Audio clip to play during hold")
   hold_audio_seconds: int = Field(default=15, ge=0, le=120, description="Duration of hold audio in seconds")
+  long_running_task_seconds: Optional[int] = Field(default=2, ge=0, le=120, description="Seconds of agent processing time before the pre-hold message is triggered")
 
 class LanguageVoiceConfig(BaseModel):
   """Voice configuration for a specific language"""

@@ -1312,7 +1312,7 @@ export const prepareTransferTool = {
         _meta: {
           nextTool: {
             tool: 'request_agent_handoff',
-            arguments: { reason: `Locked account: ${selectedFromAccount.accountName}` },
+            parameters: { reason: `Locked account: ${selectedFromAccount.accountName}` },
           },
         },
       };
@@ -1537,7 +1537,7 @@ async def prepare_money_transfer_handler(args: dict, extra: dict) -> dict:
     # Step 2: Locked account -> chain to handoff
     from_account = next((a for a in all_accounts if a.account_id == from_id), None)
     if from_account and from_account.is_locked:
-        return {"content": [{"type": "text", "text": f"Your {from_account.account_name} account is locked.", "annotations": {"audience": ["user"]}}], "_meta": {"nextTool": {"tool": "request_agent_handoff", "arguments": {"reason": f"Locked account: {from_account.account_name}"}}}}
+        return {"content": [{"type": "text", "text": f"Your {from_account.account_name} account is locked.", "annotations": {"audience": ["user"]}}], "_meta": {"nextTool": {"tool": "request_agent_handoff", "parameters": {"reason": f"Locked account: {from_account.account_name}"}}}}
 
     # Step 3: To account picker
     if not to_id:

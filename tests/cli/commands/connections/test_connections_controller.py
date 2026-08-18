@@ -38,6 +38,7 @@ from ibm_watsonx_orchestrate.agent_builder.connections.types import (
     OAuth2ClientCredentials,
     OAuthOnBehalfOfCredentials,
     OAuth2TokenExchangeCredentials,
+    OAuth2JwtBearerCredentials,
     KeyValueConnectionCredentials,
     ConnectionConfiguration,
     IdentityProviderCredentials,
@@ -283,6 +284,7 @@ class TestValidateConnectionParams:
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"]),
+            (ConnectionType.OAUTH2_JWT_BEARER, ["token_url", "private_key", "alg"]),
             (ConnectionType.KEY_VALUE, []),
         ]
     )
@@ -304,6 +306,7 @@ class TestValidateConnectionParams:
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"]),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"]),
             (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"]),
+            (ConnectionType.OAUTH2_JWT_BEARER, ["token_url", "private_key", "alg"]),
             (ConnectionType.KEY_VALUE, []),
         ]
     )
@@ -394,6 +397,7 @@ class TestGetCredentials:
             (ConnectionType.OAUTH2_CLIENT_CREDS, ["client_id", "client_secret", "token_url"], OAuth2ClientCredentials),
             (ConnectionType.OAUTH_ON_BEHALF_OF_FLOW, ["client_id", "token_url", "grant_type"], OAuthOnBehalfOfCredentials),
             (ConnectionType.OAUTH2_TOKEN_EXCHANGE, ["client_id", "token_url", "grant_type"], OAuth2TokenExchangeCredentials),
+            (ConnectionType.OAUTH2_JWT_BEARER, ["token_url", "alg", "private_key"], OAuth2JwtBearerCredentials),
         ]
     )
     def test_get_credentials(self, conn_type, required_args, expected_cred_type):
@@ -463,6 +467,65 @@ class TestGetCredentials:
         
         message = f"Invalid type '{conn_type}' selected"
         assert message in str(e)
+
+    def test_get_credentials_jwt_bearer_required_only(self):
+        args = {
+            "token_url": "https://auth.example.com/token",
+            "alg": "RS256",
+            "private_key": "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+        }
+        credentials = _get_credentials(ConnectionType.OAUTH2_JWT_BEARER, **args)
+        assert isinstance(credentials, OAuth2JwtBearerCredentials)
+        assert credentials.token_url == args["token_url"]
+        assert credentials.alg == "RS256"
+        assert credentials.grant_type == "urn:ietf:params:oauth:grant-type:jwt-bearer"
+        assert credentials.client_id is None
+
+        dumped = credentials.model_dump(exclude_none=True)
+        assert dumped["token_url"] == args["token_url"]
+        assert dumped["grant_type"] == "urn:ietf:params:oauth:grant-type:jwt-bearer"
+        assert dumped["jwt_signature"]["alg"] == "RS256"
+        assert dumped["jwt_signature"]["private_key"] == args["private_key"]
+        assert "jwt_payload" not in dumped
+        for key in ("iss", "aud", "exp", "include_jti"):
+            assert key not in dumped
+
+    def test_get_credentials_jwt_bearer_optional_fields(self):
+        args = {
+            "token_url": "https://auth.example.com/token",
+            "alg": "RS512",
+            "private_key": "fake-key",
+            "client_id": "my-client",
+            "iss": "my-issuer",
+            "aud": "https://auth.example.com/token",
+            "exp": "7200",
+            "include_jti": True,
+            "kid": "key-1",
+            "claims": ["fake_claim_1=claim1", "fake_claim_2=claim2"],
+        }
+        credentials = _get_credentials(ConnectionType.OAUTH2_JWT_BEARER, **args)
+        assert credentials.iss == "my-issuer"
+        assert credentials.aud == "https://auth.example.com/token"
+        assert credentials.exp == "7200"
+        assert credentials.include_jti is True
+        assert credentials.kid == "key-1"
+        assert credentials.custom_claims == {"fake_claim_1": "claim1", "fake_claim_2": "claim2"}
+
+        dumped = credentials.model_dump(exclude_none=True)
+        assert dumped["jwt_payload"]["iss"] == "my-issuer"
+        assert dumped["jwt_payload"]["aud"] == "https://auth.example.com/token"
+        assert dumped["jwt_payload"]["exp"] == "7200"
+        assert dumped["jwt_payload"]["include_jti"] is True
+        # custom_claims must remain nested under jwt_payload (not flattened).
+        # The connections manager service spreads them into the signed JWT assertion at runtime.
+        assert dumped["jwt_payload"]["custom_claims"] == {"fake_claim_1": "claim1", "fake_claim_2": "claim2"}
+        assert dumped["jwt_signature"]["alg"] == "RS512"
+        assert dumped["jwt_signature"]["kid"] == "key-1"
+        assert dumped["jwt_signature"]["private_key"] == "fake-key"
+        for key in ("iss", "aud", "exp", "include_jti", "custom_claims", "alg", "kid", "private_key"):
+            assert key not in dumped
+
+
 
 class TestAddConfiguration:
     def test_add_configuration_create_config(self, connections_spec_content, caplog):
@@ -715,6 +778,50 @@ class TestAddCredentials:
             captured = caplog.text
             assert "Expected Message" in captured
     
+    def test_add_credentials_create_jwt_bearer_app_credentials(self, connections_spec_content):
+        credentials = OAuth2JwtBearerCredentials(
+            token_url="https://auth.example.com/token",
+            client_id="my-client",
+            client_secret="my-secret",
+            iss="my-issuer",
+            aud="https://auth.example.com/token",
+            exp="3600",
+            include_jti=True,
+            alg="RS256",
+            private_key="fake-key",
+            kid="key-1",
+            custom_claims={"fake_claim_1": "claim1", "fake_claim_2": "claim2"},
+        )
+        expected_credentials_write = {
+            "app_credentials": {
+                "token_url": "https://auth.example.com/token",
+                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                "client_id": "my-client",
+                "client_secret": "my-secret",
+                "jwt_payload": {
+                    "iss": "my-issuer",
+                    "aud": "https://auth.example.com/token",
+                    "exp": "3600",
+                    "include_jti": True,
+                    "custom_claims": {"fake_claim_1": "claim1", "fake_claim_2": "claim2"},
+                },
+                "jwt_signature": {
+                    "alg": "RS256",
+                    "kid": "key-1",
+                    "private_key": "fake-key",
+                },
+            }
+        }
+        mock_connection_client = MockConnectionClient(
+            expected_credentials_write=expected_credentials_write
+        )
+        with patch('ibm_watsonx_orchestrate.cli.commands.connections.connections_controller.get_connections_client') as mock_client:
+            mock_client.return_value = mock_connection_client
+
+            app_id = connections_spec_content.get("app_id")
+            environment = ConnectionEnvironment.DRAFT
+            add_credentials(app_id=app_id, environment=environment, use_app_credentials=True, credentials=credentials)
+
 class TestAddIdentityProvider:
     mock_idp_credentials = IdentityProviderCredentials(
         idp_url="Test IDP URL",

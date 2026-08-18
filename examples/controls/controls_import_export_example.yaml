@@ -1,0 +1,35 @@
+spec_version: v1
+kind: control
+control:
+  # The name or display name of the policy artifact to bind.
+  # Run 'orchestrate controls list-types' to see available artifacts.
+  # Examples: "Content Guardrails", "Guardrails", "PII Filter", "pii_filter"
+  artifact_name: Content Guardrails
+  name: content_guardrails_example
+  display_name: Content Guardrails Example
+  description: Enforces content safety using external guardrails detection service.
+    Detects sexual content, violence, hate speech, harmful content, jailbreak attempts,
+    and social bias.
+  hooks:
+  - agent_pre_invoke
+  - agent_post_invoke
+  priority: 100
+  config:
+    enabled:
+      hap: true
+      harm: true
+      violence: true
+      jailbreak: true
+      social_bias: true
+      sexual_content: true
+    block_message: Content blocked by guardrails controls
+  # agent_names: List of agent names to apply this control to.
+  # Run 'orchestrate agents list' to see available agents.
+  agent_names:
+  - AskOrchestrate
+  # tool_names: List of tool names to apply this control to.
+  # tool_names:
+  # - my-tool
+  # model_names: List of model names to apply this control to.
+  # model_names:
+  # - groq/openai/gpt-oss-120b

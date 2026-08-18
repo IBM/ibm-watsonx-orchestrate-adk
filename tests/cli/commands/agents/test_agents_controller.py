@@ -144,7 +144,7 @@ def native_agent_content(request) -> dict:
         "name": "test_native_agent",
         "description": "Test Object for native agent",
         "llm": "test_llm",
-        "style": AgentStyle.DEFAULT,
+        "style": AgentStyle.REACT_CORE,
         "collaborators": [
             "test_agent_1",
             "test_agent_2"
@@ -251,7 +251,7 @@ def agent_spec_with_starter_prompt():
         "kind": AgentKind.NATIVE,
         "style": "react",
         "name": "webchat_customization_test_agent",
-        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "description":  '',
         "instructions": '',
         "collaborators": [],
@@ -276,9 +276,9 @@ def agent_spec_with_starter_prompts():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_CORE,
         "name": "webchat_customization_test_agent",
-        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "description":  '',
         "instructions": '',
         "collaborators": [],
@@ -324,9 +324,9 @@ def agent_spec_with_welcome_content():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_CORE,
         "name": "webchat_customization_test_agent",
-        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "description":  '',
         "instructions": '',
         "collaborators": [],
@@ -335,7 +335,8 @@ def agent_spec_with_welcome_content():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
@@ -344,9 +345,9 @@ def agent_spec_with_webchat_customizations():
     return {
         "spec_version": SpecVersion.V1,
         "kind": AgentKind.NATIVE,
-        "style": AgentStyle.REACT,
+        "style": AgentStyle.REACT_CORE,
         "name": "webchat_customization_test_agent",
-        "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+        "llm": "watsonx/openai/gpt-oss-120b",
         "description":  '',
         "instructions": '',
         "collaborators": [],
@@ -367,7 +368,8 @@ def agent_spec_with_webchat_customizations():
         "welcome_content":{
             "welcome_message" : "Hello, I'm Agent Test. Welcome to Watson Orchestrate!",
             "description" : "This is not default",
-            "is_default_message" : False
+            "is_default_message" : False,
+            "is_user_barge_in_disabled" : False
         }
     }
 
@@ -595,7 +597,7 @@ class TestParseCreateNativeArgs:
             kind=AgentKind.NATIVE,
             description="Test Agent Description",
             llm="test_llm",
-            style=AgentStyle.REACT,
+            style=AgentStyle.REACT_CORE,
             collaborators=["agent1", "    "],
             tools=["  tool1  ", "tool2"]
         )
@@ -604,9 +606,47 @@ class TestParseCreateNativeArgs:
         assert parsed_args["kind"] == AgentKind.NATIVE
         assert parsed_args["description"] == "Test Agent Description"
         assert parsed_args["llm"] == "test_llm"
-        assert parsed_args["style"] == AgentStyle.REACT
+        assert parsed_args["style"] == AgentStyle.REACT_CORE
         assert parsed_args["collaborators"] == ["agent1"]
         assert parsed_args["tools"] == ["tool1", "tool2"]
+
+    def test_parse_create_native_args_forwards_hidden(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            hidden=True
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is True
+
+    def test_parse_create_native_args_hidden_defaults_to_false(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "hidden" in parsed_args
+        assert parsed_args["hidden"] is False
+
+    def test_parse_create_native_args_forwards_restrictions(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc",
+            restrictions="non_editable"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "non_editable"
+
+    def test_parse_create_native_args_restrictions_defaults_to_editable(self):
+        parsed_args = parse_create_native_args(
+            name="test_agent",
+            kind=AgentKind.NATIVE,
+            description="desc"
+        )
+        assert "restrictions" in parsed_args
+        assert parsed_args["restrictions"] == "editable"
 
 
 class TestParseCreateExternalArgs:
@@ -796,7 +836,7 @@ class TestAgentsControllerGenerateAgentSpec:
             kind=AgentKind.NATIVE,
             description=self.mock_agent_description,
             llm=mock_llm,
-            style=AgentStyle.REACT,
+            style=AgentStyle.REACT_CORE,
             collaborators=mock_collaborators,
             tools=mock_tools
         )
@@ -805,7 +845,7 @@ class TestAgentsControllerGenerateAgentSpec:
         assert agent.kind == AgentKind.NATIVE
         assert agent.description == self.mock_agent_description
         assert agent.llm == mock_llm
-        assert agent.style == AgentStyle.REACT
+        assert agent.style == AgentStyle.REACT_CORE
         assert agent.collaborators == ["agent1"]
         assert agent.tools == ["tool1", "tool2"]
     
@@ -1827,7 +1867,7 @@ class TestAgentCompactionSettings:
             "kind": AgentKind.NATIVE,
             "style": AgentStyle.REACT,
             "name": "compaction_test_agent",
-            "llm": "watsonx/meta-llama/llama-3-1-70b-instruct",
+            "llm": "watsonx/openai/gpt-oss-120b",
             "description": "Test agent with compaction settings",
             "instructions": "Test instructions",
             "collaborators": [],
@@ -1974,3 +2014,157 @@ class TestAgentDeploy:
             assert "Error undeploying agent" in caplog.text
 
 
+
+class TestDereferenceSkills:
+    """dereference_skills converts skill names → skill IDs."""
+
+    def _make_agent(self, skill_names: list) -> Agent:
+        return Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=skill_names,
+        )
+
+    def test_dereference_skills_replaces_names_with_ids(self):
+        skill_records = [
+            {"id": "id-skill-1", "name": "skill-one"},
+            {"id": "id-skill-2", "name": "skill-two"},
+        ]
+        agent = self._make_agent(["skill-one", "skill-two"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        result = ac.dereference_skills(agent)
+
+        assert result.skills == ["id-skill-1", "id-skill-2"]
+        mock_sc.get_all_skills.assert_called_once_with()
+
+    def test_dereference_skills_missing_skill_exits(self, caplog):
+        agent = self._make_agent(["skill-missing"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = []
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.dereference_skills(agent)
+
+        assert "No skill found with the name 'skill-missing'" in caplog.text
+
+    def test_dereference_skills_api_error_exits(self, caplog):
+        agent = self._make_agent(["skill-one"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.side_effect = SystemExit(1)
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.dereference_skills(agent)
+
+class TestReferenceSkills:
+    """reference_skills converts skill IDs → skill names."""
+
+    def _make_agent(self, skill_ids: list) -> Agent:
+        return Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=skill_ids,
+        )
+
+    def test_reference_skills_replaces_ids_with_names(self):
+        skill_records = [
+            {"id": "id-skill-1", "name": "skill-one"},
+            {"id": "id-skill-2", "name": "skill-two"},
+        ]
+        agent = self._make_agent(["id-skill-1", "id-skill-2"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        result = ac.reference_skills(agent)
+
+        assert result.skills == ["skill-one", "skill-two"]
+        mock_sc.get_all_skills.assert_called_once_with(None)
+
+    def test_reference_skills_unknown_id_exits(self, caplog):
+        agent = self._make_agent(["id-skill-unknown"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = []
+        ac.skills_controller = mock_sc
+
+        with pytest.raises(SystemExit):
+            ac.reference_skills(agent)
+
+        assert "No skill found with the id 'id-skill-unknown'" in caplog.text
+
+    def test_reference_skills_passes_workspace_id(self):
+        skill_records = [{"id": "id-skill-1", "name": "skill-one"}]
+        agent = self._make_agent(["id-skill-1"])
+
+        ac = AgentsController()
+        mock_sc = MagicMock()
+        mock_sc.get_all_skills.return_value = skill_records
+        ac.skills_controller = mock_sc
+
+        ac.reference_skills(agent, workspace_id="ws-456")
+
+        mock_sc.get_all_skills.assert_called_once_with("ws-456")
+
+
+class TestDereferenceNativeAgentDependenciesSkills:
+    """Verify dereference_native_agent_dependencies calls dereference_skills."""
+
+    def test_skills_are_dereferenced_on_import(self):
+        agent = Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=["skill-one"],
+        )
+
+        ac = AgentsController()
+
+        with patch.object(ac, "dereference_skills", wraps=ac.dereference_skills) as deref_skills_spy, \
+             patch.object(ac, "get_skills_controller") as mock_get_sc:
+            mock_sc = MagicMock()
+            mock_sc.get_all_skills.return_value = [{"id": "id-skill-1", "name": "skill-one"}]
+            mock_get_sc.return_value = mock_sc
+
+            result = ac.dereference_native_agent_dependencies(agent)
+
+        deref_skills_spy.assert_called_once_with(agent)
+        assert result.skills == ["id-skill-1"]
+
+    def test_skills_not_called_when_empty(self):
+        agent = Agent(
+            spec_version=SpecVersion.V1,
+            kind=AgentKind.NATIVE,
+            name="test_agent",
+            description="desc",
+            llm="test_llm",
+            skills=[],
+        )
+
+        ac = AgentsController()
+
+        with patch.object(ac, "dereference_skills") as deref_skills_mock:
+            ac.dereference_native_agent_dependencies(agent)
+
+        deref_skills_mock.assert_not_called()

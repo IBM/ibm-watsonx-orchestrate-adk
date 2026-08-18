@@ -2,6 +2,7 @@ import pytest
 
 from ibm_watsonx_orchestrate.agent_builder.tools.types import JsonSchemaObject
 from ibm_watsonx_orchestrate.flow_builder.masking_utils import (
+    ChannelOverride,
     InputPolicy,
     MaskingPolicy,
     PropertyMaskingHelper,
@@ -102,3 +103,32 @@ def test_apply_masking_extensions_rejects_invalid_regex_patterns():
                 "masking-pattern": "XXXX",
             },
         )
+
+
+def test_apply_masking_extensions_writes_channel_override_to_model_extra():
+    schema = _make_schema({"type": "string", "title": "result", "in": "body"})
+
+    PropertyMaskingHelper.apply_masking_extensions(
+        schema,
+        masking_policy=MaskingPolicy.MASK_ALL,
+        channel_override=ChannelOverride.VISIBLE_TO_INITIATOR,
+    )
+
+    extra = schema.model_extra or {}
+
+    assert extra["x-ibm-is-sensitive"] is True
+    assert extra["x-ibm-masking-policy"] == MaskingPolicy.MASK_ALL.value
+    assert extra["x-ibm-channel-override"] == ChannelOverride.VISIBLE_TO_INITIATOR.value
+
+
+def test_apply_masking_extensions_omits_channel_override_when_not_provided():
+    schema = _make_schema({"type": "string", "title": "result", "in": "body"})
+
+    PropertyMaskingHelper.apply_masking_extensions(
+        schema,
+        masking_policy=MaskingPolicy.MASK_ALL,
+    )
+
+    extra = schema.model_extra or {}
+
+    assert "x-ibm-channel-override" not in extra

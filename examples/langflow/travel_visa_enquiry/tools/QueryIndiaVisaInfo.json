@@ -1583,7 +1583,7 @@
                   "ibm/granite-guardian-3-8b",
                   "ibm/granite-vision-3-2-2b",
                   "meta-llama/llama-3-2-11b-vision-instruct",
-                  "meta-llama/llama-3-3-70b-instruct",
+                  "watsonx/openai/gpt-oss-120b",
                   "meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
                   "meta-llama/llama-guard-3-11b-vision",
                   "mistralai/mistral-large",
@@ -1601,7 +1601,7 @@
                 "tool_mode": false,
                 "trace_as_metadata": true,
                 "type": "str",
-                "value": "meta-llama/llama-3-3-70b-instruct"
+                "value": "watsonx/openai/gpt-oss-120b"
               },
               "presence_penalty": {
                 "_input_type": "SliderInput",

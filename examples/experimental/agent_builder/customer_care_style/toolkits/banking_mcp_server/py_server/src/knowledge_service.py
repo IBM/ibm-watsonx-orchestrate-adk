@@ -55,11 +55,11 @@ class FieldMapping:
 class OpenSearchConnection:
     """OpenSearch connection configuration."""
 
-    url: str
-    port: str | None
     index: str
     credentials: OpenSearchCredentials
     field_mapping: FieldMapping
+    url: str | None = None  # URL can be provided in connection
+    port: str | None = None
 
 
 def get_opensearch_config() -> OpenSearchConnection:

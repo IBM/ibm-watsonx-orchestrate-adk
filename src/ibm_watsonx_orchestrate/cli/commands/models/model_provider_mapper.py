@@ -108,6 +108,7 @@ PROVIDER_REQUIRED_FIELDS.update({
     ModelProvider.BEDROCK: [{'api_key', ('aws_secret_access_key', 'aws_access_key_id')}],
     ModelProvider.VERTEX_AI: [{'api_key', 'vertex_service_account_json'}],
     ModelProvider.OPENAI_OAUTH2_CLIENT_CREDS: ['custom_host'],
+    ModelProvider.REDHAT_AI: ['custom_host', 'api_key'],
 })
 
 # def env_file_to_model_ProviderConfig(model_name: str, env_file_path: str) -> ProviderConfig | None:

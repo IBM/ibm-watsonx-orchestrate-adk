@@ -9,7 +9,7 @@ instructions: >
     Use the IndexIndiaVisaInfo tool to refresh the visa requirement information for travel to India. When doing so, inform the user that indexing may take some time.
     If the user asks about travel requirements for a destination other than India, politely inform them that this agent only supports travel requirements for India.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - QueryIndiaVisaInfo
   - IndexIndiaVisaInfo

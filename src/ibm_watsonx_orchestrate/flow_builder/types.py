@@ -20,8 +20,7 @@ from pydantic import BaseModel, Field, GetCoreSchemaHandler, GetJsonSchemaHandle
 from pydantic_core import core_schema
 from pydantic.json_schema import JsonSchemaValue
 
-from langchain_core.tools.base import create_schema_from_function
-from langchain_core.utils.json_schema import dereference_refs
+from ibm_watsonx_orchestrate.agent_builder.tools.utils import create_schema_from_function, dereference_refs
 
 from ibm_watsonx_orchestrate.agent_builder.tools import PythonTool
 from ibm_watsonx_orchestrate.flow_builder.data_map import Assignment, DataMap, add_assignment, ensure_datamap
@@ -257,8 +256,92 @@ class DocExtConfig(BaseModel):
         return self
 
 class LanguageCode(StrEnum):
+    '''
+    The ISO-639 language codes understood by Document Processing functions.
+    Handwritten variants are only supported for English and German.
+    '''
+    # Latin-script languages
+    af = auto()
+    sq = auto()
+    ay = auto()
+    eu = auto()
+    bi = auto()
+    ca = auto()
+    cr = auto()
     en = auto()
+    et = auto()
+    fj = auto()
+    fil = auto()
     fr = auto()
+    gl = auto()
+    ga = auto()
+    ht = auto()
+    id = auto()
+    jv = auto()
+    kl = auto()
+    rw = auto()
+    kg = auto()
+    kj = auto()
+    la = auto()
+    mg = auto()
+    gv = auto()
+    ng = auto()
+    nd = auto()
+    oc = auto()
+    oj = auto()
+    pl = auto()
+    qu = auto()
+    rm = auto()
+    rn = auto()
+    sg = auto()
+    sn = auto()
+    su = auto()
+    sw = auto()
+    ss = auto()
+    ts = auto()
+    tn = auto()
+    xh = auto()
+    zu = auto()
+    # Languages with dedicated WDU OCR engine codes
+    bn = auto()
+    da = auto()
+    nl = auto()
+    fi = auto()
+    de = auto()
+    el = auto()
+    he = auto()
+    it = auto()
+    no = auto()
+    pt = auto()
+    es = auto()
+    sv = auto()
+    tr = auto()
+    vi = auto()
+    # CJK
+    zh_cn = auto()
+    zh_tw = auto()
+    ja = auto()
+    ko = auto()
+    # Cyrillic-script languages
+    be = auto()
+    bg = auto()
+    mk = auto()
+    mn = auto()
+    ru = auto()
+    sr = auto()
+    uk = auto()
+    # Devanagari-script languages
+    hi = auto()
+    mr = auto()
+    ne = auto()
+    sa = auto()
+    ta = auto()
+    te = auto()
+    # Thai
+    th = auto()
+    # Handwritten variants
+    en_hw = auto()
+    de_hw = auto()
 
 class DocProcTask(StrEnum):
     '''
@@ -301,11 +384,13 @@ class DocClassifierConfig(BaseModel):
     type: Literal["class_configuration"] = Field(description="Document type", default="class_configuration",title="Type")
     llm: str = Field(description="The LLM used for the document classfier", default="watsonx/meta-llama/llama-4-maverick-17b-128e-instruct-fp8",title="LLM")
     min_confidence: float = Field(description="The minimal confidence acceptable for an extracted field value", default=0.0,le=1.0, ge=0.0 ,title="Minimum Confidence")
-    classes: list[DocClassifierClass] = Field(default=[], description="Classes which are needed to classify provided by user", title="Classes")
+    classes: list[DocClassifierClass] = Field(default=[], max_length=30, description="Classes which are needed to classify provided by user", title="Classes")
 
 class DocProcCommonNodeSpec(NodeSpec):
     task: DocProcTask = Field(description='The document processing operation name', default=DocProcTask.text_extraction)
     enable_hw: bool | None = Field(description="Boolean value indicating if hand-written feature is enabled.", title="Enable handwritten", default=False)
+    language: Optional["LanguageCode"] = Field(description="The ISO-639 language code for the document. Defaults to English ('en') when not specified.", default=None)
+    error_handler_config: Optional["NodeErrorHandlerConfig"] = Field(description="Error handling and retry configuration for this node.", default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -314,7 +399,10 @@ class DocProcCommonNodeSpec(NodeSpec):
         model_spec = super().to_json()
         model_spec["task"] = self.task
         model_spec["enable_hw"] = self.enable_hw
-        
+        if self.language is not None:
+            model_spec["language"] = self.language
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         return model_spec
     
 class DocClassifierSpec(DocProcCommonNodeSpec):
@@ -557,7 +645,6 @@ class DocProcSpec(DocProcCommonNodeSpec):
                    "the specified page range will be extracted. Example: PageRange(start=1, end=5) "
                    "extracts pages 1 through 5. None extracts all pages."
     )
-    
     def __init__(self, **data):
         super().__init__(**data)
         self.kind = "docproc"
@@ -623,8 +710,8 @@ class ToolNodeSpec(NodeSpec):
 
     def to_json(self) -> dict[str, Any]:
         model_spec = super().to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()  
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.tool:
             if isinstance(self.tool, ToolSpec):
                 model_spec["tool"] = self.tool.model_dump(exclude_defaults=True, exclude_none=True, exclude_unset=True)
@@ -2761,11 +2848,63 @@ class UserNodeSpec(NodeSpec):
         return self.form
 
 
+ThreadControlPolicy = Literal[
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+]
+
+
+class _Unset:
+    """Sentinel value used to detect when thread_control_policy has not been explicitly set."""
+
+    def __repr__(self):
+        return "UNSET"
+
+
+_UNSET = _Unset()
+
+_DEFAULT_THREAD_CONTROL_POLICY: ThreadControlPolicy = "REUSE_AND_CORRELATE"
+
+_VALID_THREAD_CONTROL_POLICIES = {
+    "REUSE_AND_CORRELATE",
+    "CREATE_ALWAYS",
+}
+
+
+
+
 class AgentNodeSpec(ToolNodeSpec):
     message: str | None = Field(default=None, description="The instructions for the task.")
     title: str | None = Field(default=None, description="The title of the message.")
     guidelines: str | None = Field(default=None, description="The guidelines for the task.")
     agent: str
+    thread_control_policy: ThreadControlPolicy = Field(
+        default=_DEFAULT_THREAD_CONTROL_POLICY,
+        description=(
+            "Controls how the agent node manages conversation thread lifecycle. "
+            "'REUSE_AND_CORRELATE' (default): reuse correlated thread or create new. "
+            "'CREATE_ALWAYS': always create a new isolated thread."
+        ),
+    )
+
+    @field_validator("thread_control_policy", mode="before")
+    @classmethod
+    def normalize_thread_control_policy(cls, value):
+        """Validate and normalise thread_control_policy, falling back to the default when the sentinel is received."""
+        if isinstance(value, _Unset):
+            logger.warning(
+                f"No valid thread_control_policy specified for agent node. "
+                f"Defaulting to '{_DEFAULT_THREAD_CONTROL_POLICY}'."
+            )
+            return _DEFAULT_THREAD_CONTROL_POLICY
+
+        if value in _VALID_THREAD_CONTROL_POLICIES:
+            return value
+
+        raise ValueError(
+            f"Invalid thread_control_policy={value!r}. "
+            f"Expected one of {_VALID_THREAD_CONTROL_POLICIES}."
+        )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -2781,6 +2920,7 @@ class AgentNodeSpec(ToolNodeSpec):
             model_spec["agent"] = self.agent
         if self.title:
             model_spec["title"] = self.title
+        model_spec["thread_control_policy"] = self.thread_control_policy
         return model_spec
 
 class PromptLLMParameters(BaseModel):
@@ -2833,6 +2973,7 @@ class PromptNodeSpec(NodeSpec):
     error_handler_config: Optional[NodeErrorHandlerConfig] = None
     metadata: dict[str, Any] | None = None
     test_input_data: dict[str, Any] | None = None
+    include_agent_context: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2848,8 +2989,8 @@ class PromptNodeSpec(NodeSpec):
             model_spec["llm"] = self.llm
         if self.llm_parameters:
             model_spec["llm_parameters"] = self.llm_parameters.to_json()
-        if self.error_handler_config:
-            model_spec["error_handler_config"] = self.error_handler_config.to_json()            
+        if self.error_handler_config is not None:
+            model_spec["error_handler_config"] = self.error_handler_config.to_json()
         if self.prompt_examples:
             model_spec["prompt_examples"] = []
             for example in self.prompt_examples:
@@ -2858,6 +2999,7 @@ class PromptNodeSpec(NodeSpec):
             model_spec["metadata"] = self.metadata
         if self.test_input_data:
             model_spec["test_input_data"] = self.test_input_data
+        model_spec["include_agent_context"] = self.include_agent_context
         return model_spec
     
 class TimerNodeSpec(NodeSpec):
@@ -3585,26 +3727,19 @@ class AssemblyJsonOutput(BaseModel):
                    "hierarchical relationships and spatial information. None if structure extraction "
                    "(document_structure=False) was not requested.")
 
-class LanguageCode(StrEnum):
-    '''
-    The ISO-639 language codes understood by Document Processing functions.
-    A special 'en_hw' code is used to enable an English handwritten model.
-    '''
-    en = auto()
-    fr = auto()
-    en_hw = auto()
-
 
 class DocumentProcessingCommonInput(BaseModel):
     '''
-    This class represents the common input of docext, docproc and docclassifier node 
+    This class represents the common input of docext, docproc and docclassifier node
 
     Attributes:
         document_ref (bytes|str): This is either a URL to the location of the document bytes or an ID that we use to resolve the location of the document
         page_range (PageRange|None): Optional page range for text extractor and layout document extractor
+        language (LanguageCode|None): Optional ISO-639 language code to override the language set in the node spec at runtime
     '''
     document_ref: bytes | WXOFile | None = Field(description="Either an ID or a URL identifying the document to be used.", title='Document reference', default=None, json_schema_extra={"format": "binary"})
     page_range: PageRange | None = Field(description='Optional page range for text extraction and layout document extraction. When specified, only text or fields from pages within the specified range are extracted.', default=None)
+    language: LanguageCode | None = Field(description='Optional ISO-639 language code for document processing. Overrides the language set in the node spec when provided.', default=None)
 
 class DocProcInput(DocumentProcessingCommonInput):
     '''

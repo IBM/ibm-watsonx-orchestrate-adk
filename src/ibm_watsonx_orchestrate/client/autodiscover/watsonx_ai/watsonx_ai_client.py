@@ -12,7 +12,7 @@ from ibm_cloud_sdk_core.authenticators import Authenticator,IAMAuthenticator
 from ibm_watsonx_orchestrate.utils.exceptions import BadRequest
 
 
-WATSONX_AI_DEFAULT_MODEL = "meta-llama/llama-3-3-70b-instruct"
+WATSONX_AI_DEFAULT_MODEL = "watsonx/openai/gpt-oss-120b"
 
 WATSONX_AI_URL_ENV_KEY = "WATSONX_URL"
 WATSONX_AI_SPACE_ID_ENV_KEY = "WATSONX_SPACE_ID"

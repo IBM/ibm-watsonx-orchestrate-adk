@@ -46,13 +46,12 @@ def build_docproc_page_range_flow(aflow: Flow) -> Flow:
     try:
         # Create document processing node configured for text extraction with page range
         # This will extract text only from pages 1 through 5 of the document
-        # Note: page_range can be overridden at runtime when invoking the flow
         doc_proc_node = aflow.docproc(
             name="text_extraction_with_page_range_node",
             display_name="Extract Text from Pages 1-5",
             description="Extracts raw text from a specific page range of the input document",
             task="text_extraction",
-            page_range=PageRange(start=1, end=5),  # Extract only pages 1-5 (can be overridden at runtime)
+            page_range=PageRange(start=1, end=5),  # Extract only pages 1-5
         )
 
         # Connect nodes in sequence: START → docproc → END

@@ -6,6 +6,6 @@ description: >
 instructions: >
     Invoke the tool to get the result
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - aggregate_data

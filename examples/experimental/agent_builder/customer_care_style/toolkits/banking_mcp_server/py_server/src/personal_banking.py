@@ -173,8 +173,8 @@ async def prepare_money_transfer_handler(args: dict, extra: dict) -> dict:
             ],
             "_meta": {
                 "nextTool": {
-                    "name": "request_agent_handoff",
-                    "arguments": {
+                    "tool": "request_agent_handoff",
+                    "parameters": {
                         "reason": (
                             f"Customer attempted to transfer from locked account: "
                             f"{selected_from_account.account_name} ({selected_from_account.account_id})"
@@ -450,6 +450,239 @@ async def available_accounts_resource_handler(args: dict, extra: dict) -> str:
 
     return f"Available Accounts for Transfers:\n\n{account_list}\n\nNote: Use these account IDs when transferring money."
 
+    
+async def request_credit_limit_increase_handler(args: dict, extra: dict) -> dict:
+    """
+    Request credit limit increase tool handler.
+    
+    This is the INITIAL TOOL that checks eligibility and returns a nextTool response
+    to call select_credit_limit_increase_amount if the customer is eligible.
+    """
+    customer_id = args.get("customerId")
+    
+    if not customer_id:
+        raise ValueError("Customer ID is required")
+    
+    # Check customer eligibility for credit limit increase
+    # In a real system, this would check credit score, payment history, etc.
+    eligibility = PersonalBankingService.check_credit_limit_increase_eligibility(customer_id)
+    
+    if not eligibility["eligible"]:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        f"I'm sorry, but you're not currently eligible for a credit limit increase. "
+                        f"Reason: {eligibility['reason']}\n\n"
+                        f"You may become eligible after {eligibility['retry_after']}."
+                    ),
+                    "annotations": {"audience": ["user"]},
+                }
+            ]
+        }
+    
+    # Customer is eligible - automatically chain to the selection tool
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": (
+                    f"Great news! You're eligible for a credit limit increase.\n\n"
+                    f"Current Credit Limit: ${eligibility['current_limit']:,.2f}\n"
+                    f"Maximum Available Increase: ${eligibility['max_increase']:,.2f}\n\n"
+                    f"Let me help you select your new credit limit."
+                ),
+                "annotations": {"audience": ["user"]},
+            }
+        ],
+        "_meta": {
+            "nextTool": {
+                "tool": "select_credit_limit_increase_amount",
+                "parameters": {
+                    "current_limit": eligibility["current_limit"],
+                    "max_increase": eligibility["max_increase"],
+                },
+            }
+        },
+    }
+
+
+async def select_credit_limit_increase_amount_handler(args: dict, extra: dict) -> dict:
+    """
+    Select credit limit increase amount tool handler.
+    
+    This tool is called via nextTool from request_credit_limit_increase_handler
+    and returns an options widget for the user to select their desired increase amount.
+    """
+    customer_id = args.get("customerId")
+    current_limit = args.get("current_limit", 0)
+    max_increase = args.get("max_increase", 0)
+    selected_amount = args.get("selected_amount")
+    
+    if not customer_id:
+        raise ValueError("Customer ID is required")
+    
+    _meta = extra.get("_meta", {})
+    thread_id = _meta.get("com.ibm.orchestrate/systemcontext", {}).get("thread_id")
+    
+    if not thread_id:
+        raise ValueError("Thread ID is required")
+    
+    # If no amount selected yet, show options widget
+    if not selected_amount:
+        # Generate increase options (e.g., $1000, $2500, $5000, or max)
+        increase_options = []
+        
+        for amount in [1000, 2500, 5000]:
+            if amount <= max_increase:
+                new_limit = current_limit + amount
+                increase_options.append({
+                    "value": str(amount),
+                    "label": f"${amount:,.2f} increase",
+                    "description": f"New limit: ${new_limit:,.2f}",
+                })
+        
+        # Always add the maximum option if it's different from the last option
+        if max_increase not in [1000, 2500, 5000]:
+            new_limit = current_limit + max_increase
+            increase_options.append({
+                "value": str(max_increase),
+                "label": f"${max_increase:,.2f} increase (Maximum)",
+                "description": f"New limit: ${new_limit:,.2f}",
+            })
+        
+        return {
+            "_meta": {
+                "com.ibm.orchestrate/widget": {
+                    "type": "options",
+                    "title": "Select Credit Limit Increase Amount",
+                    "description": (
+                        f"Your current credit limit is ${current_limit:,.2f}. "
+                        f"Choose how much you'd like to increase it by:"
+                    ),
+                    "options": increase_options,
+                    "on_event": {
+                        "tool": "select_credit_limit_increase_amount",
+                        "parameters": {
+                            "current_limit": current_limit,
+                            "max_increase": max_increase,
+                        },
+                        "map_input_to": "selected_amount",
+                    },
+                }
+            }
+        }
+    
+    # Amount has been selected, process the request
+    increase_amount = float(selected_amount)
+    new_limit = current_limit + increase_amount
+    
+    # Generate request ID
+    random_suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    request_id = f"CLI-{int(datetime.now().timestamp())}-{random_suffix}"
+    
+    # Store the request details
+    request_details = {
+        "customer_id": customer_id,
+        "request_id": request_id,
+        "current_limit": current_limit,
+        "increase_amount": increase_amount,
+        "new_limit": new_limit,
+        "status": "pending_approval",
+        "requested_at": datetime.now().isoformat(),
+    }
+    
+    set_local_variable(thread_id, f"credit_request_{request_id}", request_details)
+    
+    # Process the credit limit increase request
+    result = PersonalBankingService.process_credit_limit_increase(
+        customer_id, increase_amount, new_limit
+    )
+    
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": (
+                    f"Credit Limit Increase Request Submitted!\n\n"
+                    f"Request ID: {request_id}\n"
+                    f"Current Limit: ${current_limit:,.2f}\n"
+                    f"Requested Increase: ${increase_amount:,.2f}\n"
+                    f"New Limit (if approved): ${new_limit:,.2f}\n\n"
+                    f"Status: {result['status']}\n"
+                    f"Processing Time: {result['processing_time']}\n\n"
+                    f"{result['message']}"
+                ),
+                "annotations": {"audience": ["user"]},
+            }
+        ],
+        "structuredContent": {
+            "request_id": request_id,
+            "current_limit": current_limit,
+            "increase_amount": increase_amount,
+            "new_limit": new_limit,
+            "status": result["status"],
+            "processing_time": result["processing_time"],
+        },
+    }
+
+request_credit_limit_increase_tool = {
+    "name": "request_credit_limit_increase",
+    "config": {
+        "title": "Request Credit Limit Increase",
+        "description": (
+            "Request an increase to your credit card limit. This tool checks your eligibility "
+            "and automatically guides you through selecting the increase amount if you qualify."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    "handler": request_credit_limit_increase_handler,
+}
+
+select_credit_limit_increase_amount_tool = {
+    "name": "select_credit_limit_increase_amount",
+    "config": {
+        "title": "Select Credit Limit Increase Amount",
+        "description": (
+            "Select the amount you want to increase your credit limit by. "
+            "This tool is automatically called after eligibility is confirmed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "current_limit": {
+                    "type": "number",
+                    "description": "Your current credit limit",
+                },
+                "max_increase": {
+                    "type": "number",
+                    "description": "Maximum increase amount available",
+                },
+                "selected_amount": {
+                    "type": "string",
+                    "description": "The selected increase amount (provided by widget)",
+                },
+            },
+            "required": ["current_limit", "max_increase"],
+        },
+        "_meta": {
+            "ui": {
+                # Reference IBM Orchestrate's built-in widget
+                "resourceUri": "ui://ibm.com/orchestrate/widget",
+                "visibility": ["app"],
+            },
+        },
+    },
+    "handler": select_credit_limit_increase_amount_handler,
+}
+
+
+
 
 # Tool definitions in dict format (matching TypeScript structure)
 get_account_balance_tool = {
@@ -578,6 +811,8 @@ personal_banking_tools = [
     get_account_statement_tool,
     prepare_money_transfer_tool,
     confirm_or_cancel_money_transfer_tool,
+    request_credit_limit_increase_tool,
+    select_credit_limit_increase_amount_tool,
 ]
 
 # Resource definition

@@ -27,7 +27,10 @@ def get_city_founding_date(city: str) -> CityFoundingDate:
     }}
     """
     url = 'https://query.wikidata.org/sparql'
-    headers = {'Accept': 'application/sparql-results+json'}
+    headers = {
+        'Accept': 'application/sparql-results+json',
+        'User-Agent': 'CityFoundingDateTool/1.0 (your-email@example.com)' #replace with a real contact email per Wikidata bot policy
+        }
     response = requests.get(url, params={'query': query}, headers=headers)
     if response.status_code == 200:
         data = response.json()

@@ -7,6 +7,6 @@ instructions: >
     Invoke custom_flow_docclassifier_example tool and output the result
 
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - custom_flow_docclassifier_example

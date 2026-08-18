@@ -271,7 +271,8 @@ class ToolkitController:
                         with tempfile.TemporaryDirectory() as tmpdir, \
                         zipfile.ZipFile(zip_file_path, "a", zipfile.ZIP_DEFLATED) as zip_tool_artifacts:
                             
-                            requirements_file = os.path.join(package_root, 'requirements.txt')
+                            reqs_path = os.path.join(package_root, 'requirements.txt')
+                            requirements_file = reqs_path if os.path.isfile(reqs_path) else None
                             requirements_lines = get_formated_requirements_lines(requirements_file)
                             
                             temp_requirements_file = os.path.join(tmpdir, 'requirements.txt')
@@ -290,7 +291,7 @@ class ToolkitController:
     def publish_toolkit(self, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
 
         # Create toolkit metadata
-        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True, exclude_none=True)
 
         console = Console()
 
@@ -343,7 +344,7 @@ class ToolkitController:
     def update_toolkit(self, toolkit_id: str, toolkit: BaseToolkit, toolkit_artifact: Optional[str] = None):
         logger.info(f"Existing toolkit '{toolkit.__toolkit_spec__.name}' found. Updating...")
         # Create toolkit metadata
-        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True)
+        payload = toolkit.__toolkit_spec__.model_dump(exclude_unset=True, exclude_none=True)
 
         console = Console()
 

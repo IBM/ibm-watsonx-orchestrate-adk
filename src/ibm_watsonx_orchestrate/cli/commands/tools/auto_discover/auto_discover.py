@@ -133,7 +133,7 @@ def _infer_inference_provider_from_model(selected_model: str) -> InferenceProvid
     if selected_model.startswith("virtual-model") or selected_model.startswith("virtual-policy"):
       return [ InferenceProvider.GATEWAY ]
     
-    if selected_model.startswith("watsonx"):
+    if selected_model.startswith("watsonx/"):
       return [ InferenceProvider.WXAI, InferenceProvider.PROXY ]
 
     if selected_model.startswith("groq"):

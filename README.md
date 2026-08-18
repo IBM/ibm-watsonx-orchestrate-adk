@@ -88,6 +88,7 @@ $ orchestrate --help
 │ env               Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)                                                                         │
 │ agents            Interact with the agents in your active env                                                                                                                                                           │
 │ tools             Interact with the tools in your active env                                                                                                                                                            │
+│ skills            Interact with the skills in your active env                                                                                                                                                           │
 │ toolkits          Interact with the toolkits in your active env                                                                                                                                                         │
 │ knowledge-bases   Upload knowledge your agents can search through to your active env                                                                                                                                    │
 │ connections       Manage authentication connections for external systems in your active env                                                                                                                             │
@@ -100,10 +101,9 @@ $ orchestrate --help
 │ evaluations       Evaluate the performance of your agents in your active env                                                                                                                                            │
 │ settings          Configure the settings for your active env                                                                                                                                                            │
 │ partners          Generate a well-structured, submission-ready agent artifact package for partner-built agents                                                                                                          │
-│ observability     Search and export trace data from the observability platform for analysis in third-party tools                                                                                                        │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+│ observability     Search and export trace data from the observability platform for analysis in third-party tools                                         │
+│ controls          Configure controls to protect and manage your AI assets                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## watsonx Orchestrate Developer Edition
@@ -161,9 +161,15 @@ $ orchestrate chat start
 ![img.png](./_docs/assets/chat-example.png)
 
 ## Running tests
+
 Install dev dependencies:
+
 ```bash
-pip install -e ".[dev]"
+pip install -e packages/core \
+            -e packages/clients \
+            -e packages/agentic-sdk \
+            -e packages/mcp-server \
+            -e ".[dev]"
 ```
 
 Run tests:

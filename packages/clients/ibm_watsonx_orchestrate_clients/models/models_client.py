@@ -80,5 +80,31 @@ class ModelsClient(BaseWXOClient):
     def get_draft_by_name(self, model_name: str) -> List[ListVirtualModel]:
         return self.get_drafts_by_names([model_name])
     
+    def get_drafts_by_ids(self, model_ids: List[str]) -> List[Dict]:
+        """
+        Get models by their IDs.
+        
+        Args:
+            model_ids: List of model IDs to fetch
+            
+        Returns:
+            List of model dictionaries
+        """
+        try:
+            formatted_model_ids = [f'id={x}' for x in model_ids]
+            res = self._get(f"/models/list?{'&'.join(formatted_model_ids)}")
+            return res.get("resources", [])
+        except ValidationError as e:
+            logger.error("Received unexpected response from server")
+            raise e
+        except ClientAPIException as e:
+            if e.response.status_code == 404:
+                return []
+            raise e
+    
+    def get_draft_by_id(self, model_id: str) -> List[Dict]:
+        """Get a single model by ID."""
+        return self.get_drafts_by_ids([model_id])
+    
     def validate(self, model_name) -> Dict:
         return self._post("/models/validate", data={"model": model_name})

@@ -6,6 +6,6 @@ description: >
 instructions: >
     Invoke user_flow_example_no_files tool and output the result
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - user_flow_example_no_files

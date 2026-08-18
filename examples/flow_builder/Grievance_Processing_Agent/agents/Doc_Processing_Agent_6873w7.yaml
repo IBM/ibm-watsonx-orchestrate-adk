@@ -53,4 +53,5 @@ welcome_content:
   welcome_message: Hello, welcome to watsonx Orchestrate
   description: Accuracy of generated answers may vary. Please double-check responses.
   is_default_message: false
+  is_user_barge_in_disabled: false
 spec_version: v1

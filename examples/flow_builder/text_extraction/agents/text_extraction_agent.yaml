@@ -8,6 +8,6 @@ instructions: >
 
     Output the output file reference returned by the tool.
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - text_extraction_simple_flow_example

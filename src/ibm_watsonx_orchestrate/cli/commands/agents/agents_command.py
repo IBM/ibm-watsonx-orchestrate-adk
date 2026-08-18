@@ -192,7 +192,7 @@ def agent_create(
     style: Annotated[
         AgentStyle,
         typer.Option("--style", help="The style of agent you wish to create"),
-    ] = AgentStyle.DEFAULT,
+    ] = AgentStyle.REACT_CORE,
     custom_join_tool: Annotated[
         str | None,
         typer.Option(
@@ -259,7 +259,7 @@ def agent_create(
         )
     ] = False
 ):
-    if llm is None:
+    if llm is None and style is not AgentStyle.CUSTOM:
         llm = get_default_llm()
     chat_params_dict = json.loads(chat_params) if chat_params else {}
     config_dict = json.loads(config) if config else {}

@@ -38,7 +38,7 @@ services:
       - wxo-server-db:/var/lib/postgresql/data
       - wxo-applied-migrations:/var/lib/postgresql/applied_migrations
       - architect-migrations:/docker-entrypoint-initdb.d/agent_architecture/migrations:ro
-    command: -c shared_preload_libraries=pgsodium
+    command: -c shared_preload_libraries=pgsodium -c max_connections=200
 
 
   wxo-server-connection-manager:
@@ -56,13 +56,23 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
       WXO_SERVER_URL: http://wxo-server:4321
+      POSTGRES_HOST_ARCHER: wxo-server-db
+      POSTGRES_PORT_ARCHER: ${DB_PORT:-5432}
+      POSTGRES_USER_ARCHER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD_ARCHER: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_ARCHER: postgres
       MAX_POOL: 60
       DEPLOYMENT_MODE: laptop
       SUFFIXLIST: ${CM_SUFFIXLIST:-[]}
       BACKEND_BASE_URL: http://localhost:3001
       CALLBACK_URL: ${OAUTH_REDIRECT_URL:-http://localhost:3001/auth/oauth2/callback}
-      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1}'
+      WXCO_C_FEATURES: '{"feature-45580":1, "feature-38924":1, "ENABLE_KB_MIGRATION":1}'
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
+      ALLOWED_SECURITY_SCHEMA: '["api_key_auth", "bearer_token", "basic_auth", "key_value_creds"]'
+      ALLOWED_AUTH_TYPE: '["oauth2_auth_code", "oauth2_password", "oauth2_client_creds", "oauth_on_behalf_of_flow", "oauth2_token_exchange", "oauth2_direct_accesstoken", "oauth2_jwt_bearer"]'
+      ALLOWED_COMPONENT_LIST: '["knowledge","ootb"]'
+      ALLOWED_JWT_ALGORITHMS: '["RS256","RS384","RS512"]'
+      MASK_KEYS: "client_id,client_secret,private_key,private_key_password"
     ports:
       - 3001:3001
   
@@ -80,7 +90,7 @@ services:
       TENANT_ID: ${REACT_APP_TENANT_ID}
       WXO_CHAT_URL: http://localhost:3000
       WXCO_C_FEATURES: '{"feature-41110":1,"feature-38924":0,"feature-45580":1,"enableCustomCredentials":1}'
-      CONNECTION_PILLS: "custom"
+      CONNECTION_PILLS: "custom,knowledge"
     ports:
      - "3412:3412"
     networks:
@@ -88,6 +98,7 @@ services:
 
   wxo-knowledge-mcp-server:
     image: ${KNOWLEDGE_MCP_SERVER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-knowledge-mcp-server:${KNOWLEDGE_MCP_SERVER_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "8005:8005"
@@ -117,6 +128,10 @@ services:
       NODE_TLS_REJECT_UNAUTHORIZED: ${AI_GATEWAY_TLS_REJECT_UNAUTHORIZED}
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_URL: ${GROQ_URL}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_RESOURCE_NAME: ${AZURE_OPENAI_RESOURCE_NAME}
+      GPT_5_4_AZURE_OPENAI_DEPLOYMENT_ID: ${GPT_5_4_AZURE_OPENAI_DEPLOYMENT_ID}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
       AWS_ACCESS_KEY_ID: ${BEDROCK_AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${BEDROCK_AWS_SECRET_ACCESS_KEY}
       NODE_EXTRA_CA_CERTS: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
@@ -150,6 +165,10 @@ services:
       SSL_CERT_FILE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       REQUESTS_CA_BUNDLE: ${CERT_BUNDLE_ENABLED:+/etc/ssl/certs/custom-bundle.crt}
       SSRF_ALLOW_PRIVATE_NETWORKS: true # needed to access host.docker.internal
+      TOOL_TIMEOUT: 300
+      HTTPX_READ_TIMEOUT: 300
+      JSON_SCHEMA_VALIDATION_STRICT: false
+      TOOL_DESCRIPTION_FORBIDDEN_PATTERNS_ENABLED: false
 
   wxo-agent-gateway:
     image: ${AGENT_GATEWAY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agent-gateway:${AGENT_GATEWAY_TAG:-latest}
@@ -219,7 +238,8 @@ services:
       REACT_APP_VOICE_ENABLED: ${VOICE_ENABLED:-false}
       ENABLE_AGENT_DEBUG: "true"
       WXO_AGENT_ARCHITECT_URL: http://localhost:5321/api/v1
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
     command: "./StartServer.sh"
     ports:
       - "3000:4002"
@@ -245,6 +265,8 @@ services:
       DPI_RAG_SERVER_ENDPOINT: https://wxo-doc-processing-llm-service:8083
       IBM_DPS_CACHE_SERVICE: http://wxo-doc-processing-cache:8080
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
+      EVALUATION_SERVICE_URL: https://wxo-doc-processing-evaluation:8080
+      ACCURACY_EVALUATION: true
       BUILDER_ASYNC_CALLBACK_ENDPOINT: http://wxo-builder:4025
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       ALLOW_INSECURE_TLS: "true"
@@ -271,12 +293,15 @@ services:
       ENABLE_LANGGRAPH_AGENT: "true"
       THREAD_ENCODER_SECRET: ${DB_ENCRYPTION_KEY}
       LEGACY_ANALYTICS_RETIREMENT_DATE: ${LEGACY_ANALYTICS_RETIREMENT_DATE:-July 24, 2026}
-      ENABLE_AGENT_ARCHITECT_IN_ADK: "true"
+      ENABLE_AGENT_ARCHITECT_IN_ADK: "false"
+      ENABLE_BUILD_WITH_BOB: "true"
       SCHEDULER_IN_AGENT_BUILDER: "true"
-      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
+      AGENTS_OPS_V3_RUNTIME_ENDPOINT: http://wxo-server:4321
     command: "/opt/entrypoint.sh"
     ports:
       - "4025:4025"
+      - "3300:4025"
     healthcheck:
       test: curl -k http://localhost:4025/api/health --fail
       interval: 5s
@@ -345,6 +370,7 @@ services:
       WXO_API_KEY: ${WXO_API_KEY}
       WXO_AWS_IAM_URL: ${WXO_AWS_IAM_URL}
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -382,7 +408,8 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
       NLTK_DATA: /tmp/nltk_data
@@ -423,7 +450,7 @@ services:
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL}
       AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED}
       IBM_TELEMETRY_EXPORTER_TYPE: http
-      IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
+      IBM_TELEMETRY_TRACER_ENDPOINT: http://wxo-server:4321/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
@@ -437,6 +464,7 @@ services:
       ENABLE_WDU_FOR_AGENT_KNOWLEDGE: ${ENABLE_WDU_FOR_AGENT_KNOWLEDGE:-false}
       POSTGRES_ARCHITECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/architect
       WXO_SERVER_BASE_URL: http://wxo-server:4321
+      ENABLE_A2A_AND_TOOL_FLOW_LISTENERS: ${ENABLE_A2A_AND_TOOL_FLOW_LISTENERS:-false}
 
   wxo-server-minio:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/minio/minio:latest
@@ -567,6 +595,7 @@ services:
       - jaeger-network
     environment:
       DEFAULT_AGENT_ENABLED: "true"
+      DOCPROCESSING_AGENT_ENABLED: "true"
       RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY} 
       PIP_NO_CACHE_DIR:
       JWT_SECRET: ${JWT_SECRET}
@@ -604,14 +633,20 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
+      LANGFUSE_DEFAULT_USER_EMAIL: ${LANGFUSE_EMAIL}
+      LANGFUSE_DEFAULT_USER_PASSWORD: ${LANGFUSE_PASSWORD}
       WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
+      AGENT_OPS_V3_SCHEMA_SETUP: ${AGENT_OPS_V3_SCHEMA_SETUP:-false}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL:-http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD}@langfuse-clickhouse:8123}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
       TELEMETRY_ENABLED: false
-      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-false}
+      ENABLE_AO_INTEGRATION: ${ENABLE_AO_INTEGRATION:-true}
       BASE_URL: https://de-server.apps.wo-dp-006.l7c7.p1.openshiftapps.com/
       AGENT_STEP_DETAILS: redis://wxo-server-redis:6379/0
       JWT_PRIVATE_CONFIGS_PATH: "/"
@@ -649,8 +684,11 @@ services:
       IBM_TELEMETRY_EXPORTER_TYPE: http
       IBM_TELEMETRY_TRACER_ENDPOINT: http://jaeger:4318/v1/traces
       USE_IBM_TELEMETRY: ${USE_IBM_TELEMETRY:-false}
+      ENABLE_DEV_LANGFUSE_DETAILS_API: ${ENABLE_DEV_LANGFUSE_DETAILS_API:-true}
       AGENTOPS_API_KEY_AUTH_ENABLED: ${AGENTOPS_API_KEY_AUTH_ENABLED:-false}
       AGENTOPS_API_KEY: ${AGENTOPS_API_KEY}
+      AGENT_OPS_V3: ${AGENT_OPS_V3:-false}
+      AGENT_OPS_V3_PROXY_URL: http://wxo-server:4321/v1/traces
       ES_HOST: http://elasticsearch:9200
       ORIGIN_HEADER: "internal"
       LANGFLOW_ENABLED: ${LANGFLOW_ENABLED:-false}
@@ -709,6 +747,11 @@ services:
       EXECUTION_TYPE: ${EXECUTION_TYPE:-direct}
       CALLBACK_HOST_URL: ${CALLBACK_HOST_URL:-http://wxo-server:4321}
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      CONTROLS_ENABLED: true
+      WDP_FLIGHT_URL: grpc+tls://${FLIGHT_SERVICE_HOST:-wdpflight-svc}:${FLIGHT_SERVICE_PORT:-9443}
+      FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
+      FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
+      ENABLE_KB_SOURCE_SYNC: ${ENABLE_KB_SOURCE_SYNC:-true}
 
   wxo-server-worker:
     image: ${WORKER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-conversation_controller:${WORKER_TAG:-latest}
@@ -767,9 +810,13 @@ services:
       LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3010}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: pk-lf-${LANGFUSE_PASSWORD}
       LANGFUSE_SECRET_KEY: sk-lf-${LANGFUSE_PASSWORD}
+      LANGFUSE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@wxo-server-db:5432/langfuse
+      LANGFUSE_DEFAULT_USER_EMAIL: ${LANGFUSE_EMAIL}
+      LANGFUSE_DEFAULT_USER_PASSWORD: ${LANGFUSE_PASSWORD}
       WXO_TRACING_LANGFUSE_OTLP_ONLY: ${WXO_TRACING_LANGFUSE_OTLP_ONLY:-false}
       NLTK_DATA: /tmp/nltk_data
       DO_NOT_TRACK: true
@@ -863,6 +910,11 @@ services:
       KNOWLEDGE_MCP_SERVER_URL: http://wxo-knowledge-mcp-server:8005/mcp
       EXECUTION_TYPE: direct
       ATM_BASE_URL: http://wxo-tempus-runtime:9044
+      FLIGHT_SERVICE_HOST: ${FLIGHT_SERVICE_HOST:-wdpflight-svc}
+      FLIGHT_SERVICE_PORT: ${FLIGHT_SERVICE_PORT:-9443}
+      KB_MAX_BATCH_SIZE: ${KB_MAX_BATCH_SIZE:-31457280}
+      KB_MAX_FILES_PER_BATCH: ${KB_MAX_FILES_PER_BATCH:-20}
+      KB_SYNC_MAX_TOTAL_FILES: ${KB_SYNC_MAX_TOTAL_FILES:-100}
 
   opensearch:
     image: ${OPENSOURCE_REGISTRY_PROXY:-opensearchproject}/opensearch:${OPENSEARCH_TAG:-2.11.0}
@@ -889,6 +941,7 @@ services:
 
   wxo-agentic-memory:
     image: ${AGENTIC_MEMORY_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-agentic-memory:${AGENTIC_MEMORY_TAG:-latest}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "7999:7999"
@@ -1229,7 +1282,7 @@ services:
   langfuse-worker:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse-worker:3
     restart: unless-stopped
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     depends_on: &langfuse-depends-on
       wxo-server-db:
         condition: service_healthy
@@ -1282,7 +1335,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langfuse/langfuse:3
     restart: unless-stopped
     depends_on: *langfuse-depends-on
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     ports:
       - "3010:3000"
     environment:
@@ -1295,7 +1348,7 @@ services:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/clickhouse/clickhouse-server:latest
     restart: unless-stopped
     user: "101:101"
-    profiles: [langfuse]
+    profiles: [langfuse, ibm-telemetry]
     container_name: clickhouse
     hostname: clickhouse
     environment:
@@ -1316,7 +1369,7 @@ services:
       start_period: 1s
 
   wxo-tempus-runtime:
-    image: ${FLOW_RUMTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
+    image: ${FLOW_RUNTIME_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-tempus-runtime:${FLOW_RUNTIME_TAG:-latest}
     restart: unless-stopped
     networks:
       - default
@@ -1330,6 +1383,7 @@ services:
       SERVER_JWK_URL: https://wo-ibm-dev.verify.ibm.com/v1.0/endpoint/default/jwks
       SERVER_STANDALONE_TASK_CALLBACK_URL: http://wxo-tempus-runtime:9044/task/callback/{thread_id}/{requestId}
       SERVER_FLOW_CALLBACK_URL: http://wxo-tempus-runtime:9044/v1/flows/{flow_instance_id}/{task_instance_id}/resume/async
+      SERVER_FLOW_UNAUTH_CALLBACK_BASE_URL: http://wxo-server:4321
       JWT_SECRET: ${JWT_SECRET}
       SERVER_INTERNAL_PROTOCOL: http
       SERVER_INTERNAL_HOSTNAME: wxo-tempus-runtime
@@ -1360,6 +1414,7 @@ services:
       DOCPROC_ENABLED: ${DOCPROC_ENABLED:-false}
       DOCPROC_BASE_URL: http://wxo-doc-processing-infra-standalone:9080
       DOCPROC_OUTPUT_FILE_SERVER_URL: ${DOCPROC_OUTPUT_FILE_SERVER_URL:-http://wxo-server:4321}
+      DOCPROC_EVALUATION_BASE_URL: https://wxo-doc-processing-evaluation:8080 
       WO_API_KEY: ${WO_API_KEY}
       WO_INSTANCE: ${WO_INSTANCE}
       WO_USERNAME: ${WO_USERNAME}
@@ -1416,6 +1471,7 @@ services:
 # WDU (Prometheus) - 18086
 # DPS Cache - 18083
 # LLM Service - 18084
+# Evaluation - 18087
 ######################## 
 
   wxo-doc-processing-service:
@@ -1578,6 +1634,7 @@ services:
       REDIS_HOST: wxo-server-redis
       REDIS_PORT: 6379
       REDIS_LOCAL_DEV: "true"
+      ENABLE_CANCELLATION: "true"
     depends_on:
       wxo-doc-processing-dpi-minio-init:
         condition: service_completed_successfully
@@ -1697,18 +1754,108 @@ services:
       exit 0;
       "
 
+  wxo-doc-processing-evaluation:
+    platform: "linux/amd64"
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_evaluation:${DOCPROC_EVALUATION_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: wxo-doc-processing-evaluation
+      LOG_LEVEL: info
+      VERIFY_CLIENT_CERT: 0
+      IBM_DPS_CACHE_SERVICE: 'http://wxo-doc-processing-cache:8080'
+      PGHOST: wxo-server-db
+      PGPORT: 5432
+      PGDATABASE: wxo-document-processing-evaluation
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB_SCHEMA: dpschema
+    profiles:
+      - docproc
+    depends_on:
+      wxo-doc-processing-cache:
+        condition: service_healthy
+      wxo-doc-processing-evaluation-pg-init:
+        condition: service_completed_successfully
+    ports:
+      - "18087:8080"
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://localhost:8080/ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+
+  wxo-doc-processing-evaluation-pg-init:
+    platform: "linux/amd64"
+    image: ${DOCPROC_REGISTRY:-us.icr.io/watson-orchestrate-private}/document-processing/wo_doc_processing_evaluation_pg_init:${DOCPROC_EVALUATION_TAG:-latest}
+    profiles:
+      - docproc
+    depends_on:
+      wxo-server-db:
+        condition: service_started
+    environment:
+      PGHOST: wxo-server-db
+      PGPORT: 5432
+      PGDATABASE: wxo-document-processing-evaluation
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB_SCHEMA: dpschema
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 500M
+
   wxo-server-voice:
     image: ${VOICE_CONTROLLER_REGISTRY:-us.icr.io/watson-orchestrate-private}/wxo-server-voice:${VOICE_CONTROLLER_TAG:-latest}
     platform: linux/amd64
     profiles: [voice]
     restart: unless-stopped
-    ports: 
+    ports:
       - 9876:8765
     environment:
       WXO_BASE_DOMAIN_URL: "http://wxo-server:4321"
       AI_GATEWAY_URL: "http://ai-gateway:8787"
       WXO_ORIGIN_HEADER: "internal"
       CELERY_BROKER_URL: "redis://wxo-server-redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://wxo-server-redis:6379/1"
+      EVENT_BROKER_URL: "redis://wxo-server-redis:6379/2"
+      AGENT_STEP_DETAILS: "redis://wxo-server-redis:6379/3"
+      CHANNEL_SESSION_REDIS_URL: "redis://wxo-server-redis:6379/5"
+      WXO_RUNS_URL: "http://wxo-server:4321"
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/postgres
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
+      OBSERVABILITY_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/wxo_observability
+      RUNTIME_MANAGER_API_KEY: ${RUNTIME_MANAGER_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_CONFIGS_PATH: "/"
+      CALLER_ID: 12345
+
+  wdp-connect-flight-svc:
+    image: ${FLIGHT_SERVICE_REGISTRY:-us.icr.io/watson-orchestrate-private}/wdp-connect-flight-svc:${FLIGHT_SERVICE_TAG:-latest}
+    platform: linux/amd64
+    profiles: [ingestion-from-external-source]
+    restart: unless-stopped
+    container_name: wdpflight-svc
+    ports:
+      - "9443:9443"
+      - "7777:7777"
+    environment:
+      COMPONENT_ID: wdp-connect-flight-svc
+      ENVIRONMENT_NAME: standalone
+      TRUST_ALL_SSL_CERT: "true"
+      WDPX_KUBE_FLIGHT_DEBUG_REMOTE: "y"
+      WDPX_KUBE_FLIGHT_DEBUG_SUSPEND: "n"
+      ENABLE_DEBUG: "false"
+      DEV_GLOBAL_CATALOG: ""
+      GATEWAY_URL: "http://localhost:9443"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/ibm/healthcheck/grpcurl --insecure -H 'IBM-FLIGHT-HEALTHCHECK:true' -d '{\"type\":\"health_check\"}' -proto opt/ibm/healthcheck/Flight.proto localhost:9443 arrow.flight.protocol.FlightService/DoAction"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   langflow:
     image: ${OPENSOURCE_REGISTRY_PROXY:-docker.io}/langflowai/${LANGFLOW_IMAGE:-langflow}:${LANGFLOW_TAG:-latest}
@@ -1720,7 +1867,7 @@ services:
       LANGFLOW_PORT: 7861
       LANGFLOW_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@wxo-server-db:5432/langflow
       LANGFLOW_CONFIG_DIR: /app/app/langflow
-      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
+      LANGFLOW_AUTO_LOGIN: "true"
     volumes:
       - langflow-data:/app/langflow
 

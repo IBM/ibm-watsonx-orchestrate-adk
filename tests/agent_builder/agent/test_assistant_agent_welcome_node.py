@@ -222,4 +222,3 @@ class TestAssistantAgentWelcomeNode:
         assert spec.config.service_instance_url == "https://test.example.com"
         assert spec.config.environment_id == "test-env-id"
 
-# Made with Bob

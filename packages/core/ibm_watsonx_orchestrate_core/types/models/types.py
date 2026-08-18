@@ -26,6 +26,7 @@ class ModelProvider(str, Enum):
     TOGETHER_AI = 'together-ai'
     WATSONX = 'watsonx'
     X_AI = 'x-ai'
+    REDHAT_AI = 'redhat-ai'
 
     def __str__(self):
         return self.value
@@ -36,19 +37,6 @@ class ModelProvider(str, Enum):
     @classmethod
     def has_value(cls, value):
         return value in cls._value2member_map_
-
-
-class ModelType(str, Enum):
-    CHAT = 'chat'
-    CHAT_VISION = 'chat_vision'
-    COMPLETION = 'completion'
-    EMBEDDING = 'embedding'
-
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
 
 
 class ModelType(str, Enum):

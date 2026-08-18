@@ -135,7 +135,7 @@ class RunClient(BaseWXOClient):
             }
             
             # Upload to S3 endpoint and get the response
-            endpoint = "/orchestrate/upload-to-s3/" if is_local_dev(self.base_url) else "/upload-to-s3/"
+            endpoint = "/orchestrate/upload-to-s3" if is_local_dev(self.base_url) else "/upload-to-s3"
             response = self._post(endpoint, data=data, files=files)
             
         return response if isinstance(response, list) else [response]
