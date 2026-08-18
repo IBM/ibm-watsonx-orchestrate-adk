@@ -6,6 +6,7 @@ from ibm_watsonx_orchestrate.cli.commands.login.login_command import login_app
 from ibm_watsonx_orchestrate.cli.commands.settings.settings_command import settings_app
 from ibm_watsonx_orchestrate.cli.commands.tools.tools_command import tools_app
 from ibm_watsonx_orchestrate.cli.commands.agents.agents_command import agents_app
+from ibm_watsonx_orchestrate.cli.commands.skills.skills_command import skills_app
 from ibm_watsonx_orchestrate.cli.commands.server.server_command import server_app
 from ibm_watsonx_orchestrate.cli.commands.chat.chat_command import chat_app
 from ibm_watsonx_orchestrate.cli.commands.models.models_command import models_app
@@ -20,8 +21,10 @@ from ibm_watsonx_orchestrate.cli.commands.evaluations.evaluations_command import
 from ibm_watsonx_orchestrate.cli.commands.voice_configurations.voice_configurations_command import voice_configurations_app
 from ibm_watsonx_orchestrate.cli.commands.observability.observability_command import observability_app
 from ibm_watsonx_orchestrate.cli.commands.workspaces.workspaces_command import workspaces_app
+from ibm_watsonx_orchestrate.cli.commands.controls.controls_command import controls_app
 from ibm_watsonx_orchestrate.cli.init_helper import init_callback
 from ibm_watsonx_orchestrate.client.utils import is_ibm_cloud_platform
+from ibm_watsonx_orchestrate.client.utils import is_cpd_env
 
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -37,6 +40,7 @@ app.add_typer(login_app)
 app.add_typer(environment_app, name="env", help='Add, remove, or select the activate env other commands will interact with (either your local server or a production instance)')
 app.add_typer(agents_app, name="agents", help='Interact with the agents in your active env')
 app.add_typer(tools_app, name="tools", help='Interact with the tools in your active env')
+app.add_typer(skills_app, name="skills", help='Interact with the skills in your active env')
 app.add_typer(toolkits_app, name="toolkits", help="Interact with the toolkits in your active env")
 app.add_typer(knowledge_bases_app, name="knowledge-bases", help="Upload knowledge your agents can search through to your active env")
 app.add_typer(connections_app, name="connections", help='Manage authentication connections for external systems in your active env')
@@ -51,10 +55,11 @@ app.add_typer(evaluation_app, name="evaluations", help='Evaluate the performance
 app.add_typer(settings_app, name="settings", help='Configure the settings for your active env')
 app.add_typer(partners_app, name="partners", help='Generate a well-structured, submission-ready agent artifact package for partner-built agents')
 app.add_typer(observability_app, name="observability", help='Search and export trace data from the observability platform for analysis in third-party tools')
+app.add_typer(controls_app, name="controls", help='Configure controls to protect and manage your AI assets')
 
-# Conditionally add workspaces command only for IBM Cloud environments
+# Conditionally add workspaces command only for IBM Cloud environments OR CP4D environments
 try:
-    if is_ibm_cloud_platform():
+    if is_ibm_cloud_platform() or is_cpd_env():
         app.add_typer(workspaces_app, name="workspaces", help='Manage workspaces and workspace members for organizing agents and resources')
 except Exception:
     # If we can't determine the platform (e.g., no active env), don't add the command

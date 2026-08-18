@@ -17,6 +17,10 @@ ATTR_SERVICE_NAME = "service.name"
 BAGGAGE_TENANT_ID = "tenant.id"
 BAGGAGE_AGENT_ID = "agent.id"
 
+# --- Trace injection context attributes ---
+ATTR_WORKSPACE_ID = "workspace.id"
+ATTR_ENVIRONMENT_NAME = "environment.name"
+
 # --- Common span attributes (capture_input / capture_output) ---
 ATTR_INPUT = "input.value"
 ATTR_OUTPUT = "output.value"
@@ -37,8 +41,13 @@ ATTR_LLM_STOP_REASON = "llm.stop_reason"
 
 # --- Tool span attributes ---
 ATTR_TOOL_NAME = "tool.name"
+ATTR_TOOL_ID = "tool.id"
 ATTR_TOOL_INPUT = "tool.input"
 ATTR_TOOL_OUTPUT = "tool.output"
+
+# --- Langfuse observation metadata attributes ---
+ATTR_LANGFUSE_TOOL_NAME = "langfuse.observation.metadata.tool.name"
+ATTR_LANGFUSE_TOOL_ID = "langfuse.observation.metadata.tool.id"
 
 # --- Agent span attributes ---
 ATTR_AGENT_NAME = "agent.name"
@@ -49,9 +58,12 @@ ATTR_AGENT_FRAMEWORK = "agent.framework"
 # --- Session attributes ---
 ATTR_SESSION_ID = "session.id"
 ATTR_USER_ID = "user.id"
+ATTR_LANGFUSE_SESSION_ID = "langfuse.session.id"
+ATTR_CONVERSATION_ID = "conversation.id"
 
 # --- Span kind labels (used internally, not OTEL SpanKind) ---
 SPAN_KIND_GENERAL = "general"
 SPAN_KIND_LLM = "llm"
 SPAN_KIND_TOOL = "tool"
 SPAN_KIND_AGENT = "agent"
+SPAN_KIND_ROOT = "root"

@@ -317,4 +317,3 @@ class TestLocalAuthenticationConstants:
         assert DEFAULT_LOCAL_SERVICE_URL in client.session.base_url
         assert client.session.base_url == f"{DEFAULT_LOCAL_SERVICE_URL}/api/v1"
 
-# Made with Bob

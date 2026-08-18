@@ -195,17 +195,8 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
     context_variables = [x.strip() for x in context_variables if x.strip() != ""]
     agent_details["context_variables"] = context_variables
 
-    # hidden = args.get("hidden")
-    # if hidden:
-    #     agent_details["hidden"] = hidden 
-
-    # starter_prompts = args.get("starter_prompts")
-    # if starter_prompts:
-    #     agent_details["starter_prompts"] = starter_prompts 
-
-    # welcome_content = args.get("welcome_content")
-    # if welcome_content:
-    #     agent_details["welcome_content"] = welcome_content 
+    agent_details["hidden"] = args.get("hidden", False)
+    agent_details["restrictions"] = args.get("restrictions", AgentRestrictionType.EDITABLE.value)
 
     return agent_details
 
@@ -270,6 +261,11 @@ def _raise_guidelines_warning(response: AgentUpsertResponse) -> None:
     if response.warning:
         logger.warning(f"Agent Configuration Issue: {response.warning}")
 
+def _raise_style_deprecation_warning(agent_style: AgentStyle) -> None:
+    DEPRECATED_STYLES = {AgentStyle.DEFAULT, AgentStyle.REACT, AgentStyle.PLANNER}
+    if agent_style in DEPRECATED_STYLES:
+        logger.warning(f"The selected style '{agent_style}' is set to be deprecated. Please update to 'react_core' to avoid future issues. See migration guide for assistance: https://www.ibm.com/docs/SSAVQO/agent_builder/agent-style-migration.html")
+
 class AgentsController:
     def __init__(self, safe_mode: bool = False):
         self.native_client = None
@@ -279,42 +275,57 @@ class AgentsController:
         self.knowledge_base_client = None
         self.toolkit_client = None
         self.voice_configuration_client = None
+        self.skills_controller = None
         self.safe_mode = safe_mode
 
     def get_native_client(self):
+        """Lazily initialise and return the shared AgentClient instance."""
         if not self.native_client:
             self.native_client = instantiate_client(AgentClient)
         return self.native_client
 
     def get_external_client(self):
+        """Lazily initialise and return the shared ExternalAgentClient instance."""
         if not self.external_client:
             self.external_client = instantiate_client(ExternalAgentClient)
         return self.external_client
     
     def get_assistant_client(self):
+        """Lazily initialise and return the shared AssistantAgentClient instance."""
         if not self.assistant_client:
             self.assistant_client = instantiate_client(AssistantAgentClient)
         return self.assistant_client
     
     def get_tool_client(self):
+        """Lazily initialise and return the shared ToolClient instance."""
         if not self.tool_client:
             self.tool_client = instantiate_client(ToolClient)
         return self.tool_client
     
     def get_knowledge_base_client(self):
+        """Lazily initialise and return the shared KnowledgeBaseClient instance."""
         if not self.knowledge_base_client:
             self.knowledge_base_client = instantiate_client(KnowledgeBaseClient)
         return self.knowledge_base_client
 
     def get_toolkit_client(self):
+        """Lazily initialise and return the shared ToolKitClient instance."""
         if not self.toolkit_client:
             self.toolkit_client = instantiate_client(ToolKitClient)
         return self.toolkit_client
 
     def get_voice_configuration_client(self):
+        """Lazily initialise and return the shared VoiceConfigurationsClient instance."""
         if not self.voice_configuration_client:
             self.voice_configuration_client = instantiate_client(VoiceConfigurationsClient)
         return self.voice_configuration_client
+
+    def get_skills_controller(self):
+        """Lazily initialise and return the shared SkillsController instance."""
+        if not self.skills_controller:
+            from ibm_watsonx_orchestrate.cli.commands.skills.skills_controller import SkillsController
+            self.skills_controller = SkillsController()
+        return self.skills_controller
     
     @staticmethod
     def import_agent(
@@ -1115,6 +1126,47 @@ class AgentsController:
         ref_agent.knowledge_base = ref_knowledge_bases
 
         return ref_agent
+
+    def dereference_skills(self, agent: Agent) -> Agent:
+        """Resolve skill names to IDs for agent import/binding."""
+        skills_controller = self.get_skills_controller()
+
+        deref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills()
+        name_id_lookup = {s["name"]: s["id"] for s in all_skills}
+
+        deref_skills = []
+        for name in agent.skills:
+            skill_id = name_id_lookup.get(name)
+            if not skill_id:
+                logger.error(f"Failed to find skill. No skill found with the name '{name}'.")
+                sys.exit(1)
+            deref_skills.append(skill_id)
+
+        deref_agent.skills = deref_skills
+        return deref_agent
+
+    def reference_skills(self, agent: Agent, workspace_id: Optional[str] = None) -> Agent:
+        """Resolve skill IDs back to names for agent export."""
+        skills_controller = self.get_skills_controller()
+
+        ref_agent = deepcopy(agent)
+
+        all_skills = skills_controller.get_all_skills(workspace_id)
+        id_name_lookup = {s["id"]: s["name"] for s in all_skills}
+
+        ref_skills = []
+        for skill_id in agent.skills:
+            name = id_name_lookup.get(skill_id)
+            if not name:
+                logger.error(f"Failed to find skill. No skill found with the id '{skill_id}'.")
+                sys.exit(1)
+            ref_skills.append(name)
+
+        ref_agent.skills = ref_skills
+        return ref_agent
+
     def dereference_toolkits(self, agent: Agent) -> Agent:
         client = self.get_toolkit_client()
 
@@ -1305,6 +1357,8 @@ class AgentsController:
             agent = self.dereference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits) > 0:
             agent = self.dereference_toolkits(agent)
+        if agent.skills and len(agent.skills) > 0:
+            agent = self.dereference_skills(agent)
 
         return agent
     
@@ -1319,6 +1373,8 @@ class AgentsController:
             agent = self.reference_guidelines(agent)
         if agent.toolkits and len(agent.toolkits):
             agent = self.reference_toolkits(agent)
+        if agent.skills and len(agent.skills):
+            agent = self.reference_skills(agent, workspace_id=workspace_id)
 
         return agent
     
@@ -1397,6 +1453,8 @@ class AgentsController:
                     sys.exit(1)
 
             agent_kind = agent.kind
+            if agent_kind == AgentKind.NATIVE:
+                _raise_style_deprecation_warning(agent.style)
 
             if len(all_existing_agents) > 1:
                 logger.error(f"Multiple agents with the name '{agent_name}' found. Failed to update agent")
@@ -2183,6 +2241,7 @@ class AgentsController:
                         "Style": {},
                         "Collaborators": {},
                         "Tools": {},
+                        "Skills": {},
                         "Plugins": {},
                         "Knowledge Base": {},
                         "ID": {"overflow": "fold"},
@@ -2221,6 +2280,7 @@ class AgentsController:
                             agent.style,
                             ", ".join(agent.collaborators),
                             ", ".join(agent.tools),
+                            ", ".join(agent.skills or []),
                             ", ".join(plugin_strings),
                             ", ".join(agent.knowledge_base),
                             agent.id,
@@ -2417,6 +2477,8 @@ class AgentsController:
     def get_spec_file_content(self, agent: Agent | ExternalAgent | AssistantAgent, exclude: List[str] | None = None, workspace_id: Optional[str] = None):
         ref_agent = self.reference_agent_dependencies(agent, workspace_id=workspace_id)
         agent_spec = ref_agent.model_dump(mode='json', exclude_none=True, exclude=exclude)
+        if agent_spec.get("style") == AgentStyle.REACT_INTRINSIC.value:
+            agent_spec["style"] = "react_core"
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
@@ -2507,6 +2569,8 @@ class AgentsController:
         llm_config = llm_config.model_dump(exclude_unset=True, exclude_defaults=True, exclude_none=True)
         if "llm_config" in agent_spec_file_content and not llm_config:
             agent_spec_file_content.pop("llm_config", None)
+        else:
+            agent_spec_file_content.update({"llm_config": llm_config})
 
         if agent_only_flag:
             logger.info(f"Exported agent definition for '{name}' to '{output_path}'")
@@ -2724,7 +2788,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Deploying agent to Live envrionment", total=None)
+                    progress.add_task(description="Deploying agent to Live environment", total=None)
 
                     status = native_client.deploy(agent_id, live_env_id)
 
@@ -2784,7 +2848,7 @@ class AgentsController:
             transient=True,
             console=console,
                 ) as progress:
-                    progress.add_task(description="Undeploying agent to Draft envrionment", total=None)
+                    progress.add_task(description="Undeploying agent to Draft environment", total=None)
 
                     status = native_client.undeploy(agent_id, version_id, draft_env_id)
         if status:
@@ -2920,21 +2984,29 @@ class AgentsController:
             logger.error(f"Agent '{agent_name}' is not a custom agent. Failed to connect connections")
             sys.exit(1)
 
-        connection_uuids = []
+        existing_connection_ids = set(agent.get("connection_ids", []) or [])
+        connection_uuids = list(existing_connection_ids)
+        new_app_ids = []
+
         for app_id in connection_ids:
             connection = connections_client.get_draft_by_app_id(app_id=app_id)
             if not connection:
                 logger.error(f"No connection exists with the app-id '{app_id}'")
                 sys.exit(1)
-            if connection.connection_id in agent.get("connection_ids", []):
-                logger.error(f"Connection with app-id '{app_id}' is already connected to agent '{agent_name}'")
-                sys.exit(1)
+            if connection.connection_id in existing_connection_ids:
+                logger.warning(f"Connection '{app_id}' is already connected to agent '{agent_name}', skipping")
+                continue
             connection_uuids.append(connection.connection_id)
+            new_app_ids.append(app_id)
+
+        if not new_app_ids:
+            logger.info(f"No new connections to add to agent '{agent_name}'")
+            return
 
         # Connect the connections to the agent
-        logger.info(f"Connecting {len(connection_uuids)} connection(s) to agent '{agent_name}'...")
+        logger.info(f"Connecting {len(new_app_ids)} new connection(s) to agent '{agent_name}': {', '.join(new_app_ids)}")
         native_client.connect_connections(agent_id, connection_uuids)
-        logger.info(f"Successfully connected connections to agent '{agent_name}'")
+        logger.info(f"Successfully connected {len(new_app_ids)} new connection(s) to agent '{agent_name}'")
 
 
     def upload_agent_artifact(self, agent_name: str, file_path: str) -> dict:

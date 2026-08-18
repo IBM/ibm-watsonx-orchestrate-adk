@@ -38,21 +38,21 @@ from ..types import (
     NodeErrorHandlerConfig, NodeIdCondition, PlainTextReadingOrder, PromptExample, PromptLLMParameters, PromptNodeSpec,
     StartNodeSpec, ToolSpec, JsonSchemaObject, ToolRequestBody, ToolResponseBody, UserAssignmentPolicy, UserFieldKind, UserFieldOption, UserFlowSpec, UserNodeSpec, WaitPolicy, WaitNodeSpec,
     DocProcSpec, TextExtractionResponse, DocProcInput, DecisionsNodeSpec, DecisionsRule, DocExtSpec, DocumentClassificationResponse, DocClassifierSpec, DocumentProcessingCommonInput, DocProcOutputFormat,
-    UserFormButton
+    UserFormButton, LanguageCode
 )
-from ..masking_utils import MaskingPolicy, InputPolicy
+from ..masking_utils import MaskingPolicy, InputPolicy, ChannelOverride
 from .constants import CURRENT_USER, START, END, ANY_USER
 from ..node import (
     EndNode, Node, PromptNode, ScriptNode, StartNode, TimerNode, UserNode, AgentNode, DataMap, ToolNode, DocProcNode, DecisionsNode, DocExtNode, DocClassifierNode
 )
 from ..types import (
-    AgentNodeSpec, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
+    AgentNodeSpec, ThreadControlPolicy, extract_node_spec, FlowContext, FlowEventType, FlowEvent, FlowSpec,
     NodeSpec, TaskEventType, ToolNodeSpec, SchemaRef, JsonSchemaObjectRef, FlowContextWindow, _to_json_from_json_schema,
-    FlowCallback, FlowCallbackEventKind
+    FlowCallback, FlowCallbackEventKind, _UNSET
 )
 
 from ..data_map import DataMap, DataMapSpec
-from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec
+from ..utils import FIELD_INPUT_SCHEMA_TEMPLATES, FIELD_OUTPUT_SCHEMA_TEMPLATES, _get_json_schema_obj, get_valid_name, import_flow_model, _get_tool_request_body, _get_tool_response_body, parse_tool_name_id, normalize_and_validate_tool_spec, validate_callback_tool_schema
 
 from .events import StreamConsumer
 
@@ -164,7 +164,48 @@ class Flow(Node):
         if isinstance(node, list):
             for i, v in enumerate(node):
                 self._rewrite_local_refs(v)
-            return 
+            return
+    
+    def _resolve_tool_spec(self, tool: str, error_prefix: str = "tool") -> ToolSpec | None:
+        """
+        Resolve a tool specification by ID or name.
+        
+        This helper method encapsulates the common pattern of resolving tools
+        used by both tool() and add_callback() methods.
+        
+        Args:
+            tool: Tool identifier (can be tool_name, tool:id, or toolkit:tool:id)
+            error_prefix: Prefix for error messages (e.g., "tool" or "callback tool")
+            
+        Returns:
+            ToolSpec if found, None otherwise
+            
+        Raises:
+            ValueError: If tool not found
+        """
+        tool_name, tool_id = parse_tool_name_id(tool)
+        tool_spec = None
+        
+        # Try to retrieve the tool from server by ID first
+        if tool_id is not None:
+            try:
+                tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
+                if tool_spec_raw and isinstance(tool_spec_raw, dict):
+                    tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
+            except ClientAPIException:
+                # let's try with name as well before throwing error
+                pass
+        
+        # Fall back to name lookup
+        if tool_spec is None and tool_name is not None:
+            tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
+            if (tool_specs is None) or (len(tool_specs) == 0):
+                raise ValueError(f"{error_prefix} '{tool_name}' not found")
+            tool_spec = normalize_and_validate_tool_spec(tool_specs[0])
+        elif tool_spec is None:
+            raise ValueError(f"{error_prefix} id '{tool_id}' not found")
+        
+        return tool_spec
     
     def _add_schema(self, schema: JsonSchemaObject, title: str = None) -> JsonSchemaObject:
         '''
@@ -772,31 +813,14 @@ class Flow(Node):
 
 
         if isinstance(error_handler_config, dict):
-            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)    
+            error_handler_config = NodeErrorHandlerConfig.model_validate(error_handler_config)
         
-        if isinstance(tool, str):        
+        if isinstance(tool, str):
             name = name if name is not None and name != "" else tool
 
             if input_schema is None and output_schema is None:
-                tool_name, tool_id = parse_tool_name_id(tool)
-                tool_spec = None
-                # try to retrieve the schema from server
-                if tool_id is not None:
-                    try:
-                        tool_spec_raw: dict | Literal[""] = self._tool_client.get_draft_by_id(tool_id)
-                        if tool_spec_raw and isinstance(tool_spec_raw, dict):
-                            tool_spec = normalize_and_validate_tool_spec(tool_spec_raw)
-                    except ClientAPIException as e:
-                        # let's try with name as well before throwing error
-                        pass
-
-                if tool_spec is None and tool_name is not None:
-                    tool_specs: List[dict] = self._tool_client.get_draft_by_name(tool_name)
-                    if (tool_specs is None) or (len(tool_specs) == 0):
-                        raise ValueError(f"tool '{tool_name}' not found")
-                    
-                elif tool_spec is None:
-                    raise ValueError(f"tool id '{tool_id}' not found")
+                # Use helper method to resolve tool spec
+                tool_spec = self._resolve_tool_spec(tool, error_prefix="tool")
 
                 input_schema_obj = None
                 output_schema_obj = None
@@ -985,7 +1009,8 @@ class Flow(Node):
               description: str | None = None,
               input_schema: type[BaseModel]|None = None, 
               output_schema: type[BaseModel]|None=None,
-              guidelines: str|None=None) -> AgentNode:
+              guidelines: str|None=None,
+              thread_control_policy: ThreadControlPolicy  = cast(ThreadControlPolicy, _UNSET)) -> AgentNode:
 
          # create input spec
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = input_schema)
@@ -1000,6 +1025,7 @@ class Flow(Node):
             title=title,
             message=message,
             guidelines=guidelines,
+            thread_control_policy=thread_control_policy,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
@@ -1022,7 +1048,8 @@ class Flow(Node):
             description: str | None = None,
             input_schema: type[BaseModel]|None = None, 
             output_schema: type[BaseModel]|None=None,
-            error_handler_config: NodeErrorHandlerConfig | None = None,) -> PromptNode:
+            error_handler_config: NodeErrorHandlerConfig | None = None,
+            include_agent_context: bool = False,) -> PromptNode:
 
         if name is None:
             raise ValueError("name must be provided.")
@@ -1042,6 +1069,7 @@ class Flow(Node):
             llm=llm,
             llm_parameters=llm_parameters,
             error_handler_config=error_handler_config,
+            include_agent_context=include_agent_context,
             input_schema=_get_tool_request_body(input_schema_obj),
             output_schema=_get_tool_response_body(output_schema_obj),
             output_schema_object = output_schema_obj
@@ -1053,20 +1081,23 @@ class Flow(Node):
         node = self._add_node(node)
         return cast(PromptNode, node)
     
-    def docclassifier(self, 
-            name: str, 
-            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+    def docclassifier(self,
+            name: str,
+            llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            classes: type[BaseModel]| None = None, 
+            classes: type[BaseModel]| None = None,
             description: str | None = None,
             min_confidence: float = 0.0,
-            enable_review: bool = False) -> DocClassifierNode:
+            enable_hw: bool = False,
+            enable_review: bool = False,
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocClassifierNode:
         
         if name is None :
             raise ValueError("name must be provided.")
         
-        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence,input_classes=classes)
+        doc_classifier_config = DocClassifierNode.generate_config(llm=llm, min_confidence=min_confidence, input_classes=classes)
 
         input_schema_obj = _get_json_schema_obj(parameter_name = "input", type_def = DocumentProcessingCommonInput)
         output_schema_obj = _get_json_schema_obj(parameter_name = "output", type_def = DocumentClassificationResponse)
@@ -1083,7 +1114,10 @@ class Flow(Node):
             output_schema_object = output_schema_obj,
             config=doc_classifier_config,
             version=version,
-            enable_review=enable_review
+            enable_hw=enable_hw,
+            enable_review=enable_review,
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocClassifierNode(spec=task_spec)
         
@@ -1117,18 +1151,20 @@ class Flow(Node):
 
     
     def docext(self,
-            name: str, 
-            llm : str = "watsonx/meta-llama/llama-3-2-90b-vision-instruct",
+            name: str,
+            llm : str = "watsonx/openai/gpt-oss-120b",
             version: str = "TIP",
             display_name: str| None = None,
-            fields: type[BaseModel]| None = None, 
+            fields: type[BaseModel]| None = None,
             description: str | None = None,
             enable_hw: bool = False,
-            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code. 
+            min_confidence: float = 0, # Setting a small value because htil is not supported for pro code.
             review_fields: List[str] = [],
             field_extraction_method: str = "classic",
             enable_review: bool = False,
-            page_range: PageRange | None = None) -> tuple[DocExtNode, type[BaseModel]]:
+            page_range: PageRange | None = None,
+            language: LanguageCode | None = None,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> tuple[DocExtNode, type[BaseModel]]:
         
         if name is None :
             raise ValueError("name must be provided.")
@@ -1157,7 +1193,9 @@ class Flow(Node):
             min_confidence=min_confidence,
             review_fields=review_fields,
             field_extraction_method=field_extraction_method,
-            enable_review=enable_review
+            enable_review=enable_review,
+            language=language,
+            error_handler_config=error_handler_config
         )
         node = DocExtNode(spec=task_spec)
         
@@ -1211,7 +1249,9 @@ class Flow(Node):
             kvp_force_schema_name: str | None = None,
             kvp_enable_text_hints: bool | None = True,
             page_range: PageRange | None = None,
-            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref) -> DocProcNode:
+            language: LanguageCode | None = None,
+            output_format: DocProcOutputFormat | WXOFile = DocProcOutputFormat.docref,
+            error_handler_config: NodeErrorHandlerConfig | None = None) -> DocProcNode:
 
         if name is None :
             raise ValueError("name must be provided.")
@@ -1250,7 +1290,9 @@ class Flow(Node):
             kvp_force_schema_name=kvp_force_schema_name,
             kvp_enable_text_hints=kvp_enable_text_hints,
             page_range=page_range,
-            output_format=output_format
+            language=language,
+            output_format=output_format,
+            error_handler_config=error_handler_config
         )
 
         node = DocProcNode(spec=task_spec)
@@ -1464,6 +1506,8 @@ class Flow(Node):
         Callbacks are part of the FlowSpec and will be invoked by the flow engine
         when the specified events occur during flow execution.
         
+        The tool must have an input schema that accepts List[FlowCallbackEventPayload].
+        
         Args:
             tool: Tool identifier (can be tool_name, toolkit:tool_name, or toolkit:tool_name:uuid)
             events: List of FlowCallbackEventKind events that should trigger this callback
@@ -1471,7 +1515,20 @@ class Flow(Node):
             
         Returns:
             Self for method chaining
+            
+        Raises:
+            ValueError: If tool not found or doesn't have correct callback input schema
         """
+        # Validate tool exists and has correct schema
+        if self._tool_client:
+            # Use helper method to resolve tool spec
+            tool_spec = self._resolve_tool_spec(tool, error_prefix="callback tool")
+            
+            # Validate the tool has correct callback schema
+            if tool_spec:
+                validate_callback_tool_schema(tool_spec, tool)
+        
+        # Create and add callback
         callback = FlowCallback(
             tool=tool,
             events=events,
@@ -1807,7 +1864,8 @@ class Flow(Node):
         property_schema: Union[JsonSchemaObject, ToolResponseBody, ToolRequestBody],
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> None:
         """
         Validate a resolved property schema and apply masking extensions.
@@ -1824,7 +1882,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
 
     def mask_property(
@@ -1832,7 +1891,8 @@ class Flow(Node):
         property_path: str,
         masking_policy: MaskingPolicy,
         regex_config: Optional[dict] = None,
-        input_policy: Optional[InputPolicy] = None
+        input_policy: Optional[InputPolicy] = None,
+        channel_override: Optional[ChannelOverride] = None
     ) -> Self:
         """
         Mark a property as sensitive/confidential by adding IBM masking extensions.
@@ -1866,6 +1926,10 @@ class Flow(Node):
             input_policy: Input masking behavior (InputPolicy enum, optional)
                 - InputPolicy.MASK_WHILE_TYPING: Mask the value while the user is typing
                 If omitted, data is only masked on output, not during input
+            channel_override: Channel-level visibility override (ChannelOverride enum, optional)
+                - ChannelOverride.VISIBLE_TO_INITIATOR: Sensitive info will be unmasked in
+                  the channel when outputted to the flow initiator in the channel.
+                If omitted, the value remains masked in all channels.
         
         Returns:
             Self for method chaining
@@ -1897,6 +1961,13 @@ class Flow(Node):
                 "flow.input.password",
                 MaskingPolicy.MASK_ALL,
                 input_policy=InputPolicy.MASK_WHILE_TYPING
+            )
+
+            # Unmask for flow initiator in channel
+            flow.mask_property(
+                "flow.input.result",
+                MaskingPolicy.MASK_ALL,
+                channel_override=ChannelOverride.VISIBLE_TO_INITIATOR
             )
         """
         from ..masking_utils import PropertyMaskingHelper
@@ -1987,7 +2058,8 @@ class Flow(Node):
             property_schema,
             masking_policy=masking_policy,
             regex_config=regex_config,
-            input_policy=input_policy
+            input_policy=input_policy,
+            channel_override=channel_override
         )
         
         return self

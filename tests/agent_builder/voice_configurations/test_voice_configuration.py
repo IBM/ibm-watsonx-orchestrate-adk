@@ -178,6 +178,97 @@ def emotech_tts_config():
     }
   }
 
+@pytest.fixture
+def azure_stt_config():
+  return{
+    "name": "azure_stt_test",
+    "speech_to_text":{
+      "provider": "azure_stt",
+      "azure_stt_config":{
+        "subscription_key": "test_azure_key",
+        "region": "eastus"
+      }
+    },
+    "text_to_speech": {
+      "provider": "test_tts_provider",
+      "watson_tts_config": {
+        "api_url": "example.url/tts",
+        "api_key": "example tts key",
+        "voice": "example voice"
+      }
+    }
+  }
+
+@pytest.fixture
+def google_stt_config():
+  return{
+    "name": "google_stt_test",
+    "speech_to_text":{
+      "provider": "google_stt",
+      "google_stt_config":{
+        "project_id": "voice-runtime",
+        "credentials_json": "test_service_account_json",
+        "language_code": "en-US",
+        "model": "long",
+        "sample_rate_hertz": 16000,
+        "enable_automatic_punctuation": True,
+        "enable_interim_results": True
+      }
+    },
+    "text_to_speech": {
+      "provider": "test_tts_provider",
+      "watson_tts_config": {
+        "api_url": "example.url/tts",
+        "api_key": "example tts key",
+        "voice": "example voice"
+      }
+    }
+  }
+
+@pytest.fixture
+def azure_tts_config():
+  return{
+    "name": "azure_tts_test",
+    "speech_to_text":{
+      "provider": "test_stt_provider",
+      "watson_stt_config":{
+        "api_url": "example.url/stt",
+        "api_key": "example stt key",
+        "model": "example model"
+      }
+    },
+    "text_to_speech": {
+      "provider": "azure_tts",
+      "azure_tts_config": {
+        "subscription_key": "test_azure_key",
+        "region": "eastus",
+        "voice": "en-US-JennyNeural"
+      }
+    }
+  }
+
+@pytest.fixture
+def google_tts_config():
+  return{
+    "name": "google_tts_test",
+    "speech_to_text":{
+      "provider": "test_stt_provider",
+      "watson_stt_config":{
+        "api_url": "example.url/stt",
+        "api_key": "example stt key",
+        "model": "example model"
+      }
+    },
+    "text_to_speech": {
+      "provider": "google_tts",
+      "google_tts_config": {
+        "credentials_json": "test_service_account_json",
+        "voice": "en-US-Neural2-C",
+        "language": "en-US"
+      }
+    }
+  }
+
 @pytest.fixture(params=[
   "name",
   "speech_to_text.provider",
@@ -260,6 +351,160 @@ class TestVoiceConfigurationInit:
     assert config.text_to_speech.emotech_tts_config.api_url == config_data['text_to_speech']['emotech_tts_config']['api_url']
     assert config.text_to_speech.emotech_tts_config.api_key == config_data['text_to_speech']['emotech_tts_config']['api_key']
     assert config.text_to_speech.emotech_tts_config.voice == config_data['text_to_speech']['emotech_tts_config']['voice']
+
+  def test_azure_stt_config(self,azure_stt_config):
+    config_data = azure_stt_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.speech_to_text.provider == "azure_stt"
+    assert config.speech_to_text.azure_stt_config.subscription_key == config_data['speech_to_text']['azure_stt_config']['subscription_key']
+    assert config.speech_to_text.azure_stt_config.region == config_data['speech_to_text']['azure_stt_config']['region']
+
+  def test_azure_tts_config(self,azure_tts_config):
+    config_data = azure_tts_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.text_to_speech.provider == "azure_tts"
+    assert config.text_to_speech.azure_tts_config.subscription_key == config_data['text_to_speech']['azure_tts_config']['subscription_key']
+    assert config.text_to_speech.azure_tts_config.voice == config_data['text_to_speech']['azure_tts_config']['voice']
+
+  def test_azure_stt_config_accepts_null_subscription_key(self, azure_stt_config):
+    """subscription_key is Optional[str] = Field(...): required to supply but accepts None as a
+    value so that GET responses (where the server obfuscates the key to null) parse correctly."""
+    config_data = azure_stt_config
+    config_data['speech_to_text']['azure_stt_config']['subscription_key'] = None
+    config = VoiceConfiguration.model_validate(config_data)
+    assert config.speech_to_text.azure_stt_config.subscription_key is None
+
+  def test_azure_stt_config_rejects_missing_subscription_key(self, azure_stt_config):
+    """subscription_key must be explicitly supplied (Field(...)); omitting it is a validation error."""
+    config_data = azure_stt_config
+    del config_data['speech_to_text']['azure_stt_config']['subscription_key']
+
+    with pytest.raises(ValidationError):
+      VoiceConfiguration.model_validate(config_data)
+
+  def test_azure_tts_config_accepts_null_subscription_key(self, azure_tts_config):
+    """Same as STT: required field, nullable value — server returns null on GET."""
+    config_data = azure_tts_config
+    config_data['text_to_speech']['azure_tts_config']['subscription_key'] = None
+    config = VoiceConfiguration.model_validate(config_data)
+    assert config.text_to_speech.azure_tts_config.subscription_key is None
+
+  def test_azure_tts_config_rejects_missing_subscription_key(self, azure_tts_config):
+    config_data = azure_tts_config
+    del config_data['text_to_speech']['azure_tts_config']['subscription_key']
+
+    with pytest.raises(ValidationError):
+      VoiceConfiguration.model_validate(config_data)
+
+  def test_azure_stt_profanity_filter_valid_values(self,azure_stt_config):
+    """Test that profanity_filter accepts masked, removed, and raw"""
+    for value in ["masked", "removed", "raw"]:
+      config_data = azure_stt_config
+      config_data['speech_to_text']['azure_stt_config']['profanity_filter'] = value
+      config = VoiceConfiguration.model_validate(config_data)
+      assert config.speech_to_text.azure_stt_config.profanity_filter == value
+
+  def test_azure_stt_profanity_filter_invalid_value(self,azure_stt_config):
+    """Test that profanity_filter rejects values outside masked/removed/raw"""
+    config_data = azure_stt_config
+    config_data['speech_to_text']['azure_stt_config']['profanity_filter'] = "hidden"
+    with pytest.raises(ValidationError):
+      VoiceConfiguration.model_validate(config_data)
+
+  def test_azure_stt_phrase_list(self,azure_stt_config):
+    """Test that phrase_list accepts a list of custom vocabulary strings"""
+    config_data = azure_stt_config
+    config_data['speech_to_text']['azure_stt_config']['phrase_list'] = ["watsonx Orchestrate", "SKU-4471"]
+    config = VoiceConfiguration.model_validate(config_data)
+    assert config.speech_to_text.azure_stt_config.phrase_list == ["watsonx Orchestrate", "SKU-4471"]
+
+  def test_azure_stt_phrase_list_exceeds_max_length(self,azure_stt_config):
+    """Test that phrase_list rejects more than 500 entries"""
+    config_data = azure_stt_config
+    config_data['speech_to_text']['azure_stt_config']['phrase_list'] = [f"term_{i}" for i in range(501)]
+    with pytest.raises(ValidationError):
+      VoiceConfiguration.model_validate(config_data)
+
+  def test_azure_tts_config_all_fields_set(self,azure_tts_config):
+    """Test that all optional Azure TTS fields round-trip correctly"""
+    config_data = azure_tts_config
+    config_data['text_to_speech']['azure_tts_config'].update({
+      "language": "en-US",
+      "rate": 1.1,
+      "pitch": 5.5,
+      "volume": 90,
+      "style": "cheerful",
+      "style_degree": 1.5,
+      "role": "YoungAdultFemale"
+    })
+    config = VoiceConfiguration.model_validate(config_data)
+    azure_tts = config.text_to_speech.azure_tts_config
+    assert azure_tts.language == "en-US"
+    assert azure_tts.rate == 1.1
+    assert azure_tts.pitch == 5.5
+    assert azure_tts.volume == 90
+    assert azure_tts.style == "cheerful"
+    assert azure_tts.style_degree == 1.5
+    assert azure_tts.role == "YoungAdultFemale"
+
+  def test_azure_tts_config_only_required_fields(self):
+    """Test that Azure TTS validates with only subscription_key, region, and voice set"""
+    config_data = {
+      "name": "azure_tts_minimal_test",
+      "speech_to_text": {
+        "provider": "test_stt_provider",
+        "watson_stt_config": {
+          "api_url": "example.url/stt",
+          "api_key": "example stt key",
+          "model": "example model"
+        }
+      },
+      "text_to_speech": {
+        "provider": "azure_tts",
+        "azure_tts_config": {
+          "subscription_key": "test_azure_key",
+          "region": "eastus",
+          "voice": "en-US-JennyNeural"
+        }
+      }
+    }
+    config = VoiceConfiguration.model_validate(config_data)
+    azure_tts = config.text_to_speech.azure_tts_config
+    assert azure_tts.language is None
+    assert azure_tts.rate is None
+    assert azure_tts.pitch is None
+    assert azure_tts.volume is None
+    assert azure_tts.style is None
+    assert azure_tts.style_degree is None
+    assert azure_tts.role is None
+
+  def test_google_stt_config(self,google_stt_config):
+    config_data = google_stt_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.speech_to_text.provider == "google_stt"
+    assert config.speech_to_text.google_stt_config.project_id == config_data['speech_to_text']['google_stt_config']['project_id']
+    assert config.speech_to_text.google_stt_config.credentials_json == config_data['speech_to_text']['google_stt_config']['credentials_json']
+    assert config.speech_to_text.google_stt_config.language_code == config_data['speech_to_text']['google_stt_config']['language_code']
+    assert config.speech_to_text.google_stt_config.model == config_data['speech_to_text']['google_stt_config']['model']
+    assert config.speech_to_text.google_stt_config.sample_rate_hertz == config_data['speech_to_text']['google_stt_config']['sample_rate_hertz']
+    assert config.speech_to_text.google_stt_config.enable_automatic_punctuation == config_data['speech_to_text']['google_stt_config']['enable_automatic_punctuation']
+    assert config.speech_to_text.google_stt_config.enable_interim_results == config_data['speech_to_text']['google_stt_config']['enable_interim_results']
+
+  def test_google_tts_config(self,google_tts_config):
+    config_data = google_tts_config
+    config = VoiceConfiguration.model_validate(config_data)
+
+    assert config.name == config_data['name']
+    assert config.text_to_speech.provider == "google_tts"
+    assert config.text_to_speech.google_tts_config.credentials_json == config_data['text_to_speech']['google_tts_config']['credentials_json']
+    assert config.text_to_speech.google_tts_config.voice == config_data['text_to_speech']['google_tts_config']['voice']
+    assert config.text_to_speech.google_tts_config.language == config_data['text_to_speech']['google_tts_config']['language']
 
   def test_deepgram_keyterm_with_supported_model_nova3(self):
     """Test that keyterm works with nova-3 model"""

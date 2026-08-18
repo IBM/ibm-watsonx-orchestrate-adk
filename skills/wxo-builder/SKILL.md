@@ -98,7 +98,7 @@ name: my_agent
 description: Agent description
 instructions: Detailed instructions for the agent
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - tool_name_1
   - tool_name_2
@@ -130,7 +130,7 @@ def build_my_flow(aflow: Flow) -> Flow:
         name="process_data",
         system_prompt=["Process the data"],
         user_prompt=["Process this: {input}"],
-        llm="meta-llama/llama-3-3-70b-instruct",
+        llm="watsonx/openai/gpt-oss-120b",
         input_schema=MyInputSchema,
         output_schema=MyOutputSchema
     )
@@ -448,7 +448,7 @@ instructions: |
   search_custom_vector_db tool to find relevant information, then 
   provide a clear answer with citations.
 llm: groq/openai/gpt-oss-120b
-style: react
+style: react_core
 tools:
   - search_custom_vector_db
 ```
@@ -509,6 +509,7 @@ Browse: [examples/agent_builder/](https://github.com/IBM/watsonx-orchestrate-adk
   - Connection setup for ServiceNow
 
 #### Voice-Enabled Agents
+- [voice_enabled_azure/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_azure) - Azure voice integration
 - [voice_enabled_deepgram/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_deepgram) - Deepgram voice integration
 - [voice_enabled_elevenlabs/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_elevenlabs) - ElevenLabs voice integration
 - [voice_enabled_watson/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_watson) - Watson voice integration
@@ -754,7 +755,7 @@ name: agent_name                              # REQUIRED - Unique agent identifi
 description: Agent description                # REQUIRED - Clear description of agent purpose
 instructions: Detailed instructions           # REQUIRED - Instructions for the LLM
 llm: groq/openai/gpt-oss-120b  # REQUIRED - LLM model to use
-style: default                                # REQUIRED - Agent style (default, react, etc.)
+style: react_core                             # REQUIRED - Agent style (react_core, default, react, etc.)
 collaborators: []                             # OPTIONAL - List of collaborator agents
 tools:                                        # REQUIRED - List of tools/flows
   - tool_or_flow_name
@@ -790,6 +791,7 @@ Always include `starter_prompts` and `welcome_content` to improve user experienc
   - `welcome_message`: A friendly greeting that includes the agent's name/purpose
   - `description`: A brief explanation of what the agent can help with
   - Set `is_default_message: false` to use custom content
+  - Set `is_user_barge_in_disabled: true` to disable user barge-in during the welcome message
 
 **Example from St. Mary's Hospital Agent:**
 ```yaml
@@ -1049,7 +1051,7 @@ name: my_agent
 description: My agent description
 instructions: Invoke my_flow tool and output the result
 llm: groq/openai/gpt-oss-120b
-style: default
+style: react_core
 tools:
   - my_flow
 ```
