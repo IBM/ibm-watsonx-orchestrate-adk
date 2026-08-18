@@ -46,7 +46,13 @@ def agent_import(
             "--safe",
             help="Enable safe mode: prompt for confirmation before updating existing agents"
         )
-    ] = False
+    ] = False,
+    version: Annotated[
+        Optional[str], typer.Option(
+            '--version', '-v',
+            help='The version the agent will be imported as. If an existing agent with a lower version exists, a warning will be displayed.'
+        )
+    ] = None,
 ):
     
     # Validate that either file or package_root is provided
@@ -89,7 +95,8 @@ def agent_import(
         file=file,
         app_id=app_id,
         custom_agent_file_path=custom_agent_file_path,
-        custom_agent_config_file=custom_agent_config_file
+        custom_agent_config_file=custom_agent_config_file,
+        version=version
     )
     agents_controller.publish_or_update_agents(agent_specs)
 
