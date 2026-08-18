@@ -2,7 +2,7 @@ import pytest
 from pydantic import BaseModel
 
 from ibm_watsonx_orchestrate.flow_builder.flows import FlowFactory
-from ibm_watsonx_orchestrate.flow_builder.masking_utils import MaskingPolicy
+from ibm_watsonx_orchestrate.flow_builder.masking_utils import ChannelOverride, MaskingPolicy
 
 
 class MaskingFlowInput(BaseModel):
@@ -65,3 +65,35 @@ def test_mask_property_serializes_masking_extensions_in_flow_json():
 
     assert secret_schema["x-ibm-is-sensitive"] is True
     assert secret_schema["x-ibm-masking-policy"] == MaskingPolicy.MASK_ALL.value
+
+
+def test_mask_property_serializes_channel_override_in_flow_json():
+    aflow = _build_masking_test_flow()
+
+    aflow.mask_property(
+        "flow.input.secret",
+        MaskingPolicy.MASK_ALL,
+        channel_override=ChannelOverride.VISIBLE_TO_INITIATOR,
+    )
+    flow_json = aflow.to_json()
+
+    input_schema_ref = flow_json["spec"]["input_schema"]["$ref"]
+    input_schema_name = input_schema_ref.split("/")[-1]
+    secret_schema = flow_json["schemas"][input_schema_name]["properties"]["secret"]
+
+    assert secret_schema["x-ibm-is-sensitive"] is True
+    assert secret_schema["x-ibm-masking-policy"] == MaskingPolicy.MASK_ALL.value
+    assert secret_schema["x-ibm-channel-override"] == "visible-to-initiator"
+
+
+def test_mask_property_omits_channel_override_when_not_provided():
+    aflow = _build_masking_test_flow()
+
+    aflow.mask_property("flow.input.secret", MaskingPolicy.MASK_ALL)
+    flow_json = aflow.to_json()
+
+    input_schema_ref = flow_json["spec"]["input_schema"]["$ref"]
+    input_schema_name = input_schema_ref.split("/")[-1]
+    secret_schema = flow_json["schemas"][input_schema_name]["properties"]["secret"]
+
+    assert "x-ibm-channel-override" not in secret_schema

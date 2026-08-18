@@ -509,6 +509,7 @@ Browse: [examples/agent_builder/](https://github.com/IBM/watsonx-orchestrate-adk
   - Connection setup for ServiceNow
 
 #### Voice-Enabled Agents
+- [voice_enabled_azure/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_azure) - Azure voice integration
 - [voice_enabled_deepgram/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_deepgram) - Deepgram voice integration
 - [voice_enabled_elevenlabs/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_elevenlabs) - ElevenLabs voice integration
 - [voice_enabled_watson/](https://github.com/IBM/watsonx-orchestrate-adk/tree/main/examples/agent_builder/voice_enabled_watson) - Watson voice integration

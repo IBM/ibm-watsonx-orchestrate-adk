@@ -23,10 +23,17 @@ def knowledge_base_import(
             "--safe",
             help="Enable safe mode: prompt for confirmation before updating existing knowledge bases"
         )
+    ] = False,
+    sync: Annotated[
+        bool,
+        typer.Option(
+            "--sync",
+            help="For connector-backed (content_source) knowledge bases: trigger an on-demand sync and wait for completion. Applied automatically on first import; required explicitly on updates."
+        )
     ] = False
 ):
     controller = KnowledgeBaseController(safe_mode=safe)
-    controller.import_knowledge_base(file=file, app_id=app_id)
+    controller.import_knowledge_base(file=file, app_id=app_id, sync=sync)
 
 
 @knowledge_bases_app.command(name="list", help="List all knowledge bases")
@@ -44,11 +51,11 @@ def remove_knowledge_base(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the knowledge base you wish to remove"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="ID of the knowledge base you wish to remove"),
-    ]=None
+    ] = None
 ):  
     controller = KnowledgeBaseController()
     controller.remove_knowledge_base(id=id, name=name)
@@ -58,14 +65,33 @@ def knowledge_base_status(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="Name of the knowledge base you wish to get the status of"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="ID of the knowledge base you wish to get the status of"),
-    ]=None
-):  
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Show full status details including draft_index"),
+    ] = False,
+):
     controller = KnowledgeBaseController()
-    controller.knowledge_base_status(id=id, name=name)
+    controller.knowledge_base_status(id=id, name=name, verbose=verbose)
+
+
+@knowledge_bases_app.command(name="sync", help="Trigger an on-demand sync for a connector-backed (content_source) knowledge base and wait for completion")
+def knowledge_base_sync(
+    name: Annotated[
+        str,
+        typer.Option("--name", "-n", help="Name of the knowledge base you wish to sync"),
+    ] = None,
+    id: Annotated[
+        str,
+        typer.Option("--id", "-i", help="ID of the knowledge base you wish to sync"),
+    ] = None,
+):
+    controller = KnowledgeBaseController()
+    controller.sync_knowledge_base(id=id, name=name)
 
 @knowledge_bases_app.command(name="export", help='Export a knowledge base spec to a yaml')
 def knowledge_base_export(
@@ -80,11 +106,11 @@ def knowledge_base_export(
     name: Annotated[
         str,
         typer.Option("--name", "-n", help="The name of the knowledge base you want to export"),
-    ]=None,
+    ] = None,
     id: Annotated[
         str,
         typer.Option("--id", "-i", help="The ID of the knowledge base you wish export"),
-    ]=None,
+    ] = None,
 ):
     controller = KnowledgeBaseController()
     controller.knowledge_base_export(
