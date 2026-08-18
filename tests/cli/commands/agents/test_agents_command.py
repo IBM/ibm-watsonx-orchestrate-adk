@@ -12,7 +12,8 @@ class TestAgentImport:
                 file="test.yaml",
                 app_id=None,
                 custom_agent_file_path=None,
-                custom_agent_config_file=None
+                custom_agent_config_file=None,
+                version=None
             )
             publish_mock.assert_called_once()
     
