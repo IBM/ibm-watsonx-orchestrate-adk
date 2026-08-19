@@ -41,8 +41,10 @@ Update this state object after each turn using a state management tool or system
 ### 1. Evidence (Required)
 - Use direct quotes from the input
 - Use blockquote formatting (>)
+- Include the line number after the quote where available: `> "text…" *(line N)*`
 - Include multiple quotes if they support the same finding
-- Be specific: cite line numbers if available
+- **If the quoted text is not in English, place the original quote first, then immediately follow it with a translation line: `> [Translation]: English rendering of the above`**
+- The translation does not need to be word-for-word; it should be accurate enough to make the finding self-contained for English-speaking reviewers
 
 ### 2. Why it matters (Required)
 - Explain the operational impact
@@ -116,6 +118,8 @@ Update this state object after each turn using a state management tool or system
 ## Finding Categories
 
 Common finding categories include:
+
+**Agent-level findings:**
 - **implicit_state_requirement**: Agent must track state without explicit state object
 - **exact_phrase_burden**: Too many exact-response requirements
 - **tool_grounding_gap**: Required tool behavior not specified
@@ -127,7 +131,18 @@ Common finding categories include:
 - **competing_constraints**: Multiple constraints that cannot be satisfied simultaneously
 - **runtime_performance_friction**: Instruction complexity is likely to increase token usage, reasoning overhead, tool-call variance, retry loops, or latency
 
-Use these categories to organize your findings, but always provide the five required elements for each finding.
+**Skill-level findings (appear in skill reports; may also surface in the agent report's Skill Health section):**
+- **skill_single_responsibility_violation** (SK-1): Skill body covers multiple unrelated workflows or intent categories
+- **skill_scope_overlap** (SK-2): Two or more skills share coverage for the same user intent — appears in agent report only
+- **skill_routing_ambiguity** (SK-3): Skill name or description insufficient for the agent to reliably route to this skill
+- **skill_cross_dependency** (SK-4): Skill body assumes output or state from another skill
+- **skill_dependency_loop** (SK-4): Two or more skills form a dependency cycle — no valid first skill to load; report the full cycle (e.g. skill-A → skill-B → skill-A)
+- **skill_complexity_overload** (SK-5): Skill body exceeds Rule C/E/F complexity thresholds
+- **skill_correlation_co_load** (SK-6): Correlated skill pair likely to be loaded in the same turn — appears in agent report only
+- **skill_architecture_overhead** (SK-7): Skill architecture performance surface is Medium or High — appears in agent report only
+- **skill_allowed_tools_gap**: Tool referenced in skill body but absent from `allowed-tools`
+
+Use these categories to organize your findings. Skill-level findings in skill reports reference the SKILL.md body content directly. Cross-skill findings (SK-2, SK-6, SK-7) belong only in the agent report.
 
 ---
 
@@ -136,8 +151,10 @@ Use these categories to organize your findings, but always provide the five requ
 ### Finding: Runtime performance friction from unresolved rule complexity
 
 **Evidence**
-> [Quote the long or conflicting rule bundle]
-> [Quote the ambiguous tool trigger or exception clause]
+> [Quote the long or conflicting rule bundle] *(line N)*
+> [Translation]: [English rendering — omit this line if original is already in English]
+> [Quote the ambiguous tool trigger or exception clause] *(line N)*
+> [Translation]: [English rendering — omit if already in English]
 
 **Why it matters**
 The agent must resolve multiple competing constraints at runtime before it can answer. Even if it eventually produces a correct response, this increases token usage, latency, tool-call variance, and correction-loop risk. Instructions that require the model to simultaneously decide, execute, validate, remember, and recover in one pass create bounded but elevated performance instability.

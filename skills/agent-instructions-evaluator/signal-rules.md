@@ -199,11 +199,146 @@ Use these rules to reduce subjectivity in scoring. These are **signals and bound
 
 ---
 
+## Rule H: Skill single-responsibility violation (SK-1)
+
+**Trigger:** A skill's `SKILL.md` body describes more than one primary workflow, covers more than one unrelated intent category, or calls tools from more than one logical domain.
+
+**Effect:** Note complexity inflation. The skill is acting as a mini-orchestrator rather than a focused instruction module.
+
+**Scoring bounds:**
+- 2 primary workflows in one skill: Instruction Followability for that skill should generally not exceed **3**
+- 3+ primary workflows in one skill: Instruction Followability for that skill should generally not exceed **2**; also lower agent-level Dimension 4 by at least 1 if the skill is large
+
+**Why:** A skill that does multiple things compounds its own complexity and makes routing ambiguous. When the agent loads the skill, it inherits all its complexity — a bloated skill inflates the agent's effective active-rule budget even if the agent's own instructions are lean.
+
+---
+
+## Rule I: Skill scope overlap (SK-2)
+
+**Trigger:** Two or more skills share detectable scope for the same user intent, topic, or trigger condition based on their `description` frontmatter or explicit scope statements in the body.
+
+**Overlap ratings and scoring bounds:**
+
+| Rating | Definition | Score impact on Dimension 2 |
+|---|---|---|
+| **Exact** | Same intent, same wording in both descriptions | Should not exceed **1** |
+| **High** | Same intent, different wording | Should not exceed **2** |
+| **Moderate** | Shared boundary conditions or edge cases | Note as risk; reduce by 1 if multiple pairs |
+| **Low** | Tangential overlap only | Note only; no automatic score bound |
+
+**Why:** When two skills overlap, the agent must decide which to load without reliable disambiguation. This forces judgment-based routing at exactly the point where deterministic routing is most important — the moment the agent selects its instruction context. Routing errors at this point cascade: the agent loads the wrong instructions, calls the wrong tools, and returns the wrong behavior.
+
+---
+
+## Rule J: Skill routing clarity (SK-3)
+
+**Trigger 1:** A skill's `description` frontmatter does not explicitly state the intents it covers.
+**Trigger 2:** A skill's `description` frontmatter does not include any boundary conditions (what it does NOT cover).
+**Trigger 3:** A skill `name` is generic enough to match multiple skills in the same agent (e.g., `general`, `helper`, `support`).
+
+**Effect:** Note routing clarity risk. Each trigger reduces the determinism of skill selection.
+
+**Scoring bounds:**
+- Trigger 1 alone: Dimension 2 should generally not exceed **3**
+- Trigger 1 + 2 together: Dimension 2 should generally not exceed **2**
+- Trigger 3: Dimension 2 should generally not exceed **3**
+- All three triggers on the same skill: Dimension 2 should generally not exceed **1**
+
+**Why:** The agent selects a skill to load based primarily on the skill's `name` and `description`. If either is vague or missing boundary conditions, the agent cannot reliably distinguish this skill from alternatives at routing time. Every skill load decision made without clear description-level guidance is effectively a guess.
+
+---
+
+## Rule K: Cross-skill state dependency and dependency loops (SK-4)
+
+**Trigger 1 — Unidirectional dependency:** A skill's `SKILL.md` body contains any of the following:
+- Explicit reference to another skill having run, a result from a prior skill, or state set by another skill
+- Implicit assumptions about conversation state that could only exist if a specific prior skill had already executed (e.g., "the intent identified by the routing skill", "the product selected in the previous step")
+- Instructions to "continue from where X skill left off" or similar
+- Reference to a tool exclusively owned by another skill (in that skill's `allowed-tools` but not in the agent's top-level `tools:` or this skill's own `allowed-tools`)
+
+**Trigger 2 — Dependency loop:** Two or more skills form a cycle in the dependency graph (A depends on B's prior execution AND B depends on A's prior execution, or any longer chain A → B → C → A). A loop means there is no valid first skill to load — the routing precondition can never be satisfied.
+
+**How to check for loops:**
+Build a directed graph across the full skill set: draw an edge from skill A to skill B whenever skill A has a Trigger 1 dependency on skill B. Then check for cycles. A cycle of any length is a loop violation.
+
+**Effect:**
+- Trigger 1 (unidirectional): Note a cross-skill coupling violation. Treat this skill as not independently executable.
+- Trigger 2 (loop): Note a **dependency deadlock**. No valid execution order exists. This is a design error — report as a separate finding with higher severity than a plain unidirectional dependency.
+
+**Scoring bounds:**
+- Any Trigger 1 dependency: State & Conflict Manageability (Dimension 5) should generally not exceed **2**
+- Multiple skills with Trigger 1 dependencies: Dimension 5 should generally not exceed **1**
+- Any Trigger 2 loop detected: State & Conflict Manageability should generally not exceed **1**; if the loop involves skills that are required for the agent's primary use cases, score **0**
+
+**Why:** Skills are loaded dynamically and must be independently executable. A unidirectional dependency makes routing order a hidden contract the agent must maintain reliably — LLMs cannot guarantee this. A dependency loop is strictly worse: it makes satisfying the routing precondition logically impossible regardless of instruction quality, because no skill in the cycle can be loaded first without violating another skill's precondition.
+
+---
+
+## Rule L: Skill body complexity (SK-5)
+
+**Trigger:** A skill's `SKILL.md` instruction body individually exceeds any of the Rule C, E, or F thresholds when analyzed in isolation.
+
+**Effect:** Apply the corresponding Rule C / E / F scoring bounds to that skill's effective contribution to agent-level Dimensions 4 (Instruction Followability) and 3 (Execution & Tool Grounding). A skill that is itself unachievable degrades the whole agent's achievability even if the agent's own instructions are clean.
+
+**Additional SK-5 trigger — hidden state inside a skill:** A skill body that tracks retry counts, clarification counts, or step state without an explicit state object (Rule A pattern) is doubly risky: the hidden state lives inside a dynamically-loaded module that may be unloaded and reloaded across turns.
+
+**Scoring bounds:** Use the same bounds as Rules A–F applied to the skill body in isolation, then apply any bound reduction to the corresponding agent-level dimension.
+
+**Why:** Skills are not exempt from the complexity rules that govern agent instructions. A skill body is an instruction set — it is subject to attention drift (Rule E), nested branch overload (Rule C), active rule budget limits (Rule F), hidden state failure (Rule A), exact phrase brittleness (Rule B), and tool underspecification (Rule D). The fact that a skill is scoped to one domain does not make it immune to these failure modes.
+
+## Rule M: Skill correlation and consolidation signal (SK-6)
+
+**What this rule measures:** Whether two or more skills are so closely related in domain, tool coverage, or trigger conditions that they are likely to fire in the same turn or be loaded in immediate succession. High correlation between skills increases per-turn latency, inflates the effective instruction surface, and can create instruction interference when both skill bodies are simultaneously active in the context window.
+
+**Trigger 1 — Shared tool coverage:** Two skills list one or more of the same tools in their `allowed-tools`. When both skills can call the same tool, the agent has no deterministic basis for choosing which skill to load first — both are valid — and the model may attempt to load both.
+
+**Trigger 2 — Adjacent trigger conditions:** Two skills cover adjacent user intents that commonly occur in the same turn (e.g., "check balance" and "recent transactions" are separate skills but users often ask both in one message). Look for intent adjacency, not just intent identity.
+
+**Trigger 3 — Frequent digression path:** A skill's body explicitly instructs the agent to call a tool that belongs to another skill's `allowed-tools`, or references behavior that the other skill owns. This creates a runtime dependency disguised as a digression.
+
+**Consolidation recommendation trigger:** If two skills share ≥2 tools in `allowed-tools`, OR both exhibit SK-2 Moderate/High overlap AND cover intents likely to co-occur in a single turn, recommend consolidation into a single skill.
+
+**Effect:** Note multi-skill-per-turn performance risk. Log the correlated pair with evidence.
+
+**Scoring bounds (performance, not achievability):**
+- 1 correlated pair: skill-load overhead risk is **Medium**
+- 2+ correlated pairs: skill-load overhead risk is **High**; also note Instruction Followability risk from combined active-rule budget
+
+**Why:** Loading a skill means injecting its `SKILL.md` body into the context window. If two skills are loaded in the same turn (or in back-to-back turns within a single user message due to multi-intent handling), the agent must reason over two full instruction bodies simultaneously. This raises active-rule counts above what either skill alone would produce, increases the probability of rule interference between the two bodies, and adds at least one additional context-window write + LLM inference pass per turn. In high-throughput production environments, this overhead is measurable and cumulative.
+
+---
+
+## Rule N: Skill context-load performance surface (SK-7)
+
+**What this rule measures:** The total runtime cost introduced by the skill architecture itself, independent of any individual skill's complexity. This is the aggregate performance surface of having N skills, each with a body of B lines, that must be selectively loaded at runtime.
+
+**Performance surface components — assess each:**
+
+| Component | What to measure | Risk threshold |
+|---|---|---|
+| **Skill count** | Total number of skills in `skills:` list | >5 skills: Medium; >10 skills: High |
+| **Per-skill body size** | Lines of instruction in each SKILL.md body | >100 lines/skill: Medium; >150 lines/skill: High |
+| **Skill selection decision cost** | How many skills are plausible candidates per average turn (ambiguity in routing) | >2 plausible candidates/turn: Medium; >4: High |
+| **Multi-skill turns** | How many user intents in the agent's domain plausibly span 2+ skills | >20% of intents: Medium; >40%: High |
+| **Re-load frequency** | Does the agent's instruction body indicate that `load_skill` is called multiple times per turn (digression + return, multi-intent)? | Any confirmed multi-load pattern: Medium |
+| **Skill body token cost** | Sum of tokens across all skill bodies that could plausibly be loaded in one turn | >2,000 tokens/turn: Medium; >4,000 tokens/turn: High |
+
+**Effect:** Produce a skill performance surface summary: list each component, its measured value, and its risk rating. Include this in the Runtime Performance Risk section of the report.
+
+**Scoring bounds:**
+- Any single component at High: Runtime performance risk for `skill_load_overhead_risk` should be rated **High**
+- Two or more components at Medium with no High: rate **Medium**
+- All components Low: rate **Low**
+
+**Why:** Each `load_skill` call is not free. It injects a skill body into the context window, which costs input tokens and may trigger an additional inference pass depending on the agent runtime implementation. The total performance surface is the product of skill body size × expected load frequency × disambiguation cost. Agents with many small, well-separated skills can have lower surface than agents with few large, overlapping skills — but agents with many large, overlapping skills have the worst possible surface.
+
+---
+
 ## How to apply these rules
 
-1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools.
+1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools. **For agents with skills, repeat this count for each skill body (SK-5), perform overlap analysis across all skill descriptions (SK-2), identify correlated pairs (SK-6/Rule M), and compute the full performance surface (SK-7/Rule N).**
 
-2. **Apply the bounds:** Use the thresholds above to establish scoring bounds (e.g., "State & Conflict Manageability should not exceed 2").
+2. **Apply the bounds:** Use the thresholds above to establish scoring bounds (e.g., "State & Conflict Manageability should not exceed 2"). **When SK rules trigger, apply their bounds to the corresponding agent-level dimensions. When Rules M and N trigger, apply their risk ratings to the Runtime Performance Risk section.**
 
 3. **Use judgment within bounds:** The bounds are not automatic scores. Use your judgment to score within the bounded range based on the full context.
 
