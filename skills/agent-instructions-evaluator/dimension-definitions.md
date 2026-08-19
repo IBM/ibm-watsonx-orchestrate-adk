@@ -57,6 +57,7 @@ Does the agent know when the instruction applies and when it does not?
 - Handling rules for ambiguous cases (e.g., "If unclear, ask clarifying question")
 - Escalation triggers (e.g., "Transfer to human if user requests it")
 - Subjective classifiers that create inconsistency (e.g., "banking-adjacent", "unclear", "vague")
+- **For agents with skills:** skill `description` frontmatter that lacks explicit intent coverage or boundary conditions (SK-3 / Rule J); overlapping skill descriptions that force ambiguous routing decisions (SK-2 / Rule I)
 
 ---
 
@@ -91,6 +92,7 @@ Can the required behavior be executed with available tools or deterministic syst
 - Underspecified tools (mentioned but not defined)
 - LLM expected to simulate tool behavior
 - **Missing tool definitions:** If tools are referenced but their formal definitions (schemas, APIs, specifications) are not included in the evaluation input, note this limitation and recommend including tool definitions for a complete evaluation
+- **For agents with skills:** tools referenced in a skill body but absent from its `allowed-tools` list (execution gap, SK-1/SK-5 / Rule H, L); scripts in `scripts/` that expose callable behavior not accounted for in the skill body (SK-5 / Rule L)
 
 ---
 
@@ -128,6 +130,7 @@ Can an LLM realistically follow all constraints at once? A prompt can be very cl
   - Long (101-200 lines): High attention drift risk; agent is likely to miss or forget constraints
   - Very long (>200 lines): Severe attention drift; partial compliance very likely
   - Note: Dense procedural logic increases effective length (e.g., 100 lines of nested rules ≈ 150+ lines of simple instructions)
+- **For agents with skills:** skill bodies that individually violate Rule C/E/F complexity thresholds (SK-5 / Rule L); skills with more than one primary workflow (SK-1 / Rule H) — each such skill inflates the agent's effective active-rule budget when loaded
 
 ---
 
@@ -165,3 +168,4 @@ Does the prompt require the LLM to maintain hidden state, counters, conversation
 - Hard conflicts: two rules prescribe different actions for the same situation
 - Missing rule priority when multiple rules could apply
 - Workflow state tracking without explicit state machine
+- **For agents with skills:** any skill body that assumes another skill has already run or set state (SK-4 / Rule K); implicit state inside a skill body that will be lost if the skill is unloaded and reloaded (SK-5 hidden-state variant / Rule L)
