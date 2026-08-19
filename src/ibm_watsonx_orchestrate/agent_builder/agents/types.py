@@ -1,11 +1,14 @@
 import json
 import sys
+import contextvars
 
 import yaml
 import logging
 from enum import Enum
 from typing import List, Optional, Dict
 from pydantic import BaseModel, model_validator, ConfigDict
+
+validation_context = contextvars.ContextVar("validation_context", default=None)
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.knowledge_base import KnowledgeBase
@@ -292,6 +295,7 @@ def validate_agent_fields(values: dict) -> dict:
     return values
 
 def validate_customer_care_fields(values: dict):
+    context = validation_context.get()
     if values.get("style") == AgentStyle.CUSTOMER_CARE:
         # Warn if LLM doesn't end with the recommended model
         llm = values.get("llm")
@@ -327,7 +331,10 @@ def validate_customer_care_fields(values: dict):
                 unsupported_fields.append("chat_with_docs.enabled")
 
         if unsupported_fields:
-            raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
+            if context == "list":
+                logger.warning(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
+            else:
+                raise BadRequest(f"{AgentStyle.CUSTOMER_CARE.value} style agents do not support the following fields: {', '.join(unsupported_fields)}")
     else:
         # For non-CUSTOMER_CARE styles, toolkits are not supported
         if values.get("toolkits"):
@@ -336,7 +343,10 @@ def validate_customer_care_fields(values: dict):
             if toolkits == ["scheduling_tools"] or values.get("is_schedulable") is not None:
                 pass
             else:
-                raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
+                if context == "list":
+                    logger.warning(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
+                else:
+                    raise BadRequest(f"Toolkits are only supported for {AgentStyle.CUSTOMER_CARE.value} style agents")
 
 # ===============================
 #      EXTERNAL AGENT TYPES
