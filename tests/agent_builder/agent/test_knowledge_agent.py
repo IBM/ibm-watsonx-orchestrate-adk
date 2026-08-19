@@ -185,3 +185,27 @@ def test_customer_care_chat_with_docs_enabled_none_does_not_raise():
     spec = _base_customer_care_spec(knowledge_base=["my_kb"], chat_with_docs=cwd)
     agent = AgentSpec(**spec)
     assert agent.chat_with_docs.enabled is None
+
+
+def test_customer_care_with_tools_in_list_context_does_not_raise():
+    """Customer care style agents with tools (unsupported field) should not raise when context='list'."""
+    from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
+    spec = _base_customer_care_spec(tools=["some_tool"])
+    token = validation_context.set("list")
+    try:
+        agent = AgentSpec.model_validate(spec)
+    finally:
+        validation_context.reset(token)
+    assert agent.tools == ["some_tool"]
+
+
+def test_default_agent_with_toolkits_in_list_context_does_not_raise():
+    """Default style agents with toolkits (unsupported field) should not raise when context='list'."""
+    from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
+    spec = _base_default_spec(toolkits=["some_toolkit"])
+    token = validation_context.set("list")
+    try:
+        agent = AgentSpec.model_validate(spec)
+    finally:
+        validation_context.reset(token)
+    assert agent.toolkits == ["some_toolkit"]
