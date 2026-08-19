@@ -256,7 +256,7 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 **Report set layout:**
 
 ```
-eval/
+instructions_eval/
 ├── index.md                                    ← manifest listing all reports and their overall verdicts
 ├── agent_<name>_report.md                      ← agent-level report (main instructions only)
 ├── agent_<name>_report_harness.json            ← agent-level JSON harness

@@ -8,11 +8,11 @@ Produces a structured, evidence-backed **report set** saved as individual files:
 
 | File | Contents |
 |---|---|
-| `eval/index.md` | Manifest of all reports with verdicts and Skill Health summary |
-| `eval/agent_<name>_report.md` | Agent-level analysis across 5 dimensions + Skill Health Assessment |
-| `eval/agent_<name>_report_harness.json` | Machine-readable JSON for harness integration |
-| `eval/skill_<name>_report.md` | Per-skill analysis — one file per resolved skill |
-| `eval/skill_<name>_report_harness.json` | Per-skill JSON harness |
+| `instructions_eval/index.md` | Manifest of all reports with verdicts and Skill Health summary |
+| `instructions_eval/agent_<name>_report.md` | Agent-level analysis across 5 dimensions + Skill Health Assessment |
+| `instructions_eval/agent_<name>_report_harness.json` | Machine-readable JSON for harness integration |
+| `instructions_eval/skill_<name>_report.md` | Per-skill analysis — one file per resolved skill |
+| `instructions_eval/skill_<name>_report_harness.json` | Per-skill JSON harness |
 
 Each report is written to disk as soon as its analysis is complete — **save-as-you-go**, not batched.
 
@@ -142,7 +142,7 @@ Evaluate the agent prompt in 'prompts/investment_assistant.md' using the agent-i
 
 **Evaluate and save report set:**
 ```
-Run agent-instructions-evaluator on 'agents/support_bot.yaml' and save all reports to 'agents/eval/'
+Run agent-instructions-evaluator on 'agents/support_bot.yaml' and save all reports to 'agents/instructions_eval/'
 ```
 
 **Evaluate a single skill:**
