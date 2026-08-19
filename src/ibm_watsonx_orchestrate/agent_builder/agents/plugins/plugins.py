@@ -10,7 +10,6 @@ class PluginRef(BaseModel):
 PLUGIN_HOOK_KEYS = ("agent_pre_invoke", "agent_post_invoke")
 
 class ToolShortlistingConfig(BaseModel):
-    """Mirrors wo_archer.schema.agents.ToolShortlistingConfig (ticket #79272)."""
     enabled: bool = False
     max_tools: Optional[int] = None
 
