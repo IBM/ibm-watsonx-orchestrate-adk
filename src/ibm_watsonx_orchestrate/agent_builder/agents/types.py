@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_controller import Models
 from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client
 from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
-from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
+from ibm_watsonx_orchestrate.agent_builder.agents.plugins import PLUGIN_HOOK_KEYS, Plugins
 from pydantic import Field, AliasChoices, field_validator, field_serializer
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
@@ -303,13 +303,16 @@ def validate_customer_care_fields(values: dict):
         if values.get("tools"):
             unsupported_fields.append("tools")
 
+        # Only the pre/post invoke hooks are unsupported for this style.
+        # tool_shortlisting is plain agent config, and customer care is the
+        # style it is built for, so it must not trip this check.
         plugins = values.get("plugins")
         if plugins:
-            if isinstance(plugins, dict) and any(plugins.values()):
-                unsupported_fields.append("plugins")
+            if isinstance(plugins, dict):
+                if any(plugins.get(hook) for hook in PLUGIN_HOOK_KEYS):
+                    unsupported_fields.append("plugins")
             elif isinstance(plugins, Plugins):
-                plugin_dict = plugins.model_dump(exclude_none=True)
-                if plugin_dict:
+                if any(getattr(plugins, hook, None) for hook in PLUGIN_HOOK_KEYS):
                     unsupported_fields.append("plugins")
 
         if values.get("guidelines"):
