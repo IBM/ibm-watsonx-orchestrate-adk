@@ -4,7 +4,7 @@ import sys
 import yaml
 import logging
 from enum import Enum
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, model_validator, ConfigDict
 from ibm_watsonx_orchestrate.agent_builder.tools import BaseTool, PythonTool
 from ibm_watsonx_orchestrate.agent_builder.knowledge_bases.types import KnowledgeBaseSpec, KnowledgeBaseBuiltInVectorIndexConfig, HAPFiltering, HAPFilteringConfig, CitationsConfig, ConfidenceThresholds, QueryRewriteConfig, GenerationConfiguration, QuerySource, ExtractionStrategy
@@ -111,6 +111,7 @@ class BaseAgentSpec(BaseModel):
     voice_configuration: Optional[str] = None
     restrictions: Optional[AgentRestrictionType] = AgentRestrictionType.EDITABLE
     memory_enabled: Optional[bool] = None
+    custom_agents_metadata: Optional[Dict[str, Any]] = None
     workspace: Optional[str] = Field(None, description="Workspace name (will be resolved to workspace_id)")
 
     # Catalog Only
