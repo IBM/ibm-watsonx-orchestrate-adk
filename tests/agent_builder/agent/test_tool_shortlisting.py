@@ -1,7 +1,8 @@
-"""tool_shortlisting is a root-level field on the native agent spec.
+"""
+tool_shortlisting is a root-level field on the native agent spec.
 
 It is agent configuration rather than a lifecycle hook, so it sits beside
-compaction_settings rather than inside plugins. The ADK's only job is to carry
+compaction_settings. The ADK's only job is to carry
 it verbatim: both fields are a tri-state, where omitting one means "leave the
 agent runtime on its per-style default", so neither may be filled in on the way
 through.
@@ -37,7 +38,9 @@ def _spec(style=AgentStyle.REACT_CORE, **kwargs):
 
 
 def _sent(agent):
-    """What publish_or_update_agents hands to the native agents client."""
+    """
+    What `agents_controller.publish_or_update_agents` hands to the native agents client.
+    """
     return agent.model_dump(exclude_none=True)
 
 
@@ -72,7 +75,9 @@ class TestWhatGetsSent:
         assert _sent(agent)["tool_shortlisting"] == {"enabled": False}
 
     def test_omitting_the_block_sends_nothing(self):
-        """Existing agents must be left exactly as they are."""
+        """
+        Existing agents must be left exactly as they are.
+        """
         assert "tool_shortlisting" not in _sent(AgentSpec(**_spec()))
 
     def test_it_survives_a_yaml_round_trip(self, tmp_path):
@@ -87,7 +92,9 @@ class TestWhatGetsSent:
 
 
 class TestCustomerCare:
-    """The style shortlisting defaults to on for must be able to carry the block."""
+    """
+    The style shortlisting defaults to on for must be able to carry the block.
+    """
 
     def test_the_block_is_accepted(self):
         agent = AgentSpec(
@@ -132,7 +139,9 @@ class TestValidation:
 
     @pytest.mark.parametrize("bad", [0, -1])
     def test_max_tools_must_be_a_positive_count(self, bad):
-        """Caught here rather than as a 422 from the server."""
+        """
+        Caught here rather than as a 422 from the server.
+        """
         with pytest.raises(Exception):
             AgentSpec(**_spec(tool_shortlisting={"max_tools": bad}))
 
