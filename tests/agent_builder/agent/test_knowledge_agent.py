@@ -187,11 +187,12 @@ def test_customer_care_chat_with_docs_enabled_none_does_not_raise():
     assert agent.chat_with_docs.enabled is None
 
 
-def test_customer_care_with_tools_in_list_context_does_not_raise():
-    """Customer care style agents with tools (unsupported field) should not raise when context='list'."""
+@pytest.mark.parametrize("ctx", ["list", "get", "get_by_id"])
+def test_customer_care_with_tools_in_read_contexts_does_not_raise(ctx):
+    """Customer care style agents with tools (unsupported field) should not raise when context is a read context."""
     from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
     spec = _base_customer_care_spec(tools=["some_tool"])
-    token = validation_context.set("list")
+    token = validation_context.set(ctx)
     try:
         agent = AgentSpec.model_validate(spec)
     finally:
@@ -199,11 +200,12 @@ def test_customer_care_with_tools_in_list_context_does_not_raise():
     assert agent.tools == ["some_tool"]
 
 
-def test_default_agent_with_toolkits_in_list_context_does_not_raise():
-    """Default style agents with toolkits (unsupported field) should not raise when context='list'."""
+@pytest.mark.parametrize("ctx", ["list", "get", "get_by_id"])
+def test_default_agent_with_toolkits_in_read_contexts_does_not_raise(ctx):
+    """Default style agents with toolkits (unsupported field) should not raise when context is a read context."""
     from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
     spec = _base_default_spec(toolkits=["some_toolkit"])
-    token = validation_context.set("list")
+    token = validation_context.set(ctx)
     try:
         agent = AgentSpec.model_validate(spec)
     finally:
