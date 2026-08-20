@@ -14,7 +14,7 @@ from ibm_watsonx_orchestrate.cli.commands.models.models_controller import Models
 from ibm_watsonx_orchestrate_clients.common.utils import instantiate_client
 from ibm_watsonx_orchestrate_clients.models.models_client import ModelsClient
 from ibm_watsonx_orchestrate_core.types.spec.types import SpecVersion
-from ibm_watsonx_orchestrate.agent_builder.agents.plugins import PLUGIN_HOOK_KEYS, Plugins
+from ibm_watsonx_orchestrate.agent_builder.agents.plugins import Plugins
 from pydantic import Field, AliasChoices, field_validator, field_serializer
 from typing import Annotated
 from ibm_watsonx_orchestrate.cli.commands.partners.offering.types import CATALOG_ONLY_FIELDS
@@ -161,6 +161,12 @@ class ChatWithDocsConfig(BaseModel):
     query_source: QuerySource = QuerySource.Agent
     agent_query_description: str = "The query to search for in the knowledge base"
     
+class ToolShortlistingConfig(BaseModel):
+    # Both fields are a tri-state: omitting one leaves the agent runtime on its
+    # per-style default rather than sending a value the author never wrote.
+    enabled: Optional[bool] = None
+    max_tools: Optional[int] = Field(default=None, gt=0)
+
 class AgentStyle(str, Enum):
     DEFAULT = "default"
     REACT = "react"
@@ -220,6 +226,7 @@ class AgentSpec(BaseAgentSpec):
     llm_config: Optional[dict] = None
     is_schedulable: Optional[bool] = None
     compaction_settings: Optional[CompactionSettings] = None
+    tool_shortlisting: Optional[ToolShortlistingConfig] = None
 
 
     def __init__(self, *args, **kwargs):
@@ -298,21 +305,23 @@ def validate_customer_care_fields(values: dict):
         if llm and not "gpt-oss-120b" in llm:
             logger.warning(f"'{llm} is unsupported for {AgentStyle.CUSTOMER_CARE.value} style agents. Please use 'groq/openai/gpt-oss-120b'")
 
+        # The Python customer-care runtime does its own always-on shortlisting and
+        # never reads this block; only the v2 chat completions API acts on it.
+        if values.get("tool_shortlisting"):
+            logger.warning(f"'tool_shortlisting' is only applied to {AgentStyle.CUSTOMER_CARE.value} style agents served by the v2 chat completions API. It has no effect on the v1 chat API.")
+
         unsupported_fields = []
 
         if values.get("tools"):
             unsupported_fields.append("tools")
 
-        # Only the pre/post invoke hooks are unsupported for this style.
-        # tool_shortlisting is plain agent config, and customer care is the
-        # style it is built for, so it must not trip this check.
         plugins = values.get("plugins")
         if plugins:
-            if isinstance(plugins, dict):
-                if any(plugins.get(hook) for hook in PLUGIN_HOOK_KEYS):
-                    unsupported_fields.append("plugins")
+            if isinstance(plugins, dict) and any(plugins.values()):
+                unsupported_fields.append("plugins")
             elif isinstance(plugins, Plugins):
-                if any(getattr(plugins, hook, None) for hook in PLUGIN_HOOK_KEYS):
+                plugin_dict = plugins.model_dump(exclude_none=True)
+                if plugin_dict:
                     unsupported_fields.append("plugins")
 
         if values.get("guidelines"):
