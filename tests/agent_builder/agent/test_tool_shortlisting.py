@@ -52,7 +52,9 @@ class TestPlacement:
         assert "tool_shortlisting" not in Plugins.model_fields
 
     def test_it_does_not_reach_the_catalog_schema(self):
-        """The catalog rejects unknown properties, so platform-only fields are stripped."""
+        """
+        The catalog rejects unknown properties, so platform-only fields are stripped.
+        """
         assert "tool_shortlisting" not in NATIVE_AGENT_CATALOG_FIELDS
 
 
@@ -62,7 +64,9 @@ class TestWhatGetsSent:
         assert _sent(agent)["tool_shortlisting"] == {"enabled": True, "max_tools": 12}
 
     def test_max_tools_alone_does_not_fabricate_enabled(self):
-        """A missing `enabled` is what tells the runtime to keep the style default."""
+        """
+        A missing `enabled` is what tells the runtime to keep the style default.
+        """
         agent = AgentSpec(**_spec(tool_shortlisting={"max_tools": 7}))
         assert _sent(agent)["tool_shortlisting"] == {"max_tools": 7}
 
@@ -122,7 +126,9 @@ class TestCustomerCare:
         assert not any("tool_shortlisting" in r.message for r in caplog.records)
 
     def test_hook_plugins_are_still_rejected(self):
-        """Reverting the plugins carve-out must not loosen the existing check."""
+        """
+        Reverting the plugins carve-out must not loosen the existing check.
+        """
         with pytest.raises(BadRequest, match="plugins"):
             AgentSpec(
                 **_spec(
