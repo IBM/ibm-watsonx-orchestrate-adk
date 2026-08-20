@@ -258,6 +258,7 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 ```
 instructions_eval/
 ├── index.md                                    ← manifest listing all reports and their overall verdicts
+├── rules-summary.md                            ← copy of evaluation rules reference (copy from skill directory)
 ├── agent_<name>_report.md                      ← agent-level report (main instructions only)
 ├── agent_<name>_report_harness.json            ← agent-level JSON harness
 ├── skill_<skill-name>_report.md                ← one per resolved skill
@@ -290,9 +291,10 @@ instructions_eval/
 
 **Evaluation order and save-as-you-go:**
 1. Extract all metadata (Step 1) — this is fast and must complete before any analysis
-2. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-skill context
-3. Evaluate and save each **skill report** independently, in any order — each skill is self-contained
-4. Write the **index file** last, after all reports are complete
+2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
+3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-skill context
+4. Evaluate and save skill reports in **batches of at most 2 at a time** — analyse and write 2 skills, save both, then proceed to the next 2. Do not evaluate all skills simultaneously; batching limits context load and reduces the risk of analysis cross-contamination between skills
+5. Write the **index file** last, after all reports are complete
 
 **When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`.
 
@@ -304,7 +306,7 @@ instructions_eval/
 
 **Be evidence-based:**
 - Quote or paraphrase concrete lines from the input, including the line number where available
-- **If the quoted text is not in English, provide the original quote first, then an English translation on the next line, marked `[Translation]: ...`**
+- **Non-English quotes: ALWAYS follow every non-English quote with a `[Translation]: ...` line in English. This is mandatory — do not omit it, do not paraphrase it away, and do not assume the reviewer reads the source language. Every finding Evidence block that contains a non-English quote must have a corresponding translation on the very next line.**
 - Do not make claims without pointing to supporting text
 - Distinguish between deterministic signals and judgment-based conclusions
 
@@ -334,9 +336,10 @@ instructions_eval/
 
 Refer to these files for detailed guidance:
 - [`dimension-definitions.md`](dimension-definitions.md): Complete scoring rubrics for all five dimensions
-- [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-F)
+- [`signal-rules.md`](signal-rules.md): Deterministic rules to reduce subjectivity (Rules A-N)
 - [`report-template.md`](report-template.md): Required report structure and section order
 - [`example-finding.md`](example-finding.md): Sample finding with all required elements
+- [`rules-summary.md`](rules-summary.md): Standalone rules reference document — copy into every report set so reviewers can interpret scores without accessing the skill directory
 
 ## Output Requirements
 
@@ -363,11 +366,12 @@ Refer to these files for detailed guidance:
 7. Key risks and high-impact changes for this skill
 8. Back-link to agent report: `Part of agent evaluation: [agent-<name>_report.md](agent-<name>_report.md)`
 
-*Index file* (`index.md`):
+*Index file* (`index.md`) + `rules-summary.md` (copied from skill directory):
 1. Table listing every report, its artifact type, and its overall verdict/band
 2. Agent-level scorecard summary (one row per dimension)
 3. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
 4. List of any unresolved skills (SKILL.md not found)
+5. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
 
 **The markdown report must be:**
 - Specific and evidence-backed
