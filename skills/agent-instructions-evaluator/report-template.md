@@ -11,7 +11,7 @@ This file defines three templates that together form the **report set** produced
 - `skill_<skill-name>_report.md` / `skill_<skill-name>_report_harness.json`
 - `index.md`
 
-Each report is saved to disk as soon as it is complete — do not batch.
+Each report is saved to disk as soon as it is complete. Skill reports are produced in **batches of at most 2 at a time** — complete and save 2 skill reports before starting the next pair. Do not evaluate all skills in parallel.
 
 ---
 
@@ -191,9 +191,9 @@ For each pair meeting the consolidation trigger threshold:
 ### Finding 1: [Short descriptive title]
 **Evidence**
 > [Direct quote from input] *(line N)*
-> [Translation]: [English rendering — omit this line if the original is already in English]
+> [Translation]: [English rendering — **REQUIRED if quote is not in English; omit only if quote is already in English**]
 > [Another quote if relevant] *(line N)*
-> [Translation]: [English rendering — omit if already in English]
+> [Translation]: [English rendering — **REQUIRED if quote is not in English**]
 
 **Why it matters**
 [Explanation of operational impact]
@@ -331,7 +331,7 @@ Use this structure for `skill_<skill-name>_report.md`. The instruction content b
 ### Finding 1: [Short title]
 **Evidence**
 > [Direct quote from SKILL.md body] *(line N)*
-> [Translation]: [English rendering — omit this line if the original is already in English]
+> [Translation]: [English rendering — **REQUIRED if quote is not in English; omit only if quote is already in English**]
 
 **Why it matters** / **Deterministic or judgment-based** / **Score impact** / **Recommended change**
 [Standard five-element structure]
@@ -348,77 +348,6 @@ Use this structure for `skill_<skill-name>_report.md`. The instruction content b
 
 ## Optional Rewrite Targets
 - [Section or rule bundle to rewrite]
-
-## Evaluation Harness Handoff
-
-### Structured extraction object
-```json
-{
-  "report_type": "skill",
-  "skill_name": "",
-  "skill_file": "",
-  "agent_name": "",
-  "agent_report": "agent_<name>_report.md",
-  "scope": "full|partial",
-  "evaluation_mode": "",
-  "extraction_summary": {
-    "skill_body_lines": 0,
-    "allowed_tools_count": 0,
-    "scripts": [],
-    "references": [],
-    "has_wxo_yaml": false
-  },
-  "signals": {
-    "skill_body_length_lines": 0,
-    "skill_body_length_category": "Short|Medium|Long|Very long",
-    "critical_constraints": 0,
-    "exact_phrase_requirements": 0,
-    "nested_conditional_branches": 0,
-    "active_rules_per_turn_estimate": 0,
-    "implicit_state_requirements": 0,
-    "tool_required_behaviors_missing_details": 0,
-    "hard_conflicts": 0
-  },
-  "skill_health_this_skill": {
-    "sk1_single_responsibility": {"rating": "Pass|Warn|Fail", "workflows_count": 0, "note": ""},
-    "sk3_routing_clarity": {"rating": "Pass|Warn|Fail", "has_intent_coverage": true, "has_boundary_conditions": true, "note": ""},
-    "sk4_no_cross_dependencies": {
-      "rating": "Pass|Warn|Fail",
-      "dependencies_found": [],
-      "dependency_loop_detected": false,
-      "loop_cycle": [],
-      "note": ""
-    },
-    "sk5_complexity": {
-      "rating": "Pass|Warn|Fail",
-      "lines": 0,
-      "nested_branches": 0,
-      "active_rules_per_turn": 0,
-      "exact_phrases": 0,
-      "implicit_state_vars": 0,
-      "note": ""
-    }
-  },
-  "runtime_performance_risk": {
-    "token_overhead_risk": "Low|Medium|High",
-    "reasoning_overhead_risk": "Low|Medium|High",
-    "tool_call_overhead_risk": "Low|Medium|High",
-    "retry_repair_loop_risk": "Low|Medium|High",
-    "latency_variance_risk": "Low|Medium|High",
-    "main_drivers": [],
-    "performance_interpretation": ""
-  },
-  "dimension_scores": {
-    "task_understanding": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
-    "scope_applicability": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
-    "execution_tool_grounding": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
-    "instruction_followability": {"score": 0, "confidence": "Low", "evidence": [], "signals": []},
-    "state_conflict_manageability": {"score": 0, "confidence": "Low", "evidence": [], "signals": []}
-  },
-  "findings": [],
-  "incidents": []
-}
-```
 ```
 
 ---
@@ -431,6 +360,10 @@ Use this structure for `index.md`.
 # Evaluation Index — [Agent Name]
 
 Generated: [date/time if available]
+
+## Reference Documents
+
+- [rules-summary.md](rules-summary.md) — Evaluation rules reference (Rules A–N, scoring dimensions, interpretation bands)
 
 ## Report Set
 
@@ -636,6 +569,8 @@ Provide full reasoning for each score. Quote evidence. Explain why the score is 
 ### Findings
 Each finding must have all five elements: Evidence, Why it matters, Deterministic or judgment-based, Score impact, Recommended change. In skill reports, findings should reference the specific SKILL.md body line or section where the issue appears. Do not repeat agent-level findings in skill reports — the skill report covers only the skill body.
 
+**Translation requirement (mandatory):** Every non-English quote in an Evidence block must be followed immediately by a `[Translation]: ...` line containing the English rendering. Do not skip this even for short phrases or when the meaning seems obvious. The reviewer may not read the source language.
+
 ### Key Risks
 Focus on production failure modes, not theoretical concerns.
 
@@ -660,7 +595,7 @@ SK-2, SK-6, and SK-7 are cross-skill checks and belong in the agent report only.
 Place this section immediately after Dimension Analysis and before Findings in the agent report. Each row in the Skill Health Table must have a brief but specific evidence note — do not write "N/A" without explanation. Consolidation recommendations must include a concrete merge strategy: which `allowed-tools` to carry forward, how to combine the body sections, what to do with the `description` frontmatter.
 
 ### Index
-The index is a navigation and summary document, not an analysis document. Keep it brief. Every report file in the eval/ directory must appear in the Report Set table. The Skill Health Summary table uses single-letter codes (P/W/F) for space; the full ratings are in the individual reports.
+The index is a navigation and summary document, not an analysis document. Keep it brief. Every report file in the eval/ directory must appear in the Report Set table. The Skill Health Summary table uses single-letter codes (P/W/F) for space; the full ratings are in the individual reports. The `rules-summary.md` file must be present in the eval/ directory and linked from the index's Reference Documents section.
 
 ### Evaluation Harness Handoff
 Both agent and skill JSON files must include `"report_type": "agent"` or `"report_type": "skill"` as the first key to make them machine-distinguishable. The agent JSON must include `skill_health` whenever skills are evaluated. The skill JSON must include `skill_health_this_skill` with only SK-1/SK-3/SK-4/SK-5. Omit the `skill_health` key from skill reports entirely.
