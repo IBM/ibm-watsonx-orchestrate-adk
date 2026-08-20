@@ -37,6 +37,7 @@ from ibm_watsonx_orchestrate.agent_builder.agents import (
     AgentRestrictionType,
     AgentStyle
 )
+from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
 from ibm_watsonx_orchestrate.cli.workspace_context import get_active_workspace_name, should_use_workspaces
 from ibm_watsonx_orchestrate.agent_builder.models.types import ModelConfig
 from ibm_watsonx_orchestrate.agent_builder.tools.types import ToolSpec
@@ -1966,10 +1967,9 @@ class AgentsController:
             case _:
                 return ([], [[f"Invalid Agent kind '{target_agent_kind}'"]])
         
-        # Use client method directly - it handles workspace_id parameter 
+        # Use client method directly - it handles workspace_id parameter
         response = agent_client.get(workspace_id=workspace_id, include_global=include_global)
         
-        from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
         token = validation_context.set("list")
         try:
             agents = []
@@ -2487,8 +2487,7 @@ class AgentsController:
         return agent_spec
 
     def get_agent(self, name: str, kind: AgentKind, workspace_id: Optional[str] = None) -> Agent | ExternalAgent | AssistantAgent:
-        from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
-        token = validation_context.set("list")
+        token = validation_context.set("get")
         try:
             match kind:
                 case AgentKind.NATIVE:
@@ -2513,13 +2512,12 @@ class AgentsController:
         external_client = self.get_external_client()
         assistant_client = self.get_assistant_client()
 
-        # Use client methods directly - they handle workspace_id parameter 
+        # Use client methods directly - they handle workspace_id parameter
         native_result = native_client.get_draft_by_id(id, workspace_id=workspace_id)
         external_result = external_client.get_draft_by_id(id, workspace_id=workspace_id)
         assistant_result = assistant_client.get_draft_by_id(id, workspace_id=workspace_id)
 
-        from ibm_watsonx_orchestrate.agent_builder.agents.types import validation_context
-        token = validation_context.set("list")
+        token = validation_context.set("get_by_id")
         try:
             if native_result:
                 return Agent.model_validate(native_result)
