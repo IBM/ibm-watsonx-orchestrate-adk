@@ -169,6 +169,7 @@ def parse_create_native_args(name: str, kind: AgentKind, description: str | None
         "custom_join_tool": args.get("custom_join_tool"),
         "structured_output": args.get("structured_output"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     collaborators = args.get("collaborators", [])
@@ -217,6 +218,7 @@ def parse_create_external_args(name: str, kind: AgentKind, description: str | No
         "nickname": args.get("nickname"),
         "app_id": args.get("app_id"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
@@ -236,6 +238,7 @@ def parse_create_assistant_args(name: str, kind: AgentKind, description: str | N
         "config": args.get("config", {}),
         "nickname": args.get("nickname"),
         "context_access_enabled": args.get("context_access_enabled", True),
+        "custom_agents_metadata": args.get("custom_agents_metadata"),
     }
 
     context_variables = args.get("context_variables", [])
