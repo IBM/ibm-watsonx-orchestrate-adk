@@ -507,9 +507,116 @@ Rule O and Rule P are complementary but distinct. Rule O targets instruction tok
 
 ---
 
+## Rule Q: Reliability optimization
+
+**What this rule measures:** Whether the agent's design contains patterns that produce systematic, repeatable compliance failures at runtime — failures that occur not randomly but predictably, for specific turn types, because the instructions structurally cannot be followed reliably. Where Rule O targets token cost and Rule P targets execution depth, Rule Q targets **instruction-level fragility**: the patterns that cause the agent to consistently produce wrong, missing, or corrupted output for identifiable classes of input.
+
+Rule Q is distinct from the five achievability dimensions: the main evaluation scores *what* the achievability risk is; Rule Q identifies *specific rewrite actions* that eliminate the highest-confidence failure sources, grouped by the class of fix rather than by dimension.
+
+**Always produce** a `reliability_optimization_report.md` as part of every evaluation. If no reliability optimization opportunities are found after running the full checklist, the report still exists and states that — providing a stability baseline for future comparisons.
+
+**Severity classification** — for each item found, classify it as:
+- **Critical** — the pattern will produce a wrong or missing output on a predictable, non-trivial fraction of production turns; no workaround exists inside the current instruction design
+- **High** — the pattern produces compliance failures under specific but commonly encountered conditions (e.g. multi-intent turns, adversarial phrasing, edge-of-scope inputs)
+- **Medium** — the pattern is a known fragility that will cause occasional failures; manageable with targeted rewrite
+- **Low** — marginal risk; failure mode is rare or recoverable
+- **None found** — checklist item checked, no instance detected
+
+**What to assess — reliability optimization checklist:**
+
+*Implicit state and counters (Rule A patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **LLM-side attempt counter** | Instructions ask the LLM to count missed calls, retry attempts, or clarification turns from conversation history | Move counter to server-side state or tool return field; agent reads a field value, never counts |
+| **Cross-turn "already asked" memory** | Instructions say "never ask X twice" or "remember if the user already provided Y" without an explicit context variable | Add a boolean context variable set by the tool response; instructions check the variable |
+| **Journey step tracking** | Agent must infer which step of a multi-step journey it is on from conversation history rather than a server-returned `current_state` | Ensure the journey tool always returns `current_state`; instructions branch on the field value, not on history review |
+
+*Exact-phrase and verbatim requirements (Rule B patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Verbatim relay with backend hook** | A prefix, sentinel string, or exact body text the LLM must produce triggers a plugin, backend system, or downstream formatter | Move production to the plugin layer; LLM produces variable content, plugin adds the exact framing |
+| **Prohibited-phrase enforcement** | Instructions list N phrases the LLM must never include in a specific response type; enforcement is entirely LLM-side | Move to post-invoke plugin text filter; the filter is deterministic, the LLM is not |
+| **Enum classification without tool** | LLM must classify free text to a fixed enum (e.g. `reason_a \| reason_b \| other`) inside the instruction body; no tool validates the output | Externalize to a classification tool or routing tool enrichment field that returns and validates the enum value |
+
+*Scope and routing fragility (Rule I/J patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Tense-based or phrasing-dependent routing boundary** | Two skills or two intents are distinguished by grammatical tense, a single keyword, or phrase form rather than semantic intent | Replace with a CAUSE-based or object-based boundary; add explicit disambiguation examples; add a fallback tool call for ambiguous cases |
+| **Subjective "last resort" fallback** | A skill or handler is described as "use when nothing else applies" without an explicit exclusion list | Add an explicit exclusion list enumerating what this skill does NOT cover; transforms a judgment-based rule to a deterministic boundary |
+| **Overlapping skill descriptions** | Two skills have descriptions that cover the same user intent; routing to the correct skill requires contextual judgment that was not present at routing time | Resolve overlap: either merge the skills or rewrite one description to explicitly exclude the shared edge case |
+
+*Conflicting and competing rules (Rule A/F patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Same-turn dual-field distinction** | Agent must simultaneously distinguish two similarly named fields from different sources (e.g. `action_required` vs `action_should_be_offered`) and take opposite actions depending on which is true | Sequence the checks explicitly: check field A first; only if A is false, check field B. Or consolidate into a single action-type enum at the tool layer |
+| **Competing output format rules** | Instructions specify both a short-response rule (e.g. "max 2 sentences") and a verbatim relay rule (e.g. "relay the tool's response text literally") — one will be violated when the tool response is long | Explicitly prioritize: verbatim relay overrides length limits; or note the exception case |
+| **Double-negative fill conditions** | A fill/no-fill rule uses a double negative: "fill only when NOT condition_A AND NOT condition_B" — cognitively dense and error-prone | Rewrite as a positive condition: "fill only when [positive state is true]" |
+
+*Underspecified tool behavior (Rule D patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Missing failure handling** | A tool call has no documented failure path in the instructions — no guidance on what to do if the tool returns an error, times out, or returns unexpected output | Add a 1-line failure handler per tool: "if tool unavailable or returns error → [specific action]"; or document this in the tool's error return schema |
+| **Undeclared context variable** | Instructions reference a context variable (e.g. `user_context`, `channel`) that is not declared in the YAML `context_variables:` list | Declare the variable in `context_variables:` or document explicitly that it is injected by a pre-invoke plugin |
+| **`next_action` value not fully enumerated** | A dispatch table handles N named `next_action` values but does not specify what to do when an unexpected value is returned (no-match case) | Add an explicit no-match handler: "if `next_action` value is not in the table → call the tool again without changes" or "→ offer handoff" |
+
+*Skill body–specific reliability (SK-5 patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Skill body exceeds followability threshold** | A skill body triggers Rule E Trigger 2 (>150 lines) or Rule F high range (>10 active rules/turn) | Decompose: identify the 2–3 sub-sections driving line count; move each to a tool, plugin, or separate skill |
+| **Multi-workflow skill (SK-1 Warn/Fail)** | A skill body contains 2+ distinct primary workflows with different output contracts (e.g. verbatim relay AND free synthesis) | Split into two skills, one per workflow, with non-overlapping `description` frontmatter |
+| **Cross-skill state assumption (SK-4 Warn/Fail)** | A skill body assumes state, tool output, or a routing decision that could only come from another skill having already run | Remove the assumption; make the skill independently executable by adding a check-and-call for any prerequisite state |
+
+*Workflow encoding (Rule C/F patterns):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **LLM-orchestrated multi-step chain** | Instructions contain a `next_action` dispatch table (or equivalent) driving 3+ sequential tool calls where each step follows deterministically from the previous one — a sequence with known transitions and known exit conditions | Wrap the chain in an agentic workflow or `@flow` tool; the LLM calls the entry point once and receives the final result; each link in the chain becomes a guaranteed deterministic transition, not a probabilistic LLM decision |
+
+**For each identified opportunity, report:**
+1. **REL-N label** — numbered reliability item (REL-1, REL-2, …)
+2. **Category** — implicit state / exact-phrase / scope-routing / conflicting rules / tool underspecification / skill body / workflow encoding
+3. **Failure mode** — the specific wrong output or compliance failure this pattern produces (what goes wrong, under what conditions)
+4. **Evidence** — direct quote from agent instructions or skill body; line number if available; non-English quotes must include `[Translation]`
+5. **Root cause** — why the design produces this failure (missing state object / missing plugin / missing tool contract / overlapping descriptions / competing rules)
+6. **Recommendation** — specific rewrite: what to change, where, and what the result should look like
+7. **Reliability impact** — estimated fraction of production turns where this failure will manifest (e.g. "every SIP first turn", "~15% of cancellation turns", "rare — only on neutral-phrasing edge cases")
+8. **Rule cross-reference** — which achievability dimension and Rule letter this finding ties to (for traceability back to the main report)
+
+**Relationship to main evaluation reports:**
+- Rule Q does not re-score the five dimensions — that is the main agent/skill reports' job. Rule Q takes the findings *from* those reports and synthesises them into a single, prioritised, implementation-ready rewrite plan.
+- Every REL-N item must trace back to at least one finding or signal in the main agent report or a skill report. Rule Q is a synthesis document, not an independent analysis.
+- Findings already addressed by Rule O (token reduction) or Rule P (hop reduction) should cross-reference those items when the fix overlaps (e.g. "moving a classification step to a tool also reduces the skill body size — see OPT-N and PERF-N").
+
+**Anti-patterns to document** (include in the report to guide future prompt authors):
+- LLM asked to count or remember across turns without external state
+- Exact-phrase requirements whose correctness drives a backend system — these belong in the plugin layer
+- Routing boundaries defined by grammatical form (tense, pronoun) rather than semantic intent
+- Competing rules stated at the same priority level without an explicit sequencing rule
+- Tool dispatch tables with no no-match handler — every dispatch table needs an explicit default case
+- Skills with multiple output contracts (verbatim vs. synthesized) — one skill, one contract
+- Undeclared context variables that are assumed to be available at runtime
+- Multi-step deterministic sequences (3+ steps, known transitions, known exits) implemented as LLM-orchestrated dispatch tables — every link is a probabilistic decision; compound errors accumulate; move the control plane to an agentic workflow or `@flow` tool
+
+**Report structure:** Follow Template 6 in `report-template.md`.
+
+**What this rule does NOT do:**
+- Does not re-score the five evaluation dimensions (side report only)
+- Does not introduce new findings — every REL-N item must trace back to evidence already in the main reports
+- Does not duplicate Rule O or Rule P recommendations — when a fix reduces both reliability and token cost or hops, note the cross-reference but do not re-explain the full recommendation
+
+**When no issues are found:** The report is still produced. Include the full checklist results showing "None found" for each pattern, and close with: "No reliability optimization opportunities were identified by static analysis. The current design avoids all known systematic failure patterns. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas."
+
+---
+
 ## How to apply these rules
 
-1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools. **For agents with skills, repeat this count for each skill body (SK-5), perform overlap analysis across all skill descriptions (SK-2), identify correlated pairs (SK-6/Rule M), compute the full performance surface (SK-7/Rule N), and check whether the Rule O token optimization trigger and Rule P runtime performance trigger apply.**
+1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools. **For agents with skills, repeat this count for each skill body (SK-5), perform overlap analysis across all skill descriptions (SK-2), identify correlated pairs (SK-6/Rule M), and compute the full performance surface (SK-7/Rule N). After all main reports are complete, synthesise the three side reports: Rule O (token optimization), Rule P (performance optimization), and Rule Q (reliability optimization) — all three are always produced.**
 
 2. **Apply the bounds:** Use the thresholds above to establish scoring bounds (e.g., "State & Conflict Manageability should not exceed 2"). **When SK rules trigger, apply their bounds to the corresponding agent-level dimensions. When Rules M and N trigger, apply their risk ratings to the Runtime Performance Risk section.**
 

@@ -253,9 +253,11 @@ For each major issue identified, create a finding with:
 
 Generate one report per evaluated artifact — the agent instructions plus one report for each resolved skill — and a lightweight index file. Each report is independent and can be written to disk as soon as its analysis is complete; do not wait for all reports to finish before saving any.
 
-**Token optimization side report (`token_optimization_report.md`):** Always produced as part of every evaluation. Covers **both optimization surfaces**: (1) the agent's main instructions — loaded on every single turn, highest-leverage target — and (2) skill bodies, loaded per intent. Runs the full Rule O checklist against both surfaces and reports each pattern with a severity (High / Medium / Low / None found). If no issues are found, the report records the current per-turn token budget as a verified baseline and closes with that finding.
+**Token optimization side report (`token_optimization_report.md`):** Always produced as part of every evaluation. Covers both optimization surfaces: agent instructions (every turn) and skill bodies (per load). Runs the full Rule O checklist; reports each pattern with a severity (High / Medium / Low / None found). If no issues are found, records the current per-turn token budget as a verified baseline.
 
-**Performance optimization side report (`performance_optimization_report.md`):** Always produced as part of every evaluation. Targets **execution call-graph depth**: unconditional tool calls, fixed sequential tool chains, `next_action` multi-hop dispatch, deep skill/collaborator stacks, guidelines overhead, and correlated tool sets. Runs the full Rule P checklist and reports each pattern with a severity. If no issues are found, the report records the current call-graph baseline and closes with that finding.
+**Performance optimization side report (`performance_optimization_report.md`):** Always produced. Targets execution call-graph depth: unconditional tool calls, sequential tool chains, `next_action` multi-hop dispatch, deep skill/collaborator stacks, guidelines overhead, correlated tool sets. Runs the full Rule P checklist with severity per pattern. If no issues are found, records the current call-graph baseline.
+
+**Reliability optimization side report (`reliability_optimization_report.md`):** Always produced. Synthesises findings from the main agent and skill reports into a prioritised, implementation-ready rewrite plan grouped by failure class (implicit state, exact-phrase, scope/routing, conflicting rules, tool underspecification, skill body). Every REL-N item traces back to evidence already in the main reports — no new findings. Runs the full Rule Q checklist with severity per pattern. If no issues are found, records a stability baseline.
 
 **Report set layout:**
 
@@ -263,8 +265,9 @@ Generate one report per evaluated artifact — the agent instructions plus one r
 instructions_eval/
 ├── index.md                                    ← manifest listing all reports and their overall verdicts
 ├── rules-summary.md                            ← copy of evaluation rules reference (copy from skill directory)
-├── token_optimization_report.md                ← token consumption optimization report (optional — see Rule O)
-├── performance_optimization_report.md          ← runtime performance optimization report (optional — see Rule P)
+├── token_optimization_report.md                ← token consumption optimization (Rule O — always produced)
+├── performance_optimization_report.md          ← runtime performance optimization (Rule P — always produced)
+├── reliability_optimization_report.md          ← reliability optimization (Rule Q — always produced)
 ├── agent_<name>_report.md                      ← agent-level report (main instructions only)
 ├── agent_<name>_report_harness.json            ← agent-level JSON harness
 ├── skill_<skill-name>_report.md                ← one per resolved skill
@@ -300,13 +303,14 @@ instructions_eval/
 2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
 3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-skill context
 4. Evaluate and save skill reports in **batches of at most 2 at a time** — analyse and write 2 skills, save both, then proceed to the next 2. Do not evaluate all skills simultaneously; batching limits context load and reduces the risk of analysis cross-contamination between skills
-5. Evaluate and save the **token optimization side report** after all skill reports are complete — always; it synthesizes evidence from the full report set
-6. Evaluate and save the **performance optimization side report** after the token optimization report — always; it can cross-reference Rule O items for dual-benefit opportunities
-7. Write the **index file** last, after all reports are complete
+5. Evaluate and save the **token optimization side report** after all skill reports are complete — always
+6. Evaluate and save the **performance optimization side report** after the token report — always; cross-references Rule O items for dual-benefit opportunities
+7. Evaluate and save the **reliability optimization side report** last among the three side reports — always; synthesises findings from all main reports and cross-references OPT-N and PERF-N items
+8. Write the **index file** last, after all reports are complete
 
-**When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`. Still produce both side reports — they will note the partial mode as a limitation.
+**When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`. Produce all three side reports — note partial mode as a limitation on skill-body coverage.
 
-**When there are no skills:** produce all reports including both side reports. The token and performance reports will note the reduced surface (agent instructions only; no skill bodies to assess) and may be brief if no issues are found.
+**When there are no skills:** produce all reports including all three side reports. Reports will note the reduced surface (agent instructions only) and may be brief if no issues are found.
 </Step>
 </Steps>
 
@@ -393,14 +397,20 @@ Refer to these files for detailed guidance:
 7. Cross-references to Rule O items where dual benefit exists
 8. Back-reference to the agent report: `Side report to: [agent_<name>_report.md]`
 
+*Reliability optimization report* (`reliability_optimization_report.md`) — always produced:
+1. Reliability checklist summary table: all 18 patterns, severity per pattern, source reference
+2. Reliability optimization inventory: one REL-N entry per identified item (ordered Critical → High → Medium → Low), with failure mode, evidence, root cause, recommendation, reliability impact, rule cross-reference, and cross-report reference (OPT-N / PERF-N)
+3. Implementation roadmap: Phase 1 (Critical + High), Phase 2 (Medium), Phase 3 (Low)
+4. Anti-pattern section: patterns that produced identified failure modes
+5. Back-reference and cross-references: `Side report to: [agent_<name>_report.md]`
+
 *Index file* (`index.md`) + `rules-summary.md` (copied from skill directory):
 1. Table listing every report, its artifact type, and its overall verdict/band
 2. Agent-level scorecard summary (one row per dimension)
 3. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
 4. List of any unresolved skills (SKILL.md not found)
-5. Link to `token_optimization_report.md` in the Reference Documents section (when produced)
-6. Link to `performance_optimization_report.md` in the Reference Documents section (when produced)
-7. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
+5. Links to all three side reports in Reference Documents, each with a one-line summary (issues found or baseline recorded)
+6. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
 
 **The markdown report must be:**
 - Specific and evidence-backed
