@@ -2,7 +2,7 @@
 
 This document is a concise reference for the deterministic signal rules applied during every agent instructions evaluation. Copy it into any report set so reviewers can interpret scores and findings without needing to access the full skill directory.
 
-Rules **A–G** apply to all agent instruction sets and system prompts. Rules **H–N** (prefixed SK) apply specifically to agents that use a `skills:` architecture with individual `SKILL.md` files. Rule **O** triggers a token consumption optimization side report. Rule **P** triggers a runtime performance optimization side report.
+Rules **A–G** apply to all agent instruction sets and system prompts. Rules **H–N** (prefixed SK) apply specifically to agents that use a `skills:` architecture with individual `SKILL.md` files. Rules **O**, **P**, and **Q** each produce a side report — always, for every evaluation.
 
 ---
 
@@ -289,6 +289,66 @@ Rules **A–G** apply to all agent instruction sets and system prompts. Rules **
 **Relationship to Rule O:** Rule O reduces tokens (input processing). Rule P reduces hops (call-graph depth). Both compound latency. When a recommendation reduces both, flag the dual benefit in both reports.
 
 **This rule does NOT re-score the five dimensions.** It is a side report only. When no issues are found, the report still exists and states that.
+
+---
+
+### Rule Q — Reliability optimization
+**What it checks:** Whether the agent's design contains patterns that produce **systematic, repeatable compliance failures** at runtime — failures that occur predictably for specific turn types because the instructions structurally cannot be followed reliably. Rule Q takes findings *from* the main evaluation reports and synthesises them into a single, prioritised, implementation-ready rewrite plan. Every REL-N item traces back to evidence in the main reports.
+
+**Always produced** as part of every evaluation. If no issues are found, the report states that and records the current design as a reliability baseline.
+
+**Severity per item:** Critical (wrong output on a predictable, non-trivial fraction of turns) · High (failures under commonly encountered conditions) · Medium (occasional failures, targeted rewrite needed) · Low (rare or recoverable) · **None found** (checked, not detected).
+
+**Implicit state and counter patterns (Rule A):**
+| Pattern | Check | Action |
+|---|---|---|
+| LLM-side attempt counter | LLM counts missed calls or retries from history | Move to server-side state or tool return field |
+| Cross-turn "already asked" memory | "Never ask X twice" without context variable | Add boolean context variable set by tool response |
+| Journey step tracking | Agent infers journey step from history, not `current_state` | Ensure tool always returns `current_state` |
+
+**Exact-phrase and verbatim patterns (Rule B):**
+| Pattern | Check | Action |
+|---|---|---|
+| Verbatim relay with backend hook | LLM must produce exact prefix/sentinel for plugin hook | Move production to plugin layer |
+| Prohibited-phrase enforcement | LLM must suppress N specific phrases LLM-side | Move to post-invoke plugin text filter |
+| Enum classification without tool | LLM classifies free text to a fixed enum inside the instruction body | Externalize to a classification tool or routing tool enrichment field |
+
+**Scope and routing fragility (Rules I/J):**
+| Pattern | Check | Action |
+|---|---|---|
+| Tense/phrasing-dependent routing boundary | Skills distinguished by grammatical form not semantic intent | Replace with CAUSE-based boundary + explicit examples |
+| Subjective "last resort" fallback | No explicit exclusion list | Add exclusion list to description |
+| Overlapping skill descriptions | Same intent covered by two skill descriptions | Merge or rewrite to explicitly exclude shared edge case |
+
+**Conflicting and competing rules (Rules A/F):**
+| Pattern | Check | Action |
+|---|---|---|
+| Same-turn dual-field distinction | Two similar fields from different sources require opposite actions | Sequence checks explicitly or consolidate into enum at tool layer |
+| Competing output format rules | Short-response rule and verbatim relay rule conflict | Explicitly prioritize one; note the exception |
+| Double-negative fill conditions | "Fill only when NOT X AND NOT Y" | Rewrite as positive condition |
+
+**Underspecified tool behavior (Rule D):**
+| Pattern | Check | Action |
+|---|---|---|
+| Missing failure handling | No guidance for tool error / timeout / unexpected output | Add 1-line failure handler per tool or document in tool error schema |
+| Undeclared context variable | Variable referenced in instructions but absent from `context_variables:` | Declare in YAML or document as plugin-injected |
+| `next_action` no-match case | Dispatch table has no handler for unexpected values | Add explicit default/no-match case |
+
+**Skill body reliability (SK-5):**
+| Pattern | Check | Action |
+|---|---|---|
+| Skill body exceeds followability threshold | >150 lines (Rule E Trigger 2) or >10 active rules/turn (Rule F high) | Decompose — move sub-sections to tool, plugin, or separate skill |
+| Multi-workflow skill (SK-1 Warn/Fail) | Two distinct output contracts in one skill body | Split into two skills, one contract each |
+| Cross-skill state assumption (SK-4 Warn/Fail) | Skill assumes state from another skill's prior execution | Remove assumption; make skill independently executable |
+
+**Workflow encoding (Rule C/F):**
+| Pattern | Check | Action |
+|---|---|---|
+| LLM-orchestrated multi-step chain | `next_action` dispatch table (or equivalent) drives 3+ sequential tool calls with known transitions and known exits | Wrap in agentic workflow or `@flow` tool; LLM calls entry point once, receives final result; each step becomes a deterministic transition |
+
+**Cross-references:** Rule Q findings that also reduce token cost should note `OPT-N` from Rule O; findings that also reduce hops should note `PERF-N` from Rule P.
+
+**This rule does NOT re-score the five dimensions.** It is a synthesis document — every REL-N item must trace back to evidence already in the main reports. When no issues are found, the report still exists and states that.
 
 ---
 

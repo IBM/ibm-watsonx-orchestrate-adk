@@ -363,9 +363,10 @@ Generated: [date/time if available]
 
 ## Reference Documents
 
-- [rules-summary.md](rules-summary.md) — Evaluation rules reference (Rules A–P, scoring dimensions, interpretation bands)
+- [rules-summary.md](rules-summary.md) — Evaluation rules reference (Rules A–Q, scoring dimensions, interpretation bands)
 - [token_optimization_report.md](token_optimization_report.md) — Token consumption optimization ([N optimizations identified / No issues found] — ~X% per-turn reduction or baseline recorded)
 - [performance_optimization_report.md](performance_optimization_report.md) — Runtime performance optimization ([N items identified / No issues found] — ~X hops eliminated or baseline recorded)
+- [reliability_optimization_report.md](reliability_optimization_report.md) — Reliability optimization ([N items: X Critical / Y High / or "No issues found"] — implementation roadmap or baseline recorded)
 
 ## Report Set
 
@@ -769,6 +770,140 @@ List every tool chain that could be collapsed into a Python tool, flow tool, or 
 
 ---
 
+## Template 6: Reliability Optimization Report
+
+Use this structure for `reliability_optimization_report.md`. This report is **always produced** as part of every evaluation — it does not re-score the five evaluation dimensions.
+
+**This is a synthesis report:** every REL-N item must trace back to evidence already present in the main agent report or skill reports. It does not introduce new findings; it reorganises existing findings into a prioritised, implementation-ready rewrite plan grouped by failure class.
+
+**Relationship to other side reports:** When a REL-N fix also reduces token cost, cross-reference the corresponding `OPT-N` item from the token optimization report. When a fix also reduces hops, cross-reference `PERF-N` from the performance optimization report. Do not re-explain the full recommendation — a one-line cross-reference is sufficient.
+
+**When no issues are found:** still produce the full report. Run the full Rule Q checklist, record "None found" for each pattern, and close with the standard baseline statement.
+
+```markdown
+# Reliability Optimization Report
+## [Agent Name]
+
+> Side report to: [agent_<name>_report.md](agent_<name>_report.md)
+> See also: [token_optimization_report.md](token_optimization_report.md) · [performance_optimization_report.md](performance_optimization_report.md)
+> Generated: [date]
+> Scope: Systematic compliance failure patterns across agent instructions + [N] skill bodies
+
+---
+
+## Purpose
+
+[1–2 sentences. State what systematic failure patterns were found and what their combined reliability impact is. If none were found, state that the evaluation confirms the current design avoids all known systematic failure patterns.]
+
+---
+
+## Reliability Checklist Summary
+
+> Full checklist — every pattern checked regardless of outcome. Severity: Critical · High · Medium · Low · None found.
+
+| Category | Pattern | Severity | Source |
+|---|---|---|---|
+| Implicit state | LLM-side attempt counter | [severity] | [agent report Finding N / skill report: skill-name] |
+| Implicit state | Cross-turn "already asked" memory | [severity] | [source or "None found"] |
+| Implicit state | Journey step tracking without `current_state` | [severity] | [source or "None found"] |
+| Exact-phrase | Verbatim relay with backend hook | [severity] | [source or "None found"] |
+| Exact-phrase | Prohibited-phrase enforcement LLM-side | [severity] | [source or "None found"] |
+| Exact-phrase | Enum classification without tool | [severity] | [source or "None found"] |
+| Scope/routing | Tense or phrasing-dependent routing boundary | [severity] | [source or "None found"] |
+| Scope/routing | Subjective "last resort" fallback without exclusion list | [severity] | [source or "None found"] |
+| Scope/routing | Overlapping skill descriptions | [severity] | [source or "None found"] |
+| Conflicting rules | Same-turn dual-field distinction | [severity] | [source or "None found"] |
+| Conflicting rules | Competing output format rules | [severity] | [source or "None found"] |
+| Conflicting rules | Double-negative fill condition | [severity] | [source or "None found"] |
+| Tool underspecification | Missing tool failure handling | [severity] | [source or "None found"] |
+| Tool underspecification | Undeclared context variable | [severity] | [source or "None found"] |
+| Tool underspecification | `next_action` no-match case missing | [severity] | [source or "None found"] |
+| Skill body | Skill body exceeds followability threshold | [severity] | [source or "None found"] |
+| Skill body | Multi-workflow skill (SK-1 Warn/Fail) | [severity] | [source or "None found"] |
+| Skill body | Cross-skill state assumption (SK-4 Warn/Fail) | [severity] | [source or "None found"] |
+| Workflow encoding | LLM-orchestrated multi-step chain (3+ steps, known transitions) | [severity] | [source or "None found"] |
+
+---
+
+## Reliability Optimization Inventory
+
+> Items ordered by severity (Critical → High → Medium → Low). Omit this section entirely and replace with "No reliability optimization opportunities identified." if the checklist above shows all "None found".
+
+### REL-1 — [Short title]
+
+**Category:** [Implicit state / Exact-phrase / Scope-routing / Conflicting rules / Tool underspecification / Skill body]
+**Severity:** [Critical / High / Medium / Low]
+**Failure mode:** [What goes wrong, under what specific conditions — e.g. "On every voice channel first turn, the LLM may omit or corrupt the required prefix, causing the post-invoke plugin to skip personalisation silently"]
+
+**Evidence:**
+> [Direct quote from agent instructions or skill body] *(line N)*
+> [Translation]: [English rendering — **required if not in English**]
+
+**Root cause:** [Missing state object / Missing plugin / Missing tool contract / Overlapping descriptions / Competing rules — 1 sentence]
+
+**Recommendation:** [Specific rewrite — what to change, where, and what the result looks like]
+
+**Reliability impact:** [Fraction of production turns affected — e.g. "every voice call first turn", "~15% of cancellation turns", "rare — only on neutral-phrasing edge cases"]
+
+**Rule cross-reference:** [Dimension N (score impact) · Rule letter · Main report Finding N]
+
+**Cross-report:** [OPT-N from token report — also reduces ~N tokens / PERF-N from performance report — also eliminates N RTT / No cross-report overlap]
+
+---
+
+### REL-2 — [Short title]
+
+[Same structure as REL-1]
+
+[Continue for all items, Critical first]
+
+---
+
+## Implementation Roadmap
+
+> Items grouped into phases. Phase 1 = Critical + High severity; Phase 2 = Medium; Phase 3 = Low.
+
+### Phase 1 — Critical and High (address before production scale)
+
+| REL-N | Title | Change type | Effort | Cross-report |
+|---|---|---|---|---|
+| REL-[N] | [title] | [Plugin migration / Tool contract / Instruction rewrite / Skill split / State variable] | Low/Med/High | OPT-N / PERF-N / None |
+| [Continue] | | | | |
+
+### Phase 2 — Medium (address before high-throughput load)
+
+| REL-N | Title | Change type | Effort | Cross-report |
+|---|---|---|---|---|
+| REL-[N] | [title] | [change type] | Low/Med/High | OPT-N / PERF-N / None |
+
+### Phase 3 — Low (monitor; address in next iteration)
+
+| REL-N | Title | Change type | Effort | Cross-report |
+|---|---|---|---|---|
+| REL-[N] | [title] | [change type] | Low/Med/High | OPT-N / PERF-N / None |
+
+> [1–2 sentences on sequencing. Note that Phase 1 plugin migrations and tool contract changes are usually independent of each other and can be parallelised. State which items have dependencies.]
+
+---
+
+## Anti-Patterns to Avoid in Future Iterations
+
+[List the specific anti-patterns found. For each, state what it is, where it appeared, and the failure mode it created. If none found, write: "No anti-patterns identified — the current design avoids all known systematic failure patterns."]
+
+1. **[Anti-pattern name]** — [What it is, where it appeared, and what failure mode it created]
+2. [Continue for all found patterns]
+
+---
+
+*This report is a side companion to the main evaluation report set. It does not modify the achievability scores in the main reports. Every REL-N item traces back to evidence in the main reports.*
+
+*[If issues were found]:* Address Phase 1 items before production scale. Re-run the full evaluation after changes to confirm resolution.
+
+*[If no issues were found]:* No reliability optimization opportunities were identified by static analysis. The current design avoids all known systematic failure patterns. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas.
+```
+
+---
+
 ## Template 1 continued: Evaluation Harness Handoff (Agent Report)
 
 The structured extraction object for the agent report. Add `"report_type": "agent"` to distinguish from skill harness files.
@@ -965,10 +1100,13 @@ Place this section immediately after Dimension Analysis and before Findings in t
 This report is always produced — it synthesizes evidence gathered across the agent report and all skill reports. Produce it after all individual reports are written. Run the full Rule O checklist and record a severity (High / Medium / Low / None found) for each pattern. When no issues are found, record the current token budget as a verified baseline and close with the standard baseline statement; do not produce an empty file. Follow Template 4.
 
 ### Performance Optimization Report
-This report is always produced — focused on execution call-graph depth, tool composition, orchestration layers, and guidelines overhead. Produce it after the token optimization report so it can cross-reference Rule O items for dual-benefit opportunities. Run the full Rule P checklist and record a severity for each pattern. When no issues are found, record the current call-graph baseline and close with the standard baseline statement; do not produce an empty file. Follow Template 5. The two side reports are siblings — flag dual-benefit optimizations in both but do not merge the reports.
+This report is always produced — focused on execution call-graph depth, tool composition, orchestration layers, and guidelines overhead. Produce it after the token optimization report so it can cross-reference Rule O items for dual-benefit opportunities. Run the full Rule P checklist and record a severity for each pattern. When no issues are found, record the current call-graph baseline and close with the standard baseline statement; do not produce an empty file. Follow Template 5.
+
+### Reliability Optimization Report
+This report is always produced — a synthesis of findings from the main evaluation reports reorganised into a prioritised, implementation-ready rewrite plan grouped by failure class. Produce it last among the three side reports (after token and performance) so it can cross-reference both OPT-N and PERF-N items. Every REL-N item must trace back to evidence in the main reports — do not introduce new findings. Run the full Rule Q checklist and record a severity for each pattern. When no issues are found, record a stability baseline and close with the standard statement; do not produce an empty file. Follow Template 6. The three side reports are siblings — flag cross-report overlaps with one-line cross-references but do not merge the reports.
 
 ### Index
-The index is a navigation and summary document, not an analysis document. Keep it brief. Every report file in the eval/ directory must appear in the Report Set table. The Skill Health Summary table uses single-letter codes (P/W/F) for space; the full ratings are in the individual reports. The `rules-summary.md`, `token_optimization_report.md`, and `performance_optimization_report.md` files must always be present in the eval/ directory and linked from the index's Reference Documents section. For the two side reports, the one-line description should indicate whether issues were found (summarise the top result) or none were found (state "baseline recorded").
+The index is a navigation and summary document, not an analysis document. Keep it brief. Every report file in the eval/ directory must appear in the Report Set table. The Skill Health Summary table uses single-letter codes (P/W/F) for space; the full ratings are in the individual reports. The `rules-summary.md`, `token_optimization_report.md`, `performance_optimization_report.md`, and `reliability_optimization_report.md` files must always be present in the eval/ directory and linked from the index's Reference Documents section. For the three side reports, the one-line description should indicate whether issues were found (summarise the top result) or none were found (state "baseline recorded").
 
 ### Evaluation Harness Handoff
 Both agent and skill JSON files must include `"report_type": "agent"` or `"report_type": "skill"` as the first key to make them machine-distinguishable. The agent JSON must include `skill_health` whenever skills are evaluated. The skill JSON must include `skill_health_this_skill` with only SK-1/SK-3/SK-4/SK-5. Omit the `skill_health` key from skill reports entirely.
