@@ -82,6 +82,7 @@ class TestAgentCreate:
                 context_variables=None,
                 custom_agent_file_path=None,
                 custom_agent_config_file=None,
+                custom_agents_metadata=None,
             )
             publish_mock.assert_called_once()
 
@@ -141,6 +142,7 @@ class TestAgentCreate:
                 context_variables=None,
                 custom_agent_file_path=None,
                 custom_agent_config_file=None,
+                custom_agents_metadata=None,
             )
             publish_mock.assert_called_once()
 
