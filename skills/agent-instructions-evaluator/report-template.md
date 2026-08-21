@@ -583,7 +583,7 @@ Use this structure for `token_optimization_report.md`. This report is **always p
 Use this structure for `performance_optimization_report.md`. This report is **always produced** as part of every evaluation — it does not re-score the five evaluation dimensions.
 
 **Coverage:** This report covers **two performance surfaces**:
-- **Tool execution architecture** — tool-call RTTs, `next_action` multi-hop chains, sequential chains that could be collapsed, unconditional routing calls
+- **Tool execution architecture** — tool-call RTTs (round-trip times: the elapsed time between the agent issuing a tool call and receiving its response), `next_action` multi-hop chains, sequential chains that could be collapsed, unconditional routing calls
 - **Orchestration depth** — skill/collaborator layer count, redundant routing hops, guidelines overhead
 
 **Relationship to token optimization:** Token cost (Rule O) and execution call-graph depth (Rule P) are complementary. Where an optimization reduces both tokens *and* hops, note it in both reports and flag the dual benefit here.

@@ -131,7 +131,7 @@ pip install -r scripts/requirements.txt
 
 **Evaluate a watsonx Orchestrate agent YAML with skills:**
 ```
-Use the agent-instructions-evaluator skill to evaluate 'agents/autopilot.yaml',
+Use the agent-instructions-evaluator skill to evaluate 'agents/my_agent.yaml',
 search for skills under 'examples/local/myproject'
 ```
 
@@ -147,8 +147,8 @@ Run agent-instructions-evaluator on 'agents/support_bot.yaml' and save all repor
 
 **Evaluate a single skill:**
 ```
-Use agent-instructions-evaluator to evaluate the SKILL.md in 'skills/faturamento/'
-as part of agent 'agents/autopilot.yaml'
+Use agent-instructions-evaluator to evaluate the SKILL.md in 'skills/billing/'
+as part of agent 'agents/my_agent.yaml'
 ```
 
 ### What the Skill Accepts
