@@ -1,12 +1,64 @@
 import pytest
 from unittest.mock import patch
 from ibm_watsonx_orchestrate_clients.common import utils
-from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev, check_token_validity, instantiate_client
+from ibm_watsonx_orchestrate_clients.common.utils import is_local_dev, check_token_validity, instantiate_client, detect_mcsp_key_type, infer_mcspv2_iam_url
 from ibm_watsonx_orchestrate_clients.agents.agent_client import AgentClient
 # from ibm_watsonx_orchestrate.client.agents.external_agent_client import ExternalAgentClient
 # from ibm_watsonx_orchestrate.client.agents.assistant_agent_client import AssistantAgentClient
 from ibm_watsonx_orchestrate_clients.tools.tool_client import ToolClient
 from ibm_watsonx_orchestrate_clients.connections.connections_client import ConnectionsClient
+
+import base64
+
+def _make_mcsp_key(prefix: str) -> str:
+    """Encode a fake MCSP key with the given version prefix."""
+    return base64.b64encode(f"{prefix}some-uuid:secret".encode()).decode()
+
+class TestDetectMcspKeyType:
+    def test_k1_key(self):
+        assert detect_mcsp_key_type(_make_mcsp_key("k1:")) == "k1"
+
+    def test_k2_key(self):
+        assert detect_mcsp_key_type(_make_mcsp_key("k2:")) == "k2"
+
+    def test_k2_key_already_padded(self):
+        """Keys stored with trailing = padding must still decode correctly."""
+        key = base64.b64encode(b"k2:some-uuid:secret").decode()  # ends with ==
+        assert key.endswith("="), f"Expected padding in {key!r}"
+        assert detect_mcsp_key_type(key) == "k2"
+
+    def test_k2_key_no_padding(self):
+        """Keys stripped of padding must still decode correctly."""
+        key = base64.b64encode(b"k2:some-uuid:secret").decode().rstrip("=")
+        assert detect_mcsp_key_type(key) == "k2"
+
+    @pytest.mark.parametrize("api_key", [
+        None,
+        "",
+        "some-plain-iam-api-key",
+        "not-base64-!!@@##",   # invalid chars → validate=True rejects → None, not false positive
+    ])
+    def test_non_mcsp_keys_return_none(self, api_key):
+        assert detect_mcsp_key_type(api_key) is None
+
+
+class TestInferMcspV2IamUrl:
+    def test_known_azure_region(self):
+        """germanywestcentral WXO URL maps to the westus3 Azure IAM endpoint."""
+        url = "https://api.germanywestcentral.watson-orchestrate.ibm.com/instances/abc"
+        assert infer_mcspv2_iam_url(url) == "https://account-iam.azure.westus3.platform.saas.ibm.com"
+
+    def test_unknown_region_falls_back_to_default(self):
+        """An unrecognised region falls back to the global default IAM URL."""
+        url = "https://api.someunknownregion.watson-orchestrate.ibm.com/instances/abc"
+        assert infer_mcspv2_iam_url(url) == "https://account-iam.platform.saas.ibm.com"
+
+    def test_none_url_falls_back_to_default(self):
+        assert infer_mcspv2_iam_url(None) == "https://account-iam.platform.saas.ibm.com"
+
+    def test_empty_url_falls_back_to_default(self):
+        assert infer_mcspv2_iam_url("") == "https://account-iam.platform.saas.ibm.com"
+
 
 class TestIsLocalDev:
     @pytest.mark.parametrize(
