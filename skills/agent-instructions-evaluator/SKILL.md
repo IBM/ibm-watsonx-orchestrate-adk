@@ -253,12 +253,18 @@ For each major issue identified, create a finding with:
 
 Generate one report per evaluated artifact — the agent instructions plus one report for each resolved skill — and a lightweight index file. Each report is independent and can be written to disk as soon as its analysis is complete; do not wait for all reports to finish before saving any.
 
+**Token optimization side report (`token_optimization_report.md`):** Always produced as part of every evaluation. Covers **both optimization surfaces**: (1) the agent's main instructions — loaded on every single turn, highest-leverage target — and (2) skill bodies, loaded per intent. Runs the full Rule O checklist against both surfaces and reports each pattern with a severity (High / Medium / Low / None found). If no issues are found, the report records the current per-turn token budget as a verified baseline and closes with that finding.
+
+**Performance optimization side report (`performance_optimization_report.md`):** Always produced as part of every evaluation. Targets **execution call-graph depth**: unconditional tool calls, fixed sequential tool chains, `next_action` multi-hop dispatch, deep skill/collaborator stacks, guidelines overhead, and correlated tool sets. Runs the full Rule P checklist and reports each pattern with a severity. If no issues are found, the report records the current call-graph baseline and closes with that finding.
+
 **Report set layout:**
 
 ```
 instructions_eval/
 ├── index.md                                    ← manifest listing all reports and their overall verdicts
 ├── rules-summary.md                            ← copy of evaluation rules reference (copy from skill directory)
+├── token_optimization_report.md                ← token consumption optimization report (optional — see Rule O)
+├── performance_optimization_report.md          ← runtime performance optimization report (optional — see Rule P)
 ├── agent_<name>_report.md                      ← agent-level report (main instructions only)
 ├── agent_<name>_report_harness.json            ← agent-level JSON harness
 ├── skill_<skill-name>_report.md                ← one per resolved skill
@@ -294,11 +300,13 @@ instructions_eval/
 2. Copy `rules-summary.md` from the skill directory into the output `eval/` directory — do this once, before writing any reports
 3. Evaluate and save the **agent report** first — it scores the main instructions and sets the cross-skill context
 4. Evaluate and save skill reports in **batches of at most 2 at a time** — analyse and write 2 skills, save both, then proceed to the next 2. Do not evaluate all skills simultaneously; batching limits context load and reduces the risk of analysis cross-contamination between skills
-5. Write the **index file** last, after all reports are complete
+5. Evaluate and save the **token optimization side report** after all skill reports are complete — always; it synthesizes evidence from the full report set
+6. Evaluate and save the **performance optimization side report** after the token optimization report — always; it can cross-reference Rule O items for dual-benefit opportunities
+7. Write the **index file** last, after all reports are complete
 
-**When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`.
+**When SKILL.md files cannot be resolved:** produce the agent report with a "Partial Skill Mode" note; omit skill reports for unresolved skills; list them in the index as `unresolved`. Still produce both side reports — they will note the partial mode as a limitation.
 
-**When there are no skills:** produce only the agent report and its harness JSON; omit the index file.
+**When there are no skills:** produce all reports including both side reports. The token and performance reports will note the reduced surface (agent instructions only; no skill bodies to assess) and may be brief if no issues are found.
 </Step>
 </Steps>
 
@@ -366,12 +374,33 @@ Refer to these files for detailed guidance:
 7. Key risks and high-impact changes for this skill
 8. Back-link to agent report: `Part of agent evaluation: [agent-<name>_report.md](agent-<name>_report.md)`
 
+*Token optimization report* (`token_optimization_report.md`) — always produced:
+1. Current per-turn token budget table: component, lines, estimated tokens, loaded every turn?
+2. Optimization inventory: one OPT-N entry per identified opportunity, with current cost, root cause, recommendation, and projected saving
+3. Post-optimization token budget estimates (before/after table per turn type)
+4. Implementation priority table (effort × token impact × reliability benefit)
+5. Per-skill token footprint reference (current lines, current tokens, target after optimizations)
+6. Anti-pattern section: patterns that produced the identified overhead, to guide future prompt authors
+7. Back-reference to the agent report: `Side report to: [agent_<name>_report.md]`
+
+*Performance optimization report* (`performance_optimization_report.md`) — always produced:
+1. Current execution profile table: turn types, inference hops, tool-call RTTs, skill loads
+2. Optimization inventory: one PERF-N entry per identified opportunity, with current cost, root cause, mechanism, and estimated impact
+3. Tool composition candidates table: chains that could be collapsed into Python tools, flow tools, or agentic workflows
+4. Post-optimization call-graph depth estimates (before/after table per turn type)
+5. Implementation priority table (effort × latency impact × Rule O dual benefit)
+6. Anti-pattern section: patterns that produced identified overhead
+7. Cross-references to Rule O items where dual benefit exists
+8. Back-reference to the agent report: `Side report to: [agent_<name>_report.md]`
+
 *Index file* (`index.md`) + `rules-summary.md` (copied from skill directory):
 1. Table listing every report, its artifact type, and its overall verdict/band
 2. Agent-level scorecard summary (one row per dimension)
 3. Skill Health summary table (collapsed SK-1–SK-7 ratings per skill)
 4. List of any unresolved skills (SKILL.md not found)
-5. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
+5. Link to `token_optimization_report.md` in the Reference Documents section (when produced)
+6. Link to `performance_optimization_report.md` in the Reference Documents section (when produced)
+7. `rules-summary.md` present in the same `eval/` directory (copied, not regenerated)
 
 **The markdown report must be:**
 - Specific and evidence-backed

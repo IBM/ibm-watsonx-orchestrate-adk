@@ -334,9 +334,182 @@ Build a directed graph across the full skill set: draw an edge from skill A to s
 
 ---
 
+## Rule O: Token consumption optimization
+
+**What this rule measures:** Whether the agent's main instructions and skill bodies together inflate per-turn token cost beyond what the functional requirements demand. Token inflation matters because the agent instructions are loaded on **every single turn**, and each skill body is injected on top of them at load time — both sources compound. Excess tokens increase cost, increase latency, and reduce attention quality for constraints at the edges of a long context window.
+
+**Two optimization surfaces — always assess both:**
+
+1. **Agent instructions (permanent per-turn cost):** These tokens are paid on every turn, not just when a skill is active. Reducing the agent instructions by 20 lines saves tokens on every call — the highest-leverage single change available. Look for: procedure steps that belong in tools, stateful protocol sections that belong in server-side state, exact-phrase rules that belong in plugins, redundant policy restatements, and overcrowded tool-call contract sections that repeat what a tool schema already specifies.
+
+2. **Skill bodies (per-skill-load cost):** These tokens are paid each time a skill is loaded — which for active intents can mean every turn. Look for: co-load pairs, oversized bodies, preamble duplication across multiple skill bodies, LLM-side classification tables, and exact-phrase enforcement that should live in plugins.
+
+**Always produce** a `token_optimization_report.md` as part of every evaluation. If no optimization opportunities are found after running the full checklist, the report still exists and states that — providing a baseline for future comparisons.
+
+**Severity classification** — for each item found, classify it as:
+- **High** — pattern is confirmed present and exceeds a Rule C/E/F/N threshold, or is a co-load Fail
+- **Medium** — pattern is present but below a hard threshold; warrants monitoring
+- **Low** — pattern is marginal or applies only to low-frequency turn types
+- **None found** — checklist item checked, no instance detected
+
+**What to assess — optimization opportunity checklist:**
+
+*Agent instructions (permanent cost — highest leverage):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Procedure steps that belong in tools** | Agent instructions contain step-by-step workflow logic (sequential steps, retry logic, error handling) that a tool could encapsulate | Move procedure body into the tool contract; reduce agent instructions to: trigger condition + tool name + result relay rule |
+| **Stateful protocol sections** | Agent instructions implement a counter, session flag, or multi-turn state machine inline (Rule A) | Move state tracking to a server-side variable, tool return field, or context variable; reduce instructions to a single check of that field |
+| **Overcrowded tool-call contract sections** | Tool-call contract or parameter prose sections that duplicate what a tool schema already specifies | Reduce to trigger + relay rule only; move parameter detail to the tool schema or docstring |
+| **Exact-phrase rules in agent instructions tied to backend hooks** | Prefix generation, sentinel detection, verbatim relay rules in the agent instructions that trigger a plugin hook | Move to pre/post invoke plugin; reduce agent instructions to a variable substitution or remove the rule entirely |
+| **Redundant scope statements** | Agent instructions restate per-skill boundary conditions that are already in each skill's `description` frontmatter | Remove from agent instructions; the skill description is the authoritative scope statement for the agent |
+| **Implicit state correction logic** | Agent instructions ask the LLM to review conversation history to self-correct a missed step (Rule A pattern) | Replace with a server-side counter surfaced as a tool return field; reduce agent instructions to forwarding the field value |
+
+*Skill bodies (per-load cost):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Correlated co-load pairs** | Two skills confirmed to co-load per SK-6/Rule M | Consolidate into one skill; report estimated token reduction per affected turn |
+| **Oversized skill bodies** | Any skill body >100 lines (Rule E Trigger 1); especially >150 (Trigger 2) | Identify what inflates the body: classification tables, repeated preambles, inline decision trees, prohibited-phrase lists. Recommend moving each to tools or plugins |
+| **Repeated base contract prose** | Same relay/handoff/end_session rules appear in multiple skill bodies AND are already stated in agent instructions | Remove duplicated prose from skill bodies; estimate total lines × skill count savings |
+| **Exact-phrase rules tied to backend systems** | Any rule requiring exact prefix generation, exact verbatim relay, or prohibited-phrase enforcement that drives a plugin hook | Move to pre/post invoke plugin; remove from LLM instruction path; report reliability gain as well as token saving |
+| **LLM-side classification inside skill bodies** | Free-text-to-enum classification (e.g., reason codes, intent buckets, category fields) running inside the skill body, not via tool call | Externalize to a dedicated classification tool; removes classification table + tiebreaker prose from body |
+| **Mandatory in-skill re-routing calls** | A skill body that re-calls a routing or classification tool for ambiguous inputs | After consolidation or body simplification, assess whether the re-route can be replaced by an inline decision rule |
+| **Shared protocol duplication** | Multiple skill bodies each separately restate the same base relay or handoff protocol that is already stated once in agent instructions | Lift the shared protocol to agent instructions once; remove per-skill restatements |
+
+**For each identified opportunity, report:**
+1. **OPT-N label** — numbered optimization item (OPT-1, OPT-2, …)
+2. **Location** — agent instructions or skill body (name)
+3. **Current cost** — lines and estimated tokens consumed by this pattern today
+4. **Root cause** — why the inflation exists (copy-paste, missing tool contract, coupling architecture, missing plugin, missing server-side state)
+5. **Recommendation** — specific actionable change (move to tool, move to plugin, move to server-side state, consolidate skills, remove redundant prose)
+6. **Projected saving** — estimated lines removed and tokens saved per affected turn; which turn types are affected and their approximate frequency
+7. **Reliability benefit** — whether the change also reduces a Rule A/B/C/E/F signal (secondary gain beyond token reduction)
+
+**Token estimation guidance:**
+- Use ~7.5 tokens/line as a working approximation for instruction prose
+- Agent instructions: multiply their line count × tokens/line — this cost applies to **every** turn
+- Per-skill cost: multiply each skill body's line count × tokens/line — this cost applies to every turn that skill is loaded
+- Per-turn cost: agent instructions + the skill body loaded on that turn (+ second skill body if co-load is confirmed)
+- State these estimates as approximations; exact values depend on the specific tokenizer and model
+
+**Anti-patterns to document** (include in the report to guide future prompt authors):
+- Procedure steps and tool-call contracts kept in agent instructions instead of tool schemas
+- Implicit state correction logic asked of the LLM rather than tracked server-side
+- Copy-pasting base contract rules into new skill bodies
+- LLM-side classification inside skill bodies (should be tool calls)
+- Bi-directional cross-dispatch between skills without consolidation
+- Inline exact-phrase contracts tied to backend system hooks
+- Fallback skills with subjective boundaries that inflate load frequency
+- Redundant scope statements in agent instructions that duplicate skill descriptions
+
+**Report structure:** Follow Template 4 in `report-template.md`.
+
+**What this rule does NOT do:**
+- Does not re-score the five dimensions (the optimization report is a side report, not a re-evaluation)
+- Does not recommend architectural changes unrelated to token cost (do not use this report to surface general achievability concerns already covered in the main reports)
+
+**When no issues are found:** The report is still produced. Include the full checklist results showing "None found" for each pattern, state the current per-turn token budget as a baseline, and close with: "No token optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to agent instructions, skill bodies, or tool schemas."
+
+---
+
+## Rule P: Runtime performance optimization
+
+**What this rule measures:** Whether the agent's execution architecture introduces avoidable runtime overhead in the form of unnecessary tool-call round-trips (RTTs), multi-hop LLM inference passes, deep orchestration layers, or coupled tool sequences that could be collapsed into deterministic pipelines. Where Rule O measures *instruction token cost*, Rule P measures *execution latency and call-graph depth* — the two compound each other but have different remedies.
+
+**Two performance surfaces — always assess both:**
+
+1. **Tool execution architecture:** How many LLM inference passes and tool-call RTTs does a typical turn require? Are there sequential tool calls that always fire together and could be merged, chained in a Python tool, or wrapped in an agentic workflow? Are there mandatory pre/post routing calls (e.g. a classification tool called on every turn) that add a deterministic hop regardless of intent complexity?
+
+2. **Orchestration depth:** How many layers of agents, skills, and collaborators does a request traverse before reaching the tool that executes the actual work? Each additional layer (orchestrator → skill → sub-agent → tool) adds at least one LLM inference pass and one context-window write. Deeper stacks amplify latency variance.
+
+**Always produce** a `performance_optimization_report.md` as part of every evaluation. If no performance optimization opportunities are found after running the full checklist, the report still exists and states that — providing a call-graph baseline for future comparisons.
+
+**Severity classification** — for each item found, classify it as:
+- **High** — pattern is confirmed and adds ≥1 RTT or inference hop to ≥20% of turns
+- **Medium** — pattern adds overhead but only to a minority of turns, or the overhead is bounded
+- **Low** — pattern is present but impact is marginal or limited to rare turn types
+- **None found** — checklist item checked, no instance detected
+
+**What to assess — performance optimization checklist:**
+
+*Tool execution architecture:*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Mandatory unconditional tool calls** | A tool is called on every turn regardless of intent (e.g. routing classification, context hydration, peek at pending state) | Evaluate whether the call can be eliminated by returning its output as a field in a prior tool response, or moved to a pre-invoke plugin that runs outside the LLM inference loop |
+| **Fixed sequential tool chains** | Two or more tools are always called in the same order on the same turn type (e.g. tool A always followed by tool B with no branch) | Merge into a single Python tool or agentic workflow step; the LLM makes one call, the chain runs deterministically server-side |
+| **`next_action` multi-hop dispatch** | A tool returns a `next_action` field that causes the agent to call another tool in the same turn, potentially chaining N calls | Evaluate whether the entire chain can be wrapped in an agentic workflow or Python flow tool that executes all steps deterministically; LLM orchestrates entry and receives final result |
+| **LLM-side classification before tool call** | The agent must classify or route free text before deciding which tool to call (adds one deliberation pass) | Move classification to a classification tool or a pre-invoke plugin; the tool call becomes deterministic |
+| **Correlated tool sets** | A set of tools is always called together across multiple skill bodies (appears in 3+ skills) | Evaluate whether the common set can be exposed as a single composed tool, reducing the call count per turn |
+| **Tool failure handling in-prompt** | The agent instructions describe what to do when a tool fails, errors, or times out — handled via LLM reasoning rather than tool contract | Move failure handling to the tool's error return schema or to an agentic workflow retry policy; remove from LLM instruction path |
+
+*Orchestration depth and skill/collaborator architecture:*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Deep collaborator stack** | Agent → collaborator → sub-agent → tool (≥ 3 hops before reaching the executing tool) | Flatten: evaluate whether the intermediate layer adds routing value or merely proxies the request; merge collaborators whose scope is narrow |
+| **Skill routing overhead** | Every intent requires a `load_skill` call before the domain tool can be called (adds one routing decision pass + context inject) | For high-frequency intents, evaluate whether the skill body can be collapsed into agent instructions directly, eliminating the load step; for low-frequency intents this trade-off reverses |
+| **Redundant skill-level routing** | A skill body re-calls a classification or routing tool for ambiguous phrases (double routing: once at agent level, once inside skill) | After skill consolidation or body simplification, replace the in-skill re-route with a deterministic inline decision rule |
+| **Collaborator over-specialization** | Many narrow collaborators each handle a single tool, when a small set of broader collaborators with richer tool access would cover the same domain with fewer hops | Consolidate collaborators that cover adjacent intents and share tool dependencies; target ≤ 1 LLM hop between orchestrator and executing tool for the most frequent intents |
+
+*Guidelines overhead:*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **Guidelines restating agent instructions** | Guidelines duplicate rules already in the `instructions:` field | Remove duplicates from guidelines; each guideline is evaluated as an additional constraint pass at inference time |
+| **Guidelines expressing tool-call rules** | A guideline says "when X, call tool Y" — a rule that belongs in the instructions as an explicit trigger, or in the tool contract as a precondition | Move tool-call rules to instructions or tool schema; guidelines are best for behavioral guardrails (tone, safety, scope), not execution logic |
+| **High guideline count** | ≥ 5 guidelines each add constraint-check overhead on every turn, even when most are irrelevant to the current intent | Evaluate each guideline: can it be merged with a related instruction rule, expressed as a tool precondition, or removed because it duplicates an existing constraint? Target ≤ 3 execution-relevant guidelines |
+| **Guidelines with complex conditions** | A guideline's condition is itself a multi-clause if/then (e.g. "if the customer has said X and the journey is in state Y and tool Z has been called") | Decompose into an explicit instruction rule with a named state variable, or encode as a tool precondition; complex guideline conditions are evaluated as additional branch nodes per turn |
+
+*Cross-cutting (token cost × latency):*
+
+| Pattern | Check | Optimization action |
+|---|---|---|
+| **High token cost on mandatory turns** | The per-turn token cost from Rule O/N is Medium or High, and those tokens appear on every turn (agent instructions) | Token reduction from Rule O directly reduces input processing latency; reference Rule O recommendations and their latency impact |
+| **Large skill bodies on high-frequency intents** | The most-loaded skill bodies belong to the agent's highest-volume intents | Token reduction for those specific skill bodies (Rule O) has disproportionate latency impact; prioritize them first |
+
+**For each identified opportunity, report:**
+1. **PERF-N label** — numbered performance item (PERF-1, PERF-2, …)
+2. **Category** — tool execution / orchestration depth / guidelines / token×latency
+3. **Current cost** — RTTs added, inference passes added, or tokens on mandatory turns
+4. **Root cause** — why the overhead exists (missing tool composition, missing agentic workflow, over-decomposed collaborators, guidelines duplication)
+5. **Recommendation** — specific actionable change: Python tool chain, agentic workflow wrap, collaborator consolidation, guideline removal/relocation, pre-invoke plugin migration
+6. **Mechanism** — *how* the recommendation reduces latency: fewer RTTs, fewer LLM inference passes, fewer context-window writes, or reduced per-turn token cost
+7. **Estimated impact** — RTTs eliminated per affected turn type, or % turns affected
+
+**Latency model guidance:**
+- Each LLM inference pass adds ~500ms–2s latency (varies by model size and load); treat as one "inference hop"
+- Each synchronous tool-call RTT adds ~50ms–500ms (varies by tool complexity and network); treat as one "tool hop"
+- Context-window write (skill load, collaborator handoff) adds one inference hop plus token processing overhead
+- Per-turn latency ≈ (inference hops × inference latency) + (tool hops × tool latency) + (token count × processing rate)
+- State these estimates as approximations; actual values require production profiling
+
+**Anti-patterns to document** (include in the report to guide future agent architects):
+- Routing classification called unconditionally on every turn instead of being absorbed into prior tool output or a pre-invoke plugin
+- `next_action` multi-hop chains that are never short-circuited — every turn traverses the full chain even when the answer is deterministic
+- Collaborator stacks with 3+ hops where each intermediate layer adds no domain routing value
+- Guidelines used to express tool-call logic (execution branching), causing the LLM to evaluate tool routing as a constraint rather than as an instruction
+- Skill load required for every intent when high-frequency intents could bypass the skill layer via direct agent-instruction handling
+- Correlated tool sets called in N separate LLM turns when they could be composed into a single deterministic tool
+
+**Relationship to Rule O (token optimization):**
+Rule O and Rule P are complementary but distinct. Rule O targets instruction token cost — the input the LLM must process before generating a response. Rule P targets execution call-graph depth — the number of round-trips and inference passes per turn. Both compound latency, but their remedies differ: Rule O remedies reduce tokens; Rule P remedies reduce hops. A complete performance analysis runs both. When Rule O recommendations also reduce hops (e.g. moving logic to a tool removes both tokens and a deliberation pass), flag the dual benefit in both reports.
+
+**Report structure:** Follow Template 5 in `report-template.md`.
+
+**What this rule does NOT do:**
+- Does not re-score the five evaluation dimensions (side report only)
+- Does not cover token cost in detail — that is Rule O's scope; reference Rule O for token-specific recommendations
+- Does not prescribe specific tool implementation details (Python vs. REST vs. agentic workflow) — recommend the appropriate pattern and explain why; the implementor chooses the concrete technology
+
+**When no issues are found:** The report is still produced. Include the full checklist results showing "None found" for each pattern, present the current call-graph baseline, and close with: "No runtime performance optimization opportunities were identified by static analysis. Re-run this evaluation after any significant change to tool schemas, skill architecture, or guidelines."
+
+---
+
 ## How to apply these rules
 
-1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools. **For agents with skills, repeat this count for each skill body (SK-5), perform overlap analysis across all skill descriptions (SK-2), identify correlated pairs (SK-6/Rule M), and compute the full performance surface (SK-7/Rule N).**
+1. **Count the signals:** Extract exact counts for exact phrases, nested branches, active operational rules per turn, implicit state variables, and underspecified tools. **For agents with skills, repeat this count for each skill body (SK-5), perform overlap analysis across all skill descriptions (SK-2), identify correlated pairs (SK-6/Rule M), compute the full performance surface (SK-7/Rule N), and check whether the Rule O token optimization trigger and Rule P runtime performance trigger apply.**
 
 2. **Apply the bounds:** Use the thresholds above to establish scoring bounds (e.g., "State & Conflict Manageability should not exceed 2"). **When SK rules trigger, apply their bounds to the corresponding agent-level dimensions. When Rules M and N trigger, apply their risk ratings to the Runtime Performance Risk section.**
 
