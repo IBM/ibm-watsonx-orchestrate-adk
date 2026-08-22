@@ -1,6 +1,9 @@
 import logging
 from typing import Union
 
+import rich
+import rich.table
+
 from ibm_watsonx_orchestrate.client.customer_care.utils import get_customer_care_config_client
 
 logger = logging.getLogger(__name__)
@@ -41,11 +44,16 @@ def list_assist_config() -> None:
     overrides = client.get()
     if overrides is None:
         logger.info("No configuration overrides are set.")
-        print("No configuration overrides are set.")
         return
-    # Print values only — property names are never displayed
-    for value in overrides.values():
-        print(value)
+
+    table = rich.table.Table(show_header=True, header_style="bold white", show_lines=True)
+    table.add_column("Property", overflow="fold")
+    table.add_column("Value", overflow="fold")
+
+    for property_name, value in overrides.items():
+        table.add_row(property_name, str(value))
+
+    rich.print(table)
 
 
 def set_assist_config(property_name: str, value: str) -> None:

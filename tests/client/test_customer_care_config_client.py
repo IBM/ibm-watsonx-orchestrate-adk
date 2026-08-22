@@ -45,34 +45,44 @@ class TestGet:
 
 
 class TestSet:
-    def test_patches_when_row_exists(self, client):
+    def test_patches_merged_overrides_when_row_exists(self, client):
         client._get.return_value = {
             "configuration_value": {"min_confidence": 0.5}
         }
         client.set({"min_confidence": 0.7, "llm_max_tokens": 512})
         client._patch.assert_called_once_with(
             "/application_config/agent_assist_config",
-            data={"configuration_value": {"min_confidence": 0.7, "llm_max_tokens": 512}},
+            data={
+                "configuration_property_name": "Agent Assist Configuration",
+                "configuration_value": {"min_confidence": 0.7, "llm_max_tokens": 512},
+            },
         )
         client._post.assert_not_called()
 
-    def test_posts_when_no_row_exists(self, client):
+    def test_posts_when_get_raises_404(self, client):
         client._get.side_effect = _make_404()
         client.set({"min_confidence": 0.7})
         client._post.assert_called_once_with(
-            "/application_config/agent_assist_config",
-            data={"configuration_value": {"min_confidence": 0.7}},
+            "/application_config",
+            data={
+                "configuration_property_key": "agent_assist_config",
+                "configuration_property_name": "Agent Assist Configuration",
+                "configuration_value": {"min_confidence": 0.7},
+            },
         )
         client._patch.assert_not_called()
 
-    def test_merges_with_existing_overrides(self, client):
+    def test_preserves_existing_overrides_when_row_exists(self, client):
         client._get.return_value = {
             "configuration_value": {"min_confidence": 0.5, "llm_max_tokens": 256}
         }
         client.set({"min_confidence": 0.9})
         client._patch.assert_called_once_with(
             "/application_config/agent_assist_config",
-            data={"configuration_value": {"min_confidence": 0.9, "llm_max_tokens": 256}},
+            data={
+                "configuration_property_name": "Agent Assist Configuration",
+                "configuration_value": {"min_confidence": 0.9, "llm_max_tokens": 256},
+            },
         )
 
 
@@ -84,7 +94,10 @@ class TestRemove:
         client.remove("min_confidence")
         client._patch.assert_called_once_with(
             "/application_config/agent_assist_config",
-            data={"configuration_value": {"llm_max_tokens": 256}},
+            data={
+                "configuration_property_name": "Agent Assist Configuration",
+                "configuration_value": {"llm_max_tokens": 256},
+            },
         )
 
     def test_deletes_when_last_key_removed(self, client):
