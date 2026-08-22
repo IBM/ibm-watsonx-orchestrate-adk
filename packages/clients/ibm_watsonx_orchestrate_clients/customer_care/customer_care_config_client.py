@@ -6,6 +6,8 @@ from ibm_watsonx_orchestrate_clients.common.base_client import BaseWXOClient, Cl
 logger = logging.getLogger(__name__)
 
 _CONFIG_PATH = "/application_config/agent_assist_config"
+_CREATE_PATH = "/application_config"
+_CONFIG_PROPERTY_NAME = "Agent Assist Configuration"
 
 
 class CustomerCareConfigClient(BaseWXOClient):
@@ -30,16 +32,31 @@ class CustomerCareConfigClient(BaseWXOClient):
             raise
 
     def set(self, overrides: dict) -> None:
-        """Merge *overrides* into the stored configuration and persist.
+        """Persist *overrides*.
 
-        If no row exists yet a POST is used; otherwise PATCH.
+        If no row exists yet a POST is used; otherwise PATCH is used with the
+        full merged configuration because the server replaces configuration_value
+        wholesale.
         """
         existing = self.get()
         if existing is None:
-            self._post(_CONFIG_PATH, data={"configuration_value": overrides})
+            self._post(
+                _CREATE_PATH,
+                data={
+                    "configuration_property_key": "agent_assist_config",
+                    "configuration_property_name": _CONFIG_PROPERTY_NAME,
+                    "configuration_value": overrides,
+                },
+            )
         else:
             merged = {**existing, **overrides}
-            self._patch(_CONFIG_PATH, data={"configuration_value": merged})
+            self._patch(
+                _CONFIG_PATH,
+                data={
+                    "configuration_property_name": _CONFIG_PROPERTY_NAME,
+                    "configuration_value": merged,
+                },
+            )
 
     def remove(self, property_name: str) -> None:
         """Remove a single property from the stored overrides.
@@ -53,7 +70,13 @@ class CustomerCareConfigClient(BaseWXOClient):
             return
         updated = {k: v for k, v in existing.items() if k != property_name}
         if updated:
-            self._patch(_CONFIG_PATH, data={"configuration_value": updated})
+            self._patch(
+                _CONFIG_PATH,
+                data={
+                    "configuration_property_name": _CONFIG_PROPERTY_NAME,
+                    "configuration_value": updated,
+                },
+            )
         else:
             self._delete(_CONFIG_PATH)
 

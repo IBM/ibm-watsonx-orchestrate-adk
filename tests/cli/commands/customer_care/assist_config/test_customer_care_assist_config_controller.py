@@ -72,7 +72,7 @@ class TestCoerceValue:
 # ── list_assist_config ───────────────────────────────────────────────────────
 
 class TestListAssistConfig:
-    def test_prints_overrides(self, capsys):
+    def test_prints_overrides_table(self, capsys):
         mock_client = MagicMock()
         mock_client.get.return_value = {"min_confidence": 0.7, "llm_max_tokens": 512}
 
@@ -84,11 +84,14 @@ class TestListAssistConfig:
             list_assist_config()
 
         captured = capsys.readouterr()
-        assert "min_confidence" not in captured.out   # property names must never be printed
+        assert "Property" in captured.out
+        assert "Value" in captured.out
+        assert "min_confidence" in captured.out
         assert "0.7" in captured.out
+        assert "llm_max_tokens" in captured.out
         assert "512" in captured.out
 
-    def test_prints_no_overrides_when_none(self, capsys):
+    def test_logs_no_overrides_when_none(self, caplog):
         mock_client = MagicMock()
         mock_client.get.return_value = None
 
@@ -99,8 +102,7 @@ class TestListAssistConfig:
         ):
             list_assist_config()
 
-        captured = capsys.readouterr()
-        assert "no" in captured.out.lower() or "none" in captured.out.lower() or captured.out.strip() != ""
+        assert "No configuration overrides are set." in caplog.text
 
 
 # ── set_assist_config ────────────────────────────────────────────────────────
